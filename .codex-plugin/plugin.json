@@ -1,0 +1,19 @@
+{
+  "name": "intent-trace",
+  "version": "0.1.0",
+  "description": "AI가 만든 코드의 요청, 판단, 코드 근거, 검증 결과를 작성자 확인 후 공유하는 플러그인",
+  "author": {
+    "name": "IntentTrace contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Intent Trace",
+    "shortDescription": "코드 변경의 요청과 검증을 추적합니다.",
+    "longDescription": "AI 코딩 세션에서 생긴 변경을 커밋과 코드 근거에 묶고, 작성자가 확인한 기록만 팀에 공개합니다.",
+    "developerName": "IntentTrace contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "현재 변경의 요청, 판단, 코드 근거, 실제 검증을 IntentTrace 초안으로 정리해 주세요. 원문 대화나 숨은 추론은 포함하지 마세요."
+  },
+  "mcpServers": "./.mcp.json"
+}

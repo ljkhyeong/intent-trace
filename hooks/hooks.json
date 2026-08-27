@@ -1,0 +1,18 @@
+{
+  "description": "세션 시작 시 변경 의도 기록 원칙을 Codex에 전달합니다.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/scripts/session-guidance.sh\"",
+            "timeout": 3,
+            "statusMessage": "IntentTrace 기록 원칙을 불러오는 중"
+          }
+        ]
+      }
+    ]
+  }
+}
