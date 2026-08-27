@@ -1,0 +1,4 @@
+interface:
+  display_name: "IntentTrace 개발 흐름"
+  short_description: "변경 의도와 GitHub 게시 불변식을 지킵니다."
+  default_prompt: "IntentTrace 저장소 규칙에 맞춰 요청을 구현하고 필요한 검증과 문서를 함께 갱신해 주세요."

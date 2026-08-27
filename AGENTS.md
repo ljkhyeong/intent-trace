@@ -2,9 +2,9 @@
 
 ## 먼저 읽을 문서
 
-1. `README.md`
-2. `docs/PRD-0001-intent-trace-mvp.md`
-3. `docs/ADR-0001-evidence-bound-change-record.md`
+1. `skills/intent-trace-flows/SKILL.md`
+2. `README.md`
+3. 요청과 관련된 PRD·ADR
 4. `HANDOFF.md`
 
 ## 서비스 경계
@@ -15,6 +15,7 @@
 - 공개 기록은 전체 커밋과 스냅샷 해시에 묶고 직접 수정하지 않는다.
 - 실행하지 않은 명령이나 테스트를 검증으로 기록하지 않는다.
 - 비밀값과 절대 개인 경로는 저장 전에 제거한다.
+- GitHub 게시 전 저장소와 PR HEAD를 서버 응답으로 확인하고 installation token을 저장하거나 로그에 남기지 않는다.
 
 ## 구현 원칙
 

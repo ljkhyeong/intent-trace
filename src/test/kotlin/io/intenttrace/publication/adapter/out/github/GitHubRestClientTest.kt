@@ -1,0 +1,140 @@
+package io.intenttrace.publication.adapter.out.github
+
+import io.intenttrace.config.GitHubProperties
+import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import org.junit.jupiter.api.Test
+import org.springframework.http.HttpMethod
+import org.springframework.http.MediaType
+import org.springframework.test.web.client.MockRestServiceServer
+import org.springframework.test.json.JsonCompareMode
+import org.springframework.test.web.client.match.MockRestRequestMatchers.content
+import org.springframework.test.web.client.match.MockRestRequestMatchers.header
+import org.springframework.test.web.client.match.MockRestRequestMatchers.method
+import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
+import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import org.springframework.web.client.RestClient
+import java.net.URI
+import kotlin.test.assertEquals
+
+class GitHubRestClientTest {
+    private val builder = RestClient.builder()
+    private val server = MockRestServiceServer.bindTo(builder).build()
+    private val client = GitHubRestClient(
+        restClientBuilder = builder,
+        properties = GitHubProperties(
+            apiBaseUrl = URI.create("https://api.github.test"),
+            apiVersion = "2026-03-10",
+            token = "installation-token",
+        ),
+    )
+    private val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
+    private val revision = "b".repeat(40)
+
+    @Test
+    fun `PR HEAD를 GitHub 응답에서 읽는다`() {
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("Authorization", "Bearer installation-token"))
+            .andExpect(header("X-GitHub-Api-Version", "2026-03-10"))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+
+        assertEquals(revision, client.getHeadRevision(target))
+        server.verify()
+    }
+
+    @Test
+    fun `같은 external id의 Check Run이 있으면 새로 만들지 않고 갱신한다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request ->
+            assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
+            assertEquals("check_name=IntentTrace%20/%20%EB%B3%80%EA%B2%BD%20%EC%9D%98%EB%8F%84&filter=all&per_page=100&page=1", request.uri.rawQuery)
+        }
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(
+                withSuccess(
+                    """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}]}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andExpect(content().json("""{"name":"IntentTrace / 변경 의도","external_id":"$externalId","status":"completed","conclusion":"neutral"}""", JsonCompareMode.LENIENT))
+            .andRespond(
+                withSuccess(
+                    """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = client.upsertCheckRun(command(externalId))
+
+        assertEquals(77L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `기존 Check Run이 없으면 neutral 결과로 생성한다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request ->
+            assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
+        }
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("""{"check_runs":[]}""", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(
+                content().json(
+                    """{"name":"IntentTrace / 변경 의도","head_sha":"$revision","external_id":"$externalId","status":"completed","conclusion":"neutral"}""",
+                    JsonCompareMode.LENIENT,
+                ),
+            )
+            .andRespond(
+                withSuccess(
+                    """{"id":88,"head_sha":"$revision","html_url":"https://github.test/check-runs/88","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = client.upsertCheckRun(command(externalId))
+
+        assertEquals(88L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `저장된 Check Run ID는 external id와 HEAD를 확인한 뒤 갱신한다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(
+                withSuccess(
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andRespond(
+                withSuccess(
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
+
+        assertEquals(55L, result.id)
+        server.verify()
+    }
+
+    private fun command(externalId: String) = UpsertGitHubCheckRunCommand(
+        target = target,
+        headRevision = revision,
+        externalId = externalId,
+        knownCheckRunId = null,
+        title = "변경 의도",
+        summary = "작성자가 확인했습니다.",
+        markdown = "# 변경 의도",
+    )
+}

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.intenttrace"
-version = "0.0.1-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 description = "Intent-aware change provenance for AI-assisted development"
 
 java {
@@ -25,6 +25,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
 	implementation("org.springframework.boot:spring-boot-starter-flyway")
+	implementation("org.springframework.boot:spring-boot-starter-restclient")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")

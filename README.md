@@ -12,6 +12,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - 작성자가 명시한 목적과 AI 추론·미확인 목적 구분
 - REST API와 Spring AI Streamable HTTP MCP 도구
 - PR 설명에 붙일 수 있는 Markdown 출력
+- PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
 - Codex 스킬과 세션 시작 안내 훅
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
@@ -39,6 +40,15 @@ export INTENT_TRACE_DATABASE_USERNAME='intent_trace'
 export INTENT_TRACE_DATABASE_PASSWORD='로컬-비밀번호'
 ./gradlew bootRun --args='--spring.profiles.active=postgres'
 ```
+
+GitHub PR에 게시할 때는 GitHub App installation token을 환경 변수로 전달합니다. 토큰에는 대상 저장소의 `Pull requests: read`와 `Checks: write` 권한이 필요합니다. 자세한 권한과 요청 형식은 [GitHub Check Runs REST API](https://docs.github.com/en/rest/checks/runs)를 기준으로 합니다.
+
+```bash
+export INTENT_TRACE_GITHUB_TOKEN='github-app-installation-token'
+./gradlew bootRun
+```
+
+변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. 토큰은 DB나 Check Run 본문에 저장하지 않습니다.
 
 ## 기록 흐름
 
@@ -70,8 +80,9 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 - `POST /api/v1/change-records/{id}/supersede`: 새 공개 기록으로 대체
 - `GET /api/v1/change-records/lookup`: 커밋·파일·줄로 공개 기록 조회
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
+- `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 
-MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`를 제공합니다.
+MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
 
 ## Codex 플러그인
 
@@ -80,6 +91,7 @@ MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record
 - `.codex-plugin/plugin.json`: 플러그인 메타데이터
 - `.mcp.json`: 로컬 IntentTrace 서버 연결
 - `skills/intent-trace/SKILL.md`: 기록·조회 절차
+- `skills/intent-trace-flows/SKILL.md`: 저장소 개발·GitHub 게시 불변식
 - `hooks/hooks.json`: 세션 시작 시 개인정보·공개 규칙 안내
 
 플러그인 훅은 원문 프롬프트나 도구 출력을 수집하지 않습니다. Codex에 기록 원칙만 전달합니다.
@@ -93,7 +105,8 @@ scripts/validate-plugin.sh
 
 ## 현재 제한
 
-- GitHub PR 댓글이나 Checks 자동 게시 어댑터는 아직 없습니다.
+- GitHub App 설치·installation token 발급과 갱신은 아직 자동화하지 않았습니다.
+- Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
 - HTTP MCP에는 인증이 없으므로 현재 설정처럼 로컬호스트에서만 사용해야 합니다.
 - 팀 서버로 배포하기 전에 인증·권한·감사 로그를 추가해야 합니다.
@@ -102,4 +115,6 @@ scripts/validate-plugin.sh
 
 - `docs/PRD-0001-intent-trace-mvp.md`
 - `docs/ADR-0001-evidence-bound-change-record.md`
+- `docs/PRD-0002-github-pr-publication.md`
+- `docs/ADR-0002-github-check-run-publication.md`
 - `HANDOFF.md`

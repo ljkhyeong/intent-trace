@@ -29,6 +29,7 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 6. `create_change_record`로 비공개 초안을 만들고, 작성자에게 요청·판단·검증·미검증 항목을 보여준다.
 7. 작성자가 명시적으로 확인하면 `confirm_change_record`를 호출한다.
 8. 팀 공개를 명시적으로 요청했고 스냅샷이 그대로일 때만 `publish_change_record`를 호출한다.
+9. 사용자가 GitHub PR 게시까지 명시적으로 요청하면 `repositoryKey`가 `owner/repository`와 같고 기록이 공개 상태인지 확인한 뒤 `publish_change_record_to_github_pr`를 호출한다.
 
 ## 조회 절차
 
@@ -40,4 +41,5 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 
 - 현재 코드 스냅샷이 기록의 해시와 다르면 확인이나 공개를 중단하고 새 초안을 만든다.
 - 작성자 식별이나 전체 커밋 ID를 확정할 수 없으면 공개하지 않는다.
+- GitHub PR HEAD가 기록 커밋과 다르거나 Fork PR이면 게시를 중단한다.
 - 비밀값이 의심되면 기록을 만들기 전에 제거하고 사용자에게 알린다.
