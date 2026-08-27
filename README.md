@@ -13,6 +13,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - REST API와 Spring AI Streamable HTTP MCP 도구
 - PR 설명에 붙일 수 있는 Markdown 출력
 - PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
+- 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - Codex 스킬과 세션 시작 안내 훅
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
@@ -41,14 +42,17 @@ export INTENT_TRACE_DATABASE_PASSWORD='로컬-비밀번호'
 ./gradlew bootRun --args='--spring.profiles.active=postgres'
 ```
 
-GitHub PR에 게시할 때는 GitHub App installation token을 환경 변수로 전달합니다. 토큰에는 대상 저장소의 `Pull requests: read`와 `Checks: write` 권한이 필요합니다. 자세한 권한과 요청 형식은 [GitHub Check Runs REST API](https://docs.github.com/en/rest/checks/runs)를 기준으로 합니다.
+GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Pull requests: read`와 `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
 
 ```bash
-export INTENT_TRACE_GITHUB_TOKEN='github-app-installation-token'
+export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
+export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < intent-trace.private-key.pem | tr -d '\n')"
 ./gradlew bootRun
 ```
 
-변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. 토큰은 DB나 Check Run 본문에 저장하지 않습니다.
+기존 방식이 필요한 로컬 환경에서는 `INTENT_TRACE_GITHUB_TOKEN`에 직접 발급한 token을 넣을 수 있습니다. 이 값이 있으면 GitHub App 자동 발급보다 우선합니다.
+
+변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app)와 [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)을 기준으로 합니다.
 
 ## 기록 흐름
 
@@ -105,7 +109,7 @@ scripts/validate-plugin.sh
 
 ## 현재 제한
 
-- GitHub App 설치·installation token 발급과 갱신은 아직 자동화하지 않았습니다.
+- GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
 - HTTP MCP에는 인증이 없으므로 현재 설정처럼 로컬호스트에서만 사용해야 합니다.
@@ -117,4 +121,5 @@ scripts/validate-plugin.sh
 - `docs/ADR-0001-evidence-bound-change-record.md`
 - `docs/PRD-0002-github-pr-publication.md`
 - `docs/ADR-0002-github-check-run-publication.md`
+- `docs/ADR-0003-github-app-installation-auth.md`
 - `HANDOFF.md`

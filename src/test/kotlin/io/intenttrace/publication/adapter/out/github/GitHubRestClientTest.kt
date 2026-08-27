@@ -6,6 +6,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
+import org.springframework.http.HttpStatus
 import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.client.match.MockRestRequestMatchers.content
@@ -13,6 +14,7 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.web.client.RestClient
 import java.net.URI
 import kotlin.test.assertEquals
@@ -20,13 +22,14 @@ import kotlin.test.assertEquals
 class GitHubRestClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
+    private val tokenProvider = TestTokenProvider()
     private val client = GitHubRestClient(
         restClientBuilder = builder,
         properties = GitHubProperties(
             apiBaseUrl = URI.create("https://api.github.test"),
             apiVersion = "2026-03-10",
-            token = "installation-token",
         ),
+        tokenProvider = tokenProvider,
     )
     private val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
     private val revision = "b".repeat(40)
@@ -128,6 +131,20 @@ class GitHubRestClientTest {
         server.verify()
     }
 
+    @Test
+    fun `installation token이 거부되면 폐기하고 한 번만 다시 요청한다`() {
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+            .andExpect(header("Authorization", "Bearer installation-token"))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED))
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+            .andExpect(header("Authorization", "Bearer refreshed-token"))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+
+        assertEquals(revision, client.getHeadRevision(target))
+        assertEquals(listOf("installation-token"), tokenProvider.invalidatedTokens)
+        server.verify()
+    }
+
     private fun command(externalId: String) = UpsertGitHubCheckRunCommand(
         target = target,
         headRevision = revision,
@@ -137,4 +154,17 @@ class GitHubRestClientTest {
         summary = "작성자가 확인했습니다.",
         markdown = "# 변경 의도",
     )
+
+    private class TestTokenProvider : GitHubAccessTokenProvider {
+        private var currentToken = "installation-token"
+        val invalidatedTokens = mutableListOf<String>()
+
+        override fun token(target: GitHubPullRequestTarget): String = currentToken
+
+        override fun invalidate(target: GitHubPullRequestTarget, rejectedToken: String): Boolean {
+            invalidatedTokens += rejectedToken
+            currentToken = "refreshed-token"
+            return true
+        }
+    }
 }

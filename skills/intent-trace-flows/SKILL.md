@@ -34,7 +34,9 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - GitHub 게시 전 공개 기록인지 확인하고 PR `head.sha`가 기록의 `targetRevision`과 정확히 같은지 서버 응답으로 검증한다.
 - Check Run의 `external_id`에는 변경 기록 UUID를 사용해 재시도 시 기존 실행을 찾아 갱신한다.
 - GitHub 원격 호출을 DB 트랜잭션 안에서 실행하지 않는다. 외부 성공 뒤 로컬 저장이 실패해도 같은 요청을 안전하게 재시도할 수 있어야 한다.
-- GitHub App installation token은 환경 변수로만 주입하고 DB, 로그, 오류 응답, Check Run 본문에 넣지 않는다.
+- GitHub App client ID와 Base64 PEM private key는 환경 변수로만 주입하고 JWT·installation token을 DB, 로그, 오류 응답, Check Run 본문에 넣지 않는다.
+- installation token은 대상 저장소와 필요한 권한으로 축소하고 만료 전에 메모리에서 갱신한다.
+- 동적 token의 `401`은 캐시를 폐기하고 한 번만 반복하며 고정 token이나 다른 실패를 무조건 재시도하지 않는다.
 - 외부 응답 본문과 자격 증명을 예외 메시지에 그대로 노출하지 않고 안정된 실패 분류로 변환한다.
 - 실제 GitHub 쓰기는 사용자가 명시적으로 요청한 저장소와 PR에만 수행한다.
 

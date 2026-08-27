@@ -9,6 +9,7 @@
 - 변경 의도 생성·확인·공개·대체·라인 조회
 - 팀 공유용 Markdown 출력
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
+- 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
 - Streamable HTTP MCP 도구 6개
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - IntentTrace 저장소 전용 개발 스킬
@@ -25,17 +26,18 @@
 
 ## 다음 작업 후보
 
-1. GitHub App 설치와 installation token 발급·갱신을 자동화한다.
-2. 조직 계정, 저장소 권한, 작성자 신원을 연결한다.
-3. PostgreSQL 기반 팀 배포와 MCP 인증을 추가한다.
-4. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
-5. 코드 근거를 Check Run line annotation으로 선택 게시한다.
+1. 조직 계정, 저장소 권한, 작성자 신원을 연결한다.
+2. PostgreSQL 기반 팀 배포와 MCP 인증을 추가한다.
+3. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+4. 코드 근거를 Check Run line annotation으로 선택 게시한다.
+5. GitHub App webhook으로 설치 제거와 권한 변경을 반영한다.
 
 ## 현재 제한
 
 - 로컬 작성자 문자열을 신뢰하므로 팀 인증 용도로 사용할 수 없다.
 - 코드 스냅샷과 줄 해시는 제공 스크립트로 계산하며 서버가 Git 객체를 직접 검증하지 않는다.
-- GitHub API token은 런타임 환경 변수로 직접 주입해야 한다.
+- GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
+- installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
 - Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IDE 자동 연동은 아직 구현하지 않았다.

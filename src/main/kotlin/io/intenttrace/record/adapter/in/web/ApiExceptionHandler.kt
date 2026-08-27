@@ -1,6 +1,7 @@
 package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException
 import io.intenttrace.publication.application.GitHubPublicationContentTooLargeException
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
@@ -27,9 +28,9 @@ class ApiExceptionHandler {
     fun githubTargetConflict(exception: RuntimeException): ProblemDetail =
         problem(HttpStatus.CONFLICT, "GitHub 게시 대상 불일치", exception.message)
 
-    @ExceptionHandler(GitHubCredentialMissingException::class)
-    fun githubCredentialMissing(exception: GitHubCredentialMissingException): ProblemDetail =
-        problem(HttpStatus.SERVICE_UNAVAILABLE, "GitHub 자격 증명 없음", exception.message)
+    @ExceptionHandler(GitHubCredentialMissingException::class, GitHubCredentialConfigurationException::class)
+    fun githubCredentialUnavailable(exception: RuntimeException): ProblemDetail =
+        problem(HttpStatus.SERVICE_UNAVAILABLE, "GitHub 자격 증명 사용 불가", exception.message)
 
     @ExceptionHandler(GitHubPublicationContentTooLargeException::class)
     fun githubContentTooLarge(exception: GitHubPublicationContentTooLargeException): ProblemDetail =
