@@ -1,9 +1,8 @@
 package io.intenttrace.identity.adapter.`in`.web
 
-import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubUserCredentialProvider
+import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
 import jakarta.servlet.FilterChain
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletRequest
@@ -14,8 +13,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GitHubUserAuthenticationFilterTest {
-    private val gateway = FakeGitHubUserAccessGateway()
-    private val filter = GitHubUserAuthenticationFilter(gateway)
+    private val credentials = FakeGitHubUserCredentialProvider()
+    private val filter = GitHubUserAuthenticationFilter(credentials)
 
     @Test
     fun `보호 경로에 Bearer 토큰이 없으면 요청을 거부한다`() {
@@ -27,7 +26,7 @@ class GitHubUserAuthenticationFilterTest {
 
         assertEquals(401, response.status)
         assertFalse(continued)
-        assertNull(gateway.authenticatedToken)
+        assertNull(credentials.authenticatedToken)
     }
 
     @Test
@@ -45,20 +44,17 @@ class GitHubUserAuthenticationFilterTest {
             },
         )
 
-        assertEquals("ghu_user-token", gateway.authenticatedToken)
+        assertEquals("ghu_user-token", credentials.authenticatedToken)
         assertTrue(sessionVisible)
         assertNull(request.getAttribute(GitHubUserAuthenticationFilter.SESSION_ATTRIBUTE))
     }
 
-    private class FakeGitHubUserAccessGateway : GitHubUserAccessGateway {
+    private class FakeGitHubUserCredentialProvider : GitHubUserCredentialProvider {
         var authenticatedToken: String? = null
 
-        override fun authenticate(accessToken: String): ActorIdentity {
-            authenticatedToken = accessToken
-            return ActorIdentity.github(42, "lim")
+        override fun authenticate(bearerToken: String): GitHubUserSession {
+            authenticatedToken = bearerToken
+            return GitHubUserSession(ActorIdentity.github(42, "lim"), "ghu_resolved-token")
         }
-
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? =
-            RepositoryRole.MAINTAINER
     }
 }

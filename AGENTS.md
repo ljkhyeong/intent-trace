@@ -18,7 +18,9 @@
 - GitHub 게시 전 저장소와 PR HEAD를 서버 응답으로 확인하고 private key, JWT와 installation token을 저장하거나 로그에 남기지 않는다.
 - REST와 MCP 작성자는 GitHub `/user` 응답의 숫자 ID로 정하고 요청 입력의 작성자 값을 신뢰하지 않는다.
 - 초안은 작성자에게만, 공개·대체 기록은 GitHub 저장소 읽기 권한이 있는 팀원에게만 노출한다.
-- GitHub user access token은 HTTP 헤더에서만 사용하고 DB, 로그, MCP 도구 인자에 넣지 않는다.
+- Codex와 기본 REST 클라이언트에는 `its_` session token만 전달하고, GitHub access·refresh token은 메모리 밖이나 DB, 로그, cookie, URL, 오류 응답, MCP 도구 인자에 넣지 않는다.
+- OAuth callback은 같은 브라우저의 HttpOnly·SameSite cookie, TTL 안의 미사용 `state`, PKCE `S256` verifier와 정확한 callback 경로를 모두 확인한 뒤 code를 교환한다.
+- refresh token은 세션별로 한 번만 사용하고 새 access·refresh token 쌍으로 함께 교체하며, 사용자 subject가 바뀌면 세션을 폐기한다.
 
 ## 구현 원칙
 

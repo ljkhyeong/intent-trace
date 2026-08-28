@@ -31,11 +31,13 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 
 ## 팀 사용자와 저장소 접근 경계
 
-- 모든 REST·MCP 요청은 `ghu_` GitHub App user access token으로 `/user`를 확인하고, 숫자 사용자 ID를 `github:<id>` subject로 사용한다. login은 표시값이며 소유권 키로 사용하지 않는다.
+- 모든 REST·MCP 요청은 기본적으로 `its_` session token을 받고, 메모리의 GitHub App user access token으로 `/user`를 확인해 숫자 사용자 ID를 `github:<id>` subject로 사용한다. login은 표시값이며 소유권 키로 사용하지 않는다. 기존 `ghu_` 직접 Bearer 인증은 호환 경로로만 유지한다.
+- OAuth 시작은 256비트 무작위 `state`의 digest·TTL과 PKCE verifier를 서버에 두고 `state` 원문은 callback 경로의 HttpOnly·SameSite cookie로 전달한다. callback은 query·cookie 일치, TTL·미사용 여부와 PKCE `S256`을 검증하기 전 code를 교환하지 않는다.
 - 작성자·사용자 ID를 REST나 MCP 도구 입력으로 받지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다.
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
 - GitHub `/user/repos`의 `owner,collaborator,organization_member` 목록에 포함된 저장소만 팀 범위로 인정한다. 그 목록의 `pull`은 READER, `push`는 CONTRIBUTOR, `maintain`·`admin`은 MAINTAINER로 해석한다. public 저장소의 일반 읽기 가능 여부만으로 팀원이라고 판단하지 않는다.
-- user access token은 요청 처리 중에만 보유하고 DB, 로그, 예외, 도구 입력에 넣지 않는다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
+- GitHub access·refresh token은 메모리에만 보유하고 DB, URL, cookie, 로그, 예외, 도구 입력에 넣지 않는다. `its_` 원문도 callback 성공 본문 외에는 응답하지 않고 store에는 digest만 인덱스로 둔다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
+- access token 만료 전 refresh는 세션별 잠금 안에서 한 번만 수행하고 새 access·refresh token 쌍으로 함께 교체한다. 갱신 거부, token 거부 또는 사용자 subject 변경은 session을 폐기해 재로그인을 요구한다.
 - V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
 
 ## 외부 게시 경계
@@ -51,7 +53,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 
 ## 변경 절차
 
-1. 요청을 기록 수명주기, 사용자·권한, 증거, 조회, GitHub 게시, 플러그인 또는 운영 중 하나로 분류한다.
+1. 요청을 기록 수명주기, 사용자·권한·OAuth session, 증거, 조회, GitHub 게시, 플러그인 또는 운영 중 하나로 분류한다.
 2. `rg`로 같은 책임의 도메인 규칙, 포트, 어댑터, SQL, DTO, MCP 도구와 문서를 찾는다.
 3. 가장 좁은 소유 계층에서 시작해 필요한 포트와 어댑터만 전파한다.
 4. 스키마 변경은 다음 Flyway 버전으로 추가하고 적용된 migration을 수정하지 않는다.
@@ -62,6 +64,6 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 
 - 사람용 문서, 코드 주석, 커밋 메시지와 리뷰는 구체적인 한국어로 작성한다. API 필드, enum, 경로, 설정 키와 표준명은 원문을 유지한다.
 - 제품 동작은 PRD, 장기 구조·신뢰 경계는 ADR, 현재 제한과 다음 작업만 `HANDOFF.md`에 둔다.
-- 테스트는 가장 작은 관련 대상을 먼저 실행하고 Flyway·Spring 조립·외부 어댑터를 바꾸면 통합 테스트로 넓힌다.
+- 테스트는 가장 작은 관련 대상을 먼저 실행하고 Flyway·Spring 조립·OAuth callback·외부 어댑터를 바꾸면 통합 테스트로 넓힌다.
 - 동일한 조건을 단위·웹·통합 테스트에 반복하지 않는다. 외부 쓰기는 fake 또는 로컬 stub으로 검증하며 실제 GitHub PR을 테스트에 사용하지 않는다.
 - 최종 회귀 검증은 `./gradlew test`, 플러그인 변경은 `scripts/validate-plugin.sh`, 스킬 변경은 `quick_validate.py`를 실행한다.

@@ -11,6 +11,9 @@
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
 - GitHub user access token 인증과 저장소별 READER·CONTRIBUTOR·MAINTAINER 역할 판정
+- GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
+- GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
+- SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
 - Streamable HTTP MCP 도구 6개
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
@@ -21,6 +24,9 @@
 - 초안은 만든 작성자만 확인한다.
 - 초안과 확인 기록은 만든 작성자만 조회하고, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 조회한다.
 - 작성자는 요청 본문이 아니라 `/user`에서 확인한 GitHub 숫자 ID로 결정한다.
+- Codex에는 GitHub token 대신 `its_` session token만 전달하고 GitHub token 쌍은 메모리 밖으로 노출하지 않는다.
+- callback은 같은 브라우저의 cookie와 미사용 `state`가 일치할 때만 code를 교환한다.
+- refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
 - 생성·확인·공개·대체·GitHub 게시는 저장소 쓰기 권한이 필요하다.
 - 확인 시 전체 Git 커밋 ID가 필요하다.
 - 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
@@ -31,15 +37,15 @@
 
 ## 다음 작업 후보
 
-1. GitHub App 사용자 승인과 user access token 갱신 흐름을 추가한다.
-2. PostgreSQL 기반 팀 배포와 TLS 종료 설정을 추가한다.
-3. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
-4. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-5. GitHub App webhook으로 설치 제거와 권한 변경을 반영한다.
+1. PostgreSQL 기반 팀 배포, TLS 종료와 암호화된 세션 저장 여부를 결정한다.
+2. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
+4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
 
 ## 현재 제한
 
-- 사용자 token 발급·갱신 화면이 없어 현재는 GitHub App 외부 승인 절차로 준비해야 한다.
+- 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
+- 승인 폐기 webhook과 사용자가 세션을 직접 조회·폐기하는 UI는 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
 - 코드 스냅샷과 줄 해시는 제공 스크립트로 계산하며 서버가 Git 객체를 직접 검증하지 않는다.

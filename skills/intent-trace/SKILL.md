@@ -13,8 +13,8 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 코드 근거는 저장소 기준 상대 경로와 필요한 최소 연속 줄 범위로 제한한다.
 - 초안은 작성자가 내용을 확인하기 전까지 공개하지 않는다.
 - 공개 기록은 수정하지 않고, 새 기록으로 대체한다.
-- 작성자는 입력하지 않는다. IntentTrace가 MCP Bearer token으로 확인한 GitHub 사용자를 작성자로 사용한다.
-- GitHub user access token을 도구 인자, 기록 내용, 검증 명령이나 응답 요약에 넣지 않는다.
+- 작성자는 입력하지 않는다. IntentTrace가 `its_` MCP Bearer session으로 확인한 GitHub 사용자를 작성자로 사용한다.
+- `its_` session token과 GitHub access·refresh token을 도구 인자, 기록 내용, 검증 명령이나 응답 요약에 넣지 않는다.
 
 ## 기록 절차
 
@@ -42,6 +42,6 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 ## 중단 조건
 
 - 현재 코드 스냅샷이 기록의 해시와 다르면 확인이나 공개를 중단하고 새 초안을 만든다.
-- GitHub 사용자 인증이나 저장소 쓰기 권한, 전체 커밋 ID를 확정할 수 없으면 생성·확인·공개를 중단한다.
+- `INTENT_TRACE_SESSION_TOKEN`이 없거나 GitHub 사용자 인증·저장소 쓰기 권한·전체 커밋 ID를 확정할 수 없으면 생성·확인·공개를 중단한다. 세션이 만료됐으면 `/auth/github/start`에서 다시 승인한다.
 - GitHub PR HEAD가 기록 커밋과 다르거나 Fork PR이면 게시를 중단한다.
 - 비밀값이 의심되면 기록을 만들기 전에 제거하고 사용자에게 알린다.

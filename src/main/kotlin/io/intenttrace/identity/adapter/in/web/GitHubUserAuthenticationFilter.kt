@@ -1,8 +1,9 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.identity.application.CurrentGitHubUserSession
+import io.intenttrace.identity.application.GitHubUserCredentialProvider
 import io.intenttrace.identity.application.GitHubIdentityApiException
-import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.GitHubUserSession
 import jakarta.servlet.FilterChain
@@ -27,7 +28,7 @@ class RequestGitHubUserSession(
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 class GitHubUserAuthenticationFilter(
-    private val gateway: GitHubUserAccessGateway,
+    private val credentials: GitHubUserCredentialProvider,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val path = request.requestURI
@@ -46,12 +47,13 @@ class GitHubUserAuthenticationFilter(
         }
 
         try {
-            val actor = gateway.authenticate(accessToken)
-            request.setAttribute(SESSION_ATTRIBUTE, GitHubUserSession(actor, accessToken))
+            request.setAttribute(SESSION_ATTRIBUTE, credentials.authenticate(accessToken))
             filterChain.doFilter(request, response)
         } catch (_: GitHubUserAuthenticationException) {
             unauthorized(response)
         } catch (_: GitHubIdentityApiException) {
+            dependencyFailure(response)
+        } catch (_: GitHubOAuthException) {
             dependencyFailure(response)
         } finally {
             request.removeAttribute(SESSION_ATTRIBUTE)
@@ -63,7 +65,7 @@ class GitHubUserAuthenticationFilter(
         if (!header.startsWith(BEARER_PREFIX, ignoreCase = true)) return null
         val token = header.substring(BEARER_PREFIX.length).trim()
         return token.takeIf {
-            it.startsWith(GITHUB_USER_TOKEN_PREFIX) &&
+            (it.startsWith(GITHUB_USER_TOKEN_PREFIX) || it.startsWith(INTENT_TRACE_SESSION_TOKEN_PREFIX)) &&
                 it.length <= MAX_TOKEN_LENGTH &&
                 it.none(Char::isWhitespace)
         }
@@ -88,6 +90,7 @@ class GitHubUserAuthenticationFilter(
         const val SESSION_ATTRIBUTE = "io.intenttrace.github-user-session"
         private const val BEARER_PREFIX = "Bearer "
         private const val GITHUB_USER_TOKEN_PREFIX = "ghu_"
+        private const val INTENT_TRACE_SESSION_TOKEN_PREFIX = "its_"
         private const val MAX_TOKEN_LENGTH = 8_192
     }
 }
