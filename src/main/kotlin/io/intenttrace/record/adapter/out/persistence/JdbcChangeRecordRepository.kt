@@ -1,5 +1,6 @@
 package io.intenttrace.record.adapter.out.persistence
 
+import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordRepository
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
@@ -62,9 +63,9 @@ class JdbcChangeRecordRepository(
             """
             insert into change_records (
                 id, request_id, repository_key, base_revision, target_revision,
-                snapshot_digest, title, request_summary, status, created_by,
+                snapshot_digest, title, request_summary, status, created_by, created_by_subject,
                 created_at, confirmed_at, published_at, superseded_by, version
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
@@ -75,7 +76,8 @@ class JdbcChangeRecordRepository(
             record.title,
             record.requestSummary,
             record.status.name,
-            record.createdBy,
+            record.createdBy.login,
+            record.createdBy.subject,
             record.createdAt.toDatabaseTime(),
             record.confirmedAt?.toDatabaseTime(),
             record.publishedAt?.toDatabaseTime(),
@@ -255,7 +257,10 @@ class JdbcChangeRecordRepository(
         title = resultSet.getString("title"),
         requestSummary = resultSet.getString("request_summary"),
         status = ChangeRecordStatus.valueOf(resultSet.getString("status")),
-        createdBy = resultSet.getString("created_by"),
+        createdBy = ActorIdentity(
+            subject = resultSet.getString("created_by_subject"),
+            login = resultSet.getString("created_by"),
+        ),
         createdAt = resultSet.getObject("created_at", OffsetDateTime::class.java).toInstant(),
         confirmedAt = resultSet.getNullableInstant("confirmed_at"),
         publishedAt = resultSet.getNullableInstant("published_at"),

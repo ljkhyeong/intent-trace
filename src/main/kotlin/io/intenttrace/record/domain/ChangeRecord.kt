@@ -1,5 +1,6 @@
 package io.intenttrace.record.domain
 
+import io.intenttrace.identity.domain.ActorIdentity
 import java.time.Instant
 import java.util.UUID
 
@@ -13,7 +14,7 @@ data class ChangeRecord(
     val title: String,
     val requestSummary: String,
     val status: ChangeRecordStatus,
-    val createdBy: String,
+    val createdBy: ActorIdentity,
     val createdAt: Instant,
     val confirmedAt: Instant?,
     val publishedAt: Instant?,
@@ -24,9 +25,9 @@ data class ChangeRecord(
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
 ) {
-    fun confirm(author: String, immutableRevision: String, currentSnapshotDigest: String, now: Instant): ChangeRecord {
+    fun confirm(actor: ActorIdentity, immutableRevision: String, currentSnapshotDigest: String, now: Instant): ChangeRecord {
         check(status == ChangeRecordStatus.DRAFT) { "초안 상태의 기록만 작성자가 확인할 수 있습니다." }
-        check(author == createdBy) { "기록을 만든 작성자만 확인할 수 있습니다." }
+        check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 확인할 수 있습니다." }
         check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 기록을 확인할 수 없습니다." }
         require(FULL_REVISION.matches(immutableRevision)) { "공개 준비에는 전체 Git 커밋 ID가 필요합니다." }
 
@@ -38,8 +39,9 @@ data class ChangeRecord(
         )
     }
 
-    fun publish(currentSnapshotDigest: String, now: Instant): ChangeRecord {
+    fun publish(actor: ActorIdentity, currentSnapshotDigest: String, now: Instant): ChangeRecord {
         check(status == ChangeRecordStatus.AUTHOR_CONFIRMED) { "작성자가 확인한 기록만 공개할 수 있습니다." }
+        check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 공개할 수 있습니다." }
         check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 검증과 판단이 오래된 상태입니다." }
         check(targetRevision != null) { "전체 Git 커밋 ID가 없는 기록은 공개할 수 없습니다." }
 
@@ -50,9 +52,12 @@ data class ChangeRecord(
         )
     }
 
-    fun supersede(replacement: ChangeRecord): ChangeRecord {
+    fun supersede(actor: ActorIdentity, replacement: ChangeRecord): ChangeRecord {
         check(status == ChangeRecordStatus.PUBLISHED) { "공개된 기록만 새 기록으로 대체할 수 있습니다." }
         check(replacement.status == ChangeRecordStatus.PUBLISHED) { "대체 기록도 먼저 공개되어야 합니다." }
+        check(actor.subject == createdBy.subject && actor.subject == replacement.createdBy.subject) {
+            "작성자가 만든 기록끼리만 대체할 수 있습니다."
+        }
         check(repositoryKey == replacement.repositoryKey) { "같은 저장소의 기록으로만 대체할 수 있습니다." }
         check(id != replacement.id) { "기록이 자기 자신을 대체할 수 없습니다." }
 

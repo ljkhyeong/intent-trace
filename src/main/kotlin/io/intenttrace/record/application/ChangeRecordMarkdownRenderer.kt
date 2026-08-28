@@ -13,7 +13,7 @@ class ChangeRecordMarkdownRenderer {
         appendLine("- 저장소: `${record.repositoryKey}`")
         appendLine("- 커밋: `${record.targetRevision ?: "작성자 확인 전"}`")
         appendLine("- 스냅샷: `${record.snapshotDigest}`")
-        appendLine("- 작성자: `${record.createdBy}`")
+        appendLine("- 작성자: `@${record.createdBy.login}` (`${record.createdBy.subject}`)")
         appendLine()
         appendLine("## 요청")
         appendLine()

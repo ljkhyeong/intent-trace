@@ -1,5 +1,6 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -110,7 +111,7 @@ class PublishChangeRecordToGitHubTest {
             title = "GitHub PR에 변경 의도 게시",
             requestSummary = "공개 기록을 같은 커밋의 PR에 연결한다.",
             status = ChangeRecordStatus.PUBLISHED,
-            createdBy = "lim",
+            createdBy = ActorIdentity.github(1, "lim"),
             createdAt = Instant.parse("2026-08-27T14:00:00Z"),
             confirmedAt = Instant.parse("2026-08-27T14:01:00Z"),
             publishedAt = Instant.parse("2026-08-27T14:02:00Z"),

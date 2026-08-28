@@ -1,5 +1,6 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.application.GitHubPublicationRepository
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -28,29 +29,31 @@ class ChangeRecordFacadeIntegrationTest(
     fun `같은 요청은 한 번만 만들고 공개 기록을 코드 줄로 찾는다`() {
         val command = CreateChangeRecordCommand(
             requestId = "integration-turn-1",
-            repositoryKey = "intent-trace",
+            repositoryKey = "acme/intent-trace",
             baseRevision = null,
             snapshotDigest = digest,
             title = "변경 의도 저장",
             requestSummary = "API_KEY=secret-value 요청을 안전하게 요약한다.",
-            createdBy = "lim",
             decisions = listOf(Decision("작성자 확인 후 공개한다.", null, PurposeSource.STATED_BY_USER)),
             codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 10, 20, "d".repeat(64))),
             verifications = emptyList(),
             openQuestions = listOf("GitHub 게시 자동화는 아직 검증하지 않았다."),
         )
 
-        val first = facade.create(command)
-        val retried = facade.create(command)
+        val first = facade.create(command, actor)
+        val retried = facade.create(command, actor)
         val confirmed = facade.confirm(
-            ConfirmChangeRecordCommand(first.id, first.version, "lim", revision, digest),
+            ConfirmChangeRecordCommand(first.id, first.version, revision, digest),
+            actor,
         )
         val published = facade.publish(
             PublishChangeRecordCommand(confirmed.id, confirmed.version, digest),
+            actor,
         )
-        val found = facade.findIntent("intent-trace", revision, "src/App.kt", 15)
+        val found = facade.findIntent("acme/intent-trace", revision, "src/App.kt", 15)
 
         assertEquals(first.id, retried.id)
+        assertEquals(actor, first.createdBy)
         assertEquals("API_KEY=[REDACTED] 요청을 안전하게 요약한다.", first.requestSummary)
         assertEquals(ChangeRecordStatus.PUBLISHED, published.status)
         assertEquals(listOf(published.id), found.map { it.id })
@@ -66,15 +69,21 @@ class ChangeRecordFacadeIntegrationTest(
                 snapshotDigest = digest,
                 title = "GitHub 게시 이력",
                 requestSummary = "같은 PR 게시를 갱신한다.",
-                createdBy = "lim",
                 decisions = listOf(Decision("Check Run을 재사용한다.", null, PurposeSource.STATED_BY_USER)),
                 codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "d".repeat(64))),
                 verifications = emptyList(),
                 openQuestions = emptyList(),
             ),
+            actor,
         )
-        val confirmed = facade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "lim", revision, digest))
-        val published = facade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest))
+        val confirmed = facade.confirm(
+            ConfirmChangeRecordCommand(draft.id, draft.version, revision, digest),
+            actor,
+        )
+        val published = facade.publish(
+            PublishChangeRecordCommand(confirmed.id, confirmed.version, digest),
+            actor,
+        )
         val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
         val first = GitHubPublication(
             id = UUID.randomUUID(),
@@ -104,5 +113,6 @@ class ChangeRecordFacadeIntegrationTest(
     companion object {
         private val digest = "a".repeat(64)
         private val revision = "b".repeat(40)
+        private val actor = ActorIdentity.github(1, "lim")
     }
 }

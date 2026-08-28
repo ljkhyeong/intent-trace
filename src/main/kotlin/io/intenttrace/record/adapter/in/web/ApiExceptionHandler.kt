@@ -1,5 +1,8 @@
 package io.intenttrace.record.adapter.`in`.web
 
+import io.intenttrace.identity.application.GitHubIdentityApiException
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
+import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException
@@ -7,6 +10,8 @@ import io.intenttrace.publication.application.GitHubPublicationContentTooLargeEx
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestRevisionMismatchException
 import io.intenttrace.record.application.ChangeRecordNotFoundException
+import io.intenttrace.record.application.ChangeRecordOwnershipException
+import io.intenttrace.record.application.ChangeRecordRequestConflictException
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
@@ -23,6 +28,22 @@ class ApiExceptionHandler {
     @ExceptionHandler(ConcurrentChangeRecordUpdateException::class)
     fun conflict(exception: ConcurrentChangeRecordUpdateException): ProblemDetail =
         problem(HttpStatus.CONFLICT, "기록 버전 충돌", exception.message)
+
+    @ExceptionHandler(ChangeRecordRequestConflictException::class)
+    fun requestConflict(exception: ChangeRecordRequestConflictException): ProblemDetail =
+        problem(HttpStatus.CONFLICT, "요청 식별자 충돌", exception.message)
+
+    @ExceptionHandler(GitHubUserAuthenticationException::class)
+    fun githubUserAuthentication(exception: GitHubUserAuthenticationException): ProblemDetail =
+        problem(HttpStatus.UNAUTHORIZED, "GitHub 사용자 인증 실패", exception.message)
+
+    @ExceptionHandler(RepositoryAccessDeniedException::class, ChangeRecordOwnershipException::class)
+    fun repositoryAccessDenied(exception: RuntimeException): ProblemDetail =
+        problem(HttpStatus.FORBIDDEN, "저장소 기록 접근 거부", exception.message)
+
+    @ExceptionHandler(GitHubIdentityApiException::class)
+    fun githubIdentityFailure(exception: GitHubIdentityApiException): ProblemDetail =
+        problem(HttpStatus.BAD_GATEWAY, "GitHub 사용자 권한 조회 실패", exception.message)
 
     @ExceptionHandler(PullRequestRevisionMismatchException::class, GitHubRepositoryMismatchException::class)
     fun githubTargetConflict(exception: RuntimeException): ProblemDetail =

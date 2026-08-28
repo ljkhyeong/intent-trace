@@ -1,8 +1,8 @@
 package io.intenttrace.publication.adapter.`in`.mcp
 
 import io.intenttrace.publication.adapter.`in`.web.GitHubPublicationResponse
-import io.intenttrace.publication.application.PublishChangeRecordToGitHub
 import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
+import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Component
 class GitHubPublicationTools(
-    private val publisher: PublishChangeRecordToGitHub,
+    private val publisher: TeamGitHubPublicationService,
 ) {
     @McpTool(
         name = "publish_change_record_to_github_pr",

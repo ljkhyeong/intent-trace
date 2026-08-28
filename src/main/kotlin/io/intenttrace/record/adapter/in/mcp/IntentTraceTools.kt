@@ -4,7 +4,7 @@ import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.ConfirmChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.PublishChangeRecordRequest
-import io.intenttrace.record.application.ChangeRecordFacade
+import io.intenttrace.record.application.TeamChangeRecordService
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
@@ -12,7 +12,7 @@ import java.util.UUID
 
 @Component
 class IntentTraceTools(
-    private val facade: ChangeRecordFacade,
+    private val records: TeamChangeRecordService,
 ) {
     @McpTool(
         name = "create_change_record",
@@ -28,7 +28,7 @@ class IntentTraceTools(
     fun create(
         @McpToolParam(description = "작성자가 검토할 구조화된 변경 의도 초안", required = true)
         request: CreateChangeRecordRequest,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(facade.create(request.toCommand()))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.create(request.toCommand()))
 
     @McpTool(
         name = "get_change_record",
@@ -44,7 +44,7 @@ class IntentTraceTools(
     fun get(
         @McpToolParam(description = "변경 의도 기록 UUID", required = true)
         recordId: String,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(facade.get(UUID.fromString(recordId)))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.get(UUID.fromString(recordId)))
 
     @McpTool(
         name = "confirm_change_record",
@@ -62,17 +62,14 @@ class IntentTraceTools(
         recordId: String,
         @McpToolParam(description = "낙관적 잠금용 현재 기록 버전", required = true)
         expectedVersion: Long,
-        @McpToolParam(description = "초안을 만든 작성자 식별자", required = true)
-        author: String,
         @McpToolParam(description = "40자 또는 64자 전체 Git 커밋 ID", required = true)
         immutableRevision: String,
         @McpToolParam(description = "작성자가 확인한 현재 코드의 SHA-256 스냅샷", required = true)
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
-        facade.confirm(
+        records.confirm(
             ConfirmChangeRecordRequest(
                 expectedVersion,
-                author,
                 immutableRevision,
                 currentSnapshotDigest,
             ).toCommand(UUID.fromString(recordId)),
@@ -98,7 +95,7 @@ class IntentTraceTools(
         @McpToolParam(description = "공개할 현재 코드의 SHA-256 스냅샷", required = true)
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
-        facade.publish(
+        records.publish(
             PublishChangeRecordRequest(expectedVersion, currentSnapshotDigest)
                 .toCommand(UUID.fromString(recordId)),
         ),
@@ -124,6 +121,6 @@ class IntentTraceTools(
         path: String,
         @McpToolParam(description = "조회할 1부터 시작하는 줄 번호", required = true)
         line: Int,
-    ): List<ChangeRecordResponse> = facade.findIntent(repositoryKey, revision, path, line)
+    ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
         .map(ChangeRecordResponse::from)
 }

@@ -14,6 +14,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - PR 설명에 붙일 수 있는 Markdown 출력
 - PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
+- GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - Codex 스킬과 세션 시작 안내 훅
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
@@ -42,7 +43,17 @@ export INTENT_TRACE_DATABASE_PASSWORD='로컬-비밀번호'
 ./gradlew bootRun --args='--spring.profiles.active=postgres'
 ```
 
-GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Pull requests: read`와 `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
+REST와 MCP 요청에는 GitHub App user access token이 필요합니다. 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 GitHub 저장소 권한을 조회합니다. 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
+
+```bash
+export INTENT_TRACE_GITHUB_USER_TOKEN='ghu_사용자-토큰'
+curl -H "Authorization: Bearer $INTENT_TRACE_GITHUB_USER_TOKEN" \
+  http://127.0.0.1:8080/api/v1/change-records/기록-UUID
+```
+
+Codex는 프로젝트의 `.codex/config.toml`과 플러그인의 `.mcp.json`에서 `INTENT_TRACE_GITHUB_USER_TOKEN`을 읽어 MCP `Authorization` 헤더에 넣습니다. 토큰 값은 설정 파일, 도구 인자, IntentTrace DB에 넣지 않습니다. 토큰 발급과 갱신은 현재 GitHub App 승인 절차에서 외부로 수행합니다.
+
+GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
 
 ```bash
 export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
@@ -52,7 +63,7 @@ export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < intent-trace.priva
 
 기존 방식이 필요한 로컬 환경에서는 `INTENT_TRACE_GITHUB_TOKEN`에 직접 발급한 token을 넣을 수 있습니다. 이 값이 있으면 GitHub App 자동 발급보다 우선합니다.
 
-변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app)와 [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)을 기준으로 합니다.
+변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. 서버 게시 자격 증명과 사용자 요청 자격 증명은 서로 대체하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app), [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), [user access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)을 기준으로 합니다.
 
 ## 기록 흐름
 
@@ -63,7 +74,7 @@ export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < intent-trace.priva
     ↓ 작성자가 내용과 전체 커밋 확인
 작성자 확인
     ↓ 현재 스냅샷이 같을 때만 공개
-팀 공개 기록
+저장소 권한이 있는 팀 공개 기록
     ↓ 더 나은 공개 기록으로만 대체
 대체됨
 ```
@@ -88,12 +99,15 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 
 MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
 
+모든 API와 MCP 입력에서 작성자 필드는 받지 않습니다. 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
+
 ## Codex 플러그인
 
 저장소 루트가 플러그인 루트입니다.
 
 - `.codex-plugin/plugin.json`: 플러그인 메타데이터
-- `.mcp.json`: 로컬 IntentTrace 서버 연결
+- `.mcp.json`: 플러그인용 로컬 IntentTrace 서버와 Bearer 환경변수 연결
+- `.codex/config.toml`: 프로젝트용 로컬 MCP와 Bearer 환경변수 연결
 - `skills/intent-trace/SKILL.md`: 기록·조회 절차
 - `skills/intent-trace-flows/SKILL.md`: 저장소 개발·GitHub 게시 불변식
 - `hooks/hooks.json`: 세션 시작 시 개인정보·공개 규칙 안내
@@ -110,10 +124,13 @@ scripts/validate-plugin.sh
 ## 현재 제한
 
 - GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
+- GitHub App 사용자 승인 화면, user access token 발급·갱신 UI는 아직 제공하지 않습니다.
+- GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
+- V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
-- HTTP MCP에는 인증이 없으므로 현재 설정처럼 로컬호스트에서만 사용해야 합니다.
-- 팀 서버로 배포하기 전에 인증·권한·감사 로그를 추가해야 합니다.
+- 서버는 여전히 로컬호스트에 바인딩되며 TLS 종료와 팀 배포 운영 설정은 별도입니다.
+- 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
 
 ## 문서
 
@@ -122,4 +139,6 @@ scripts/validate-plugin.sh
 - `docs/PRD-0002-github-pr-publication.md`
 - `docs/ADR-0002-github-check-run-publication.md`
 - `docs/ADR-0003-github-app-installation-auth.md`
+- `docs/PRD-0003-team-identity-and-repository-access.md`
+- `docs/ADR-0004-github-user-repository-authorization.md`
 - `HANDOFF.md`

@@ -1,5 +1,6 @@
 package io.intenttrace.record.adapter.`in`.web
 
+import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.CreateChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
@@ -33,8 +34,6 @@ data class CreateChangeRecordRequest(
     val title: String,
     @field:NotBlank @field:Size(max = 2000)
     val requestSummary: String,
-    @field:NotBlank @field:Size(max = 120)
-    val createdBy: String,
     @field:NotEmpty @field:Size(max = 20) @field:Valid
     val decisions: List<DecisionRequest>,
     @field:NotEmpty @field:Size(max = 100) @field:Valid
@@ -51,7 +50,6 @@ data class CreateChangeRecordRequest(
         snapshotDigest = snapshotDigest,
         title = title,
         requestSummary = requestSummary,
-        createdBy = createdBy,
         decisions = decisions.map(DecisionRequest::toDomain),
         codeAnchors = codeAnchors.map(CodeAnchorRequest::toDomain),
         verifications = verifications.map(VerificationRequest::toDomain),
@@ -110,8 +108,6 @@ data class VerificationRequest(
 
 data class ConfirmChangeRecordRequest(
     val expectedVersion: Long,
-    @field:NotBlank @field:Size(max = 120)
-    val author: String,
     @field:Pattern(regexp = "^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")
     val immutableRevision: String,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
@@ -120,7 +116,6 @@ data class ConfirmChangeRecordRequest(
     fun toCommand(recordId: UUID): ConfirmChangeRecordCommand = ConfirmChangeRecordCommand(
         recordId,
         expectedVersion,
-        author,
         immutableRevision,
         currentSnapshotDigest,
     )
@@ -153,7 +148,7 @@ data class ChangeRecordResponse(
     val title: String,
     val requestSummary: String,
     val status: ChangeRecordStatus,
-    val createdBy: String,
+    val createdBy: ActorIdentity,
     val createdAt: Instant,
     val confirmedAt: Instant?,
     val publishedAt: Instant?,

@@ -1,7 +1,7 @@
 package io.intenttrace.publication.adapter.`in`.web
 
-import io.intenttrace.publication.application.PublishChangeRecordToGitHub
 import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
+import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import jakarta.validation.Valid
@@ -20,7 +20,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/change-records/{recordId}/github-pull-request")
 class GitHubPublicationController(
-    private val publisher: PublishChangeRecordToGitHub,
+    private val publisher: TeamGitHubPublicationService,
 ) {
     @PostMapping
     fun publish(

@@ -1,0 +1,113 @@
+package io.intenttrace.identity.adapter.out.github
+
+import io.intenttrace.config.GitHubProperties
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
+import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.identity.domain.RepositoryRole
+import org.junit.jupiter.api.Test
+import org.springframework.http.HttpMethod
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
+import org.springframework.test.web.client.MockRestServiceServer
+import org.springframework.test.web.client.match.MockRestRequestMatchers.header
+import org.springframework.test.web.client.match.MockRestRequestMatchers.method
+import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
+import org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest
+import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import org.springframework.web.client.RestClient
+import java.net.URI
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+
+class GitHubUserRestClientTest {
+    private val builder = RestClient.builder()
+    private val server = MockRestServiceServer.bindTo(builder).build()
+    private val client = GitHubUserRestClient(
+        restClientBuilder = builder,
+        properties = GitHubProperties(
+            apiBaseUrl = URI.create("https://api.github.test"),
+            apiVersion = "2026-03-10",
+        ),
+    )
+
+    @Test
+    fun `사용자 토큰으로 안정적인 GitHub 작성자 식별자를 만든다`() {
+        server.expect(requestTo("https://api.github.test/user"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("Authorization", "Bearer user-token"))
+            .andExpect(header("X-GitHub-Api-Version", "2026-03-10"))
+            .andRespond(withSuccess("""{"id":42,"login":"lim"}""", MediaType.APPLICATION_JSON))
+
+        assertEquals(ActorIdentity.github(42, "lim"), client.authenticate("user-token"))
+        server.verify()
+    }
+
+    @Test
+    fun `저장소 응답의 push 권한을 기여자 역할로 해석한다`() {
+        server.expect { request ->
+            assertEquals("/user/repos", request.uri.path)
+            assertEquals(
+                "affiliation=owner,collaborator,organization_member&per_page=100&page=1",
+                request.uri.rawQuery,
+            )
+        }
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("Authorization", "Bearer user-token"))
+            .andRespond(
+                withSuccess(
+                    """[{"full_name":"acme/intent-trace","permissions":{"pull":true,"push":true}}]""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        assertEquals(
+            RepositoryRole.CONTRIBUTOR,
+            client.repositoryRole("user-token", GitHubRepository("acme", "intent-trace")),
+        )
+        server.verify()
+    }
+
+    @Test
+    fun `명시적 접근 목록에 없는 저장소는 역할 없음으로 반환한다`() {
+        server.expect { request -> assertEquals("/user/repos", request.uri.path) }
+            .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON))
+
+        assertNull(client.repositoryRole("user-token", GitHubRepository("acme", "private")))
+        server.verify()
+    }
+
+    @Test
+    fun `다음 페이지에 있는 저장소 권한도 찾는다`() {
+        server.expect { request -> assertEquals("page=1", request.uri.rawQuery.substringAfterLast('&')) }
+            .andRespond(
+                withSuccess("[]", MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.LINK, "<https://api.github.test/user/repos?page=2>; rel=\"next\""),
+            )
+        server.expect { request -> assertEquals("page=2", request.uri.rawQuery.substringAfterLast('&')) }
+            .andRespond(
+                withSuccess(
+                    """[{"full_name":"acme/intent-trace","permissions":{"pull":true}}]""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        assertEquals(
+            RepositoryRole.READER,
+            client.repositoryRole("user-token", GitHubRepository("acme", "intent-trace")),
+        )
+        server.verify()
+    }
+
+    @Test
+    fun `거부된 사용자 토큰은 인증 실패로 변환한다`() {
+        server.expect(requestTo("https://api.github.test/user"))
+            .andRespond(withUnauthorizedRequest())
+
+        assertFailsWith<GitHubUserAuthenticationException> {
+            client.authenticate("expired-token")
+        }
+        server.verify()
+    }
+}

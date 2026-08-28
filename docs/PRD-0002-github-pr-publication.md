@@ -10,7 +10,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 ## 사용자 흐름
 
-1. 사용자가 공개 기록과 GitHub 저장소·PR 번호를 지정해 게시를 요청한다.
+1. 기록 작성자이면서 저장소 쓰기 권한이 있는 사용자가 공개 기록과 GitHub 저장소·PR 번호를 지정해 게시를 요청한다.
 2. IntentTrace가 저장소의 GitHub App 설치를 찾고 유효한 installation token을 준비한다.
 3. GitHub API에서 PR `head.sha`를 읽는다.
 4. 기록의 `repositoryKey`와 `targetRevision`이 게시 대상 저장소와 PR HEAD에 모두 일치하는지 확인한다.
@@ -20,6 +20,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 ## 불변식
 
 - `PUBLISHED` 상태의 기록만 게시한다.
+- 요청 사용자는 `PRD-0003`의 GitHub 인증을 통과한 기록 작성자이며 저장소 `CONTRIBUTOR` 이상이어야 한다.
 - `repositoryKey`는 `owner/repository` 형식이며 게시 대상과 대소문자 구분 없이 일치해야 한다.
 - `targetRevision`과 GitHub PR `head.sha`는 정확히 일치해야 한다.
 - Check Run 이름은 `IntentTrace / 변경 의도`, 결론은 정보성 `neutral`로 고정한다.

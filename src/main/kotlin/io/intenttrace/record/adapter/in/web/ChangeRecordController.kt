@@ -1,7 +1,7 @@
 package io.intenttrace.record.adapter.`in`.web
 
-import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.application.TeamChangeRecordService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -22,35 +22,35 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/change-records")
 class ChangeRecordController(
-    private val facade: ChangeRecordFacade,
+    private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
 ) {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@Valid @RequestBody request: CreateChangeRecordRequest): ChangeRecordResponse =
-        ChangeRecordResponse.from(facade.create(request.toCommand()))
+        ChangeRecordResponse.from(records.create(request.toCommand()))
 
     @GetMapping("/{recordId}")
     fun get(@PathVariable recordId: UUID): ChangeRecordResponse =
-        ChangeRecordResponse.from(facade.get(recordId))
+        ChangeRecordResponse.from(records.get(recordId))
 
     @PostMapping("/{recordId}/confirm")
     fun confirm(
         @PathVariable recordId: UUID,
         @Valid @RequestBody request: ConfirmChangeRecordRequest,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(facade.confirm(request.toCommand(recordId)))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.confirm(request.toCommand(recordId)))
 
     @PostMapping("/{recordId}/publish")
     fun publish(
         @PathVariable recordId: UUID,
         @Valid @RequestBody request: PublishChangeRecordRequest,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(facade.publish(request.toCommand(recordId)))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.publish(request.toCommand(recordId)))
 
     @PostMapping("/{recordId}/supersede")
     fun supersede(
         @PathVariable recordId: UUID,
         @Valid @RequestBody request: SupersedeChangeRecordRequest,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(facade.supersede(request.toCommand(recordId)))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.supersede(request.toCommand(recordId)))
 
     @GetMapping("/lookup")
     fun lookup(
@@ -58,9 +58,9 @@ class ChangeRecordController(
         @RequestParam @Pattern(regexp = "^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$") revision: String,
         @RequestParam @NotBlank @Size(max = 1000) path: String,
         @RequestParam @Min(1) line: Int,
-    ): List<ChangeRecordResponse> = facade.findIntent(repositoryKey, revision, path, line)
+    ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
         .map(ChangeRecordResponse::from)
 
     @GetMapping("/{recordId}/markdown", produces = [MediaType.TEXT_MARKDOWN_VALUE])
-    fun markdown(@PathVariable recordId: UUID): String = markdownRenderer.render(facade.get(recordId))
+    fun markdown(@PathVariable recordId: UUID): String = markdownRenderer.render(records.get(recordId))
 }

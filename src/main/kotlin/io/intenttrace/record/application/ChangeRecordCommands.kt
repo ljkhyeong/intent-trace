@@ -12,7 +12,6 @@ data class CreateChangeRecordCommand(
     val snapshotDigest: String,
     val title: String,
     val requestSummary: String,
-    val createdBy: String,
     val decisions: List<Decision>,
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
@@ -22,7 +21,6 @@ data class CreateChangeRecordCommand(
 data class ConfirmChangeRecordCommand(
     val recordId: UUID,
     val expectedVersion: Long,
-    val author: String,
     val immutableRevision: String,
     val currentSnapshotDigest: String,
 )

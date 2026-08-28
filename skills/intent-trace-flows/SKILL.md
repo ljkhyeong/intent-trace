@@ -1,6 +1,6 @@
 ---
 name: intent-trace-flows
-description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서비스와 Codex 플러그인 전용 개발 흐름. 변경 의도 수명주기, 커밋·스냅샷·코드 근거, 검증 증거, REST·MCP 계약, GitHub PR Check Run 게시, Flyway·JDBC, 외부 자격 증명, 문서나 플러그인 스킬을 변경할 때 사용한다."
+description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서비스와 Codex 플러그인 전용 개발 흐름. 변경 의도 수명주기, GitHub 사용자·저장소 권한, 커밋·스냅샷·코드 근거, 검증 증거, REST·MCP 계약, GitHub PR Check Run 게시, Flyway·JDBC, 외부 자격 증명, 문서나 플러그인 스킬을 변경할 때 사용한다."
 ---
 
 # IntentTrace 개발 흐름
@@ -29,6 +29,15 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
 
+## 팀 사용자와 저장소 접근 경계
+
+- 모든 REST·MCP 요청은 `ghu_` GitHub App user access token으로 `/user`를 확인하고, 숫자 사용자 ID를 `github:<id>` subject로 사용한다. login은 표시값이며 소유권 키로 사용하지 않는다.
+- 작성자·사용자 ID를 REST나 MCP 도구 입력으로 받지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다.
+- `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
+- GitHub `/user/repos`의 `owner,collaborator,organization_member` 목록에 포함된 저장소만 팀 범위로 인정한다. 그 목록의 `pull`은 READER, `push`는 CONTRIBUTOR, `maintain`·`admin`은 MAINTAINER로 해석한다. public 저장소의 일반 읽기 가능 여부만으로 팀원이라고 판단하지 않는다.
+- user access token은 요청 처리 중에만 보유하고 DB, 로그, 예외, 도구 입력에 넣지 않는다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
+- V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
+
 ## 외부 게시 경계
 
 - GitHub 게시 전 공개 기록인지 확인하고 PR `head.sha`가 기록의 `targetRevision`과 정확히 같은지 서버 응답으로 검증한다.
@@ -42,7 +51,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 
 ## 변경 절차
 
-1. 요청을 기록 수명주기, 증거, 조회, GitHub 게시, 플러그인 또는 운영 중 하나로 분류한다.
+1. 요청을 기록 수명주기, 사용자·권한, 증거, 조회, GitHub 게시, 플러그인 또는 운영 중 하나로 분류한다.
 2. `rg`로 같은 책임의 도메인 규칙, 포트, 어댑터, SQL, DTO, MCP 도구와 문서를 찾는다.
 3. 가장 좁은 소유 계층에서 시작해 필요한 포트와 어댑터만 전파한다.
 4. 스키마 변경은 다음 Flyway 버전으로 추가하고 적용된 migration을 수정하지 않는다.

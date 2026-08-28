@@ -16,6 +16,9 @@
 - 실행하지 않은 명령이나 테스트를 검증으로 기록하지 않는다.
 - 비밀값과 절대 개인 경로는 저장 전에 제거한다.
 - GitHub 게시 전 저장소와 PR HEAD를 서버 응답으로 확인하고 private key, JWT와 installation token을 저장하거나 로그에 남기지 않는다.
+- REST와 MCP 작성자는 GitHub `/user` 응답의 숫자 ID로 정하고 요청 입력의 작성자 값을 신뢰하지 않는다.
+- 초안은 작성자에게만, 공개·대체 기록은 GitHub 저장소 읽기 권한이 있는 팀원에게만 노출한다.
+- GitHub user access token은 HTTP 헤더에서만 사용하고 DB, 로그, MCP 도구 인자에 넣지 않는다.
 
 ## 구현 원칙
 
