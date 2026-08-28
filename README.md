@@ -16,6 +16,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
+- PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
@@ -43,6 +44,21 @@ export INTENT_TRACE_DATABASE_USERNAME='intent_trace'
 export INTENT_TRACE_DATABASE_PASSWORD='로컬-비밀번호'
 ./gradlew bootRun --args='--spring.profiles.active=postgres'
 ```
+
+## 팀 배포
+
+Docker Compose는 PostgreSQL, IntentTrace와 Caddy를 단일 인스턴스로 실행합니다. 외부에는 Caddy의 80·443만 공개하고 애플리케이션과 데이터베이스는 Docker network 안에서만 접근합니다.
+
+```bash
+cp .env.team.example .env.team
+chmod 600 .env.team
+docker compose --env-file .env.team up -d --build
+curl http://localhost:8080/actuator/health
+```
+
+기본 예시는 로컬 HTTP 검증용입니다. 팀 domain을 사용할 때는 `.env.team`의 `INTENT_TRACE_SITE_ADDRESS`, 공개 port와 `INTENT_TRACE_GITHUB_CALLBACK_URL`을 실제 HTTPS origin으로 바꿉니다. callback은 GitHub App에 등록한 값과 정확히 같아야 합니다. 자세한 기동·TLS·backup·restore 절차는 [`docs/operations/team-deployment.md`](docs/operations/team-deployment.md)에 있습니다.
+
+PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub access·refresh token과 `its_` session은 계속 애플리케이션 메모리에만 있으므로 app container를 다시 만들면 사용자가 GitHub 승인을 다시 해야 합니다.
 
 REST와 MCP 요청에는 IntentTrace 로컬 세션이 필요합니다. 먼저 GitHub App 설정에서 다음 항목을 준비합니다.
 
@@ -150,7 +166,7 @@ scripts/validate-plugin.sh
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
-- 서버는 여전히 로컬호스트에 바인딩되며 TLS 종료와 팀 배포 운영 설정은 별도입니다.
+- 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
 - 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
 
 ## 문서
@@ -163,4 +179,6 @@ scripts/validate-plugin.sh
 - `docs/PRD-0003-team-identity-and-repository-access.md`
 - `docs/ADR-0004-github-user-repository-authorization.md`
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
+- `docs/ADR-0006-single-instance-team-deployment.md`
+- `docs/operations/team-deployment.md`
 - `HANDOFF.md`

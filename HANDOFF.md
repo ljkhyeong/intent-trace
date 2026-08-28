@@ -14,6 +14,9 @@
 - GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
 - GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
 - SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
+- PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
+- 비root·읽기 전용 app container와 분리된 data·edge network
+- PostgreSQL backup·명시적 restore와 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
 - Streamable HTTP MCP 도구 6개
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
@@ -34,11 +37,14 @@
 - 팀 조회에는 공개 또는 대체된 기록만 노출한다.
 - GitHub 게시 전 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다.
 - Check Run은 변경 기록 UUID `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
+- 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
+- PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
+- restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.
 
 ## 다음 작업 후보
 
-1. PostgreSQL 기반 팀 배포, TLS 종료와 암호화된 세션 저장 여부를 결정한다.
-2. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+1. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
 4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
 
@@ -46,6 +52,7 @@
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
 - 승인 폐기 webhook과 사용자가 세션을 직접 조회·폐기하는 UI는 없다.
+- 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
 - 코드 스냅샷과 줄 해시는 제공 스크립트로 계산하며 서버가 Git 객체를 직접 검증하지 않는다.

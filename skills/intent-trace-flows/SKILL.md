@@ -1,6 +1,6 @@
 ---
 name: intent-trace-flows
-description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서비스와 Codex 플러그인 전용 개발 흐름. 변경 의도 수명주기, GitHub 사용자·저장소 권한, 커밋·스냅샷·코드 근거, 검증 증거, REST·MCP 계약, GitHub PR Check Run 게시, Flyway·JDBC, 외부 자격 증명, 문서나 플러그인 스킬을 변경할 때 사용한다."
+description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서비스와 Codex 플러그인 전용 개발 흐름. 변경 의도 수명주기, GitHub 사용자·저장소 권한, REST·MCP, Check Run, Flyway·JDBC, Docker Compose 팀 배포, TLS·backup·restore, 외부 자격 증명, 문서나 플러그인 스킬을 변경할 때 사용한다."
 ---
 
 # IntentTrace 개발 흐름
@@ -50,6 +50,15 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - 동적 token의 `401`은 캐시를 폐기하고 한 번만 반복하며 고정 token이나 다른 실패를 무조건 재시도하지 않는다.
 - 외부 응답 본문과 자격 증명을 예외 메시지에 그대로 노출하지 않고 안정된 실패 분류로 변환한다.
 - 실제 GitHub 쓰기는 사용자가 명시적으로 요청한 저장소와 PR에만 수행한다.
+
+## 단일 인스턴스 팀 배포 경계
+
+- `compose.yaml`에서는 Caddy만 host의 80·443에 연결한다. app과 PostgreSQL에 host port를 추가하지 않는다.
+- PostgreSQL은 외부 통신이 차단된 `data` network만 사용한다. app은 PostgreSQL용 `data`와 GitHub API outbound·Caddy proxy용 `edge`를 함께 사용한다.
+- app은 비root, 읽기 전용 filesystem, `/tmp` tmpfs, 제거된 Linux capability를 유지한다. 편의를 위해 container socket, source directory나 host 비밀 경로를 mount하지 않는다.
+- 팀 profile은 PostgreSQL, `0.0.0.0`, forwarded header, 비활성 H2 console과 readiness health를 유지한다. 외부 TLS와 인증서 갱신은 Caddy 책임이다.
+- PostgreSQL backup에는 제품 데이터만 포함한다. GitHub access·refresh token과 `its_` session을 schema나 backup에 추가하려면 암호화 key·회전·폐기를 새 ADR로 먼저 결정한다.
+- backup은 기존 파일을 덮어쓰지 않고 제한 권한으로 만든다. restore는 app 중지, 일반 파일과 명시적 `--confirm-replace`를 모두 확인한 뒤에만 현재 DB를 교체한다.
 
 ## 변경 절차
 

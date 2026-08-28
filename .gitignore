@@ -42,3 +42,5 @@ out/
 ### IntentTrace local data ###
 .intent-trace/
 .env
+.env.team
+backups/

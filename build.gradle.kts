@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.intenttrace"
-version = "0.5.0-SNAPSHOT"
+version = "0.6.0-SNAPSHOT"
 description = "Intent-aware change provenance for AI-assisted development"
 
 java {
@@ -51,4 +51,8 @@ kotlin {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+tasks.bootJar {
+	archiveFileName.set("intent-trace.jar")
 }

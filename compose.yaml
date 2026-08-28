@@ -1,0 +1,82 @@
+name: intent-trace
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${INTENT_TRACE_DATABASE_NAME:?INTENT_TRACE_DATABASE_NAME을 설정하세요}
+      POSTGRES_USER: ${INTENT_TRACE_DATABASE_USERNAME:?INTENT_TRACE_DATABASE_USERNAME을 설정하세요}
+      POSTGRES_PASSWORD: ${INTENT_TRACE_DATABASE_PASSWORD:?INTENT_TRACE_DATABASE_PASSWORD를 설정하세요}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - data
+
+  app:
+    build:
+      context: .
+    image: intent-trace:${INTENT_TRACE_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: team
+      INTENT_TRACE_DATABASE_URL: jdbc:postgresql://postgres:5432/${INTENT_TRACE_DATABASE_NAME:?INTENT_TRACE_DATABASE_NAME을 설정하세요}
+      INTENT_TRACE_DATABASE_USERNAME: ${INTENT_TRACE_DATABASE_USERNAME:?INTENT_TRACE_DATABASE_USERNAME을 설정하세요}
+      INTENT_TRACE_DATABASE_PASSWORD: ${INTENT_TRACE_DATABASE_PASSWORD:?INTENT_TRACE_DATABASE_PASSWORD를 설정하세요}
+      INTENT_TRACE_GITHUB_TOKEN: ${INTENT_TRACE_GITHUB_TOKEN:-}
+      INTENT_TRACE_GITHUB_APP_CLIENT_ID: ${INTENT_TRACE_GITHUB_APP_CLIENT_ID:?INTENT_TRACE_GITHUB_APP_CLIENT_ID를 설정하세요}
+      INTENT_TRACE_GITHUB_APP_CLIENT_SECRET: ${INTENT_TRACE_GITHUB_APP_CLIENT_SECRET:?INTENT_TRACE_GITHUB_APP_CLIENT_SECRET을 설정하세요}
+      INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64: ${INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64:-}
+      INTENT_TRACE_GITHUB_CALLBACK_URL: ${INTENT_TRACE_GITHUB_CALLBACK_URL:?INTENT_TRACE_GITHUB_CALLBACK_URL을 설정하세요}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    networks:
+      data:
+      edge:
+        gw_priority: 1
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      INTENT_TRACE_SITE_ADDRESS: ${INTENT_TRACE_SITE_ADDRESS:?INTENT_TRACE_SITE_ADDRESS를 설정하세요}
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${INTENT_TRACE_HTTP_PORT:-80}:80"
+      - "${INTENT_TRACE_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+
+networks:
+  data:
+    internal: true
+  edge:
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

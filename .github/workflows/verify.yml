@@ -1,0 +1,56 @@
+name: 검증
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@v6
+
+      - name: Java 21 준비
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle 준비
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Python 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: 전체 테스트
+        run: ./gradlew --no-daemon test
+
+      - name: 플러그인 검증
+        env:
+          CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
+        run: scripts/validate-plugin.sh
+
+      - name: Compose 설정 검증
+        env:
+          INTENT_TRACE_SITE_ADDRESS: http://localhost
+          INTENT_TRACE_HTTP_PORT: "8080"
+          INTENT_TRACE_HTTPS_PORT: "8443"
+          INTENT_TRACE_DATABASE_NAME: intent_trace
+          INTENT_TRACE_DATABASE_USERNAME: intent_trace
+          INTENT_TRACE_DATABASE_PASSWORD: ci-only-database-password
+          INTENT_TRACE_GITHUB_APP_CLIENT_ID: Iv1.ci
+          INTENT_TRACE_GITHUB_APP_CLIENT_SECRET: ci-only-client-secret
+          INTENT_TRACE_GITHUB_CALLBACK_URL: http://localhost:8080/auth/github/callback
+        run: docker compose config --quiet
+
+      - name: Container image build
+        run: docker build --tag intent-trace:ci .

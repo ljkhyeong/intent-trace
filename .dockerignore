@@ -1,0 +1,15 @@
+.git
+.github
+.gradle
+.idea
+.intent-trace
+.kotlin
+.env
+.env.*
+build
+out
+docs
+hooks
+skills
+*.iml
+HELP.md
