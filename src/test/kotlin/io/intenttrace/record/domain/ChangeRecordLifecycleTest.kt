@@ -13,7 +13,7 @@ class ChangeRecordLifecycleTest {
         val draft = draft()
         val confirmed = draft.confirm(
             actor = author,
-            immutableRevision = "b".repeat(40),
+            immutableRevision = "B".repeat(40),
             currentSnapshotDigest = digest,
             now = Instant.parse("2026-08-27T12:01:00Z"),
         )

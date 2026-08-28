@@ -19,6 +19,8 @@
 - PostgreSQL backup·명시적 restore와 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
 - Streamable HTTP MCP 도구 6개
+- REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
+- GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - IntentTrace 저장소 전용 개발 스킬
 
@@ -40,6 +42,8 @@
 - 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
 - PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
 - restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.
+- MCP 생성 도구는 Jakarta Validator를 명시적으로 실행하고 전체 Git commit 형식은 도메인 값 객체에서 검증한다.
+- GitHub 자격 증명 보유 객체의 `toString()`에는 실제 비밀값을 넣지 않는다.
 
 ## 다음 작업 후보
 

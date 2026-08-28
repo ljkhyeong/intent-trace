@@ -24,6 +24,10 @@ data class GitHubProperties(
         require(API_VERSION.matches(apiVersion)) { "GitHub API 버전은 YYYY-MM-DD 형식이어야 합니다." }
     }
 
+    override fun toString(): String =
+        "GitHubProperties(apiBaseUrl=$apiBaseUrl, apiVersion=$apiVersion, token=[보호됨], " +
+            "app=$app, userAuthorization=$userAuthorization)"
+
     companion object {
         private val API_VERSION = Regex("^\\d{4}-\\d{2}-\\d{2}$")
     }
@@ -42,6 +46,10 @@ data class GitHubAppProperties(
             "GitHub App token 갱신 여유 시간은 30분 이하여야 합니다."
         }
     }
+
+    override fun toString(): String =
+        "GitHubAppProperties(clientId=$clientId, privateKeyBase64=[보호됨], " +
+            "refreshBeforeExpiry=$refreshBeforeExpiry)"
 }
 
 data class GitHubUserAuthorizationProperties(
@@ -77,6 +85,11 @@ data class GitHubUserAuthorizationProperties(
     }
 
     val secureCookie: Boolean = callbackUrl.scheme.equals("https", ignoreCase = true)
+
+    override fun toString(): String =
+        "GitHubUserAuthorizationProperties(webBaseUrl=$webBaseUrl, clientSecret=[보호됨], " +
+            "callbackUrl=$callbackUrl, stateTtl=$stateTtl, refreshBeforeExpiry=$refreshBeforeExpiry, " +
+            "secureCookie=$secureCookie)"
 
     private fun URI.isSafeCallback(): Boolean {
         if (host.isNullOrBlank() || userInfo != null || query != null || fragment != null || path != GITHUB_OAUTH_CALLBACK_PATH) {

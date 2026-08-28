@@ -5,6 +5,7 @@ import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
+import io.intenttrace.record.domain.GitRevision
 import io.intenttrace.record.domain.VerificationRun
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -87,12 +88,13 @@ class ChangeRecordFacade(
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         require(repositoryKey.isNotBlank()) { "저장소 식별자는 비어 있을 수 없습니다." }
+        val normalizedRevision = GitRevision.parse(revision).value
         require(path.isNotBlank() && !path.startsWith('/') && !path.contains("..")) {
             "코드 경로는 저장소 기준 상대 경로여야 합니다."
         }
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 
-        return repository.findPublished(repositoryKey, revision.lowercase())
+        return repository.findPublished(repositoryKey, normalizedRevision)
             .filter { it.contains(path, line) }
     }
 

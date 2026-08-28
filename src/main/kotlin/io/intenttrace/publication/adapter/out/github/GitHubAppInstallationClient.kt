@@ -15,7 +15,9 @@ import java.time.Instant
 data class GitHubInstallationAccessToken(
     val value: String,
     val expiresAt: Instant,
-)
+) {
+    override fun toString(): String = "GitHubInstallationAccessToken(value=[보호됨], expiresAt=$expiresAt)"
+}
 
 fun interface GitHubInstallationTokenIssuer {
     fun issue(target: GitHubPullRequestTarget): GitHubInstallationAccessToken
@@ -100,4 +102,6 @@ private data class InstallationTokenRequest(
 private data class InstallationTokenResponse(
     val token: String,
     @JsonProperty("expires_at") val expiresAt: String,
-)
+) {
+    override fun toString(): String = "InstallationTokenResponse(token=[보호됨], expiresAt=$expiresAt)"
+}

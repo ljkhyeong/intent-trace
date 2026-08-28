@@ -5,6 +5,8 @@ import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
+import jakarta.validation.ConstraintViolationException
+import jakarta.validation.Validator
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
@@ -13,6 +15,7 @@ import java.util.UUID
 @Component
 class IntentTraceTools(
     private val records: TeamChangeRecordService,
+    private val validator: Validator,
 ) {
     @McpTool(
         name = "create_change_record",
@@ -28,7 +31,11 @@ class IntentTraceTools(
     fun create(
         @McpToolParam(description = "작성자가 검토할 구조화된 변경 의도 초안", required = true)
         request: CreateChangeRecordRequest,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(records.create(request.toCommand()))
+    ): ChangeRecordResponse {
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
+        return ChangeRecordResponse.from(records.create(request.toCommand()))
+    }
 
     @McpTool(
         name = "get_change_record",

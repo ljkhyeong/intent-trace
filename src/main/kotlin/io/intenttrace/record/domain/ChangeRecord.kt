@@ -29,10 +29,10 @@ data class ChangeRecord(
         check(status == ChangeRecordStatus.DRAFT) { "초안 상태의 기록만 작성자가 확인할 수 있습니다." }
         check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 확인할 수 있습니다." }
         check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 기록을 확인할 수 없습니다." }
-        require(FULL_REVISION.matches(immutableRevision)) { "공개 준비에는 전체 Git 커밋 ID가 필요합니다." }
+        val revision = GitRevision.parse(immutableRevision)
 
         return copy(
-            targetRevision = immutableRevision.lowercase(),
+            targetRevision = revision.value,
             status = ChangeRecordStatus.AUTHOR_CONFIRMED,
             confirmedAt = now,
             version = version + 1,
@@ -70,10 +70,6 @@ data class ChangeRecord(
 
     fun contains(path: String, line: Int): Boolean =
         codeAnchors.any { it.relativePath == path && line in it.startLine..it.endLine }
-
-    companion object {
-        private val FULL_REVISION = Regex("^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")
-    }
 }
 
 enum class ChangeRecordStatus {

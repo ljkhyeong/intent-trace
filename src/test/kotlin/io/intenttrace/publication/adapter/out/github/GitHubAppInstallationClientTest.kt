@@ -16,6 +16,8 @@ import org.springframework.web.client.RestClient
 import java.net.URI
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class GitHubAppInstallationClientTest {
     @Test
@@ -52,6 +54,8 @@ class GitHubAppInstallationClientTest {
 
         assertEquals("installation-token", result.value)
         assertEquals(Instant.parse("2026-08-28T01:00:00Z"), result.expiresAt)
+        assertFalse(result.toString().contains("installation-token"))
+        assertTrue(result.toString().contains("[보호됨]"))
         server.verify()
     }
 }

@@ -19,6 +19,7 @@
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
 - 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
+- access·refresh·session token과 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 
 ## 영향
 

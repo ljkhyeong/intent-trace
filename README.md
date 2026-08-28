@@ -135,6 +135,8 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 
 MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
 
+REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
+
 모든 API와 MCP 입력에서 작성자 필드는 받지 않습니다. 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 
 ## Codex 플러그인

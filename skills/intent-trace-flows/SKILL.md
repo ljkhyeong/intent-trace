@@ -28,6 +28,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다.
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
+- Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
 
 ## 팀 사용자와 저장소 접근 경계
 
@@ -49,6 +50,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - installation token은 대상 저장소와 필요한 권한으로 축소하고 만료 전에 메모리에서 갱신한다.
 - 동적 token의 `401`은 캐시를 폐기하고 한 번만 반복하며 고정 token이나 다른 실패를 무조건 재시도하지 않는다.
 - 외부 응답 본문과 자격 증명을 예외 메시지에 그대로 노출하지 않고 안정된 실패 분류로 변환한다.
+- token, private key와 client secret을 보유한 타입의 `toString()`에는 실제 비밀값을 넣지 않는다.
 - 실제 GitHub 쓰기는 사용자가 명시적으로 요청한 저장소와 PR에만 수행한다.
 
 ## 단일 인스턴스 팀 배포 경계
