@@ -16,6 +16,8 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.request
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.util.UriUtils
 import java.net.URI
 import kotlin.test.assertEquals
 
@@ -51,7 +53,14 @@ class GitHubRestClientTest {
         val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
         server.expect { request ->
             assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
-            assertEquals("check_name=IntentTrace%20/%20%EB%B3%80%EA%B2%BD%20%EC%9D%98%EB%8F%84&filter=all&per_page=100&page=1", request.uri.rawQuery)
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals(
+                "IntentTrace / 변경 의도",
+                UriUtils.decode(query.getFirst("check_name")!!, Charsets.UTF_8),
+            )
+            assertEquals("all", query.getFirst("filter"))
+            assertEquals("100", query.getFirst("per_page"))
+            assertEquals("1", query.getFirst("page"))
         }
             .andExpect(method(HttpMethod.GET))
             .andRespond(

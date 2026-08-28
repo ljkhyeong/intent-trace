@@ -1,9 +1,9 @@
 package io.intenttrace.record.adapter.`in`.mcp
 
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
-import io.intenttrace.record.adapter.`in`.web.ConfirmChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
-import io.intenttrace.record.adapter.`in`.web.PublishChangeRecordRequest
+import io.intenttrace.record.application.ConfirmChangeRecordCommand
+import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
@@ -68,11 +68,12 @@ class IntentTraceTools(
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.confirm(
-            ConfirmChangeRecordRequest(
+            ConfirmChangeRecordCommand(
+                UUID.fromString(recordId),
                 expectedVersion,
                 immutableRevision,
                 currentSnapshotDigest,
-            ).toCommand(UUID.fromString(recordId)),
+            ),
         ),
     )
 
@@ -96,8 +97,11 @@ class IntentTraceTools(
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.publish(
-            PublishChangeRecordRequest(expectedVersion, currentSnapshotDigest)
-                .toCommand(UUID.fromString(recordId)),
+            PublishChangeRecordCommand(
+                UUID.fromString(recordId),
+                expectedVersion,
+                currentSnapshotDigest,
+            ),
         ),
     )
 

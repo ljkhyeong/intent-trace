@@ -10,6 +10,7 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.time.Instant
 import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -241,7 +242,7 @@ private object SecureTokens {
 private object TokenDigests {
     fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.US_ASCII))
-        .joinToString("") { "%02x".format(it) }
+        .let(HexFormat.of()::formatHex)
 }
 
 private object Pkce {

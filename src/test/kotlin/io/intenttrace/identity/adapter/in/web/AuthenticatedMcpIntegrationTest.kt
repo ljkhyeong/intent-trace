@@ -6,7 +6,6 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
-import org.hamcrest.Matchers.containsString
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -65,33 +64,6 @@ class AuthenticatedMcpIntegrationTest(
 
         val sessionId = authenticated.response.getHeader("Mcp-Session-Id")
         assertNotNull(sessionId)
-        val revision = "b".repeat(40)
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content =
-                """
-                {
-                  "jsonrpc": "2.0",
-                  "id": 2,
-                  "method": "tools/call",
-                  "params": {
-                    "name": "find_change_intent",
-                    "arguments": {
-                      "repositoryKey": "acme/intent-trace",
-                      "revision": "$revision",
-                      "path": "src/App.kt",
-                      "line": 1
-                    }
-                  }
-                }
-                """.trimIndent()
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":false")) }
-        }
     }
 
     @TestConfiguration

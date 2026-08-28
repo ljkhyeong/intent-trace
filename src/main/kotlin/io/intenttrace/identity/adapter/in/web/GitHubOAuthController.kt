@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.util.HtmlUtils
 import java.time.Duration
 
 @RestController
@@ -152,12 +153,7 @@ private fun page(title: String, content: String): String =
     </html>
     """.trimIndent()
 
-private fun escapeHtml(value: String): String = value
-    .replace("&", "&amp;")
-    .replace("<", "&lt;")
-    .replace(">", "&gt;")
-    .replace("\"", "&quot;")
-    .replace("'", "&#39;")
+private fun escapeHtml(value: String): String = HtmlUtils.htmlEscape(value, Charsets.UTF_8.name())
 
 private fun <T : ResponseEntity.HeadersBuilder<T>> secure(builder: T): T = builder
     .cacheControl(CacheControl.noStore())

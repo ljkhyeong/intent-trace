@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
+import java.util.HexFormat
 import java.util.UUID
 
 @Service
@@ -71,7 +72,7 @@ class PublishChangeRecordToGitHub(
 
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(StandardCharsets.UTF_8))
-        .joinToString("") { "%02x".format(it) }
+        .let(HexFormat.of()::formatHex)
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535

@@ -16,6 +16,7 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.request
 import org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -48,10 +49,10 @@ class GitHubUserRestClientTest {
     fun `저장소 응답의 push 권한을 기여자 역할로 해석한다`() {
         server.expect { request ->
             assertEquals("/user/repos", request.uri.path)
-            assertEquals(
-                "affiliation=owner,collaborator,organization_member&per_page=100&page=1",
-                request.uri.rawQuery,
-            )
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("owner,collaborator,organization_member", query.getFirst("affiliation"))
+            assertEquals("100", query.getFirst("per_page"))
+            assertEquals("1", query.getFirst("page"))
         }
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer user-token"))
@@ -80,12 +81,18 @@ class GitHubUserRestClientTest {
 
     @Test
     fun `다음 페이지에 있는 저장소 권한도 찾는다`() {
-        server.expect { request -> assertEquals("page=1", request.uri.rawQuery.substringAfterLast('&')) }
+        server.expect { request ->
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("1", query.getFirst("page"))
+        }
             .andRespond(
                 withSuccess("[]", MediaType.APPLICATION_JSON)
                     .header(HttpHeaders.LINK, "<https://api.github.test/user/repos?page=2>; rel=\"next\""),
             )
-        server.expect { request -> assertEquals("page=2", request.uri.rawQuery.substringAfterLast('&')) }
+        server.expect { request ->
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("2", query.getFirst("page"))
+        }
             .andRespond(
                 withSuccess(
                     """[{"full_name":"acme/intent-trace","permissions":{"pull":true}}]""",
