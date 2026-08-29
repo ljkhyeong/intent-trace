@@ -19,6 +19,8 @@ internal data class LineLookup(
 }
 
 internal class IntentTraceServer private constructor(val baseUri: URI) {
+    fun authorizationStartUri(): URI = URI.create("$baseUri/auth/github/start")
+
     fun lookupUri(lookup: LineLookup): URI {
         val query = listOf(
             "repositoryKey" to lookup.repositoryKey,

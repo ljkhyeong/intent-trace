@@ -17,6 +17,14 @@ class IntentTraceServerTest {
     }
 
     @Test
+    fun `기존 서버의 GitHub 승인 시작 주소를 만든다`() {
+        assertEquals(
+            "https://trace.example.com/auth/github/start",
+            IntentTraceServer.parse("https://trace.example.com").authorizationStartUri().toString(),
+        )
+    }
+
+    @Test
     fun `외부 HTTP와 하위 경로가 있는 주소는 거부한다`() {
         assertFailsWith<IntentTraceUsageException> {
             IntentTraceServer.parse("http://trace.example.com")

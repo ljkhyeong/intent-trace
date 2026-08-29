@@ -232,9 +232,12 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 export INTENT_TRACE_URL='https://intent.example.com'
 ```
 
-1. 브라우저에서 서버의 `/auth/github/start` 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
-2. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
-3. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄의 IntentTrace 변경 의도 조회`를 실행합니다.
+1. IntelliJ의 `Tools > IntentTrace GitHub 승인 시작`을 실행합니다. 또는 브라우저에서 서버의 `/auth/github/start`를 직접 엽니다.
+2. GitHub 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
+3. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
+4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄의 IntentTrace 변경 의도 조회`를 실행합니다.
+
+PasswordSafe 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. `INTENT_TRACE_SESSION_TOKEN` 환경 변수가 설정돼 있으면 PasswordSafe를 지운 뒤에도 환경 변수 세션을 계속 사용합니다.
 
 플러그인은 현재 GitHub remote, 전체 HEAD commit, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. GitHub access·refresh token은 받거나 저장하지 않습니다.
 
@@ -259,7 +262,7 @@ python3 scripts/validate-compose.py .env.team.example
 - GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
-- IntelliJ 플러그인은 커밋된 현재 파일의 단일 줄 조회만 지원하며 IDE 안에서 OAuth를 시작하거나 기록을 생성하지 않습니다.
+- IntelliJ 플러그인은 커밋된 현재 파일의 단일 줄 조회만 지원하며 callback token을 자동으로 가져오거나 기록을 생성하지 않습니다.
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
 - 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
 
