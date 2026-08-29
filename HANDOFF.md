@@ -2,7 +2,7 @@
 
 ## 현재 구현
 
-- Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
+- IntentTrace 0.6.0, Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
 - H2 기본 저장소와 PostgreSQL 프로필
 - Flyway 초기 스키마
 - Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키, V5 코드 경로 정규화와 V6 미사용 기준 revision 제거 스키마
@@ -25,6 +25,8 @@
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - IntentTrace 저장소 전용 개발 스킬
+- Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
+- SECURITY 정책과 0.6.0 변경 이력
 
 ## 확인할 불변식
 
@@ -54,10 +56,11 @@
 
 ## 다음 작업 후보
 
-1. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
-2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
-3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
+1. `v0.6.0` tag와 GitHub Release를 발행한다.
+2. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+3. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
+4. 코드 근거를 Check Run line annotation으로 선택 게시한다.
+5. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
 
 ## 현재 제한
 
@@ -73,3 +76,4 @@
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IDE 자동 연동은 아직 구현하지 않았다.
 - 감사 로그와 기록 보존 정책은 아직 구현하지 않았다.
+- 현재 두 개의 alignment HTML만 저장소에 유지하며 새 HTML은 GitHub Release나 별도 보관소에 둔다.

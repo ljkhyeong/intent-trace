@@ -201,8 +201,12 @@ python3 scripts/validate-compose.py .env.team.example
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
 - `docs/ADR-0006-single-instance-team-deployment.md`
 - `docs/operations/team-deployment.md`
+- `CHANGELOG.md`
+- `SECURITY.md`
+- `THIRD_PARTY_NOTICES.md`
 - `HANDOFF.md`
 
 ## 라이선스
 
 IntentTrace는 [Apache License 2.0](LICENSE)으로 배포합니다.
+Hope HTML에 포함된 렌더러와 글꼴은 [제3자 소프트웨어 고지](THIRD_PARTY_NOTICES.md)에 적힌 별도 라이선스를 따릅니다.
