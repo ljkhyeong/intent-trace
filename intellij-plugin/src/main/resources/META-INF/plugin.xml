@@ -1,0 +1,28 @@
+<idea-plugin>
+    <id>io.intenttrace.lineintent</id>
+    <name>IntentTrace</name>
+    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace contributors</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <actions>
+        <action
+            id="io.intenttrace.intellij.FindCurrentLineIntent"
+            class="io.intenttrace.intellij.FindCurrentLineIntentAction"
+            text="현재 줄 변경 의도 조회"
+            description="현재 Git HEAD의 파일과 줄에 연결된 IntentTrace 공개 기록을 조회합니다."
+            icon="AllIcons.Actions.Find">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.SaveSessionToken"
+            class="io.intenttrace.intellij.SaveSessionTokenAction"
+            text="IntentTrace 세션 연결"
+            description="OAuth callback에서 받은 its_ session token을 IntelliJ PasswordSafe에 저장합니다."
+            icon="AllIcons.Actions.Checked">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

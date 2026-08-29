@@ -28,6 +28,11 @@ def main() -> None:
         r"^spring\.ai\.mcp\.server\.version=(.+)$",
         "MCP server version",
     )
+    intellij_plugin_version = require_match(
+        root / "intellij-plugin/gradle.properties",
+        r"^pluginVersion=(.+)$",
+        "IntelliJ plugin version",
+    )
     plugin = json.loads((root / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
     plugin_version = plugin.get("version")
 
@@ -35,6 +40,7 @@ def main() -> None:
         "Gradle": build_version,
         "MCP server": mcp_version,
         "Codex plugin": plugin_version,
+        "IntelliJ plugin": intellij_plugin_version,
     }
     if any(version != build_version for version in versions.values()):
         details = ", ".join(f"{name}={version}" for name, version in versions.items())

@@ -18,6 +18,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
+- IntelliJ 현재 줄의 공개 변경 의도 조회 플러그인
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
 
@@ -217,10 +218,31 @@ REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용�
 플러그인 훅은 원문 프롬프트나 도구 출력을 수집하지 않습니다. Codex에 기록 원칙만 전달합니다.
 설치하거나 갱신한 뒤에는 Codex의 `/hooks`에서 `hooks/hooks.json` 내용을 확인하고 신뢰해야 세션 시작 훅이 실행됩니다. 훅을 신뢰하지 않아도 REST와 MCP 기능에는 영향이 없습니다.
 
+## IntelliJ 플러그인
+
+Java 21에서 플러그인 설치 ZIP을 만듭니다. 기본 빌드는 IntelliJ IDEA 2025.3.2 SDK를 내려받으므로 첫 실행에 시간이 걸릴 수 있습니다.
+
+```bash
+./gradlew --no-daemon -p intellij-plugin buildPlugin
+```
+
+IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plugin/build/distributions/intent-trace-intellij-*.zip`을 선택합니다. IDE를 시작하기 전에 연결할 서버를 지정합니다. 기본값은 `http://127.0.0.1:8080`이며, 외부 서버는 HTTPS만 허용합니다.
+
+```bash
+export INTENT_TRACE_URL='https://intent.example.com'
+```
+
+1. 브라우저에서 서버의 `/auth/github/start` 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
+2. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
+3. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄의 IntentTrace 변경 의도 조회`를 실행합니다.
+
+플러그인은 현재 GitHub remote, 전체 HEAD commit, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. GitHub access·refresh token은 받거나 저장하지 않습니다.
+
 ## 검증
 
 ```bash
 ./gradlew test
+./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
@@ -237,7 +259,7 @@ python3 scripts/validate-compose.py .env.team.example
 - GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
-- IntelliJ 라인 조회 플러그인은 다음 단계입니다.
+- IntelliJ 플러그인은 커밋된 현재 파일의 단일 줄 조회만 지원하며 IDE 안에서 OAuth를 시작하거나 기록을 생성하지 않습니다.
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
 - 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
 
@@ -252,6 +274,8 @@ python3 scripts/validate-compose.py .env.team.example
 - `docs/ADR-0004-github-user-repository-authorization.md`
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
 - `docs/ADR-0006-single-instance-team-deployment.md`
+- `docs/PRD-0004-intellij-line-intent.md`
+- `docs/ADR-0007-intellij-plugin-client-boundary.md`
 - `docs/operations/team-deployment.md`
 - `CHANGELOG.md`
 - `SECURITY.md`
