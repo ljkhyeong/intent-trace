@@ -11,12 +11,21 @@ smoke_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-postgres.XXXXXX")
 smoke_database_name=intent_trace
 smoke_database_username=intent_trace
 smoke_database_password=intent-trace-smoke-password
+smoke_project_name="intent-trace-postgres-smoke-$$"
 
-export COMPOSE_FILE=${COMPOSE_FILE:-compose.yaml:compose.postgres-smoke.yaml}
-export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-intent-trace-postgres-smoke}
+export COMPOSE_FILE="$repository_root/compose.yaml:$repository_root/compose.postgres-smoke.yaml"
+export COMPOSE_PROJECT_NAME=$smoke_project_name
 export INTENT_TRACE_DATABASE_NAME=$smoke_database_name
 export INTENT_TRACE_DATABASE_USERNAME=$smoke_database_username
 export INTENT_TRACE_DATABASE_PASSWORD=$smoke_database_password
+
+smoke_project_suffix=${COMPOSE_PROJECT_NAME#intent-trace-postgres-smoke-}
+case "$smoke_project_suffix" in
+    ''|*[!0-9]*)
+        printf '%s\n' "PostgreSQL smoke 전용 Compose 프로젝트 이름이 아닙니다: $COMPOSE_PROJECT_NAME" >&2
+        exit 1
+        ;;
+esac
 
 cleanup() {
     docker compose --env-file "$environment_file" down --volumes >/dev/null 2>&1 || true

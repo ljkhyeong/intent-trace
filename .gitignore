@@ -41,8 +41,9 @@ out/
 
 ### IntentTrace local data ###
 .intent-trace/
-.env
-.env.team
+.env*
+!.env.example
+!.env.team.example
 backups/
-intent-trace.private-key.pem
-*.private-key.pem
+*.pem
+*.key

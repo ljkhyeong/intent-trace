@@ -12,7 +12,15 @@ class SensitiveTextRedactor {
         option = RegexOption.DOT_MATCHES_ALL,
     )
     private val bearerPattern = Regex("(?i)\\bBearer\\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?")
-    private val knownTokenPattern = Regex("(?i)\\b(?:ghp|gho|ghu|ghs|ghr|github_pat|its)_[A-Za-z0-9_=-]+\\b")
+    private val intentTraceSessionPattern = Regex(
+        "(?<![A-Za-z0-9_])its_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])",
+    )
+    private val githubTokenPattern = Regex(
+        "(?i)(?<![A-Za-z0-9_])(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_=-]+(?![A-Za-z0-9_=-])",
+    )
+    private val compactJwtPattern = Regex(
+        "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])",
+    )
     private val unixHomePathPattern = Regex("(?i)/(?:Users|home)/[^\\s\"'`,;)\\]}]+")
     private val windowsHomePathPattern = Regex("(?i)[A-Z]:\\\\Users\\\\[^\\s\"'`,;)\\]}]+")
 
@@ -20,7 +28,9 @@ class SensitiveTextRedactor {
         .replace(privateKeyPattern, "[REDACTED]")
         .replace(assignmentPattern) { match -> "${match.groupValues[1]}[REDACTED]" }
         .replace(bearerPattern, "Bearer [REDACTED]")
-        .replace(knownTokenPattern, "[REDACTED]")
+        .replace(intentTraceSessionPattern, "[REDACTED]")
+        .replace(githubTokenPattern, "[REDACTED]")
+        .replace(compactJwtPattern, "[REDACTED]")
         .replace(unixHomePathPattern, "[REDACTED]")
         .replace(windowsHomePathPattern, "[REDACTED]")
 
