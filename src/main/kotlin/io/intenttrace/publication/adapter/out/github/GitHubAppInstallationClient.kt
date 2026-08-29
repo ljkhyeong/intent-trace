@@ -15,7 +15,9 @@ import java.time.Instant
 data class GitHubInstallationAccessToken(
     val value: String,
     val expiresAt: Instant,
-)
+) {
+    override fun toString(): String = "GitHubInstallationAccessToken(value=[보호됨], expiresAt=$expiresAt)"
+}
 
 fun interface GitHubInstallationTokenIssuer {
     fun issue(target: GitHubPullRequestTarget): GitHubInstallationAccessToken
@@ -37,14 +39,14 @@ class GitHubAppInstallationClient(
         val jwt = jwtProvider.create()
         val installation = client.get()
             .uri("/repos/{owner}/{repository}/installation", target.owner, target.repository)
-            .header(HttpHeaders.AUTHORIZATION, "Bearer $jwt")
+            .headers { it.setBearerAuth(jwt) }
             .retrieve()
             .body(InstallationResponse::class.java)
             ?: throw GitHubApiException("GitHub App 설치 조회 응답이 비어 있습니다.")
 
         val response = client.post()
             .uri("/app/installations/{installationId}/access_tokens", installation.id)
-            .header(HttpHeaders.AUTHORIZATION, "Bearer $jwt")
+            .headers { it.setBearerAuth(jwt) }
             .body(
                 InstallationTokenRequest(
                     repositories = listOf(target.repository),
@@ -100,4 +102,6 @@ private data class InstallationTokenRequest(
 private data class InstallationTokenResponse(
     val token: String,
     @JsonProperty("expires_at") val expiresAt: String,
-)
+) {
+    override fun toString(): String = "InstallationTokenResponse(token=[보호됨], expiresAt=$expiresAt)"
+}

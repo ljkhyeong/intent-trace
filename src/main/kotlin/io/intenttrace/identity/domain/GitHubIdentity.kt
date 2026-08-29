@@ -1,5 +1,7 @@
 package io.intenttrace.identity.domain
 
+import java.util.Locale
+
 data class ActorIdentity(
     val subject: String,
     val login: String,
@@ -28,7 +30,9 @@ data class GitHubRepository(
         }
     }
 
-    val key: String = "$owner/$name"
+    val canonicalOwner: String = owner.lowercase(Locale.ROOT)
+    val canonicalName: String = name.lowercase(Locale.ROOT)
+    val key: String = "$canonicalOwner/$canonicalName"
 
     companion object {
         private val REPOSITORY_PART = Regex("^[A-Za-z0-9_.-]{1,100}$")

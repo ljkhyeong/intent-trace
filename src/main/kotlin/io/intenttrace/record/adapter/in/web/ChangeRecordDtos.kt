@@ -9,6 +9,7 @@ import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
+import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
 import jakarta.validation.Valid
@@ -26,27 +27,24 @@ data class CreateChangeRecordRequest(
     val requestId: String,
     @field:NotBlank @field:Size(max = 255)
     val repositoryKey: String,
-    @field:Size(max = 128)
-    val baseRevision: String? = null,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val snapshotDigest: String,
     @field:NotBlank @field:Size(max = 200)
     val title: String,
     @field:NotBlank @field:Size(max = 2000)
     val requestSummary: String,
-    @field:NotEmpty @field:Size(max = 20) @field:Valid
-    val decisions: List<DecisionRequest>,
-    @field:NotEmpty @field:Size(max = 100) @field:Valid
-    val codeAnchors: List<CodeAnchorRequest>,
-    @field:Size(max = 50) @field:Valid
-    val verifications: List<VerificationRequest> = emptyList(),
+    @field:NotEmpty @field:Size(max = 20)
+    val decisions: List<@Valid DecisionRequest>,
+    @field:NotEmpty @field:Size(max = 100)
+    val codeAnchors: List<@Valid CodeAnchorRequest>,
+    @field:Size(max = 50)
+    val verifications: List<@Valid VerificationRequest> = emptyList(),
     @field:Size(max = 50)
     val openQuestions: List<@NotBlank @Size(max = 1000) String> = emptyList(),
 ) {
     fun toCommand(): CreateChangeRecordCommand = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
-        baseRevision = baseRevision,
         snapshotDigest = snapshotDigest,
         title = title,
         requestSummary = requestSummary,
@@ -108,7 +106,7 @@ data class VerificationRequest(
 
 data class ConfirmChangeRecordRequest(
     val expectedVersion: Long,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")
+    @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN)
     val immutableRevision: String,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val currentSnapshotDigest: String,
@@ -142,7 +140,6 @@ data class ChangeRecordResponse(
     val id: UUID,
     val requestId: String,
     val repositoryKey: String,
-    val baseRevision: String?,
     val targetRevision: String?,
     val snapshotDigest: String,
     val title: String,
@@ -164,7 +161,6 @@ data class ChangeRecordResponse(
             id = record.id,
             requestId = record.requestId,
             repositoryKey = record.repositoryKey,
-            baseRevision = record.baseRevision,
             targetRevision = record.targetRevision,
             snapshotDigest = record.snapshotDigest,
             title = record.title,

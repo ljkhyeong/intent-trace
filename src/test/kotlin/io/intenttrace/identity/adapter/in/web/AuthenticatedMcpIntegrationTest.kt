@@ -5,8 +5,14 @@ import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
-import org.junit.jupiter.api.Test
+import io.intenttrace.record.adapter.`in`.mcp.IntentTraceTools
+import io.intenttrace.record.adapter.`in`.web.CodeAnchorRequest
+import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
+import io.intenttrace.record.adapter.`in`.web.DecisionRequest
+import io.intenttrace.record.domain.PurposeSource
+import jakarta.validation.ConstraintViolationException
 import org.hamcrest.Matchers.containsString
+import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -16,7 +22,9 @@ import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
@@ -28,9 +36,10 @@ import kotlin.test.assertNotNull
 @AutoConfigureMockMvc
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
+    @Autowired private val tools: IntentTraceTools,
 ) {
     @Test
-    fun `MCP 초기화는 인증된 GitHub 사용자 요청만 받는다`() {
+    fun `MCP는 인증된 사용자만 초기화하고 잘못된 revision을 거부한다`() {
         val initialize =
             """
             {
@@ -65,7 +74,7 @@ class AuthenticatedMcpIntegrationTest(
 
         val sessionId = authenticated.response.getHeader("Mcp-Session-Id")
         assertNotNull(sessionId)
-        val revision = "b".repeat(40)
+
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")
             header("Mcp-Session-Id", sessionId)
@@ -81,7 +90,7 @@ class AuthenticatedMcpIntegrationTest(
                     "name": "find_change_intent",
                     "arguments": {
                       "repositoryKey": "acme/intent-trace",
-                      "revision": "$revision",
+                      "revision": "main",
                       "path": "src/App.kt",
                       "line": 1
                     }
@@ -90,8 +99,31 @@ class AuthenticatedMcpIntegrationTest(
                 """.trimIndent()
         }.andExpect {
             status { isOk() }
-            content { string(containsString("\"isError\":false")) }
+            content { string(containsString("\"isError\":true")) }
         }
+    }
+
+    @Test
+    fun `MCP 생성 입력에도 Jakarta 제약을 적용한다`() {
+        val exception = assertFailsWith<ConstraintViolationException> {
+            tools.create(
+                CreateChangeRecordRequest(
+                    requestId = "request-1",
+                    repositoryKey = "acme/intent-trace",
+                    snapshotDigest = "a".repeat(64),
+                    title = "MCP 입력 검증",
+                    requestSummary = "MCP 입력도 REST와 같은 제약을 적용한다.",
+                    decisions = listOf(
+                        DecisionRequest("", null, PurposeSource.STATED_BY_USER),
+                    ),
+                    codeAnchors = listOf(
+                        CodeAnchorRequest("src/App.kt", "App", 1, 1, "b".repeat(64)),
+                    ),
+                ),
+            )
+        }
+
+        assertTrue(exception.constraintViolations.any { it.propertyPath.toString().endsWith("summary") })
     }
 
     @TestConfiguration

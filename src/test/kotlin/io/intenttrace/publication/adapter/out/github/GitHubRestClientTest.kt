@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
@@ -16,8 +17,12 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.request
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.util.UriUtils
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
+import kotlin.test.assertFailsWith
 
 class GitHubRestClientTest {
     private val builder = RestClient.builder()
@@ -51,7 +56,14 @@ class GitHubRestClientTest {
         val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
         server.expect { request ->
             assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
-            assertEquals("check_name=IntentTrace%20/%20%EB%B3%80%EA%B2%BD%20%EC%9D%98%EB%8F%84&filter=all&per_page=100&page=1", request.uri.rawQuery)
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals(
+                "IntentTrace / 변경 의도",
+                UriUtils.decode(query.getFirst("check_name")!!, Charsets.UTF_8),
+            )
+            assertEquals("all", query.getFirst("filter"))
+            assertEquals("100", query.getFirst("per_page"))
+            assertEquals("1", query.getFirst("page"))
         }
             .andExpect(method(HttpMethod.GET))
             .andRespond(
@@ -128,6 +140,61 @@ class GitHubRestClientTest {
         val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
 
         assertEquals(55L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `Check Run 검색 한도를 채우면 중복 생성하지 않는다`() {
+        val response = (1..100).joinToString(",", prefix = "{\"check_runs\":[", postfix = "]}") { id ->
+            """{"id":$id,"head_sha":"$revision","html_url":"https://github.test/check-runs/$id","external_id":"다른-기록-$id"}"""
+        }
+        repeat(10) { pageIndex ->
+            server.expect { request ->
+                val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+                assertEquals((pageIndex + 1).toString(), query.getFirst("page"))
+            }
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON))
+        }
+
+        val exception = assertFailsWith<GitHubApiException> {
+            client.upsertCheckRun(command("intent-trace:찾을-수-없는-기록"))
+        }
+
+        assertContains(exception.message.orEmpty(), "검색 한도")
+        server.verify()
+    }
+
+    @Test
+    fun `저장된 Check Run ID가 다른 기록이면 목록에서 올바른 실행을 다시 찾는다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andRespond(
+                withSuccess(
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"intent-trace:다른-기록"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server.expect { request ->
+            assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
+        }.andRespond(
+            withSuccess(
+                """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}]}""",
+                MediaType.APPLICATION_JSON,
+            ),
+        )
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andRespond(
+                withSuccess(
+                    """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
+
+        assertEquals(77L, result.id)
         server.verify()
     }
 

@@ -19,19 +19,20 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 ## 기록 절차
 
 1. `git status`, `git diff`, 전체 커밋 ID를 확인한다.
-2. `scripts/git-evidence.sh snapshot <전체-커밋-ID>`로 저장소 스냅샷 해시를 만든다.
-3. 각 근거에 `scripts/git-evidence.sh anchor <전체-커밋-ID> <경로> <시작-줄> <끝-줄>`을 사용한다.
-4. 판단 출처를 다음 중 하나로 명시한다.
+2. 현재 `SKILL.md` 위치를 기준으로 플러그인 루트의 `scripts/git-evidence.sh` 절대 경로를 확인한다. 대상 저장소 안의 같은 상대 경로를 찾지 않는다.
+3. 대상 저장소 루트를 작업 디렉터리로 두고 확인한 helper의 `snapshot <전체-커밋-ID>`로 저장소 스냅샷 해시를 만든다.
+4. 각 근거에 같은 helper의 `anchor <전체-커밋-ID> <경로> <시작-줄> <끝-줄>`을 사용한다. 파일에 실제로 존재하는 줄 범위만 기록한다.
+5. 판단 출처를 다음 중 하나로 명시한다.
    - `STATED_BY_USER`: 사용자가 요청이나 대화에서 명시했다.
    - `STATED_IN_COMMIT`: 커밋 제목이나 본문에 명시됐다.
    - `CONFIRMED_AI_SUMMARY`: AI 요약을 작성자가 확인했다.
    - `INFERRED`: 코드나 정황으로 추론했으며 사실로 단정할 수 없다.
    - `UNKNOWN`: 목적 근거를 찾지 못했다.
-5. 실제 실행한 검증만 명령, 종료 코드, 시간, 스냅샷 해시, 출력 SHA-256, 결과 요약으로 구성한다. 원문 출력은 보내지 않는다.
-6. `create_change_record`로 비공개 초안을 만들고, 작성자에게 요청·판단·검증·미검증 항목을 보여준다.
-7. 작성자가 명시적으로 확인하면 `confirm_change_record`를 호출한다.
-8. 팀 공개를 명시적으로 요청했고 스냅샷이 그대로일 때만 `publish_change_record`를 호출한다. 팀 공개는 해당 GitHub 저장소의 읽기 권한이 있는 사용자에게만 보인다.
-9. 사용자가 GitHub PR 게시까지 명시적으로 요청하면 `repositoryKey`가 `owner/repository`와 같고 기록이 공개 상태인지 확인한 뒤 `publish_change_record_to_github_pr`를 호출한다.
+6. 실제 실행한 검증만 명령, 종료 코드, 시간, 스냅샷 해시, 출력 SHA-256, 결과 요약으로 구성한다. 원문 출력은 보내지 않는다.
+7. `create_change_record`로 비공개 초안을 만들고, 작성자에게 요청·판단·검증·미검증 항목을 보여준다.
+8. 작성자가 명시적으로 확인하면 `confirm_change_record`를 호출한다.
+9. 팀 공개를 명시적으로 요청했고 스냅샷이 그대로일 때만 `publish_change_record`를 호출한다. 팀 공개는 해당 GitHub 저장소의 읽기 권한이 있는 사용자에게만 보인다.
+10. 사용자가 GitHub PR 게시까지 명시적으로 요청하면 `repositoryKey`가 `owner/repository`와 같고 기록이 공개 상태인지 확인한 뒤 `publish_change_record_to_github_pr`를 호출한다.
 
 ## 조회 절차
 

@@ -1,11 +1,15 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
+import io.intenttrace.record.domain.GitRevision
 import io.intenttrace.record.domain.VerificationRun
+import io.intenttrace.record.domain.requireRepositoryRelativePath
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
@@ -18,27 +22,37 @@ class ChangeRecordFacade(
     private val clock: Clock,
 ) {
     fun create(command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        repository.findByRequestId(command.requestId)?.let {
-            if (it.repositoryKey != command.repositoryKey || it.createdBy.subject != actor.subject) {
-                throw ChangeRecordRequestConflictException(command.requestId)
-            }
-            return it
-        }
         validateCreate(command)
+        val repositoryKey = GitHubRepository.parse(command.repositoryKey).key
+        val candidate = newRecord(command, repositoryKey, actor)
+        repository.findByRequestId(command.requestId)?.let {
+            return reuseExisting(it, candidate)
+        }
 
-        val now = Instant.now(clock)
-        val record = ChangeRecord(
+        return try {
+            repository.saveNew(candidate)
+        } catch (exception: DuplicateKeyException) {
+            val existing = repository.findByRequestId(command.requestId) ?: throw exception
+            reuseExisting(existing, candidate)
+        }
+    }
+
+    private fun newRecord(
+        command: CreateChangeRecordCommand,
+        repositoryKey: String,
+        actor: ActorIdentity,
+    ): ChangeRecord =
+        ChangeRecord(
             id = UUID.randomUUID(),
             requestId = command.requestId,
-            repositoryKey = command.repositoryKey,
-            baseRevision = command.baseRevision?.lowercase(),
+            repositoryKey = repositoryKey,
             targetRevision = null,
             snapshotDigest = command.snapshotDigest.lowercase(),
             title = redactor.redact(command.title),
             requestSummary = redactor.redact(command.requestSummary),
             status = ChangeRecordStatus.DRAFT,
             createdBy = actor,
-            createdAt = now,
+            createdAt = Instant.now(clock),
             confirmedAt = null,
             publishedAt = null,
             supersededBy = null,
@@ -49,14 +63,15 @@ class ChangeRecordFacade(
             openQuestions = command.openQuestions.map(redactor::redact),
         )
 
-        return repository.saveNew(record)
-    }
-
     fun get(id: UUID): ChangeRecord = repository.findById(id)
         ?: throw ChangeRecordNotFoundException(id)
 
     fun confirm(command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        val current = get(command.recordId)
+        return confirm(get(command.recordId), command, actor)
+    }
+
+    fun confirm(current: ChangeRecord, command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
+        require(current.id == command.recordId) { "확인 명령과 변경 의도 기록이 일치하지 않습니다." }
         requireExpectedVersion(current, command.expectedVersion)
         val confirmed = current.confirm(
             actor = actor,
@@ -68,7 +83,11 @@ class ChangeRecordFacade(
     }
 
     fun publish(command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        val current = get(command.recordId)
+        return publish(get(command.recordId), command, actor)
+    }
+
+    fun publish(current: ChangeRecord, command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
+        require(current.id == command.recordId) { "공개 명령과 변경 의도 기록이 일치하지 않습니다." }
         requireExpectedVersion(current, command.expectedVersion)
         val published = current.publish(
             actor = actor,
@@ -79,21 +98,29 @@ class ChangeRecordFacade(
     }
 
     fun supersede(command: SupersedeChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        val current = get(command.recordId)
+        return supersede(get(command.recordId), get(command.replacementRecordId), command, actor)
+    }
+
+    fun supersede(
+        current: ChangeRecord,
+        replacement: ChangeRecord,
+        command: SupersedeChangeRecordCommand,
+        actor: ActorIdentity,
+    ): ChangeRecord {
+        require(current.id == command.recordId && replacement.id == command.replacementRecordId) {
+            "대체 명령과 변경 의도 기록이 일치하지 않습니다."
+        }
         requireExpectedVersion(current, command.expectedVersion)
-        val replacement = get(command.replacementRecordId)
         return repository.update(current.supersede(actor, replacement), command.expectedVersion)
     }
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
-        require(repositoryKey.isNotBlank()) { "저장소 식별자는 비어 있을 수 없습니다." }
-        require(path.isNotBlank() && !path.startsWith('/') && !path.contains("..")) {
-            "코드 경로는 저장소 기준 상대 경로여야 합니다."
-        }
+        val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
+        val normalizedRevision = GitRevision.parse(revision).value
+        val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 
-        return repository.findPublished(repositoryKey, revision.lowercase())
-            .filter { it.contains(path, line) }
+        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, normalizedPath, line)
     }
 
     private fun validateCreate(command: CreateChangeRecordCommand) {
@@ -112,12 +139,36 @@ class ChangeRecordFacade(
         }
     }
 
+    private fun reuseExisting(
+        existing: ChangeRecord,
+        candidate: ChangeRecord,
+    ): ChangeRecord {
+        if (
+            GitHubRepository.parse(existing.repositoryKey).key != candidate.repositoryKey ||
+            existing.createdBy.subject != candidate.createdBy.subject ||
+            !existing.hasSameCreatePayload(candidate)
+        ) {
+            throw ChangeRecordRequestConflictException(candidate.requestId)
+        }
+        return existing
+    }
+
+    private fun ChangeRecord.hasSameCreatePayload(other: ChangeRecord): Boolean =
+        snapshotDigest == other.snapshotDigest &&
+            title == other.title &&
+            requestSummary == other.requestSummary &&
+            decisions == other.decisions &&
+            codeAnchors == other.codeAnchors &&
+            verifications == other.verifications &&
+            openQuestions == other.openQuestions
+
     private fun redact(decision: Decision): Decision = decision.copy(
         summary = redactor.redact(decision.summary),
         rationale = redactor.redactNullable(decision.rationale),
     )
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
+        relativePath = requireRepositoryRelativePath(anchor.relativePath),
         contentHash = anchor.contentHash.lowercase(),
     )
 

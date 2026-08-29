@@ -2,6 +2,7 @@ package io.intenttrace.identity.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
+import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
@@ -15,11 +16,14 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 
 class GitHubUserRestClientTest {
     private val builder = RestClient.builder()
@@ -48,10 +52,10 @@ class GitHubUserRestClientTest {
     fun `저장소 응답의 push 권한을 기여자 역할로 해석한다`() {
         server.expect { request ->
             assertEquals("/user/repos", request.uri.path)
-            assertEquals(
-                "affiliation=owner,collaborator,organization_member&per_page=100&page=1",
-                request.uri.rawQuery,
-            )
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("owner,collaborator,organization_member", query.getFirst("affiliation"))
+            assertEquals("100", query.getFirst("per_page"))
+            assertEquals("1", query.getFirst("page"))
         }
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer user-token"))
@@ -80,12 +84,18 @@ class GitHubUserRestClientTest {
 
     @Test
     fun `다음 페이지에 있는 저장소 권한도 찾는다`() {
-        server.expect { request -> assertEquals("page=1", request.uri.rawQuery.substringAfterLast('&')) }
+        server.expect { request ->
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("1", query.getFirst("page"))
+        }
             .andRespond(
                 withSuccess("[]", MediaType.APPLICATION_JSON)
                     .header(HttpHeaders.LINK, "<https://api.github.test/user/repos?page=2>; rel=\"next\""),
             )
-        server.expect { request -> assertEquals("page=2", request.uri.rawQuery.substringAfterLast('&')) }
+        server.expect { request ->
+            val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+            assertEquals("2", query.getFirst("page"))
+        }
             .andRespond(
                 withSuccess(
                     """[{"full_name":"acme/intent-trace","permissions":{"pull":true}}]""",
@@ -108,6 +118,36 @@ class GitHubUserRestClientTest {
         assertFailsWith<GitHubUserAuthenticationException> {
             client.authenticate("expired-token")
         }
+        server.verify()
+    }
+
+    @Test
+    fun `maintain 권한은 관리자 역할로 해석한다`() {
+        server.expect { request -> assertEquals("/user/repos", request.uri.path) }
+            .andRespond(
+                withSuccess(
+                    """[{"full_name":"acme/intent-trace","permissions":{"pull":true,"maintain":true}}]""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        assertEquals(
+            RepositoryRole.MAINTAINER,
+            client.repositoryRole("user-token", GitHubRepository("acme", "intent-trace")),
+        )
+        server.verify()
+    }
+
+    @Test
+    fun `GitHub 장애 응답 본문은 예외에 노출하지 않는다`() {
+        server.expect(requestTo("https://api.github.test/user"))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).body("token-secret"))
+
+        val exception = assertFailsWith<GitHubIdentityApiException> {
+            client.authenticate("user-token")
+        }
+
+        assertFalse(exception.message.orEmpty().contains("token-secret"))
         server.verify()
     }
 }

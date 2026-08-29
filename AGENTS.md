@@ -21,6 +21,9 @@
 - Codex와 기본 REST 클라이언트에는 `its_` session token만 전달하고, GitHub access·refresh token은 메모리 밖이나 DB, 로그, cookie, URL, 오류 응답, MCP 도구 인자에 넣지 않는다.
 - OAuth callback은 같은 브라우저의 HttpOnly·SameSite cookie, TTL 안의 미사용 `state`, PKCE `S256` verifier와 정확한 callback 경로를 모두 확인한 뒤 code를 교환한다.
 - refresh token은 세션별로 한 번만 사용하고 새 access·refresh token 쌍으로 함께 교체하며, 사용자 subject가 바뀌면 세션을 폐기한다.
+- 팀 배포에서는 Caddy만 host port를 열고 app과 PostgreSQL을 직접 노출하지 않는다. app은 GitHub로 나갈 수 있어야 하고 PostgreSQL은 외부 통신이 차단된 network에만 둔다.
+- PostgreSQL에는 제품 데이터만 저장하고 GitHub token과 `its_` session을 migration, backup이나 restore 대상에 추가하지 않는다.
+- restore는 app을 중지하고 사용자가 명시적 교체 flag를 전달한 경우에만 실행한다.
 
 ## 구현 원칙
 

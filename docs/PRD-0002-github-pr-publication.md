@@ -21,10 +21,10 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 - `PUBLISHED` 상태의 기록만 게시한다.
 - 요청 사용자는 `PRD-0003`의 GitHub 인증을 통과한 기록 작성자이며 저장소 `CONTRIBUTOR` 이상이어야 한다.
-- `repositoryKey`는 `owner/repository` 형식이며 게시 대상과 대소문자 구분 없이 일치해야 한다.
+- `repositoryKey`는 `owner/repository` 형식이며 입력 경계에서 소문자로 정규화해 게시 대상과 비교한다.
 - `targetRevision`과 GitHub PR `head.sha`는 정확히 일치해야 한다.
 - Check Run 이름은 `IntentTrace / 변경 의도`, 결론은 정보성 `neutral`로 고정한다.
-- 변경 기록 UUID를 Check Run `external_id`로 사용한다.
+- `intent-trace:<변경 기록 UUID>`를 Check Run `external_id`로 사용한다.
 - GitHub 호출은 DB 트랜잭션 밖에서 실행한다.
 - installation token과 GitHub 오류 응답 본문은 저장하거나 사용자 응답에 노출하지 않는다.
 - GitHub App token은 대상 저장소와 `pull_requests: read`, `checks: write` 권한으로 축소해 발급한다.
@@ -42,6 +42,8 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 - PR HEAD가 다르면 Check Run 쓰기를 시작하지 않는다.
 - 같은 기록을 다시 게시하면 같은 `external_id` Check Run을 찾아 갱신한다.
+- 단일 인스턴스에서 같은 기록과 PR의 동시 게시 요청은 직렬화해 최초 Check Run을 한 번만 만든다.
+- Check Run 검색 한도를 모두 채우고도 기존 실행을 확인하지 못하면 중복 생성하지 않고 실패한다.
 - 게시 내용은 기존 IntentTrace Markdown 렌더러와 동일하다.
 - GitHub 자격 증명이 없거나 API가 실패하면 안전한 오류 분류만 반환한다.
 - 같은 저장소의 유효한 installation token은 재사용하고 만료 5분 전부터 새로 발급한다.

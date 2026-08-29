@@ -42,35 +42,52 @@ class JdbcChangeRecordRepository(
         ).firstOrNull()?.let(::hydrate)
 
     @Transactional(readOnly = true)
-    override fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord> =
-        jdbcTemplate.query(
+    override fun findPublishedByAnchor(
+        repositoryKey: String,
+        targetRevision: String,
+        relativePath: String,
+        line: Int,
+    ): List<ChangeRecord> {
+        val records = jdbcTemplate.query(
             """
-            select *
-            from change_records
-            where repository_key = ?
-              and target_revision = ?
-              and status in ('PUBLISHED', 'SUPERSEDED')
-            order by published_at desc
+            select records.*
+            from change_records records
+            where records.repository_key = ?
+              and records.target_revision = ?
+              and records.status in ('PUBLISHED', 'SUPERSEDED')
+              and exists (
+                  select 1
+                  from code_anchors anchors
+                  where anchors.record_id = records.id
+                    and anchors.relative_path = ?
+                    and anchors.start_line <= ?
+                    and anchors.end_line >= ?
+              )
+            order by records.published_at desc
             """.trimIndent(),
             recordRowMapper,
             repositoryKey,
             targetRevision,
-        ).map(::hydrate)
+            relativePath,
+            line,
+            line,
+        )
+        return hydrate(records)
+    }
 
     @Transactional
     override fun saveNew(record: ChangeRecord): ChangeRecord {
         jdbcTemplate.update(
             """
             insert into change_records (
-                id, request_id, repository_key, base_revision, target_revision,
+                id, request_id, repository_key, target_revision,
                 snapshot_digest, title, request_summary, status, created_by, created_by_subject,
                 created_at, confirmed_at, published_at, superseded_by, version
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
             record.repositoryKey,
-            record.baseRevision,
             record.targetRevision,
             record.snapshotDigest,
             record.title,
@@ -115,21 +132,63 @@ class JdbcChangeRecordRepository(
         return record
     }
 
-    private fun hydrate(record: ChangeRecord): ChangeRecord = record.copy(
-        decisions = findDecisions(record.id),
-        codeAnchors = findCodeAnchors(record.id),
-        verifications = findVerifications(record.id),
-        openQuestions = findOpenQuestions(record.id),
-    )
+    private fun hydrate(record: ChangeRecord): ChangeRecord = hydrate(listOf(record)).single()
+
+    private fun hydrate(records: List<ChangeRecord>): List<ChangeRecord> {
+        if (records.isEmpty()) return emptyList()
+        val recordIds = records.map(ChangeRecord::id)
+        val decisions = findChildren(recordIds, "summary, rationale, source", "change_decisions") { resultSet ->
+            Decision(
+                summary = resultSet.getString("summary"),
+                rationale = resultSet.getString("rationale"),
+                source = PurposeSource.valueOf(resultSet.getString("source")),
+            )
+        }
+        val anchors = findChildren(
+            recordIds,
+            "relative_path, symbol_name, start_line, end_line, content_hash",
+            "code_anchors",
+        ) { resultSet ->
+            CodeAnchor(
+                relativePath = resultSet.getString("relative_path"),
+                symbolName = resultSet.getString("symbol_name"),
+                startLine = resultSet.getInt("start_line"),
+                endLine = resultSet.getInt("end_line"),
+                contentHash = resultSet.getString("content_hash"),
+            )
+        }
+        val verifications = findChildren(
+            recordIds,
+            "command_text, exit_code, started_at, finished_at, snapshot_digest, output_digest, summary",
+            "verification_runs",
+        ) { resultSet ->
+            VerificationRun(
+                command = resultSet.getString("command_text"),
+                exitCode = resultSet.getInt("exit_code"),
+                startedAt = resultSet.getObject("started_at", OffsetDateTime::class.java).toInstant(),
+                finishedAt = resultSet.getObject("finished_at", OffsetDateTime::class.java).toInstant(),
+                snapshotDigest = resultSet.getString("snapshot_digest"),
+                outputDigest = resultSet.getString("output_digest"),
+                summary = resultSet.getString("summary"),
+            )
+        }
+        val questions = findChildren(recordIds, "description", "open_questions") { resultSet ->
+            resultSet.getString("description")
+        }
+
+        return records.map { record ->
+            record.copy(
+                decisions = decisions[record.id].orEmpty(),
+                codeAnchors = anchors[record.id].orEmpty(),
+                verifications = verifications[record.id].orEmpty(),
+                openQuestions = questions[record.id].orEmpty(),
+            )
+        }
+    }
 
     private fun insertDecisions(record: ChangeRecord) {
-        record.decisions.forEachIndexed { index, decision ->
-            jdbcTemplate.update(
-                """
-                insert into change_decisions (
-                    id, record_id, sequence_number, summary, rationale, source
-                ) values (?, ?, ?, ?, ?, ?)
-                """.trimIndent(),
+        val batch = record.decisions.mapIndexed { index, decision ->
+            arrayOf<Any?>(
                 UUID.randomUUID().toString(),
                 record.id.toString(),
                 index,
@@ -138,17 +197,19 @@ class JdbcChangeRecordRepository(
                 decision.source.name,
             )
         }
+        executeBatch(
+            """
+            insert into change_decisions (
+                id, record_id, sequence_number, summary, rationale, source
+            ) values (?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            batch,
+        )
     }
 
     private fun insertCodeAnchors(record: ChangeRecord) {
-        record.codeAnchors.forEachIndexed { index, anchor ->
-            jdbcTemplate.update(
-                """
-                insert into code_anchors (
-                    id, record_id, sequence_number, relative_path, symbol_name,
-                    start_line, end_line, content_hash
-                ) values (?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent(),
+        val batch = record.codeAnchors.mapIndexed { index, anchor ->
+            arrayOf<Any?>(
                 UUID.randomUUID().toString(),
                 record.id.toString(),
                 index,
@@ -159,17 +220,20 @@ class JdbcChangeRecordRepository(
                 anchor.contentHash,
             )
         }
+        executeBatch(
+            """
+            insert into code_anchors (
+                id, record_id, sequence_number, relative_path, symbol_name,
+                start_line, end_line, content_hash
+            ) values (?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            batch,
+        )
     }
 
     private fun insertVerifications(record: ChangeRecord) {
-        record.verifications.forEachIndexed { index, verification ->
-            jdbcTemplate.update(
-                """
-                insert into verification_runs (
-                    id, record_id, sequence_number, command_text, exit_code,
-                    started_at, finished_at, snapshot_digest, output_digest, summary
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent(),
+        val batch = record.verifications.mapIndexed { index, verification ->
+            arrayOf<Any?>(
                 UUID.randomUUID().toString(),
                 record.id.toString(),
                 index,
@@ -182,76 +246,57 @@ class JdbcChangeRecordRepository(
                 verification.summary,
             )
         }
+        executeBatch(
+            """
+            insert into verification_runs (
+                id, record_id, sequence_number, command_text, exit_code,
+                started_at, finished_at, snapshot_digest, output_digest, summary
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            batch,
+        )
     }
 
     private fun insertOpenQuestions(record: ChangeRecord) {
-        record.openQuestions.forEachIndexed { index, question ->
-            jdbcTemplate.update(
-                """
-                insert into open_questions (id, record_id, sequence_number, description)
-                values (?, ?, ?, ?)
-                """.trimIndent(),
+        val batch = record.openQuestions.mapIndexed { index, question ->
+            arrayOf<Any?>(
                 UUID.randomUUID().toString(),
                 record.id.toString(),
                 index,
                 question,
             )
         }
+        executeBatch(
+            """
+            insert into open_questions (id, record_id, sequence_number, description)
+            values (?, ?, ?, ?)
+            """.trimIndent(),
+            batch,
+        )
     }
 
-    private fun findDecisions(recordId: UUID): List<Decision> = jdbcTemplate.query(
-        "select * from change_decisions where record_id = ? order by sequence_number",
-        { resultSet, _ ->
-            Decision(
-                summary = resultSet.getString("summary"),
-                rationale = resultSet.getString("rationale"),
-                source = PurposeSource.valueOf(resultSet.getString("source")),
-            )
-        },
-        recordId.toString(),
-    )
+    private fun executeBatch(sql: String, batch: List<Array<Any?>>) {
+        if (batch.isNotEmpty()) jdbcTemplate.batchUpdate(sql, batch)
+    }
 
-    private fun findCodeAnchors(recordId: UUID): List<CodeAnchor> = jdbcTemplate.query(
-        "select * from code_anchors where record_id = ? order by sequence_number",
-        { resultSet, _ ->
-            CodeAnchor(
-                relativePath = resultSet.getString("relative_path"),
-                symbolName = resultSet.getString("symbol_name"),
-                startLine = resultSet.getInt("start_line"),
-                endLine = resultSet.getInt("end_line"),
-                contentHash = resultSet.getString("content_hash"),
-            )
-        },
-        recordId.toString(),
-    )
-
-    private fun findVerifications(recordId: UUID): List<VerificationRun> = jdbcTemplate.query(
-        "select * from verification_runs where record_id = ? order by sequence_number",
-        { resultSet, _ ->
-            VerificationRun(
-                command = resultSet.getString("command_text"),
-                exitCode = resultSet.getInt("exit_code"),
-                startedAt = resultSet.getObject("started_at", OffsetDateTime::class.java).toInstant(),
-                finishedAt = resultSet.getObject("finished_at", OffsetDateTime::class.java).toInstant(),
-                snapshotDigest = resultSet.getString("snapshot_digest"),
-                outputDigest = resultSet.getString("output_digest"),
-                summary = resultSet.getString("summary"),
-            )
-        },
-        recordId.toString(),
-    )
-
-    private fun findOpenQuestions(recordId: UUID): List<String> = jdbcTemplate.query(
-        "select description from open_questions where record_id = ? order by sequence_number",
-        { resultSet, _ -> resultSet.getString("description") },
-        recordId.toString(),
-    )
+    private fun <T> findChildren(
+        recordIds: List<UUID>,
+        columns: String,
+        table: String,
+        mapper: (ResultSet) -> T,
+    ): Map<UUID, List<T>> {
+        val placeholders = List(recordIds.size) { "?" }.joinToString(",")
+        return jdbcTemplate.query(
+            "select record_id, $columns from $table where record_id in ($placeholders) order by record_id, sequence_number",
+            { resultSet, _ -> UUID.fromString(resultSet.getString("record_id")) to mapper(resultSet) },
+            *recordIds.map(UUID::toString).toTypedArray(),
+        ).groupBy({ it.first }, { it.second })
+    }
 
     private fun mapRecord(resultSet: ResultSet): ChangeRecord = ChangeRecord(
         id = UUID.fromString(resultSet.getString("id")),
         requestId = resultSet.getString("request_id"),
         repositoryKey = resultSet.getString("repository_key"),
-        baseRevision = resultSet.getString("base_revision"),
         targetRevision = resultSet.getString("target_revision"),
         snapshotDigest = resultSet.getString("snapshot_digest"),
         title = resultSet.getString("title"),

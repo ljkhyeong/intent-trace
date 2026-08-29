@@ -30,7 +30,7 @@ class GitHubUserRestClient(
     override fun authenticate(accessToken: String): ActorIdentity = safeCall("사용자 조회") {
         val response = client.get()
             .uri("/user")
-            .header(HttpHeaders.AUTHORIZATION, authorization(accessToken))
+            .headers { it.setBearerAuth(accessToken) }
             .retrieve()
             .body(GitHubUserResponse::class.java)
             ?: throw GitHubIdentityApiException("GitHub 사용자 응답이 비어 있습니다.")
@@ -49,7 +49,7 @@ class GitHubUserRestClient(
                             .queryParam("page", page)
                             .build()
                     }
-                    .header(HttpHeaders.AUTHORIZATION, authorization(accessToken))
+                    .headers { it.setBearerAuth(accessToken) }
                     .retrieve()
                     .toEntity(Array<GitHubRepositoryResponse>::class.java)
                 val repositories = response.body
@@ -85,8 +85,6 @@ class GitHubUserRestClient(
         } else {
             GitHubIdentityApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
         }
-
-    private fun authorization(accessToken: String): String = "Bearer $accessToken"
 
     private fun GitHubRepositoryPermissions.toRole(): RepositoryRole? = when {
         admin || maintain -> RepositoryRole.MAINTAINER

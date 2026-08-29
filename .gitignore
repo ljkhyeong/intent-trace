@@ -41,4 +41,12 @@ out/
 
 ### IntentTrace local data ###
 .intent-trace/
-.env
+.env*
+!.env.example
+!.env.team.example
+backups/
+*.pem
+*.key
+
+# 현재 추적 중인 두 개 외의 새 alignment HTML은 저장소에 추가하지 않는다.
+docs/alignments/*.html

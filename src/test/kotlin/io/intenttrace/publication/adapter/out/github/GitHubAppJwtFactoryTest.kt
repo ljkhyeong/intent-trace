@@ -13,8 +13,12 @@ import java.time.ZoneOffset
 import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 
 class GitHubAppJwtFactoryTest {
+    private val objectMapper = ObjectMapper()
+
     @Test
     fun `PKCS1 RSA key로 GitHub App 규칙에 맞는 JWT를 만든다`() {
         val now = Instant.parse("2026-08-28T00:00:00Z")
@@ -39,12 +43,12 @@ class GitHubAppJwtFactoryTest {
 
         assertEquals(3, parts.size)
         assertEquals(
-            """{"alg":"RS256","typ":"JWT"}""",
-            String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8),
+            objectMapper.readTree("""{"alg":"RS256","typ":"JWT"}"""),
+            decodeJson(parts[0]),
         )
         assertEquals(
-            """{"iat":1787875140,"exp":1787875740,"iss":"Iv1.intent-trace"}""",
-            String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8),
+            objectMapper.readTree("""{"iat":1787875140,"exp":1787875740,"iss":"Iv1.intent-trace"}"""),
+            decodeJson(parts[1]),
         )
         assertTrue(
             Signature.getInstance("SHA256withRSA").run {
@@ -54,6 +58,9 @@ class GitHubAppJwtFactoryTest {
             },
         )
     }
+
+    private fun decodeJson(value: String): JsonNode =
+        objectMapper.readTree(Base64.getUrlDecoder().decode(value))
 
     private fun pkcs1(key: RSAPrivateCrtKey): ByteArray = der(
         0x30,

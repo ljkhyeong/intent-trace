@@ -33,15 +33,17 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 
 - REST `/api/v1/**`와 MCP `/mcp`는 기본적으로 `its_` 로컬 session Bearer token이 필요하며 기존 `ghu_` 직접 인증도 허용한다.
 - callback은 같은 브라우저의 HttpOnly·SameSite cookie와 TTL 안의 미사용 `state`, PKCE `S256` verifier가 모두 일치할 때만 code를 교환한다.
+- 미완료 OAuth `state`는 TTL과 설정 가능한 전역 개수 상한을 적용하고, 상한에 도달하면 새 승인 시작을 `429`로 거부한다.
 - 작성자 subject는 `/user.id`로 만든 `github:<id>`이며 login은 표시용이다.
 - 작성자 값을 요청 본문이나 MCP 도구 인자로 받지 않는다.
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다.
 - `PUBLISHED`와 `SUPERSEDED`는 저장소 `READER` 이상에게만 노출한다.
 - 생성·확인·공개·대체·GitHub PR 게시는 `CONTRIBUTOR` 이상인 작성자만 수행한다.
 - GitHub access·refresh token은 메모리에만 두고 DB·URL·cookie·로그·오류 본문·MCP 도구 인자에 저장하거나 노출하지 않는다.
+- GitHub token, private key와 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
 - refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 거부되거나 사용자 subject가 바뀌면 세션을 폐기한다.
-- 같은 `requestId`를 다른 사용자나 저장소가 재사용하면 기존 기록을 반환하지 않고 충돌로 처리한다.
+- 같은 `requestId`를 다른 사용자·저장소가 재사용하거나 저장할 내용이 달라지면 기존 기록을 반환하지 않고 충돌로 처리한다.
 
 ## 성공 기준
 

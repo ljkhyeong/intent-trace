@@ -12,6 +12,7 @@
 
 - GitHub Web Application Flow를 사용하며 `GET /auth/github/start`와 `GET /auth/github/callback`을 제공한다.
 - 승인 시작 시 256비트 무작위 `state`와 PKCE code verifier를 발급한다. 서버에는 `state`의 SHA-256 digest·10분 TTL과 verifier를 두고 `state` 원문만 callback 경로에 한정된 HttpOnly·SameSite=Lax cookie로 전달한다.
+- 미완료 승인 상태는 기본 1,000개로 제한한다. 만료 상태를 먼저 제거하고도 상한에 도달하면 새 승인 시작을 `429 Too Many Requests`로 거부한다.
 - authorize 요청에는 PKCE `S256` code challenge를 포함한다. callback은 query와 cookie의 `state`, TTL, 일회성 사용 여부를 모두 확인한 뒤 client ID·client secret·정확한 redirect URI·code verifier로 code를 교환한다.
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
@@ -19,6 +20,7 @@
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
 - 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
+- access·refresh·session token과 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 
 ## 영향
 

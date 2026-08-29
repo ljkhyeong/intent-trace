@@ -2,6 +2,7 @@ package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -55,7 +56,7 @@ class ChangeRecordController(
     @GetMapping("/lookup")
     fun lookup(
         @RequestParam @NotBlank @Size(max = 255) repositoryKey: String,
-        @RequestParam @Pattern(regexp = "^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$") revision: String,
+        @RequestParam @Pattern(regexp = FULL_GIT_REVISION_PATTERN) revision: String,
         @RequestParam @NotBlank @Size(max = 1000) path: String,
         @RequestParam @Min(1) line: Int,
     ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)

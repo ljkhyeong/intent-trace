@@ -3,9 +3,11 @@ package io.intenttrace.publication.adapter.out.persistence
 import io.intenttrace.publication.application.GitHubPublicationRepository
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.identity.domain.GitHubRepository
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 import java.time.Instant
@@ -18,25 +20,28 @@ class JdbcGitHubPublicationRepository(
     private val jdbcTemplate: JdbcTemplate,
 ) : GitHubPublicationRepository {
     @Transactional(readOnly = true)
-    override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? =
-        jdbcTemplate.query(
+    override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? {
+        val repository = GitHubRepository(target.owner, target.repository)
+        return jdbcTemplate.query(
             """
             select *
             from github_publications
             where change_record_id = ?
-              and lower(repository_owner) = lower(?)
-              and lower(repository_name) = lower(?)
+              and repository_owner = ?
+              and repository_name = ?
               and pull_number = ?
             """.trimIndent(),
             { resultSet, _ -> mapPublication(resultSet) },
             changeRecordId.toString(),
-            target.owner,
-            target.repository,
+            repository.canonicalOwner,
+            repository.canonicalName,
             target.pullNumber,
         ).firstOrNull()
+    }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     override fun save(publication: GitHubPublication): GitHubPublication {
+        val repository = GitHubRepository(publication.target.owner, publication.target.repository)
         val updated = update(publication)
         if (updated == 1) {
             return requireNotNull(find(publication.changeRecordId, publication.target))
@@ -52,8 +57,8 @@ class JdbcGitHubPublicationRepository(
                 """.trimIndent(),
                 publication.id.toString(),
                 publication.changeRecordId.toString(),
-                publication.target.owner,
-                publication.target.repository,
+                repository.canonicalOwner,
+                repository.canonicalName,
                 publication.target.pullNumber,
                 publication.headRevision,
                 publication.checkRunId,
@@ -69,26 +74,29 @@ class JdbcGitHubPublicationRepository(
         return requireNotNull(find(publication.changeRecordId, publication.target))
     }
 
-    private fun update(publication: GitHubPublication): Int = jdbcTemplate.update(
-        """
-        update github_publications
-        set head_revision = ?, check_run_id = ?, check_run_url = ?,
-            content_digest = ?, published_at = ?
-        where change_record_id = ?
-          and lower(repository_owner) = lower(?)
-          and lower(repository_name) = lower(?)
-          and pull_number = ?
-        """.trimIndent(),
-        publication.headRevision,
-        publication.checkRunId,
-        publication.checkRunUrl,
-        publication.contentDigest,
-        publication.publishedAt.toDatabaseTime(),
-        publication.changeRecordId.toString(),
-        publication.target.owner,
-        publication.target.repository,
-        publication.target.pullNumber,
-    )
+    private fun update(publication: GitHubPublication): Int {
+        val repository = GitHubRepository(publication.target.owner, publication.target.repository)
+        return jdbcTemplate.update(
+            """
+            update github_publications
+            set head_revision = ?, check_run_id = ?, check_run_url = ?,
+                content_digest = ?, published_at = ?
+            where change_record_id = ?
+              and repository_owner = ?
+              and repository_name = ?
+              and pull_number = ?
+            """.trimIndent(),
+            publication.headRevision,
+            publication.checkRunId,
+            publication.checkRunUrl,
+            publication.contentDigest,
+            publication.publishedAt.toDatabaseTime(),
+            publication.changeRecordId.toString(),
+            repository.canonicalOwner,
+            repository.canonicalName,
+            publication.target.pullNumber,
+        )
+    }
 
     private fun mapPublication(resultSet: ResultSet): GitHubPublication = GitHubPublication(
         id = UUID.fromString(resultSet.getString("id")),

@@ -36,7 +36,7 @@ class GitHubRestClient(
                     target.repository,
                     target.pullNumber,
                 )
-                .header(HttpHeaders.AUTHORIZATION, authorization(token))
+                .headers { it.setBearerAuth(token) }
                 .retrieve()
                 .body(PullRequestResponse::class.java)
         }
@@ -71,7 +71,7 @@ class GitHubRestClient(
                         command.target.repository,
                         checkRunId,
                     )
-                    .header(HttpHeaders.AUTHORIZATION, authorization(token))
+                    .headers { it.setBearerAuth(token) }
                     .retrieve()
                     .body(CheckRunResponse::class.java)
             }
@@ -107,7 +107,7 @@ class GitHubRestClient(
                                 command.headRevision,
                             )
                     }
-                    .header(HttpHeaders.AUTHORIZATION, authorization(token))
+                    .headers { it.setBearerAuth(token) }
                     .retrieve()
                     .body(CheckRunListResponse::class.java)
                 }
@@ -118,14 +118,14 @@ class GitHubRestClient(
                 return@safeCall null
             }
         }
-        null
+        throw GitHubApiException("GitHub Check Run 검색 한도를 초과해 새 Check Run을 만들지 않았습니다.")
     }
 
     private fun createCheckRun(command: UpsertGitHubCheckRunCommand): CheckRunResponse = safeCall("Check Run 생성") {
         authenticated(command.target) { token ->
             client.post()
                 .uri("/repos/{owner}/{repository}/check-runs", command.target.owner, command.target.repository)
-                .header(HttpHeaders.AUTHORIZATION, authorization(token))
+                .headers { it.setBearerAuth(token) }
                 .body(
                     CreateCheckRunRequest(
                         name = CHECK_NAME,
@@ -156,7 +156,7 @@ class GitHubRestClient(
                         command.target.repository,
                         checkRunId,
                     )
-                    .header(HttpHeaders.AUTHORIZATION, authorization(token))
+                    .headers { it.setBearerAuth(token) }
                     .body(
                         UpdateCheckRunRequest(
                             name = CHECK_NAME,
@@ -191,8 +191,6 @@ class GitHubRestClient(
             throw exception
         }
     }
-
-    private fun authorization(token: String): String = "Bearer $token"
 
     private fun <T> safeCall(operation: String, call: () -> T): T {
         try {

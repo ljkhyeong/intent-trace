@@ -4,10 +4,7 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
-import io.intenttrace.record.application.ChangeRecordRepository
-import io.intenttrace.record.application.SensitiveTextRedactor
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
@@ -18,21 +15,19 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
-    private val changeRecordRepository = InMemoryChangeRecordRepository(record)
     private val gateway = FakeGitHubGateway(record.targetRevision!!)
     private val publicationRepository = InMemoryGitHubPublicationRepository()
     private val publisher = PublishChangeRecordToGitHub(
-        changeRecordFacade = ChangeRecordFacade(
-            repository = changeRecordRepository,
-            redactor = SensitiveTextRedactor(),
-            clock = fixedClock,
-        ),
         markdownRenderer = ChangeRecordMarkdownRenderer(),
         gitHubGateway = gateway,
         publicationRepository = publicationRepository,
@@ -42,6 +37,7 @@ class PublishChangeRecordToGitHubTest {
     @Test
     fun `PR HEAD가 기록 커밋과 같으면 Check Run과 게시 이력을 만든다`() {
         val publication = publisher.publish(
+            record,
             PublishChangeRecordToGitHubCommand(record.id, target),
         )
 
@@ -56,38 +52,98 @@ class PublishChangeRecordToGitHubTest {
         gateway.headRevision = "c".repeat(40)
 
         assertFailsWith<PullRequestRevisionMismatchException> {
-            publisher.publish(PublishChangeRecordToGitHubCommand(record.id, target))
+            publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
         }
 
         assertEquals(null, gateway.lastCommand)
         assertEquals(null, publicationRepository.saved)
     }
 
-    private class InMemoryChangeRecordRepository(
-        private val record: ChangeRecord,
-    ) : ChangeRecordRepository {
-        override fun findById(id: UUID): ChangeRecord? = record.takeIf { it.id == id }
-        override fun findByRequestId(requestId: String): ChangeRecord? = null
-        override fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord> = emptyList()
-        override fun saveNew(record: ChangeRecord): ChangeRecord = error("사용하지 않는 테스트 경로")
-        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord = error("사용하지 않는 테스트 경로")
+    @Test
+    fun `같은 기록과 PR의 동시 게시는 최초 Check Run을 한 번만 만든다`() {
+        val executor = Executors.newFixedThreadPool(2)
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        try {
+            val results = (1..2).map {
+                executor.submit<GitHubPublication> {
+                    ready.countDown()
+                    start.await()
+                    publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
+                }
+            }
+            check(ready.await(5, TimeUnit.SECONDS))
+            start.countDown()
+
+            results.forEach { it.get(5, TimeUnit.SECONDS) }
+
+            assertEquals(1, gateway.initialUpserts.get())
+            assertEquals(listOf(null, 42L), gateway.commands.map { it.knownCheckRunId })
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `게시 내용이 너무 크면 GitHub 조회 전에 거부한다`() {
+        val oversized = record.copy(title = "가".repeat(65_536))
+
+        assertFailsWith<GitHubPublicationContentTooLargeException> {
+            publisher.publish(oversized, PublishChangeRecordToGitHubCommand(record.id, target))
+        }
+
+        assertEquals(0, gateway.headRequests.get())
+        assertEquals(0, gateway.commands.size)
+    }
+
+    @Test
+    fun `비공개 기록과 다른 저장소는 GitHub 조회 전에 거부한다`() {
+        assertFailsWith<IllegalStateException> {
+            publisher.publish(
+                record.copy(status = ChangeRecordStatus.AUTHOR_CONFIRMED),
+                PublishChangeRecordToGitHubCommand(record.id, target),
+            )
+        }
+        assertFailsWith<GitHubRepositoryMismatchException> {
+            publisher.publish(
+                record,
+                PublishChangeRecordToGitHubCommand(
+                    record.id,
+                    GitHubPullRequestTarget("acme", "other", 12),
+                ),
+            )
+        }
+
+        assertEquals(0, gateway.headRequests.get())
+        assertEquals(0, gateway.commands.size)
     }
 
     private class FakeGitHubGateway(
         var headRevision: String,
     ) : GitHubPullRequestGateway {
+        val headRequests = AtomicInteger()
+        val initialUpserts = AtomicInteger()
+        val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
         var lastCommand: UpsertGitHubCheckRunCommand? = null
 
-        override fun getHeadRevision(target: GitHubPullRequestTarget): String = headRevision
+        override fun getHeadRevision(target: GitHubPullRequestTarget): String {
+            headRequests.incrementAndGet()
+            return headRevision
+        }
 
         override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
             lastCommand = command
+            commands += command
+            if (command.knownCheckRunId == null) {
+                initialUpserts.incrementAndGet()
+                Thread.sleep(100)
+            }
             return GitHubCheckRun(42L, "https://github.test/check-runs/42")
         }
     }
 
     private class InMemoryGitHubPublicationRepository : GitHubPublicationRepository {
-        var saved: GitHubPublication? = null
+        @Volatile var saved: GitHubPublication? = null
 
         override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? = saved
 
@@ -105,7 +161,6 @@ class PublishChangeRecordToGitHubTest {
             id = UUID.fromString("8c766289-5c2c-4b1f-90e6-376058868c42"),
             requestId = "github-publication-test",
             repositoryKey = "acme/intent-trace",
-            baseRevision = null,
             targetRevision = "b".repeat(40),
             snapshotDigest = "a".repeat(64),
             title = "GitHub PR에 변경 의도 게시",

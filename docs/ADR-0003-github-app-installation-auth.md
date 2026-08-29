@@ -18,6 +18,7 @@ installation token을 환경 변수로 직접 교체하면 한 시간 만료와 
 - token은 저장소별로 메모리에만 캐시하고 만료 5분 전부터 새 token으로 교체한다.
 - GitHub가 동적 token을 `401`로 거부하면 해당 캐시를 폐기하고 한 번만 재발급해 요청을 반복한다. 고정 token은 자동 반복하지 않는다.
 - JWT, private key, installation token과 GitHub 오류 본문은 DB·로그·오류 응답에 넣지 않는다.
+- installation token과 GitHub 설정 객체의 문자열 표현은 token, private key와 client secret을 보호된 값으로 표시한다.
 
 ## 영향
 

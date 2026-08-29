@@ -10,6 +10,7 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.time.Instant
 import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -76,16 +77,23 @@ class GitHubOAuthFlowService(
     private val clock: Clock,
 ) {
     private val pendingStates = ConcurrentHashMap<String, PendingAuthorization>()
+    private val pendingStateLock = ReentrantLock()
 
     fun start(): GitHubOAuthStart {
-        removeExpiredStates()
         val state = SecureTokens.random()
         val codeVerifier = SecureTokens.random()
         val authorizationUri = oauthGateway.authorizationUri(state, Pkce.challenge(codeVerifier))
-        pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
-            expiresAt = Instant.now(clock).plus(properties.userAuthorization.stateTtl),
-            codeVerifier = codeVerifier,
-        )
+        pendingStateLock.withLock {
+            val now = Instant.now(clock)
+            removeExpiredStates(now)
+            if (pendingStates.size >= properties.userAuthorization.maxPendingStates) {
+                throw GitHubOAuthCapacityException()
+            }
+            pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
+                expiresAt = now.plus(properties.userAuthorization.stateTtl),
+                codeVerifier = codeVerifier,
+            )
+        }
         return GitHubOAuthStart(state, authorizationUri)
     }
 
@@ -118,8 +126,7 @@ class GitHubOAuthFlowService(
         return left
     }
 
-    private fun removeExpiredStates() {
-        val now = Instant.now(clock)
+    private fun removeExpiredStates(now: Instant) {
         pendingStates.entries.removeIf { !now.isBefore(it.value.expiresAt) }
     }
 
@@ -227,6 +234,8 @@ class GitHubOAuthCodeException : GitHubOAuthException("GitHub 사용자 승인 c
 
 class GitHubOAuthDeniedException : GitHubOAuthException("GitHub 사용자 승인이 취소됐습니다.")
 
+class GitHubOAuthCapacityException : GitHubOAuthException("GitHub 사용자 승인 대기 요청이 너무 많습니다.")
+
 class GitHubOAuthApiException(message: String, cause: Throwable? = null) : GitHubOAuthException(message, cause)
 
 class GitHubOAuthRefreshRejectedException : GitHubOAuthException("GitHub refresh token이 거부됐습니다.")
@@ -241,7 +250,7 @@ private object SecureTokens {
 private object TokenDigests {
     fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.US_ASCII))
-        .joinToString("") { "%02x".format(it) }
+        .let(HexFormat.of()::formatHex)
 }
 
 private object Pkce {

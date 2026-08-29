@@ -4,6 +4,7 @@ import io.intenttrace.config.GITHUB_OAUTH_CALLBACK_PATH
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthCodeException
+import io.intenttrace.identity.application.GitHubOAuthCapacityException
 import io.intenttrace.identity.application.GitHubOAuthConfigurationException
 import io.intenttrace.identity.application.GitHubOAuthDeniedException
 import io.intenttrace.identity.application.GitHubOAuthFlowService
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.util.HtmlUtils
 import java.time.Duration
 
 @RestController
@@ -83,6 +85,12 @@ class GitHubOAuthController(
 @RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class GitHubOAuthExceptionHandler {
+    @ExceptionHandler(GitHubOAuthCapacityException::class)
+    fun tooManyRequests(): ResponseEntity<String> =
+        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS))
+            .contentType(HTML_UTF8)
+            .body(errorPage("GitHub 승인 대기 요청이 많습니다. 잠시 뒤 다시 시도해 주세요."))
+
     @ExceptionHandler(GitHubOAuthStateException::class, GitHubOAuthCodeException::class)
     fun invalidRequest(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.BAD_REQUEST))
@@ -152,12 +160,7 @@ private fun page(title: String, content: String): String =
     </html>
     """.trimIndent()
 
-private fun escapeHtml(value: String): String = value
-    .replace("&", "&amp;")
-    .replace("<", "&lt;")
-    .replace(">", "&gt;")
-    .replace("\"", "&quot;")
-    .replace("'", "&#39;")
+private fun escapeHtml(value: String): String = HtmlUtils.htmlEscape(value, Charsets.UTF_8.name())
 
 private fun <T : ResponseEntity.HeadersBuilder<T>> secure(builder: T): T = builder
     .cacheControl(CacheControl.noStore())
