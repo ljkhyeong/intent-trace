@@ -38,7 +38,8 @@ class TeamChangeRecordService(
 
     fun supersede(command: SupersedeChangeRecordCommand): ChangeRecord {
         val (record, actor) = ownedContributor(command.recordId)
-        val replacement = ownedContributor(command.replacementRecordId).record
+        val replacement = facade.get(command.replacementRecordId)
+        requireOwner(replacement, actor)
         return facade.supersede(record, replacement, command, actor)
     }
 
@@ -52,10 +53,14 @@ class TeamChangeRecordService(
     private fun ownedContributor(recordId: UUID): OwnedContributorRecord {
         val record = facade.get(recordId)
         val actor = access.requireContributor(record.repositoryKey)
+        requireOwner(record, actor)
+        return OwnedContributorRecord(record, actor)
+    }
+
+    private fun requireOwner(record: ChangeRecord, actor: ActorIdentity) {
         if (actor.subject != record.createdBy.subject) {
             throw ChangeRecordOwnershipException()
         }
-        return OwnedContributorRecord(record, actor)
     }
 
     private fun ChangeRecord.isTeamVisible(): Boolean =

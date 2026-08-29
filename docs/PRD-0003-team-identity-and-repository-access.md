@@ -42,7 +42,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - GitHub token, private key와 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
 - refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 거부되거나 사용자 subject가 바뀌면 세션을 폐기한다.
-- 같은 `requestId`를 다른 사용자나 저장소가 재사용하면 기존 기록을 반환하지 않고 충돌로 처리한다.
+- 같은 `requestId`를 다른 사용자·저장소가 재사용하거나 저장할 내용이 달라지면 기존 기록을 반환하지 않고 충돌로 처리한다.
 
 ## 성공 기준
 

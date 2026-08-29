@@ -35,7 +35,7 @@ class ChangeRecordFacadeIntegrationTest(
             title = "변경 의도 저장",
             requestSummary = "API_KEY=secret-value 요청을 안전하게 요약한다.",
             decisions = listOf(Decision("작성자 확인 후 공개한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 10, 20, "d".repeat(64))),
+            codeAnchors = listOf(CodeAnchor("./src//App.kt/", "App", 10, 20, "d".repeat(64))),
             verifications = emptyList(),
             openQuestions = listOf("GitHub 게시 자동화는 아직 검증하지 않았다."),
         )
@@ -65,12 +65,13 @@ class ChangeRecordFacadeIntegrationTest(
             PublishChangeRecordCommand(unrelatedConfirmed.id, unrelatedConfirmed.version, digest),
             actor,
         )
-        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/App.kt", 15)
+        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/./App.kt", 15)
 
         assertEquals(first.id, retried.id)
         assertEquals("acme/intent-trace", first.repositoryKey)
         assertEquals(actor, first.createdBy)
         assertEquals("API_KEY=[REDACTED] 요청을 안전하게 요약한다.", first.requestSummary)
+        assertEquals("src/App.kt", first.codeAnchors.single().relativePath)
         assertEquals(ChangeRecordStatus.PUBLISHED, published.status)
         assertEquals(listOf(published.id), found.map { it.id })
     }

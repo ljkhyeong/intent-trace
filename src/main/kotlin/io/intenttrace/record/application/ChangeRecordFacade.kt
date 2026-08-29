@@ -24,12 +24,25 @@ class ChangeRecordFacade(
     fun create(command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         validateCreate(command)
         val repositoryKey = GitHubRepository.parse(command.repositoryKey).key
+        val candidate = newRecord(command, repositoryKey, actor)
         repository.findByRequestId(command.requestId)?.let {
-            return reuseExisting(it, repositoryKey, actor, command.requestId)
+            return reuseExisting(it, candidate)
         }
 
-        val now = Instant.now(clock)
-        val record = ChangeRecord(
+        return try {
+            repository.saveNew(candidate)
+        } catch (exception: DuplicateKeyException) {
+            val existing = repository.findByRequestId(command.requestId) ?: throw exception
+            reuseExisting(existing, candidate)
+        }
+    }
+
+    private fun newRecord(
+        command: CreateChangeRecordCommand,
+        repositoryKey: String,
+        actor: ActorIdentity,
+    ): ChangeRecord =
+        ChangeRecord(
             id = UUID.randomUUID(),
             requestId = command.requestId,
             repositoryKey = repositoryKey,
@@ -40,7 +53,7 @@ class ChangeRecordFacade(
             requestSummary = redactor.redact(command.requestSummary),
             status = ChangeRecordStatus.DRAFT,
             createdBy = actor,
-            createdAt = now,
+            createdAt = Instant.now(clock),
             confirmedAt = null,
             publishedAt = null,
             supersededBy = null,
@@ -50,14 +63,6 @@ class ChangeRecordFacade(
             verifications = command.verifications.map(::redact),
             openQuestions = command.openQuestions.map(redactor::redact),
         )
-
-        return try {
-            repository.saveNew(record)
-        } catch (exception: DuplicateKeyException) {
-            val existing = repository.findByRequestId(command.requestId) ?: throw exception
-            reuseExisting(existing, repositoryKey, actor, command.requestId)
-        }
-    }
 
     fun get(id: UUID): ChangeRecord = repository.findById(id)
         ?: throw ChangeRecordNotFoundException(id)
@@ -113,10 +118,10 @@ class ChangeRecordFacade(
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
         val normalizedRevision = GitRevision.parse(revision).value
-        requireRepositoryRelativePath(path)
+        val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 
-        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, path, line)
+        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, normalizedPath, line)
     }
 
     private fun validateCreate(command: CreateChangeRecordCommand) {
@@ -137,15 +142,27 @@ class ChangeRecordFacade(
 
     private fun reuseExisting(
         existing: ChangeRecord,
-        repositoryKey: String,
-        actor: ActorIdentity,
-        requestId: String,
+        candidate: ChangeRecord,
     ): ChangeRecord {
-        if (GitHubRepository.parse(existing.repositoryKey).key != repositoryKey || existing.createdBy.subject != actor.subject) {
-            throw ChangeRecordRequestConflictException(requestId)
+        if (
+            GitHubRepository.parse(existing.repositoryKey).key != candidate.repositoryKey ||
+            existing.createdBy.subject != candidate.createdBy.subject ||
+            !existing.hasSameCreatePayload(candidate)
+        ) {
+            throw ChangeRecordRequestConflictException(candidate.requestId)
         }
         return existing
     }
+
+    private fun ChangeRecord.hasSameCreatePayload(other: ChangeRecord): Boolean =
+        baseRevision == other.baseRevision &&
+            snapshotDigest == other.snapshotDigest &&
+            title == other.title &&
+            requestSummary == other.requestSummary &&
+            decisions == other.decisions &&
+            codeAnchors == other.codeAnchors &&
+            verifications == other.verifications &&
+            openQuestions == other.openQuestions
 
     private fun redact(decision: Decision): Decision = decision.copy(
         summary = redactor.redact(decision.summary),
@@ -153,6 +170,7 @@ class ChangeRecordFacade(
     )
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
+        relativePath = requireRepositoryRelativePath(anchor.relativePath),
         contentHash = anchor.contentHash.lowercase(),
     )
 

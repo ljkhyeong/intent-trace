@@ -82,6 +82,19 @@ class TeamChangeRecordServiceTest {
         assertEquals(1, repository.findByIdCount)
     }
 
+    @Test
+    fun `같은 저장소의 공개 기록 대체는 권한을 한 번만 확인한다`() {
+        val current = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        val replacement = draft(owner).copy(id = UUID.randomUUID(), status = ChangeRecordStatus.PUBLISHED)
+        repository.records[current.id] = current
+        repository.records[replacement.id] = replacement
+
+        service.supersede(SupersedeChangeRecordCommand(current.id, current.version, replacement.id))
+
+        assertEquals(1, gateway.repositoryRoleCount)
+        assertEquals(ChangeRecordStatus.SUPERSEDED, repository.records[current.id]?.status)
+    }
+
     private fun createCommand(requestId: String) = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
@@ -122,18 +135,24 @@ class TeamChangeRecordServiceTest {
     }
 
     private class TestGitHubUserAccessGateway(var role: RepositoryRole?) : GitHubUserAccessGateway {
+        var repositoryRoleCount = 0
+
         override fun authenticate(accessToken: String): ActorIdentity = error("사용하지 않는 테스트 경로")
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? = role
+        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? {
+            repositoryRoleCount += 1
+            return role
+        }
     }
 
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
         var record: ChangeRecord? = null
+        val records = mutableMapOf<UUID, ChangeRecord>()
         var findByIdCount: Int = 0
 
         override fun findById(id: UUID): ChangeRecord? {
             findByIdCount += 1
-            return record?.takeIf { it.id == id }
+            return records[id] ?: record?.takeIf { it.id == id }
         }
 
         override fun findByRequestId(requestId: String): ChangeRecord? = record?.takeIf { it.requestId == requestId }
@@ -153,7 +172,10 @@ class TeamChangeRecordServiceTest {
 
         override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { this.record = it }
 
-        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord = record.also { this.record = it }
+        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord = record.also {
+            this.record = it
+            records[it.id] = it
+        }
     }
 
     companion object {

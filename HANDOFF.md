@@ -5,7 +5,7 @@
 - Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
 - H2 기본 저장소와 PostgreSQL 프로필
 - Flyway 초기 스키마
-- Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키 정규화 스키마
+- Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키와 V5 코드 경로 정규화 스키마
 - 변경 의도 생성·확인·공개·대체·라인 조회
 - 팀 공유용 Markdown 출력
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
@@ -41,6 +41,8 @@
 - Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
 - 같은 기록과 PR의 게시 요청은 단일 app에서 직렬화하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
 - GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
+- 코드 근거 경로는 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에서 같은 값으로 비교한다.
+- 같은 `requestId`는 작성자·저장소와 정규화된 저장 내용이 모두 같은 재시도에만 기존 기록을 반환한다.
 - 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
 - PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
 - restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.

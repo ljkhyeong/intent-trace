@@ -13,6 +13,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class ChangeRecordFacadeTest {
     @Test
@@ -25,6 +26,36 @@ class ChangeRecordFacadeTest {
 
         assertEquals(existing.id, result.id)
         assertEquals(2, repository.findByRequestIdCount)
+    }
+
+    @Test
+    fun `같은 요청 식별자의 저장 내용이 다르면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command().copy(title = "다른 변경 의도"), actor)
+        }
+    }
+
+    @Test
+    fun `같은 요청 식별자를 다른 사용자가 재사용하면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command(), ActorIdentity.github(2, "teammate"))
+        }
+    }
+
+    @Test
+    fun `같은 요청 식별자를 다른 저장소가 재사용하면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command().copy(repositoryKey = "acme/other"), actor)
+        }
     }
 
     private class DuplicateRequestRepository(
