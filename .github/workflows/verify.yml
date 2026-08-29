@@ -9,27 +9,34 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: 저장소 받기
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Java 21 준비
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "21"
 
+      - name: Gradle Wrapper 검증
+        uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
       - name: Gradle 준비
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@4733eaac7c1b0da527e4206b7671e0061de1ce37 # v6
         with:
           cache-provider: basic
 
       - name: Python 준비
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -44,18 +51,11 @@ jobs:
       - name: PostgreSQL 계약 검증
         run: scripts/verify-postgres.sh
 
-      - name: Compose 설정 검증
-        env:
-          INTENT_TRACE_SITE_ADDRESS: http://localhost
-          INTENT_TRACE_HTTP_PORT: "8080"
-          INTENT_TRACE_HTTPS_PORT: "8443"
-          INTENT_TRACE_DATABASE_NAME: intent_trace
-          INTENT_TRACE_DATABASE_USERNAME: intent_trace
-          INTENT_TRACE_DATABASE_PASSWORD: ci-only-database-password
-          INTENT_TRACE_GITHUB_APP_CLIENT_ID: Iv1.ci
-          INTENT_TRACE_GITHUB_APP_CLIENT_SECRET: ci-only-client-secret
-          INTENT_TRACE_GITHUB_CALLBACK_URL: http://localhost:8080/auth/github/callback
-        run: docker compose config --quiet
+      - name: Compose 경계 검증
+        run: python3 scripts/validate-compose.py .env.team.example
+
+      - name: Caddy 설정 검증
+        run: docker compose --env-file .env.team.example run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
       - name: Container image build
         run: docker build --tag intent-trace:ci .

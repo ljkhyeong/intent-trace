@@ -18,6 +18,7 @@
 - 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
+- GitHub Actions commit SHA 고정, 중복 실행 취소와 Dependabot 정기 갱신
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
 - Streamable HTTP MCP 도구 6개
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체

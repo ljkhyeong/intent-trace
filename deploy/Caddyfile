@@ -1,16 +1,16 @@
 {$INTENT_TRACE_SITE_ADDRESS} {
-    encode zstd gzip
+	encode zstd gzip
 
-    reverse_proxy app:8080 {
-        health_uri /actuator/health/readiness
-        health_interval 10s
-        health_timeout 3s
-    }
+	reverse_proxy app:8080 {
+		health_uri /actuator/health/readiness
+		health_interval 10s
+		health_timeout 3s
+	}
 
-    header {
-        -Server
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "no-referrer"
-    }
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
 }
