@@ -4,6 +4,11 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ## 미출시
 
+### 추가
+
+- IntelliJ 2025.3+에서 현재 줄에 연결된 공개 변경 의도를 조회하는 플러그인
+- `its_` session을 IntelliJ PasswordSafe에 저장하고 환경 변수로 서버를 선택하는 연결 절차
+
 ### 변경
 
 - v0.6.0 발행 후 다음 개발 주기를 위해 version을 `0.7.0-SNAPSHOT`으로 전환

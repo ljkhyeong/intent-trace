@@ -25,6 +25,7 @@
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - IntentTrace 저장소 전용 개발 스킬
+- IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
 - SECURITY 정책과 0.6.0 변경 이력
 
@@ -53,11 +54,13 @@
 - restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.
 - MCP 생성 도구는 Jakarta Validator를 명시적으로 실행하고 전체 Git commit 형식은 도메인 값 객체에서 검증한다.
 - GitHub 자격 증명 보유 객체의 `toString()`에는 실제 비밀값을 넣지 않는다.
+- IntelliJ 플러그인은 `its_` session만 PasswordSafe에 저장하고 GitHub token을 입력받지 않는다.
+- IntelliJ 현재 줄 조회는 커밋된 파일과 전체 HEAD commit만 사용한다.
 
 ## 다음 작업 후보
 
-1. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
-2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
+1. 실제 IntelliJ 사용자 피드백을 바탕으로 결과 UI와 탐색 동선을 다듬는다.
+2. 실제 운영 결과를 바탕으로 서버 측 encrypted session 저장 필요성을 다시 결정한다.
 3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
 4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
 
@@ -73,6 +76,6 @@
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
 - Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
-- IDE 자동 연동은 아직 구현하지 않았다.
+- IntelliJ 플러그인은 커밋되지 않은 파일, IDE 내 OAuth 시작, 기록 생성과 Marketplace 배포를 아직 지원하지 않는다.
 - 감사 로그와 기록 보존 정책은 아직 구현하지 않았다.
 - 현재 두 개의 alignment HTML만 저장소에 유지하며 새 HTML은 GitHub Release나 별도 보관소에 둔다.
