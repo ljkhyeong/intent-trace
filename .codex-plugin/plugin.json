@@ -13,7 +13,9 @@
     "developerName": "IntentTrace contributors",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "현재 변경의 요청, 판단, 코드 근거, 실제 검증을 IntentTrace 초안으로 정리해 주세요. 원문 대화나 숨은 추론은 포함하지 마세요."
+    "defaultPrompt": [
+      "현재 변경의 요청, 판단, 코드 근거, 실제 검증을 IntentTrace 초안으로 정리해 주세요. 원문 대화나 숨은 추론은 포함하지 마세요."
+    ]
   },
   "mcpServers": "./.mcp.json"
 }

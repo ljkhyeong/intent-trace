@@ -50,6 +50,17 @@ def main() -> None:
         if not isinstance(manifest.get(field), str) or not manifest[field].strip():
             fail(f"plugin.json의 {field} 값이 비어 있습니다.")
 
+    interface = manifest.get("interface")
+    if not isinstance(interface, dict):
+        fail("plugin.json의 interface 값은 object여야 합니다.")
+    default_prompts = interface.get("defaultPrompt")
+    if (
+        not isinstance(default_prompts, list)
+        or not 1 <= len(default_prompts) <= 3
+        or any(not isinstance(prompt, str) or not prompt.strip() for prompt in default_prompts)
+    ):
+        fail("plugin.json의 interface.defaultPrompt는 비어 있지 않은 문자열 1~3개여야 합니다.")
+
     mcp_path = resolve_file(root, manifest.get("mcpServers"), "mcpServers")
     mcp = read_json(mcp_path)
     if not isinstance(mcp.get("mcpServers"), dict) or not mcp["mcpServers"]:
@@ -67,6 +78,11 @@ def main() -> None:
         hooks = read_json(hooks_path)
         if not isinstance(hooks.get("hooks"), dict):
             fail("hooks.json의 hooks 값은 object여야 합니다.")
+        session_start = hooks["hooks"].get("SessionStart")
+        if not isinstance(session_start, list) or not session_start:
+            fail("hooks.json의 SessionStart 설정이 비어 있습니다.")
+        if not any("clear" in str(entry.get("matcher", "")).split("|") for entry in session_start if isinstance(entry, dict)):
+            fail("SessionStart matcher에는 clear source가 필요합니다.")
 
     print(f"Plugin layout validation passed: {root}")
 
