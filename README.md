@@ -21,6 +21,57 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
 
+## 빠른 시작
+
+Java 21과 Codex CLI가 필요합니다. 먼저 저장소를 받고 애플리케이션을 준비합니다.
+
+```bash
+git clone https://github.com/ljkhyeong/intent-trace.git
+cd intent-trace
+```
+
+GitHub Developer settings에서 GitHub App을 만들고 사용할 저장소에 설치합니다. 사용자 승인 callback은 `http://127.0.0.1:8080/auth/github/callback`으로 등록하고 `Expiring user authorization tokens`를 활성화합니다. App에는 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한만 부여합니다.
+
+App 설정과 private key를 환경 변수로 전달한 뒤 서버를 실행합니다. private key 파일은 저장소 밖에 둡니다.
+
+```bash
+export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
+export INTENT_TRACE_GITHUB_APP_CLIENT_SECRET='GitHub-App-client-secret'
+export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < /저장소-밖/private-key.pem | tr -d '\n')"
+export INTENT_TRACE_GITHUB_CALLBACK_URL='http://127.0.0.1:8080/auth/github/callback'
+./gradlew bootRun
+```
+
+브라우저에서 `http://127.0.0.1:8080/auth/github/start`를 열어 승인합니다. callback 화면에 한 번 표시되는 `its_` session token을 새 terminal의 환경 변수에 넣고 Codex MCP 연결을 추가합니다.
+
+```bash
+export INTENT_TRACE_SESSION_TOKEN='its_로컬-session-token'
+codex mcp add intent-trace \
+  --url http://127.0.0.1:8080/mcp \
+  --bearer-token-env-var INTENT_TRACE_SESSION_TOKEN
+codex mcp list
+```
+
+기록할 Git 저장소에서 Codex를 새로 시작한 뒤 다음처럼 요청합니다.
+
+```text
+현재 commit의 사용자 요청, 확인 가능한 판단, 최소 코드 근거와 실제 검증을
+IntentTrace 비공개 초안으로 만들어 줘. 원문 대화와 숨은 추론은 포함하지 마.
+```
+
+Codex가 보여준 초안을 확인한 뒤에만 작성자 확인과 팀 공개를 요청합니다. GitHub PR에 게시하려면 기록의 전체 commit ID가 PR HEAD와 같아야 합니다.
+
+### 릴리스 JAR 실행
+
+`v0.6.0`부터는 GitHub Release에서 실행 JAR과 SHA-256 파일을 함께 제공합니다.
+
+```bash
+curl -LO https://github.com/ljkhyeong/intent-trace/releases/download/v0.6.0/intent-trace-0.6.0.jar
+curl -LO https://github.com/ljkhyeong/intent-trace/releases/download/v0.6.0/intent-trace-0.6.0.jar.sha256
+shasum -a 256 -c intent-trace-0.6.0.jar.sha256
+java -jar intent-trace-0.6.0.jar
+```
+
 ## 실행
 
 Java 21이 필요합니다.
@@ -173,6 +224,7 @@ REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용�
 scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
+./gradlew bootJar && python3 scripts/validate-release-version.py
 ```
 
 기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. Compose 검증은 service·network·host port·외부 image digest 경계를 확인합니다. GitHub Actions는 pull request와 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
