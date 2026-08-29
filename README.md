@@ -200,3 +200,7 @@ scripts/verify-postgres.sh
 - `docs/ADR-0006-single-instance-team-deployment.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`
+
+## 라이선스
+
+IntentTrace는 [Apache License 2.0](LICENSE)으로 배포합니다.
