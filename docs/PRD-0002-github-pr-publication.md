@@ -42,6 +42,8 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 - PR HEAD가 다르면 Check Run 쓰기를 시작하지 않는다.
 - 같은 기록을 다시 게시하면 같은 `external_id` Check Run을 찾아 갱신한다.
+- 단일 인스턴스에서 같은 기록과 PR의 동시 게시 요청은 직렬화해 최초 Check Run을 한 번만 만든다.
+- Check Run 검색 한도를 모두 채우고도 기존 실행을 확인하지 못하면 중복 생성하지 않고 실패한다.
 - 게시 내용은 기존 IntentTrace Markdown 렌더러와 동일하다.
 - GitHub 자격 증명이 없거나 API가 실패하면 안전한 오류 분류만 반환한다.
 - 같은 저장소의 유효한 installation token은 재사용하고 만료 5분 전부터 새로 발급한다.

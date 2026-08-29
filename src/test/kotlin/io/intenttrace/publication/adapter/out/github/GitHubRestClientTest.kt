@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
@@ -20,6 +21,8 @@ import org.springframework.web.util.UriComponentsBuilder
 import org.springframework.web.util.UriUtils
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
+import kotlin.test.assertFailsWith
 
 class GitHubRestClientTest {
     private val builder = RestClient.builder()
@@ -137,6 +140,28 @@ class GitHubRestClientTest {
         val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
 
         assertEquals(55L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `Check Run 검색 한도를 채우면 중복 생성하지 않는다`() {
+        val response = (1..100).joinToString(",", prefix = "{\"check_runs\":[", postfix = "]}") { id ->
+            """{"id":$id,"head_sha":"$revision","html_url":"https://github.test/check-runs/$id","external_id":"다른-기록-$id"}"""
+        }
+        repeat(10) { pageIndex ->
+            server.expect { request ->
+                val query = UriComponentsBuilder.fromUri(request.uri).build().queryParams
+                assertEquals((pageIndex + 1).toString(), query.getFirst("page"))
+            }
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON))
+        }
+
+        val exception = assertFailsWith<GitHubApiException> {
+            client.upsertCheckRun(command("intent-trace:찾을-수-없는-기록"))
+        }
+
+        assertContains(exception.message.orEmpty(), "검색 한도")
         server.verify()
     }
 

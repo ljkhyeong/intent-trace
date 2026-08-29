@@ -39,6 +39,7 @@
 - 팀 조회에는 공개 또는 대체된 기록만 노출한다.
 - GitHub 게시 전 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다.
 - Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
+- 같은 기록과 PR의 게시 요청은 단일 app에서 직렬화하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
 - GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
 - 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
 - PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.

@@ -15,9 +15,13 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
@@ -55,21 +59,69 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(null, publicationRepository.saved)
     }
 
+    @Test
+    fun `같은 기록과 PR의 동시 게시는 최초 Check Run을 한 번만 만든다`() {
+        val executor = Executors.newFixedThreadPool(2)
+        val ready = CountDownLatch(2)
+        val start = CountDownLatch(1)
+        try {
+            val results = (1..2).map {
+                executor.submit<GitHubPublication> {
+                    ready.countDown()
+                    start.await()
+                    publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
+                }
+            }
+            check(ready.await(5, TimeUnit.SECONDS))
+            start.countDown()
+
+            results.forEach { it.get(5, TimeUnit.SECONDS) }
+
+            assertEquals(1, gateway.initialUpserts.get())
+            assertEquals(listOf(null, 42L), gateway.commands.map { it.knownCheckRunId })
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `게시 내용이 너무 크면 GitHub 조회 전에 거부한다`() {
+        val oversized = record.copy(title = "가".repeat(65_536))
+
+        assertFailsWith<GitHubPublicationContentTooLargeException> {
+            publisher.publish(oversized, PublishChangeRecordToGitHubCommand(record.id, target))
+        }
+
+        assertEquals(0, gateway.headRequests.get())
+        assertEquals(0, gateway.commands.size)
+    }
+
     private class FakeGitHubGateway(
         var headRevision: String,
     ) : GitHubPullRequestGateway {
+        val headRequests = AtomicInteger()
+        val initialUpserts = AtomicInteger()
+        val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
         var lastCommand: UpsertGitHubCheckRunCommand? = null
 
-        override fun getHeadRevision(target: GitHubPullRequestTarget): String = headRevision
+        override fun getHeadRevision(target: GitHubPullRequestTarget): String {
+            headRequests.incrementAndGet()
+            return headRevision
+        }
 
         override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
             lastCommand = command
+            commands += command
+            if (command.knownCheckRunId == null) {
+                initialUpserts.incrementAndGet()
+                Thread.sleep(100)
+            }
             return GitHubCheckRun(42L, "https://github.test/check-runs/42")
         }
     }
 
     private class InMemoryGitHubPublicationRepository : GitHubPublicationRepository {
-        var saved: GitHubPublication? = null
+        @Volatile var saved: GitHubPublication? = null
 
         override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? = saved
 

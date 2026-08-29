@@ -12,6 +12,8 @@ import java.time.Clock
 import java.time.Instant
 import java.util.HexFormat
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 @Service
 class PublishChangeRecordToGitHub(
@@ -20,6 +22,8 @@ class PublishChangeRecordToGitHub(
     private val publicationRepository: GitHubPublicationRepository,
     private val clock: Clock,
 ) {
+    private val publicationLocks = Array(PUBLICATION_LOCK_STRIPES) { ReentrantLock() }
+
     fun publish(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand): GitHubPublication {
         require(record.id == command.changeRecordId) { "GitHub 게시 명령과 변경 의도 기록이 일치하지 않습니다." }
         check(record.status == ChangeRecordStatus.PUBLISHED) {
@@ -31,17 +35,28 @@ class PublishChangeRecordToGitHub(
             throw GitHubRepositoryMismatchException(record.repositoryKey, target.repositoryKey)
         }
 
+        val markdown = markdownRenderer.render(record)
+        if (markdown.length > MAX_GITHUB_OUTPUT_LENGTH) {
+            throw GitHubPublicationContentTooLargeException()
+        }
+
+        val lockKey = PublicationLockKey(record.id, target.repositoryKey, target.pullNumber)
+        return publicationLocks[Math.floorMod(lockKey.hashCode(), publicationLocks.size)].withLock {
+            publishLocked(record, target, markdown)
+        }
+    }
+
+    private fun publishLocked(
+        record: ChangeRecord,
+        target: GitHubPullRequestTarget,
+        markdown: String,
+    ): GitHubPublication {
         val recordRevision = checkNotNull(record.targetRevision) { "변경 의도 기록에 Git 커밋 ID가 없습니다." }
         val pullRequestRevision = gitHubGateway.getHeadRevision(target).lowercase()
         if (recordRevision != pullRequestRevision) {
             throw PullRequestRevisionMismatchException(recordRevision, pullRequestRevision)
         }
 
-        val markdown = markdownRenderer.render(record)
-        if (markdown.length > MAX_GITHUB_OUTPUT_LENGTH) {
-            throw GitHubPublicationContentTooLargeException()
-        }
-        val contentDigest = sha256(markdown)
         val previous = publicationRepository.find(record.id, target)
         val checkRun = gitHubGateway.upsertCheckRun(
             UpsertGitHubCheckRunCommand(
@@ -63,7 +78,7 @@ class PublishChangeRecordToGitHub(
                 headRevision = recordRevision,
                 checkRunId = checkRun.id,
                 checkRunUrl = checkRun.url,
-                contentDigest = contentDigest,
+                contentDigest = sha256(markdown),
                 publishedAt = Instant.now(clock),
             ),
         )
@@ -75,7 +90,14 @@ class PublishChangeRecordToGitHub(
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535
+        private const val PUBLICATION_LOCK_STRIPES = 256
     }
+
+    private data class PublicationLockKey(
+        val changeRecordId: UUID,
+        val repositoryKey: String,
+        val pullNumber: Int,
+    )
 }
 
 data class PublishChangeRecordToGitHubCommand(

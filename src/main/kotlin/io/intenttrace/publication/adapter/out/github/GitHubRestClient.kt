@@ -118,7 +118,7 @@ class GitHubRestClient(
                 return@safeCall null
             }
         }
-        null
+        throw GitHubApiException("GitHub Check Run 검색 한도를 초과해 새 Check Run을 만들지 않았습니다.")
     }
 
     private fun createCheckRun(command: UpsertGitHubCheckRunCommand): CheckRunResponse = safeCall("Check Run 생성") {
