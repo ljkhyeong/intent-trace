@@ -27,8 +27,6 @@ data class CreateChangeRecordRequest(
     val requestId: String,
     @field:NotBlank @field:Size(max = 255)
     val repositoryKey: String,
-    @field:Size(max = 128)
-    val baseRevision: String? = null,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val snapshotDigest: String,
     @field:NotBlank @field:Size(max = 200)
@@ -47,7 +45,6 @@ data class CreateChangeRecordRequest(
     fun toCommand(): CreateChangeRecordCommand = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
-        baseRevision = baseRevision,
         snapshotDigest = snapshotDigest,
         title = title,
         requestSummary = requestSummary,
@@ -143,7 +140,6 @@ data class ChangeRecordResponse(
     val id: UUID,
     val requestId: String,
     val repositoryKey: String,
-    val baseRevision: String?,
     val targetRevision: String?,
     val snapshotDigest: String,
     val title: String,
@@ -165,7 +161,6 @@ data class ChangeRecordResponse(
             id = record.id,
             requestId = record.requestId,
             repositoryKey = record.repositoryKey,
-            baseRevision = record.baseRevision,
             targetRevision = record.targetRevision,
             snapshotDigest = record.snapshotDigest,
             title = record.title,

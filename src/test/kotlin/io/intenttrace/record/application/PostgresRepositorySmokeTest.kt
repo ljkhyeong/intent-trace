@@ -29,7 +29,6 @@ class PostgresRepositorySmokeTest(
             CreateChangeRecordCommand(
                 requestId = "postgres-smoke",
                 repositoryKey = "Acme/Intent-Trace",
-                baseRevision = null,
                 snapshotDigest = digest,
                 title = "PostgreSQL 검증",
                 requestSummary = "실제 PostgreSQL에서 기록 수명주기를 확인한다.",

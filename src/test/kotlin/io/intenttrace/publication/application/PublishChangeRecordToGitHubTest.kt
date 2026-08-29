@@ -161,7 +161,6 @@ class PublishChangeRecordToGitHubTest {
             id = UUID.fromString("8c766289-5c2c-4b1f-90e6-376058868c42"),
             requestId = "github-publication-test",
             repositoryKey = "acme/intent-trace",
-            baseRevision = null,
             targetRevision = "b".repeat(40),
             snapshotDigest = "a".repeat(64),
             title = "GitHub PR에 변경 의도 게시",

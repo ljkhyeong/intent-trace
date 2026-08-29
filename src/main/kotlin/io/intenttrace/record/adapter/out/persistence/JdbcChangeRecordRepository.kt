@@ -80,15 +80,14 @@ class JdbcChangeRecordRepository(
         jdbcTemplate.update(
             """
             insert into change_records (
-                id, request_id, repository_key, base_revision, target_revision,
+                id, request_id, repository_key, target_revision,
                 snapshot_digest, title, request_summary, status, created_by, created_by_subject,
                 created_at, confirmed_at, published_at, superseded_by, version
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
             record.repositoryKey,
-            record.baseRevision,
             record.targetRevision,
             record.snapshotDigest,
             record.title,
@@ -298,7 +297,6 @@ class JdbcChangeRecordRepository(
         id = UUID.fromString(resultSet.getString("id")),
         requestId = resultSet.getString("request_id"),
         repositoryKey = resultSet.getString("repository_key"),
-        baseRevision = resultSet.getString("base_revision"),
         targetRevision = resultSet.getString("target_revision"),
         snapshotDigest = resultSet.getString("snapshot_digest"),
         title = resultSet.getString("title"),

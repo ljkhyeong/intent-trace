@@ -46,7 +46,6 @@ class ChangeRecordFacade(
             id = UUID.randomUUID(),
             requestId = command.requestId,
             repositoryKey = repositoryKey,
-            baseRevision = command.baseRevision?.lowercase(),
             targetRevision = null,
             snapshotDigest = command.snapshotDigest.lowercase(),
             title = redactor.redact(command.title),
@@ -155,8 +154,7 @@ class ChangeRecordFacade(
     }
 
     private fun ChangeRecord.hasSameCreatePayload(other: ChangeRecord): Boolean =
-        baseRevision == other.baseRevision &&
-            snapshotDigest == other.snapshotDigest &&
+        snapshotDigest == other.snapshotDigest &&
             title == other.title &&
             requestSummary == other.requestSummary &&
             decisions == other.decisions &&

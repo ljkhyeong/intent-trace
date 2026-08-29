@@ -9,7 +9,6 @@ data class ChangeRecord(
     val id: UUID,
     val requestId: String,
     val repositoryKey: String,
-    val baseRevision: String?,
     val targetRevision: String?,
     val snapshotDigest: String,
     val title: String,

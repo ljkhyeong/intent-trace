@@ -33,7 +33,6 @@ class ChangeRecordFacadeIntegrationTest(
         val command = CreateChangeRecordCommand(
             requestId = "integration-turn-1",
             repositoryKey = "Acme/Intent-Trace",
-            baseRevision = null,
             snapshotDigest = digest,
             title = "변경 의도 저장",
             requestSummary = "API_KEY=secret-value 요청을 안전하게 요약한다.",
@@ -119,7 +118,6 @@ class ChangeRecordFacadeIntegrationTest(
             CreateChangeRecordCommand(
                 requestId = "integration-optimistic-lock",
                 repositoryKey = "acme/intent-trace",
-                baseRevision = null,
                 snapshotDigest = digest,
                 title = "낙관적 잠금",
                 requestSummary = "같은 version의 중복 갱신을 막는다.",
@@ -144,7 +142,6 @@ class ChangeRecordFacadeIntegrationTest(
             CreateChangeRecordCommand(
                 requestId = "integration-github-publication",
                 repositoryKey = "acme/intent-trace",
-                baseRevision = null,
                 snapshotDigest = digest,
                 title = "GitHub 게시 이력",
                 requestSummary = "같은 PR 게시를 갱신한다.",

@@ -98,7 +98,6 @@ class TeamChangeRecordServiceTest {
     private fun createCommand(requestId: String) = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
-        baseRevision = null,
         snapshotDigest = "a".repeat(64),
         title = "팀 인증 기록",
         requestSummary = "인증 사용자를 작성자로 저장한다.",
@@ -112,7 +111,6 @@ class TeamChangeRecordServiceTest {
         id = UUID.randomUUID(),
         requestId = "seeded",
         repositoryKey = repositoryKey,
-        baseRevision = null,
         targetRevision = null,
         snapshotDigest = "a".repeat(64),
         title = "초안",

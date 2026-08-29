@@ -91,7 +91,6 @@ class ChangeRecordFacadeTest {
         private fun command() = CreateChangeRecordCommand(
             requestId = "concurrent-request",
             repositoryKey = "Acme/Intent-Trace",
-            baseRevision = null,
             snapshotDigest = "a".repeat(64),
             title = "동시 요청",
             requestSummary = "같은 요청을 한 번만 저장한다.",
@@ -105,7 +104,6 @@ class ChangeRecordFacadeTest {
             id = UUID.randomUUID(),
             requestId = "concurrent-request",
             repositoryKey = "acme/intent-trace",
-            baseRevision = null,
             targetRevision = null,
             snapshotDigest = "a".repeat(64),
             title = "동시 요청",

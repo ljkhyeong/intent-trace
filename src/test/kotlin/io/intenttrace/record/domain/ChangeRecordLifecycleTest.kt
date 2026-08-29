@@ -99,7 +99,6 @@ class ChangeRecordLifecycleTest {
         id = UUID.randomUUID(),
         requestId = "turn-1",
         repositoryKey = "acme/intent-trace",
-        baseRevision = null,
         targetRevision = null,
         snapshotDigest = digest,
         title = "변경 의도 기록",
