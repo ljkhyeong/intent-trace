@@ -27,6 +27,7 @@
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
 - IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
+- tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
 - SECURITY 정책과 0.6.0 변경 이력
 

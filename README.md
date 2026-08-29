@@ -73,6 +73,8 @@ shasum -a 256 -c intent-trace-0.6.0.jar.sha256
 java -jar intent-trace-0.6.0.jar
 ```
 
+`v0.7.0`부터는 같은 release에 `intent-trace-intellij-<version>.zip`과 SHA-256 파일도 함께 제공합니다. 정식 version 변경, 실제 IntelliJ 확인, tag 발행 순서는 [`docs/operations/release.md`](docs/operations/release.md)를 따릅니다.
+
 ## 실행
 
 Java 21이 필요합니다.
@@ -250,6 +252,7 @@ scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
 ./gradlew bootJar && python3 scripts/validate-release-version.py
+python3 scripts/test_validate_release_version.py
 ```
 
 기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. Compose 검증은 service·network·host port·외부 image digest 경계를 확인합니다. GitHub Actions는 pull request와 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
