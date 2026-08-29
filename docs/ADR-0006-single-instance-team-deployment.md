@@ -15,6 +15,7 @@ IntentTrace는 로컬 H2 실행과 PostgreSQL 연결 profile을 제공하지만 
 - PostgreSQL과 app은 외부 통신이 차단된 `data` network를 공유한다. app과 Caddy는 GitHub API와 ACME에 나갈 수 있는 `edge` network를 공유한다.
 - Caddy가 TLS 인증서 발급·갱신과 reverse proxy를 담당한다. app은 내부 HTTP를 받고 forwarded header로 외부 HTTPS origin을 해석한다.
 - app image는 Java 21 다단계 build, 비root 사용자, 읽기 전용 root filesystem, `/tmp` tmpfs와 제거된 Linux capability로 실행한다.
+- PostgreSQL·Caddy·Java build/runtime image와 Dockerfile frontend는 tag와 digest를 함께 기록한다. app image는 배포한 전체 Git commit ID를 tag로 사용해 같은 host에서 이전 image를 식별한다.
 - PostgreSQL volume에는 변경 의도와 GitHub 게시 이력만 저장한다. GitHub access·refresh token과 `its_` session은 계속 app 메모리에만 둔다.
 - backup은 기존 파일을 덮어쓰지 않는 custom-format `pg_dump`로 만들고 권한을 `0600`으로 제한한다.
 - restore는 app이 중지된 상태와 `--confirm-replace`가 모두 확인될 때만 `pg_restore --clean --single-transaction`으로 실행한다.
@@ -26,6 +27,7 @@ IntentTrace는 로컬 H2 실행과 PostgreSQL 연결 profile을 제공하지만 
 - 단일 app이므로 session routing이나 분산 잠금은 필요 없지만 app 장애 중에는 서비스를 사용할 수 없다.
 - 실제 운영자는 DNS가 host를 가리키게 하고 80·443 inbound를 허용해야 한다. 이 저장소는 DNS와 방화벽을 직접 변경하지 않는다.
 - Caddy 인증서 상태와 PostgreSQL 데이터는 각각 named volume에 남는다. host 자체 장애에 대비하려면 backup 파일을 별도 저장소로 옮겨야 한다.
+- 이전 commit image로 되돌릴 때 해당 버전이 현재 DB schema를 읽을 수 있어야 한다. 열 삭제처럼 하위 호환되지 않는 migration 뒤에는 업그레이드 전 backup과 이전 commit을 함께 복구한다.
 - `.env.team`은 secret manager가 아니라 단일 host MVP용 주입 수단이다. 파일 권한을 제한하고 Git에 넣지 않는다.
 
 ## 대안

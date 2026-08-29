@@ -15,6 +15,7 @@
 - GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
 - SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
+- 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회

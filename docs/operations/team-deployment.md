@@ -25,11 +25,20 @@ INTENT_TRACE_GITHUB_CALLBACK_URL=https://intent.example.com/auth/github/callback
 
 `INTENT_TRACE_DATABASE_PASSWORD`, GitHub App client secret과 Base64 private key는 실제 값으로 교체한다. `.env.team`을 Git, issue, 채팅이나 backup에 넣지 않는다.
 
+팀 배포에서는 `INTENT_TRACE_IMAGE_TAG`에 배포할 전체 Git commit ID를 기록한다. 로컬 확인에서는 예시의 `local`을 그대로 사용할 수 있다.
+
+```bash
+git rev-parse HEAD
+```
+
+출력값이 `012345...`라면 `.env.team`에 `INTENT_TRACE_IMAGE_TAG=012345...`로 저장한다. 이 값은 build 결과와 rollback 대상을 연결하므로 축약하거나 `latest`를 사용하지 않는다.
+
 ## 기동과 확인
 
 ```bash
 docker compose --env-file .env.team config --quiet
-docker compose --env-file .env.team up -d --build
+docker compose --env-file .env.team build app
+docker compose --env-file .env.team up -d --no-build
 docker compose --env-file .env.team ps
 curl --fail https://intent.example.com/actuator/health
 ```
@@ -86,8 +95,40 @@ curl --fail https://intent.example.com/actuator/health
 ```bash
 INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh
 git pull --ff-only
-docker compose --env-file .env.team up -d --build
+git rev-parse HEAD
+```
+
+출력한 전체 commit ID를 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`에 저장한 다음 새 image를 만들고 교체한다.
+
+```bash
+docker compose --env-file .env.team build app
+docker compose --env-file .env.team up -d --no-build
 docker compose --env-file .env.team ps
 ```
 
 현재 구성은 rolling 배포가 아니다. image 교체 동안 짧은 중단이 발생하고 기존 `its_` session은 사라진다.
+
+## Rollback
+
+먼저 되돌릴 commit의 `intent-trace:<전체-commit-ID>` image가 host에 남아 있는지 확인하고, 해당 버전이 현재 DB schema와 호환되는지 migration을 확인한다.
+
+```bash
+docker image inspect intent-trace:<전체-commit-ID>
+```
+
+DB schema가 호환되면 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`를 이전 전체 commit ID로 바꾸고 app만 다시 만든다.
+
+```bash
+docker compose --env-file .env.team up -d --no-build app
+docker compose --env-file .env.team ps
+curl --fail https://intent.example.com/actuator/health
+```
+
+이전 image가 없으면 해당 commit을 별도 Git worktree에서 checkout하고 먼저 build한다. 현재 작업 directory를 과거 commit으로 강제 변경하지 않는다.
+
+```bash
+git worktree add ../intent-trace-rollback <전체-commit-ID>
+docker build --tag intent-trace:<전체-commit-ID> ../intent-trace-rollback
+```
+
+열 삭제나 타입 변경처럼 이전 app과 호환되지 않는 migration이 적용됐다면 app image만 되돌리지 않는다. app과 Caddy를 중지하고 업그레이드 직전에 만든 backup을 `Restore` 절차로 복구한 뒤, 이전 commit의 Compose 설정과 image를 함께 실행한다. V6의 `base_revision` 열 제거보다 이전 app으로 돌아갈 때도 이 절차가 필요하다.

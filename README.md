@@ -52,11 +52,12 @@ Docker Compose는 PostgreSQL, IntentTrace와 Caddy를 단일 인스턴스로 실
 ```bash
 cp .env.team.example .env.team
 chmod 600 .env.team
-docker compose --env-file .env.team up -d --build
+docker compose --env-file .env.team build app
+docker compose --env-file .env.team up -d --no-build
 curl http://localhost:8080/actuator/health
 ```
 
-기본 예시는 로컬 HTTP 검증용입니다. 팀 domain을 사용할 때는 `.env.team`의 `INTENT_TRACE_SITE_ADDRESS`, 공개 port와 `INTENT_TRACE_GITHUB_CALLBACK_URL`을 실제 HTTPS origin으로 바꿉니다. callback은 GitHub App에 등록한 값과 정확히 같아야 합니다. 자세한 기동·TLS·backup·restore 절차는 [`docs/operations/team-deployment.md`](docs/operations/team-deployment.md)에 있습니다.
+기본 예시는 로컬 HTTP 검증용입니다. 팀 domain을 사용할 때는 `.env.team`의 `INTENT_TRACE_SITE_ADDRESS`, 공개 port와 `INTENT_TRACE_GITHUB_CALLBACK_URL`을 실제 HTTPS origin으로 바꾸고, `INTENT_TRACE_IMAGE_TAG`에는 `git rev-parse HEAD`가 출력한 전체 commit ID를 저장합니다. callback은 GitHub App에 등록한 값과 정확히 같아야 합니다. 자세한 기동·TLS·backup·restore·rollback 절차는 [`docs/operations/team-deployment.md`](docs/operations/team-deployment.md)에 있습니다.
 
 PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub access·refresh token과 `its_` session은 계속 애플리케이션 메모리에만 있으므로 app container를 다시 만들면 사용자가 GitHub 승인을 다시 해야 합니다.
 

@@ -2,7 +2,7 @@ name: intent-trace
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${INTENT_TRACE_DATABASE_NAME:?INTENT_TRACE_DATABASE_NAME을 설정하세요}
@@ -52,7 +52,7 @@ services:
         gw_priority: 1
 
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     restart: unless-stopped
     environment:
       INTENT_TRACE_SITE_ADDRESS: ${INTENT_TRACE_SITE_ADDRESS:?INTENT_TRACE_SITE_ADDRESS를 설정하세요}
