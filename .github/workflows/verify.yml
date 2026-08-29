@@ -39,7 +39,10 @@ jobs:
           python-version: "3.13"
 
       - name: 전체 테스트
-        run: ./gradlew --no-daemon test
+        run: ./gradlew --no-daemon test bootJar
+
+      - name: 릴리스 version 확인
+        run: python3 scripts/validate-release-version.py
 
       - name: 플러그인 검증
         env:
