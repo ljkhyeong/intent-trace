@@ -8,6 +8,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 - IntelliJ 2025.3+에서 현재 줄에 연결된 공개 변경 의도를 조회하는 플러그인
 - `its_` session을 IntelliJ PasswordSafe에 저장하고 환경 변수로 서버를 선택하는 연결 절차
+- IntelliJ에서 GitHub 승인 페이지를 열고 PasswordSafe 세션을 삭제하는 액션
 
 ### 변경
 
