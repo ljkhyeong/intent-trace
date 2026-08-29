@@ -96,6 +96,28 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(0, gateway.commands.size)
     }
 
+    @Test
+    fun `비공개 기록과 다른 저장소는 GitHub 조회 전에 거부한다`() {
+        assertFailsWith<IllegalStateException> {
+            publisher.publish(
+                record.copy(status = ChangeRecordStatus.AUTHOR_CONFIRMED),
+                PublishChangeRecordToGitHubCommand(record.id, target),
+            )
+        }
+        assertFailsWith<GitHubRepositoryMismatchException> {
+            publisher.publish(
+                record,
+                PublishChangeRecordToGitHubCommand(
+                    record.id,
+                    GitHubPullRequestTarget("acme", "other", 12),
+                ),
+            )
+        }
+
+        assertEquals(0, gateway.headRequests.get())
+        assertEquals(0, gateway.commands.size)
+    }
+
     private class FakeGitHubGateway(
         var headRevision: String,
     ) : GitHubPullRequestGateway {

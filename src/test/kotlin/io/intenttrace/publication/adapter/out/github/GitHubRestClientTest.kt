@@ -166,6 +166,39 @@ class GitHubRestClientTest {
     }
 
     @Test
+    fun `저장된 Check Run ID가 다른 기록이면 목록에서 올바른 실행을 다시 찾는다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andRespond(
+                withSuccess(
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"intent-trace:다른-기록"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        server.expect { request ->
+            assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
+        }.andRespond(
+            withSuccess(
+                """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}]}""",
+                MediaType.APPLICATION_JSON,
+            ),
+        )
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andRespond(
+                withSuccess(
+                    """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
+
+        assertEquals(77L, result.id)
+        server.verify()
+    }
+
+    @Test
     fun `installation token이 거부되면 폐기하고 한 번만 다시 요청한다`() {
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
             .andExpect(header("Authorization", "Bearer installation-token"))
