@@ -2,8 +2,8 @@ package io.intenttrace.publication.application
 
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
@@ -15,20 +15,19 @@ import java.util.UUID
 
 @Service
 class PublishChangeRecordToGitHub(
-    private val changeRecordFacade: ChangeRecordFacade,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
     private val gitHubGateway: GitHubPullRequestGateway,
     private val publicationRepository: GitHubPublicationRepository,
     private val clock: Clock,
 ) {
-    fun publish(command: PublishChangeRecordToGitHubCommand): GitHubPublication {
-        val record = changeRecordFacade.get(command.changeRecordId)
+    fun publish(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand): GitHubPublication {
+        require(record.id == command.changeRecordId) { "GitHub 게시 명령과 변경 의도 기록이 일치하지 않습니다." }
         check(record.status == ChangeRecordStatus.PUBLISHED) {
             "공개 상태의 변경 의도 기록만 GitHub에 게시할 수 있습니다."
         }
 
         val target = command.target
-        if (!record.repositoryKey.equals(target.repositoryKey, ignoreCase = true)) {
+        if (record.repositoryKey != target.repositoryKey) {
             throw GitHubRepositoryMismatchException(record.repositoryKey, target.repositoryKey)
         }
 

@@ -42,19 +42,35 @@ class JdbcChangeRecordRepository(
         ).firstOrNull()?.let(::hydrate)
 
     @Transactional(readOnly = true)
-    override fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord> =
+    override fun findPublishedByAnchor(
+        repositoryKey: String,
+        targetRevision: String,
+        relativePath: String,
+        line: Int,
+    ): List<ChangeRecord> =
         jdbcTemplate.query(
             """
-            select *
-            from change_records
-            where repository_key = ?
-              and target_revision = ?
-              and status in ('PUBLISHED', 'SUPERSEDED')
-            order by published_at desc
+            select records.*
+            from change_records records
+            where records.repository_key = ?
+              and records.target_revision = ?
+              and records.status in ('PUBLISHED', 'SUPERSEDED')
+              and exists (
+                  select 1
+                  from code_anchors anchors
+                  where anchors.record_id = records.id
+                    and anchors.relative_path = ?
+                    and anchors.start_line <= ?
+                    and anchors.end_line >= ?
+              )
+            order by records.published_at desc
             """.trimIndent(),
             recordRowMapper,
             repositoryKey,
             targetRevision,
+            relativePath,
+            line,
+            line,
         ).map(::hydrate)
 
     @Transactional

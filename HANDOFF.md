@@ -5,7 +5,7 @@
 - Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
 - H2 기본 저장소와 PostgreSQL 프로필
 - Flyway 초기 스키마
-- Flyway V2 GitHub 게시 이력과 V3 GitHub 작성자 subject 스키마
+- Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키 정규화 스키마
 - 변경 의도 생성·확인·공개·대체·라인 조회
 - 팀 공유용 Markdown 출력
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
@@ -16,7 +16,7 @@
 - SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
 - 비root·읽기 전용 app container와 분리된 data·edge network
-- PostgreSQL backup·명시적 restore와 GitHub Actions 검증
+- PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
 - Streamable HTTP MCP 도구 6개
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
@@ -38,7 +38,8 @@
 - 공개된 본문과 근거는 수정하지 않고 새 공개 기록으로 대체한다.
 - 팀 조회에는 공개 또는 대체된 기록만 노출한다.
 - GitHub 게시 전 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다.
-- Check Run은 변경 기록 UUID `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
+- Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
+- GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
 - 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
 - PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
 - restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.

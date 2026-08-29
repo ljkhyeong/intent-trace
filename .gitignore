@@ -44,3 +44,5 @@ out/
 .env
 .env.team
 backups/
+intent-trace.private-key.pem
+*.private-key.pem

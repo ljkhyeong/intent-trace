@@ -2,6 +2,8 @@ name: 검증
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -10,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: 저장소 받기
         uses: actions/checkout@v6
@@ -38,6 +40,9 @@ jobs:
         env:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
         run: scripts/validate-plugin.sh
+
+      - name: PostgreSQL 계약 검증
+        run: scripts/verify-postgres.sh
 
       - name: Compose 설정 검증
         env:

@@ -1,6 +1,6 @@
 ---
 name: intent-trace-flows
-description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서비스와 Codex 플러그인 전용 개발 흐름. 변경 의도 수명주기, GitHub 사용자·저장소 권한, REST·MCP, Check Run, Flyway·JDBC, Docker Compose 팀 배포, TLS·backup·restore, 외부 자격 증명, 문서나 플러그인 스킬을 변경할 때 사용한다."
+description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변경할 때 사용하는 전용 개발 흐름. 변경 의도 수명주기, GitHub 사용자·저장소 권한, REST·MCP, Check Run, Flyway·JDBC, Docker Compose 팀 배포, TLS·backup·restore, 외부 자격 증명, 문서나 플러그인 스킬 변경에 적용한다."
 ---
 
 # IntentTrace 개발 흐름
@@ -26,6 +26,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - 판단 출처의 `STATED_*`, `CONFIRMED_AI_SUMMARY`, `INFERRED`, `UNKNOWN` 의미를 섞지 않는다.
 - 작성자 확인과 공개는 전체 Git 커밋 ID 및 같은 SHA-256 스냅샷을 요구한다.
 - 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다.
+- GitHub 저장소 식별자는 입력 경계에서 소문자 `owner/repository`로 정규화하고 DB에도 같은 값만 저장한다.
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
 - Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
@@ -44,7 +45,7 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 ## 외부 게시 경계
 
 - GitHub 게시 전 공개 기록인지 확인하고 PR `head.sha`가 기록의 `targetRevision`과 정확히 같은지 서버 응답으로 검증한다.
-- Check Run의 `external_id`에는 변경 기록 UUID를 사용해 재시도 시 기존 실행을 찾아 갱신한다.
+- Check Run의 `external_id`에는 `intent-trace:<변경 기록 UUID>`를 사용해 재시도 시 기존 실행을 찾아 갱신한다.
 - GitHub 원격 호출을 DB 트랜잭션 안에서 실행하지 않는다. 외부 성공 뒤 로컬 저장이 실패해도 같은 요청을 안전하게 재시도할 수 있어야 한다.
 - GitHub App client ID와 Base64 PEM private key는 환경 변수로만 주입하고 JWT·installation token을 DB, 로그, 오류 응답, Check Run 본문에 넣지 않는다.
 - installation token은 대상 저장소와 필요한 권한으로 축소하고 만료 전에 메모리에서 갱신한다.
@@ -77,4 +78,4 @@ description: "`/Users/lim/devProject/personal/intent-trace`의 Kotlin/Spring 서
 - 제품 동작은 PRD, 장기 구조·신뢰 경계는 ADR, 현재 제한과 다음 작업만 `HANDOFF.md`에 둔다.
 - 테스트는 가장 작은 관련 대상을 먼저 실행하고 Flyway·Spring 조립·OAuth callback·외부 어댑터를 바꾸면 통합 테스트로 넓힌다.
 - 동일한 조건을 단위·웹·통합 테스트에 반복하지 않는다. 외부 쓰기는 fake 또는 로컬 stub으로 검증하며 실제 GitHub PR을 테스트에 사용하지 않는다.
-- 최종 회귀 검증은 `./gradlew test`, 플러그인 변경은 `scripts/validate-plugin.sh`, 스킬 변경은 `quick_validate.py`를 실행한다.
+- 최종 회귀 검증은 `./gradlew test`, 플러그인 변경은 `scripts/validate-plugin.sh`, 스킬 변경은 `quick_validate.py`를 실행한다. Flyway·JDBC·backup·restore 계약을 바꾸면 `scripts/verify-postgres.sh`로 PostgreSQL 17에서도 확인한다.

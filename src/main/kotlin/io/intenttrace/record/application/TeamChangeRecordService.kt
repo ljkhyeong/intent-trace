@@ -27,23 +27,19 @@ class TeamChangeRecordService(
     }
 
     fun confirm(command: ConfirmChangeRecordCommand): ChangeRecord {
-        val actor = requireOwnedContributor(command.recordId)
-        return facade.confirm(command, actor)
+        val (record, actor) = ownedContributor(command.recordId)
+        return facade.confirm(record, command, actor)
     }
 
     fun publish(command: PublishChangeRecordCommand): ChangeRecord {
-        val actor = requireOwnedContributor(command.recordId)
-        return facade.publish(command, actor)
+        val (record, actor) = ownedContributor(command.recordId)
+        return facade.publish(record, command, actor)
     }
 
     fun supersede(command: SupersedeChangeRecordCommand): ChangeRecord {
-        val actor = requireOwnedContributor(command.recordId)
-        val replacement = facade.get(command.replacementRecordId)
-        access.requireContributor(replacement.repositoryKey)
-        if (actor.subject != replacement.createdBy.subject) {
-            throw ChangeRecordOwnershipException()
-        }
-        return facade.supersede(command, actor)
+        val (record, actor) = ownedContributor(command.recordId)
+        val replacement = ownedContributor(command.replacementRecordId).record
+        return facade.supersede(record, replacement, command, actor)
     }
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
@@ -51,15 +47,22 @@ class TeamChangeRecordService(
         return facade.findIntent(repositoryKey, revision, path, line)
     }
 
-    fun requireOwnedContributor(recordId: UUID): ActorIdentity {
+    fun requireOwnedContributor(recordId: UUID): ChangeRecord = ownedContributor(recordId).record
+
+    private fun ownedContributor(recordId: UUID): OwnedContributorRecord {
         val record = facade.get(recordId)
         val actor = access.requireContributor(record.repositoryKey)
         if (actor.subject != record.createdBy.subject) {
             throw ChangeRecordOwnershipException()
         }
-        return actor
+        return OwnedContributorRecord(record, actor)
     }
 
     private fun ChangeRecord.isTeamVisible(): Boolean =
         status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED
+
+    private data class OwnedContributorRecord(
+        val record: ChangeRecord,
+        val actor: ActorIdentity,
+    )
 }

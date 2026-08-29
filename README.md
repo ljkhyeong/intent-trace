@@ -85,6 +85,16 @@ curl -H "Authorization: Bearer $INTENT_TRACE_SESSION_TOKEN" \
 
 Codex는 프로젝트의 `.codex/config.toml`과 플러그인의 `.mcp.json`에서 `INTENT_TRACE_SESSION_TOKEN`을 읽어 MCP `Authorization` 헤더에 넣습니다. Codex를 이미 실행 중이었다면 환경 변수를 읽도록 새 프로세스나 세션에서 다시 연결합니다. session token도 Bearer 자격 증명이므로 설정 파일, 도구 인자와 변경 기록에 직접 넣지 않습니다.
 
+팀 서버에 연결할 때는 프로젝트 `.codex/config.toml`에 로컬 서버와 다른 이름을 사용합니다.
+
+```toml
+[mcp_servers.intent-trace-team]
+url = "https://intent.example.com/mcp"
+bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
+```
+
+`codex mcp list`로 연결 대상을 확인합니다. 플러그인이 제공한 로컬 `intent-trace` 서버와 팀 서버를 동시에 쓸 필요가 없으면 Codex의 MCP 서버 설정에서 로컬 서버를 비활성화합니다. 자세한 설정 형식은 [Codex MCP 문서](https://learn.chatgpt.com/docs/extend/mcp)를 따릅니다.
+
 IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세스 메모리에만 보관합니다. access token 만료가 가까우면 새 token 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` user access token을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
 
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 GitHub 저장소 권한을 조회합니다. 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
@@ -93,13 +103,13 @@ GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 �
 
 ```bash
 export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
-export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < intent-trace.private-key.pem | tr -d '\n')"
+export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < ~/.config/intent-trace/private-key.pem | tr -d '\n')"
 ./gradlew bootRun
 ```
 
 기존 방식이 필요한 로컬 환경에서는 `INTENT_TRACE_GITHUB_TOKEN`에 직접 발급한 token을 넣을 수 있습니다. 이 값이 있으면 GitHub App 자동 발급보다 우선합니다.
 
-변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 합니다. client secret, private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. 서버 게시 자격 증명과 사용자 요청 자격 증명은 서로 대체하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app), [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), [user access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app), [user token 갱신](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)을 기준으로 합니다.
+변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 하며 저장할 때 소문자로 정규화합니다. client secret, private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. private key 파일은 저장소 밖에 두고 저장소의 ignore 규칙도 방어선으로 유지합니다. 서버 게시 자격 증명과 사용자 요청 자격 증명은 서로 대체하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app), [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), [user access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app), [user token 갱신](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)을 기준으로 합니다.
 
 ## 기록 흐름
 
@@ -157,7 +167,10 @@ REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용�
 ```bash
 ./gradlew test
 scripts/validate-plugin.sh
+scripts/verify-postgres.sh
 ```
+
+기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. GitHub Actions는 pull request와 `main` push에서 이 검증을 실행합니다.
 
 ## 현재 제한
 

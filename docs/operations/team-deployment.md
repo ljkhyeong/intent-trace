@@ -38,6 +38,16 @@ curl --fail https://intent.example.com/actuator/health
 
 GitHub 승인은 `https://intent.example.com/auth/github/start`에서 시작한다. callback 화면의 `its_` token을 Codex가 시작되는 환경의 `INTENT_TRACE_SESSION_TOKEN`에 넣는다.
 
+팀 Codex 프로젝트의 `.codex/config.toml`에는 로컬 플러그인 서버와 구분되는 이름으로 팀 MCP를 등록한다.
+
+```toml
+[mcp_servers.intent-trace-team]
+url = "https://intent.example.com/mcp"
+bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
+```
+
+`codex mcp list`에서 URL과 서버 이름을 확인한다. 로컬 플러그인의 `intent-trace` 서버가 필요하지 않으면 Codex MCP 서버 설정에서 비활성화해 요청 대상을 하나로 유지한다. session token 원문을 TOML에 직접 쓰지 않는다.
+
 ## 상태와 로그
 
 ```bash

@@ -42,19 +42,34 @@ case "$operation" in
         start_line=$4
         end_line=$5
         case "$path" in
-            /*|*../*|../*|*/..)
+            ''|/*|\\*|[A-Za-z]:/*|[A-Za-z]:\\*|*\\*|../*|*/../*|*/..)
                 printf '%s\n' '저장소 기준 상대 경로만 사용할 수 있습니다.' >&2
                 exit 1
                 ;;
         esac
-        case "$start_line:$end_line" in
-            *[!0-9:]*|:*)
+        case "$start_line" in
+            ''|*[!0-9]*)
+                printf '%s\n' '줄 번호는 양의 정수여야 합니다.' >&2
+                exit 1
+                ;;
+        esac
+        case "$end_line" in
+            ''|*[!0-9]*)
                 printf '%s\n' '줄 번호는 양의 정수여야 합니다.' >&2
                 exit 1
                 ;;
         esac
         if [ "$start_line" -lt 1 ] || [ "$end_line" -lt "$start_line" ]; then
             printf '%s\n' '줄 범위가 올바르지 않습니다.' >&2
+            exit 1
+        fi
+        if ! git cat-file -e "$revision:$path" 2>/dev/null; then
+            printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
+            exit 1
+        fi
+        line_count=$(git show "$revision:$path" | awk 'END { print NR }')
+        if [ "$end_line" -gt "$line_count" ]; then
+            printf '%s\n' "요청한 끝 줄이 파일 범위를 벗어났습니다: $end_line > $line_count" >&2
             exit 1
         fi
         git show "$revision:$path" | sed -n "${start_line},${end_line}p" | shasum -a 256 | awk '{print $1}'

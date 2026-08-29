@@ -8,7 +8,12 @@ interface ChangeRecordRepository {
 
     fun findByRequestId(requestId: String): ChangeRecord?
 
-    fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord>
+    fun findPublishedByAnchor(
+        repositoryKey: String,
+        targetRevision: String,
+        relativePath: String,
+        line: Int,
+    ): List<ChangeRecord>
 
     fun saveNew(record: ChangeRecord): ChangeRecord
 

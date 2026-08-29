@@ -6,6 +6,9 @@
 .kotlin
 .env
 .env.*
+backups
+intent-trace.private-key.pem
+*.private-key.pem
 build
 out
 docs

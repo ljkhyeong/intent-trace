@@ -1,6 +1,7 @@
 package io.intenttrace.record.domain
 
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.identity.domain.GitHubRepository
 import java.time.Instant
 import java.util.UUID
 
@@ -58,7 +59,9 @@ data class ChangeRecord(
         check(actor.subject == createdBy.subject && actor.subject == replacement.createdBy.subject) {
             "작성자가 만든 기록끼리만 대체할 수 있습니다."
         }
-        check(repositoryKey == replacement.repositoryKey) { "같은 저장소의 기록으로만 대체할 수 있습니다." }
+        check(GitHubRepository.parse(repositoryKey).key == GitHubRepository.parse(replacement.repositoryKey).key) {
+            "같은 저장소의 기록으로만 대체할 수 있습니다."
+        }
         check(id != replacement.id) { "기록이 자기 자신을 대체할 수 없습니다." }
 
         return copy(
@@ -68,8 +71,6 @@ data class ChangeRecord(
         )
     }
 
-    fun contains(path: String, line: Int): Boolean =
-        codeAnchors.any { it.relativePath == path && line in it.startLine..it.endLine }
 }
 
 enum class ChangeRecordStatus {
@@ -101,8 +102,7 @@ data class CodeAnchor(
     val contentHash: String,
 ) {
     init {
-        require(relativePath.isNotBlank()) { "코드 경로는 비어 있을 수 없습니다." }
-        require(!relativePath.startsWith('/') && !relativePath.contains("..")) { "코드 경로는 저장소 기준 상대 경로여야 합니다." }
+        requireRepositoryRelativePath(relativePath)
         require(startLine > 0 && endLine >= startLine) { "코드 줄 범위가 올바르지 않습니다." }
         require(SHA_256.matches(contentHash)) { "코드 근거에는 SHA-256 해시가 필요합니다." }
     }

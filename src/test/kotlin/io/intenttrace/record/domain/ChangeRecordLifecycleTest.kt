@@ -54,6 +54,22 @@ class ChangeRecordLifecycleTest {
         assertEquals("코드 스냅샷이 달라져 검증과 판단이 오래된 상태입니다.", exception.message)
     }
 
+    @Test
+    fun `파일명에 점 두 개가 있어도 저장소 상대 경로로 인정한다`() {
+        val anchor = CodeAnchor("src/foo..bar.kt", null, 1, 1, "a".repeat(64))
+
+        assertEquals("src/foo..bar.kt", anchor.relativePath)
+    }
+
+    @Test
+    fun `상위 이동과 Windows 절대 경로는 코드 근거로 받지 않는다`() {
+        listOf("src/../secret.txt", "C:\\Users\\lim\\secret.txt").forEach { path ->
+            assertFailsWith<IllegalArgumentException> {
+                CodeAnchor(path, null, 1, 1, "a".repeat(64))
+            }
+        }
+    }
+
     private fun draft(): ChangeRecord = ChangeRecord(
         id = UUID.randomUUID(),
         requestId = "turn-1",

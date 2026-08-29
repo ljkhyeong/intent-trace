@@ -4,10 +4,7 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
-import io.intenttrace.record.application.ChangeRecordRepository
-import io.intenttrace.record.application.SensitiveTextRedactor
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
@@ -24,15 +21,9 @@ import kotlin.test.assertNotNull
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
-    private val changeRecordRepository = InMemoryChangeRecordRepository(record)
     private val gateway = FakeGitHubGateway(record.targetRevision!!)
     private val publicationRepository = InMemoryGitHubPublicationRepository()
     private val publisher = PublishChangeRecordToGitHub(
-        changeRecordFacade = ChangeRecordFacade(
-            repository = changeRecordRepository,
-            redactor = SensitiveTextRedactor(),
-            clock = fixedClock,
-        ),
         markdownRenderer = ChangeRecordMarkdownRenderer(),
         gitHubGateway = gateway,
         publicationRepository = publicationRepository,
@@ -42,6 +33,7 @@ class PublishChangeRecordToGitHubTest {
     @Test
     fun `PR HEAD가 기록 커밋과 같으면 Check Run과 게시 이력을 만든다`() {
         val publication = publisher.publish(
+            record,
             PublishChangeRecordToGitHubCommand(record.id, target),
         )
 
@@ -56,21 +48,11 @@ class PublishChangeRecordToGitHubTest {
         gateway.headRevision = "c".repeat(40)
 
         assertFailsWith<PullRequestRevisionMismatchException> {
-            publisher.publish(PublishChangeRecordToGitHubCommand(record.id, target))
+            publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
         }
 
         assertEquals(null, gateway.lastCommand)
         assertEquals(null, publicationRepository.saved)
-    }
-
-    private class InMemoryChangeRecordRepository(
-        private val record: ChangeRecord,
-    ) : ChangeRecordRepository {
-        override fun findById(id: UUID): ChangeRecord? = record.takeIf { it.id == id }
-        override fun findByRequestId(requestId: String): ChangeRecord? = null
-        override fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord> = emptyList()
-        override fun saveNew(record: ChangeRecord): ChangeRecord = error("사용하지 않는 테스트 경로")
-        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord = error("사용하지 않는 테스트 경로")
     }
 
     private class FakeGitHubGateway(

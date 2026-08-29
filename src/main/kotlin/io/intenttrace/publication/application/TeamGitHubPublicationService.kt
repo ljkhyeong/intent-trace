@@ -10,7 +10,7 @@ class TeamGitHubPublicationService(
     private val publisher: PublishChangeRecordToGitHub,
 ) {
     fun publish(command: PublishChangeRecordToGitHubCommand): GitHubPublication {
-        records.requireOwnedContributor(command.changeRecordId)
-        return publisher.publish(command)
+        val record = records.requireOwnedContributor(command.changeRecordId)
+        return publisher.publish(record, command)
     }
 }

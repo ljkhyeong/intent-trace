@@ -66,6 +66,22 @@ class TeamChangeRecordServiceTest {
         }
     }
 
+    @Test
+    fun `초안 확인은 같은 기록을 한 번만 조회한다`() {
+        repository.record = draft(owner)
+
+        service.confirm(
+            ConfirmChangeRecordCommand(
+                recordId = repository.record!!.id,
+                expectedVersion = 0,
+                immutableRevision = "b".repeat(40),
+                currentSnapshotDigest = "a".repeat(64),
+            ),
+        )
+
+        assertEquals(1, repository.findByIdCount)
+    }
+
     private fun createCommand(requestId: String) = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
@@ -113,13 +129,27 @@ class TeamChangeRecordServiceTest {
 
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
         var record: ChangeRecord? = null
+        var findByIdCount: Int = 0
 
-        override fun findById(id: UUID): ChangeRecord? = record?.takeIf { it.id == id }
+        override fun findById(id: UUID): ChangeRecord? {
+            findByIdCount += 1
+            return record?.takeIf { it.id == id }
+        }
 
         override fun findByRequestId(requestId: String): ChangeRecord? = record?.takeIf { it.requestId == requestId }
 
-        override fun findPublished(repositoryKey: String, targetRevision: String): List<ChangeRecord> =
-            listOfNotNull(record).filter { it.repositoryKey == repositoryKey && it.targetRevision == targetRevision }
+        override fun findPublishedByAnchor(
+            repositoryKey: String,
+            targetRevision: String,
+            relativePath: String,
+            line: Int,
+        ): List<ChangeRecord> = listOfNotNull(record).filter {
+            it.repositoryKey == repositoryKey &&
+                it.targetRevision == targetRevision &&
+                it.codeAnchors.any { anchor ->
+                    anchor.relativePath == relativePath && line in anchor.startLine..anchor.endLine
+                }
+        }
 
         override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { this.record = it }
 

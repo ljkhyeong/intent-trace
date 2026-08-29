@@ -29,7 +29,7 @@ class ChangeRecordFacadeIntegrationTest(
     fun `같은 요청은 한 번만 만들고 공개 기록을 코드 줄로 찾는다`() {
         val command = CreateChangeRecordCommand(
             requestId = "integration-turn-1",
-            repositoryKey = "acme/intent-trace",
+            repositoryKey = "Acme/Intent-Trace",
             baseRevision = null,
             snapshotDigest = digest,
             title = "변경 의도 저장",
@@ -50,9 +50,25 @@ class ChangeRecordFacadeIntegrationTest(
             PublishChangeRecordCommand(confirmed.id, confirmed.version, digest),
             actor,
         )
-        val found = facade.findIntent("acme/intent-trace", revision, "src/App.kt", 15)
+        val unrelatedDraft = facade.create(
+            command.copy(
+                requestId = "integration-turn-unrelated",
+                codeAnchors = listOf(CodeAnchor("src/Other.kt", "Other", 10, 20, "e".repeat(64))),
+            ),
+            actor,
+        )
+        val unrelatedConfirmed = facade.confirm(
+            ConfirmChangeRecordCommand(unrelatedDraft.id, unrelatedDraft.version, revision, digest),
+            actor,
+        )
+        facade.publish(
+            PublishChangeRecordCommand(unrelatedConfirmed.id, unrelatedConfirmed.version, digest),
+            actor,
+        )
+        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/App.kt", 15)
 
         assertEquals(first.id, retried.id)
+        assertEquals("acme/intent-trace", first.repositoryKey)
         assertEquals(actor, first.createdBy)
         assertEquals("API_KEY=[REDACTED] 요청을 안전하게 요약한다.", first.requestSummary)
         assertEquals(ChangeRecordStatus.PUBLISHED, published.status)
