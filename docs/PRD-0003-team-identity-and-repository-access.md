@@ -33,6 +33,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 
 - REST `/api/v1/**`와 MCP `/mcp`는 기본적으로 `its_` 로컬 session Bearer token이 필요하며 기존 `ghu_` 직접 인증도 허용한다.
 - callback은 같은 브라우저의 HttpOnly·SameSite cookie와 TTL 안의 미사용 `state`, PKCE `S256` verifier가 모두 일치할 때만 code를 교환한다.
+- 미완료 OAuth `state`는 TTL과 설정 가능한 전역 개수 상한을 적용하고, 상한에 도달하면 새 승인 시작을 `429`로 거부한다.
 - 작성자 subject는 `/user.id`로 만든 `github:<id>`이며 login은 표시용이다.
 - 작성자 값을 요청 본문이나 MCP 도구 인자로 받지 않는다.
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다.

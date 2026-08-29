@@ -2,6 +2,7 @@ package io.intenttrace.config
 
 import org.junit.jupiter.api.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class GitHubPropertiesTest {
@@ -24,5 +25,12 @@ class GitHubPropertiesTest {
         assertFalse(text.contains("private-key-secret"))
         assertFalse(text.contains("client-secret-value"))
         assertTrue(text.contains("[보호됨]"))
+    }
+
+    @Test
+    fun `OAuth 대기 state 상한은 1 이상이어야 한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            GitHubUserAuthorizationProperties(maxPendingStates = 0)
+        }
     }
 }

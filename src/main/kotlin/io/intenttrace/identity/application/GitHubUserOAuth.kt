@@ -77,16 +77,23 @@ class GitHubOAuthFlowService(
     private val clock: Clock,
 ) {
     private val pendingStates = ConcurrentHashMap<String, PendingAuthorization>()
+    private val pendingStateLock = ReentrantLock()
 
     fun start(): GitHubOAuthStart {
-        removeExpiredStates()
         val state = SecureTokens.random()
         val codeVerifier = SecureTokens.random()
         val authorizationUri = oauthGateway.authorizationUri(state, Pkce.challenge(codeVerifier))
-        pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
-            expiresAt = Instant.now(clock).plus(properties.userAuthorization.stateTtl),
-            codeVerifier = codeVerifier,
-        )
+        pendingStateLock.withLock {
+            val now = Instant.now(clock)
+            removeExpiredStates(now)
+            if (pendingStates.size >= properties.userAuthorization.maxPendingStates) {
+                throw GitHubOAuthCapacityException()
+            }
+            pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
+                expiresAt = now.plus(properties.userAuthorization.stateTtl),
+                codeVerifier = codeVerifier,
+            )
+        }
         return GitHubOAuthStart(state, authorizationUri)
     }
 
@@ -119,8 +126,7 @@ class GitHubOAuthFlowService(
         return left
     }
 
-    private fun removeExpiredStates() {
-        val now = Instant.now(clock)
+    private fun removeExpiredStates(now: Instant) {
         pendingStates.entries.removeIf { !now.isBefore(it.value.expiresAt) }
     }
 
@@ -227,6 +233,8 @@ class GitHubOAuthStateException : GitHubOAuthException("GitHub 사용자 승인 
 class GitHubOAuthCodeException : GitHubOAuthException("GitHub 사용자 승인 code가 올바르지 않습니다.")
 
 class GitHubOAuthDeniedException : GitHubOAuthException("GitHub 사용자 승인이 취소됐습니다.")
+
+class GitHubOAuthCapacityException : GitHubOAuthException("GitHub 사용자 승인 대기 요청이 너무 많습니다.")
 
 class GitHubOAuthApiException(message: String, cause: Throwable? = null) : GitHubOAuthException(message, cause)
 

@@ -31,6 +31,7 @@
 - 작성자는 요청 본문이 아니라 `/user`에서 확인한 GitHub 숫자 ID로 결정한다.
 - Codex에는 GitHub token 대신 `its_` session token만 전달하고 GitHub token 쌍은 메모리 밖으로 노출하지 않는다.
 - callback은 같은 브라우저의 cookie와 미사용 `state`가 일치할 때만 code를 교환한다.
+- 미완료 OAuth `state`는 TTL과 전역 개수 상한으로 제한하고 상한 도달 시 새 승인을 거부한다.
 - refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
 - 생성·확인·공개·대체·GitHub 게시는 저장소 쓰기 권한이 필요하다.
 - 확인 시 전체 Git 커밋 ID가 필요하다.

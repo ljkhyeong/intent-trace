@@ -68,6 +68,8 @@ REST와 MCP 요청에는 IntentTrace 로컬 세션이 필요합니다. 먼저 Gi
 
 callback URL은 GitHub App에 등록한 값과 환경 변수 값을 정확히 맞추고 wildcard callback은 사용하지 않습니다. IntentTrace는 `state`와 PKCE `S256`을 함께 검증합니다. 설정한 뒤 서버를 시작하고 브라우저에서 `http://127.0.0.1:8080/auth/github/start`를 엽니다.
 
+미완료 승인 요청은 기본 1,000개로 제한합니다. 단일 팀 환경에서 조정이 필요하면 `INTENT_TRACE_GITHUB_MAX_PENDING_STATES`를 1 이상 100,000 이하로 설정합니다.
+
 ```bash
 export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
 export INTENT_TRACE_GITHUB_APP_CLIENT_SECRET='GitHub-App-client-secret'
