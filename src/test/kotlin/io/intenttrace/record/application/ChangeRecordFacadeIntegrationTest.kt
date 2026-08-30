@@ -27,7 +27,7 @@ import kotlin.test.assertFailsWith
 class ChangeRecordFacadeIntegrationTest(
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val gitHubPublicationRepository: GitHubPublicationRepository,
-) {
+) : ChangeRecordStorageContract() {
     @Test
     fun `같은 요청은 한 번만 만들고 공개 기록을 코드 줄로 찾는다`() {
         val command = CreateChangeRecordCommand(

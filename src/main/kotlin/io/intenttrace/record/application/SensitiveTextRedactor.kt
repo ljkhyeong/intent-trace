@@ -33,6 +33,4 @@ class SensitiveTextRedactor {
         .replace(compactJwtPattern, "[REDACTED]")
         .replace(unixHomePathPattern, "[REDACTED]")
         .replace(windowsHomePathPattern, "[REDACTED]")
-
-    fun redactNullable(value: String?): String? = value?.let(::redact)
 }

@@ -37,10 +37,10 @@ class TeamChangeRecordService(
     }
 
     fun supersede(command: SupersedeChangeRecordCommand): ChangeRecord {
-        val (record, actor) = ownedContributor(command.recordId)
+        val (_, actor) = ownedContributor(command.recordId)
         val replacement = facade.get(command.replacementRecordId)
         requireOwner(replacement, actor)
-        return facade.supersede(record, replacement, command, actor)
+        return facade.supersede(command, actor)
     }
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {

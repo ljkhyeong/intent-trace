@@ -53,6 +53,19 @@ class AuthenticatedRestIntegrationTest(
     }
 
     @Test
+    fun `비밀값 제거 후 제목 길이가 초과되면 원문 없이 입력 오류를 반환한다`() {
+        mockMvc.post("/api/v1/change-records") {
+            authorized()
+            contentType = MediaType.APPLICATION_JSON
+            content = createRequest(UUID.randomUUID().toString(), "판단을 기록한다.")
+                .replace("REST 인증 계약", "password=x ".repeat(18))
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.detail") { value("비밀값 제거 후 제목 길이는 200자 이하여야 합니다.") }
+        }
+    }
+
+    @Test
     fun `인증 실패와 GitHub 사용자 조회 장애를 구분한다`() {
         mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}")
             .andExpect { status { isUnauthorized() } }

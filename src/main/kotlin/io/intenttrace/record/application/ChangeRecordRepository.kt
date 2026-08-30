@@ -6,6 +6,8 @@ import java.util.UUID
 interface ChangeRecordRepository {
     fun findById(id: UUID): ChangeRecord?
 
+    fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord>
+
     fun findByRequestId(requestId: String): ChangeRecord?
 
     fun findPublishedByAnchor(

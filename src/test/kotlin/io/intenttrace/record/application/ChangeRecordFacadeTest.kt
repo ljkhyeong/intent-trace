@@ -65,6 +65,9 @@ class ChangeRecordFacadeTest {
 
         override fun findById(id: UUID): ChangeRecord? = null
 
+        override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> =
+            error("사용하지 않는 테스트 경로")
+
         override fun findByRequestId(requestId: String): ChangeRecord? {
             findByRequestIdCount += 1
             return existing.takeIf { findByRequestIdCount > 1 && it.requestId == requestId }

@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 import java.time.Instant
@@ -34,6 +35,15 @@ class JdbcChangeRecordRepository(
             recordRowMapper,
             id.toString(),
         ).firstOrNull()?.let(::hydrate)
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> = hydrate(
+        namedJdbcTemplate.query(
+            "select * from change_records where id in (:ids) order by id for update",
+            mapOf("ids" to ids.map(UUID::toString)),
+            recordRowMapper,
+        ),
+    )
 
     @Transactional(readOnly = true)
     override fun findByRequestId(requestId: String): ChangeRecord? =

@@ -155,6 +155,8 @@ class TeamChangeRecordServiceTest {
 
         override fun findByRequestId(requestId: String): ChangeRecord? = record?.takeIf { it.requestId == requestId }
 
+        override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> = ids.mapNotNull(::findById)
+
         override fun findPublishedByAnchor(
             repositoryKey: String,
             targetRevision: String,

@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 class PostgresRepositorySmokeTest(
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val publicationRepository: GitHubPublicationRepository,
-) {
+) : ChangeRecordStorageContract() {
     @Test
     fun `PostgreSQL에서 migration과 변경 기록 조회를 확인한다`() {
         val draft = facade.create(
