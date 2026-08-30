@@ -47,7 +47,7 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
             if (host == null) {
                 throw IntentTraceUsageException("IntentTrace server URL에서 host를 확인할 수 없습니다.")
             }
-            val loopbackHttp = scheme == "http" && host in LOOPBACK_HOSTS
+            val loopbackHttp = scheme == "http" && host.removeSurrounding("[", "]") in LOOPBACK_HOSTS
             if (scheme != "https" && !loopbackHttp) {
                 throw IntentTraceUsageException("IntentTrace server는 loopback HTTP 또는 HTTPS 주소만 사용할 수 있습니다.")
             }

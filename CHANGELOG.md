@@ -11,6 +11,8 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 ### 변경
 
 - IntelliJ 조회 응답을 Kotlin serialization으로 읽고, 잘못된 필드 자료형을 응답 형식 오류로 처리
+- IntelliJ에서 IPv6 loopback HTTP 주소를 거부하던 검사 수정
+- IntelliJ 조회·세션 작업의 완료·실패 처리를 Task 콜백으로 통일하고 취소 예외를 플랫폼에 전달
 
 ## 0.7.0 - 2026-08-30
 

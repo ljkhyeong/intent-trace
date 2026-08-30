@@ -63,7 +63,7 @@ class GitHubAppInstallationClient(
         if (response.token.isBlank()) {
             throw GitHubApiException("GitHub App token 발급 응답에 token이 없습니다.")
         }
-        GitHubInstallationAccessToken(response.token, Instant.parse(response.expiresAt))
+        GitHubInstallationAccessToken(response.token, response.expiresAt)
     }
 
     private fun <T> safeCall(call: () -> T): T {
@@ -73,10 +73,8 @@ class GitHubAppInstallationClient(
             throw GitHubApiException(
                 "GitHub App installation token 발급 요청이 실패했습니다. HTTP ${exception.statusCode.value()}",
             )
-        } catch (exception: RestClientException) {
-            throw GitHubApiException("GitHub App installation token 발급 요청을 완료하지 못했습니다.", exception)
-        } catch (_: java.time.format.DateTimeParseException) {
-            throw GitHubApiException("GitHub App token 만료 시각 형식이 올바르지 않습니다.")
+        } catch (_: RestClientException) {
+            throw GitHubApiException("GitHub App installation token 발급 요청을 완료하지 못했습니다.")
         }
     }
 
@@ -99,7 +97,7 @@ private data class InstallationTokenRequest(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class InstallationTokenResponse(
     val token: String,
-    @JsonProperty("expires_at") val expiresAt: String,
+    @JsonProperty("expires_at") val expiresAt: Instant,
 ) {
     override fun toString(): String = "InstallationTokenResponse(token=[보호됨], expiresAt=$expiresAt)"
 }
