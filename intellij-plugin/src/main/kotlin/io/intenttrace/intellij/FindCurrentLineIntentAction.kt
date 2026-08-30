@@ -33,7 +33,7 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
             private lateinit var records: List<ChangeIntentRecord>
 
             override fun run(indicator: ProgressIndicator) {
-                val server = IntentTraceServer.fromEnvironment()
+                val server = IntentTraceServer.current()
                 val token = IntentTraceCredentialStore().load(server)
                     ?: throw IntentTraceUsageException(
                         "IntentTrace session이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.",

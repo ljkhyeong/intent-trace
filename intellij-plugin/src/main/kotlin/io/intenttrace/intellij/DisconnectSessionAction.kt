@@ -13,7 +13,7 @@ class DisconnectSessionAction : DumbAwareAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val server = try {
-            IntentTraceServer.fromEnvironment()
+            IntentTraceServer.current()
         } catch (exception: IntentTraceUserException) {
             return Messages.showErrorDialog(project, exception.message, "IntentTrace")
         }
@@ -24,7 +24,7 @@ class DisconnectSessionAction : DumbAwareAction() {
             override fun run(indicator: ProgressIndicator) {
                 val credentials = IntentTraceCredentialStore()
                 credentials.clear(server)
-                message = if (credentials.environmentSessionConfigured()) {
+                message = if (credentials.environmentSessionConfigured(server)) {
                     "PasswordSafe 세션을 삭제했습니다. INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다."
                 } else {
                     "${server.baseUri} PasswordSafe 세션을 삭제했습니다."

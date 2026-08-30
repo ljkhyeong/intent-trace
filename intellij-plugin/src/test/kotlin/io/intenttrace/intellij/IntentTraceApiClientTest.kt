@@ -13,8 +13,62 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class IntentTraceApiClientTest {
+    @Test
+    fun `연결 확인은 세션 없이 health를 조회하고 UP 상태만 성공으로 처리한다`() {
+        val authorization = AtomicReference<String>()
+        for (status in listOf("UP", "DOWN")) {
+            withServer(
+                path = "/actuator/health",
+                handler = { exchange ->
+                    authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+                    val response = """{"status":"$status"}""".toByteArray()
+                    exchange.sendResponseHeaders(200, response.size.toLong())
+                    exchange.responseBody.use { it.write(response) }
+                },
+            ) { server ->
+                val target = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+                if (status == "UP") {
+                    IntentTraceApiClient().checkConnection(target)
+                } else {
+                    val exception = assertFailsWith<IntentTraceClientException> { IntentTraceApiClient().checkConnection(target) }
+                    assertEquals("IntentTrace 서버가 정상 상태(UP)가 아닙니다.", exception.message)
+                }
+                assertNull(authorization.get())
+            }
+        }
+    }
+
+    @Test
+    fun `health 거부는 로그인 만료로 표시하지 않고 응답 본문이나 redirect를 사용하지 않는다`() {
+        for (status in listOf(401, 302, 503)) {
+            val redirectedRequests = AtomicInteger()
+            withServer(
+                path = "/actuator/health",
+                handler = { exchange ->
+                    exchange.responseHeaders.add("Location", "/redirected")
+                    val body = "test-private-response-marker".toByteArray()
+                    exchange.sendResponseHeaders(status, body.size.toLong())
+                    exchange.responseBody.use { it.write(body) }
+                },
+            ) { server ->
+                server.createContext("/redirected") { exchange ->
+                    redirectedRequests.incrementAndGet()
+                    exchange.sendResponseHeaders(200, -1)
+                    exchange.close()
+                }
+                val exception = assertFailsWith<IntentTraceClientException> {
+                    IntentTraceApiClient().checkConnection(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"))
+                }
+                assertEquals("IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
+                assertEquals(0, redirectedRequests.get())
+                assertFalse(exception.stackTraceToString().contains("test-private-response-marker"))
+            }
+        }
+    }
+
     @Test
     fun `its session과 현재 줄 문맥으로 공개 기록을 조회한다`() {
         val authorization = AtomicReference<String>()
@@ -114,9 +168,9 @@ class IntentTraceApiClientTest {
         lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12),
     )
 
-    private fun withServer(handler: HttpHandler, test: (HttpServer) -> Unit) {
+    private fun withServer(handler: HttpHandler, path: String = "/api/v1/change-records/lookup", test: (HttpServer) -> Unit) {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-            createContext("/api/v1/change-records/lookup", handler)
+            createContext(path, handler)
             start()
         }
         try {

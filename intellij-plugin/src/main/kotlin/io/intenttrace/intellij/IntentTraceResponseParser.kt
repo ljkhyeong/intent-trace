@@ -14,12 +14,17 @@ internal object IntentTraceResponseParser {
 
     fun parsePage(body: String): ChangeRecordPage = decode(body)
 
+    fun parseHealth(body: String): String = decode<HealthResponse>(body).status
+
     private inline fun <reified T> decode(body: String): T = try {
         json.decodeFromString<T>(body)
     } catch (_: SerializationException) {
         throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.")
     }
 }
+
+@Serializable
+private data class HealthResponse(val status: String)
 
 @Serializable
 private data class ChangeIntentResponse(

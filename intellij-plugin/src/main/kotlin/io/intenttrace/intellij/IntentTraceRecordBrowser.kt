@@ -42,7 +42,7 @@ internal object IntentTraceRecordBrowser {
         var result: T? = null
         ProgressManager.getInstance().run(object : Task.Modal(project, "IntentTrace 기록 조회", false) {
             override fun run(indicator: ProgressIndicator) {
-                val server = IntentTraceServer.fromEnvironment()
+                val server = IntentTraceServer.current()
                 val token = IntentTraceCredentialStore().load(server)
                     ?: throw IntentTraceUsageException("Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.")
                 result = request(server, token)

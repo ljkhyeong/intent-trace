@@ -29,6 +29,7 @@
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
 - IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
+- IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
 - IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
 - tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
@@ -71,11 +72,12 @@
 - IntelliJ 현재 줄 조회는 커밋된 파일과 전체 HEAD commit만 사용한다.
 - IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 1,000,000바이트 응답 상한을 유지한다.
 - IntelliJ 승인 시작은 기존 서버 URL만 열고 callback·state·PKCE는 서버가 처리한다.
-- PasswordSafe 세션을 삭제해도 환경 변수 세션이 있으면 해당 연결은 유지된다고 안내한다.
+- IntelliJ 서버 주소는 로컬 IDE 설정, 환경 변수, 기본 loopback 주소 순서로 선택하며 설정 동기화에서 제외한다. 연결 확인은 인증 정보 없이 health만 조회하고 설정을 저장하지 않는다.
+- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션을 삭제해도 해당 서버에 사용할 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
 
 ## IntelliJ 설치와 화면 검증 (2026-08-30)
 
-- IntelliJ IDEA 2025.3.2에 `intent-trace-intellij-0.8.0-SNAPSHOT.zip`을 설치하고, 시작 로그의 `IntentTrace (0.8.0-SNAPSHOT)` 로드를 확인했다. 기존 0.7.0 플러그인은 로컬 `build/installed-plugin-backup-0.7.0-20260830/`에 보관했다.
+- IntelliJ IDEA 2025.3.2에 서버 설정 기능 추가 전의 `intent-trace-intellij-0.8.0-SNAPSHOT.zip`을 설치하고, 시작 로그의 `IntentTrace (0.8.0-SNAPSHOT)` 로드를 확인했다. 기존 0.7.0 플러그인은 로컬 `build/installed-plugin-backup-0.7.0-20260830/`에 보관했다.
 - 운영 서버 대신 loopback의 메모리 응답 서버를 연결했다. 테스트 세션은 서버와 IDE 프로세스에만 전달했으며 PasswordSafe의 기존 세션은 변경하지 않았다. 이 확인은 OAuth·서버 권한 검증이 아니다.
 - `Tools` 메뉴에서 기록함 열기·GitHub 승인 시작·현재 줄 조회·세션 연결·저장 세션 삭제가 표시되는 것을 확인했다.
 - 실제 기록함에서 팀 공개 기록 22건을 1페이지 20건·2페이지 2건으로 조회하고 이전 페이지로 돌아왔다. 첫 페이지의 이전 버튼과 마지막 페이지의 다음 버튼은 비활성화됐다.
@@ -84,9 +86,16 @@
 - 테스트용 IDE 프로세스에 종료 신호를 보내 메모리 응답 서버와 테스트 세션을 정리했다. 이후 테스트 환경 변수 없이 IntelliJ를 다시 열고 0.8.0-SNAPSHOT 로드를 확인했다.
 - 자동 검증은 서버 `test`, IntelliJ `test`·프로젝트 구성·ZIP 구조 검사, `scripts/validate-plugin.sh`가 성공했다. 제품 코드 변경이 없어 두 `test` 작업은 기존 성공 결과를 재사용했다(`UP-TO-DATE`).
 
+## IntelliJ 서버 설정 자동 검증 (2026-08-30)
+
+- IntelliJ 테스트 29개가 모두 통과했다. 주소 우선순위·설정 저장과 복원, 실제 SDK 설정 패널의 적용·초기화·잘못된 주소 거부, 서버별 세션 분리와 인증 정보 없는 health 요청을 확인했다.
+- `buildPlugin`, `verifyPluginProjectConfiguration`, `verifyPluginStructure`와 `scripts/validate-plugin.sh`가 성공했다.
+- 서버 `test`는 기존 성공 결과를 재사용했다(`UP-TO-DATE`). 결과는 104개 중 100개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. 서버·DB 코드는 이번 작업에서 변경하지 않았다.
+- 새 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.8.0-SNAPSHOT.zip`이다. 실제 IDE에는 아직 새 ZIP을 설치하지 않았으며, 서버 설정·연결 확인 화면의 수동 검증은 남아 있다.
+
 ## 다음 작업 후보
 
-1. 설치된 0.8.0-SNAPSHOT에서 위에 남긴 미확인 화면 동선을 이어서 검증한다. 개발용 `runIde`는 화면 제어 도구가 Java 프로세스를 식별하지 못했고, 설치된 IDE도 일부 조작 후 창 내용을 읽지 못했다. 전체 수동 검증이 끝나기 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
+1. 서버 설정 기능이 포함된 새 ZIP을 설치한 뒤 주소 적용·취소·연결 확인과 위에 남긴 미확인 화면 동선을 검증한다. 개발용 `runIde`는 화면 제어 도구가 Java 프로세스를 식별하지 못했고, 설치된 IDE도 일부 조작 후 창 내용을 읽지 못했다. 전체 수동 검증이 끝나기 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
 2. 작성자 본인의 비공개 초안 수정·폐기 기능을 설계한다. 공개 기록 불변성과 낙관적 잠금은 유지한다.
 3. 실제 사용자 피드백을 바탕으로 결과 창을 ToolWindow로 바꿀 필요가 있는지 결정한다.
 4. 판단별 코드·검증 연결과 기록 생성 보조를 검토한다.

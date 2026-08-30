@@ -1,5 +1,6 @@
 package io.intenttrace.intellij
 
+import com.intellij.openapi.components.service
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -21,6 +22,8 @@ internal data class LineLookup(
 
 internal class IntentTraceServer private constructor(val baseUri: URI) {
     fun authorizationStartUri(): URI = URI.create("$baseUri/auth/github/start")
+
+    fun healthUri(): URI = URI.create("$baseUri/actuator/health")
 
     fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
 
@@ -51,12 +54,12 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
         private const val DEFAULT_URL = "http://127.0.0.1:8080"
         private val LOOPBACK_HOSTS = setOf("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")
 
-        fun fromEnvironment(): IntentTraceServer = parse(System.getenv(URL_ENV))
+        fun current(): IntentTraceServer = service<IntentTraceSettings>().server()
 
         fun parse(raw: String?): IntentTraceServer {
             val candidate = raw?.trim()?.takeIf(String::isNotEmpty) ?: DEFAULT_URL
             val uri = runCatching { URI(candidate) }
-                .getOrElse { throw IntentTraceUsageException("$URL_ENV 값이 URL 형식이 아닙니다.") }
+                .getOrElse { throw IntentTraceUsageException("IntentTrace 서버 주소가 URL 형식이 아닙니다.") }
             val scheme = uri.scheme?.lowercase()
             val host = uri.host?.lowercase()
             if (host == null) {

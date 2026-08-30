@@ -11,7 +11,7 @@ class OpenGitHubAuthorizationAction : DumbAwareAction() {
 
     override fun actionPerformed(event: AnActionEvent) {
         try {
-            BrowserUtil.browse(IntentTraceServer.fromEnvironment().authorizationStartUri())
+            BrowserUtil.browse(IntentTraceServer.current().authorizationStartUri())
         } catch (exception: IntentTraceUserException) {
             Messages.showErrorDialog(event.project, exception.message, "IntentTrace")
         } catch (_: Exception) {

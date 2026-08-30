@@ -241,11 +241,11 @@ Java 21에서 플러그인 설치 ZIP을 만듭니다. 기본 빌드는 IntelliJ
 ./gradlew --no-daemon -p intellij-plugin buildPlugin
 ```
 
-IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plugin/build/distributions/intent-trace-intellij-*.zip`을 선택합니다. IDE를 시작하기 전에 연결할 서버를 지정합니다. 기본값은 `http://127.0.0.1:8080`이며, 외부 서버는 HTTPS만 허용합니다.
+IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plugin/build/distributions/intent-trace-intellij-*.zip`을 선택합니다.
 
-```bash
-export INTENT_TRACE_URL='https://intent.example.com'
-```
+`Settings > Tools > IntentTrace` 또는 `Tools > IntentTrace 서버 설정`에서 연결할 서버를 지정합니다. 외부 서버는 HTTPS, 로컬 서버는 loopback HTTP를 허용합니다. `적용` 또는 `확인`을 누르면 IDE 재시작 없이 다음 요청부터 새 주소를 사용하며, 적용 전 취소한 내용은 저장하지 않습니다. 이 설정은 모든 프로젝트에 적용되고 IDE 간 설정 동기화에서는 제외합니다.
+
+주소를 비우면 IDE를 시작할 때 전달한 `INTENT_TRACE_URL` 환경 변수를 사용하고, 그것도 없으면 `http://127.0.0.1:8080`에 연결합니다. `연결 확인`은 입력 중인 주소의 `/actuator/health`를 인증 정보 없이 호출해 `UP` 상태만 확인합니다. 주소를 저장하거나 로그인·저장소 권한·서버의 신원을 확인하는 기능은 아닙니다.
 
 1. IntelliJ의 `Tools > IntentTrace GitHub 승인 시작`을 실행합니다. 또는 브라우저에서 서버의 `/auth/github/start`를 직접 엽니다.
 2. GitHub 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
@@ -253,7 +253,9 @@ export INTENT_TRACE_URL='https://intent.example.com'
 4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄 변경 의도 조회`를 실행합니다.
 5. 저장소 파일을 선택하고 `Tools > IntentTrace 기록함 열기`에서 팀 공개 기록·내 비공개 기록·상태·현재 파일 필터를 고른 뒤 `조회`합니다. 기록을 선택하면 원래 커밋·당시 코드·대체 기록을 열 수 있습니다.
 
-PasswordSafe 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. `INTENT_TRACE_SESSION_TOKEN` 환경 변수가 설정돼 있으면 PasswordSafe를 지운 뒤에도 환경 변수 세션을 계속 사용합니다.
+PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다.
+
+`INTENT_TRACE_SESSION_TOKEN` 환경 변수는 선택한 주소가 `INTENT_TRACE_URL`의 주소와 같을 때만 PasswordSafe의 대체 수단으로 사용합니다. `INTENT_TRACE_URL`이 없으면 기본 서버에만 적용합니다. 이 경우 PasswordSafe를 지운 뒤에도 환경 변수 세션이 남아 있음을 안내합니다.
 
 플러그인은 현재 GitHub remote, 전체 HEAD commit, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. GitHub access·refresh token은 받거나 저장하지 않습니다.
 

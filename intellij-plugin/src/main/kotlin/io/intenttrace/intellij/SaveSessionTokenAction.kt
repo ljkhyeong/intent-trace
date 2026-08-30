@@ -13,7 +13,7 @@ class SaveSessionTokenAction : DumbAwareAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val server = try {
-            IntentTraceServer.fromEnvironment()
+            IntentTraceServer.current()
         } catch (exception: IntentTraceUserException) {
             return Messages.showErrorDialog(project, exception.message, "IntentTrace")
         }

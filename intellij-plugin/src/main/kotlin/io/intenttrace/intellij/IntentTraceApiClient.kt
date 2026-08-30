@@ -8,6 +8,12 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 
 internal class IntentTraceApiClient {
+    fun checkConnection(server: IntentTraceServer) {
+        if (IntentTraceResponseParser.parseHealth(get(server.healthUri(), null)) != "UP") {
+            throw IntentTraceClientException("IntentTrace 서버가 정상 상태(UP)가 아닙니다.")
+        }
+    }
+
     fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): List<ChangeIntentRecord> =
         IntentTraceResponseParser.parse(get(server.lookupUri(lookup), sessionToken))
 
@@ -17,8 +23,8 @@ internal class IntentTraceApiClient {
     fun record(server: IntentTraceServer, sessionToken: String, id: String): ChangeIntentRecord =
         IntentTraceResponseParser.parseRecord(get(server.recordUri(id), sessionToken))
 
-    private fun get(uri: URI, sessionToken: String): String {
-        if (!SESSION_TOKEN.matches(sessionToken)) {
+    private fun get(uri: URI, sessionToken: String?): String {
+        if (sessionToken != null && !SESSION_TOKEN.matches(sessionToken)) {
             throw IntentTraceUsageException("IntentTrace session token은 its_ 형식이어야 합니다.")
         }
         return try {
@@ -28,7 +34,7 @@ internal class IntentTraceApiClient {
                 .followRedirects(false)
                 .throwStatusCodeException(false)
                 .accept("application/json")
-                .tuner { it.setRequestProperty("Authorization", "Bearer $sessionToken") }
+                .tuner { connection -> sessionToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") } }
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
                         200 -> {
@@ -38,11 +44,14 @@ internal class IntentTraceApiClient {
                             }
                             bytes.toString(StandardCharsets.UTF_8)
                         }
-                        401 -> throw IntentTraceClientException("IntentTrace session이 만료됐습니다. GitHub 승인을 다시 진행해 주세요.")
-                        403 -> throw IntentTraceClientException("현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다.")
-                        404 -> throw IntentTraceClientException("해당 IntentTrace 기록을 찾을 수 없습니다.")
-                        in 500..599 -> throw IntentTraceClientException("IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.")
-                        else -> throw IntentTraceClientException("IntentTrace 조회 요청이 거부됐습니다. HTTP $status")
+                        else -> throw IntentTraceClientException(when {
+                            sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
+                            status == 401 -> "IntentTrace session이 만료됐습니다. GitHub 승인을 다시 진행해 주세요."
+                            status == 403 -> "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
+                            status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
+                            status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
+                            else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
+                        })
                     }
                 }
         } catch (_: SocketTimeoutException) {

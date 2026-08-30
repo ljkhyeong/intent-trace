@@ -6,7 +6,22 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+            parentId="tools"
+            instance="io.intenttrace.intellij.IntentTraceSettingsConfigurable"
+            id="io.intenttrace.intellij.settings"
+            displayName="IntentTrace"/>
+    </extensions>
+
     <actions>
+        <action
+            id="io.intenttrace.intellij.OpenSettings"
+            class="io.intenttrace.intellij.OpenIntentTraceSettingsAction"
+            text="IntentTrace 서버 설정"
+            description="서버 주소를 변경하고 로그인 정보 없이 서버 연결을 확인합니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action
             id="io.intenttrace.intellij.BrowseChangeRecords"
             class="io.intenttrace.intellij.BrowseChangeRecordsAction"
