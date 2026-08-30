@@ -3,8 +3,18 @@ package io.intenttrace.identity.adapter.out.github
 import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
+import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthRefreshRejectedException
+import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
+import io.intenttrace.identity.application.GitHubUserOAuthTokens
+import io.intenttrace.identity.application.InMemoryGitHubUserSessionStore
+import io.intenttrace.identity.domain.ActorIdentity
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
@@ -20,6 +30,8 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class GitHubUserOAuthRestClientTest {
     private val builder = RestClient.builder()
@@ -99,13 +111,87 @@ class GitHubUserOAuthRestClientTest {
         server.verify()
     }
 
-    private fun tokenResponse(accessToken: String, refreshToken: String): String =
+    @Test
+    fun `token 응답 파싱 실패는 원문을 예외에 남기지 않는다`() {
+        server.expect(requestTo("https://github.test/login/oauth/access_token"))
+            .andRespond(
+                withSuccess(
+                    """{"access_token":"ghu_test-private-marker","expires_in":"test-private-marker"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val exception = assertFailsWith<GitHubOAuthApiException> {
+            client.exchange("authorization-code", codeVerifier)
+        }
+
+        assertNull(exception.cause)
+        assertFalse(exception.stackTraceToString().contains("test-private-marker"))
+        server.verify()
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "'', 28800, 15897600",
+        "ghu_test-private-marker, 28800, 28800",
+        "ghu_test-private-marker, 31557014167219200, 31557014167219201",
+        "ghu_test-private-marker, 9223372036854775807, 9223372036854775807",
+    )
+    fun `잘못된 token 응답 값은 원문 없는 연동 오류로 처리한다`(
+        accessToken: String,
+        expiresIn: Long,
+        refreshExpiresIn: Long,
+    ) {
+        server.expect(requestTo("https://github.test/login/oauth/access_token"))
+            .andRespond(
+                withSuccess(
+                    tokenResponse(accessToken, "ghr_test-private-marker", expiresIn, refreshExpiresIn),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val exception = assertFailsWith<GitHubOAuthApiException> {
+            client.refresh("ghr_refresh-1")
+        }
+
+        assertNull(exception.cause)
+        assertFalse(exception.stackTraceToString().contains("test-private-marker"))
+        server.verify()
+    }
+
+    @Test
+    fun `응답 값 변환에 실패한 세션은 같은 refresh token을 다시 보내지 않는다`() {
+        server.expect(requestTo("https://github.test/login/oauth/access_token"))
+            .andRespond(withSuccess(tokenResponse("", "ghr_refresh-2"), MediaType.APPLICATION_JSON))
+        val users = mock(GitHubUserAccessGateway::class.java)
+        val sessions = InMemoryGitHubUserSessionStore(client, users, properties, fixedClock)
+        val issued = sessions.issue(
+            ActorIdentity.github(42, "lim"),
+            GitHubUserOAuthTokens("ghu_access-1", now.plusSeconds(60), "ghr_refresh-1", now.plusSeconds(86_400)),
+        )
+
+        repeat(2) {
+            assertFailsWith<GitHubUserAuthenticationException> {
+                sessions.resolve(issued.sessionToken)
+            }
+        }
+
+        server.verify()
+        verifyNoInteractions(users)
+    }
+
+    private fun tokenResponse(
+        accessToken: String,
+        refreshToken: String,
+        expiresIn: Long = 28_800,
+        refreshExpiresIn: Long = 15_897_600,
+    ): String =
         """
         {
           "access_token": "$accessToken",
-          "expires_in": 28800,
+          "expires_in": $expiresIn,
           "refresh_token": "$refreshToken",
-          "refresh_token_expires_in": 15897600,
+          "refresh_token_expires_in": $refreshExpiresIn,
           "token_type": "bearer"
         }
         """.trimIndent()

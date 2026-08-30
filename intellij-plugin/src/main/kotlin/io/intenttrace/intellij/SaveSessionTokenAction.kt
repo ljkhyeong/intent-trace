@@ -2,7 +2,6 @@ package io.intenttrace.intellij
 
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
@@ -14,7 +13,7 @@ class SaveSessionTokenAction : DumbAwareAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val server = try {
-            IntentTraceServer.fromEnvironment()
+            IntentTraceServer.current()
         } catch (exception: IntentTraceUserException) {
             return Messages.showErrorDialog(project, exception.message, "IntentTrace")
         }
@@ -30,20 +29,19 @@ class SaveSessionTokenAction : DumbAwareAction() {
 
         object : Task.Backgroundable(project, "IntentTrace session 저장", false) {
             override fun run(indicator: ProgressIndicator) {
-                try {
-                    IntentTraceCredentialStore().save(server, token)
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(
-                            project,
-                            "${server.baseUri} session을 PasswordSafe에 저장했습니다.",
-                            "IntentTrace",
-                        )
-                    }
-                } catch (_: Exception) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showErrorDialog(project, "IntentTrace session을 PasswordSafe에 저장하지 못했습니다.", "IntentTrace")
-                    }
-                }
+                IntentTraceCredentialStore().save(server, token)
+            }
+
+            override fun onSuccess() {
+                Messages.showInfoMessage(
+                    project,
+                    "${server.baseUri} session을 PasswordSafe에 저장했습니다.",
+                    "IntentTrace",
+                )
+            }
+
+            override fun onThrowable(error: Throwable) {
+                Messages.showErrorDialog(project, "IntentTrace session을 PasswordSafe에 저장하지 못했습니다.", "IntentTrace")
             }
         }.queue()
     }

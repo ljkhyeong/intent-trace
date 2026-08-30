@@ -40,8 +40,7 @@ class PublishChangeRecordToGitHub(
             throw GitHubPublicationContentTooLargeException()
         }
 
-        val lockKey = PublicationLockKey(record.id, target.repositoryKey, target.pullNumber)
-        return publicationLocks[Math.floorMod(lockKey.hashCode(), publicationLocks.size)].withLock {
+        return publicationLocks[Math.floorMod(record.id.hashCode(), publicationLocks.size)].withLock {
             publishLocked(record, target, markdown)
         }
     }
@@ -92,12 +91,6 @@ class PublishChangeRecordToGitHub(
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535
         private const val PUBLICATION_LOCK_STRIPES = 256
     }
-
-    private data class PublicationLockKey(
-        val changeRecordId: UUID,
-        val repositoryKey: String,
-        val pullNumber: Int,
-    )
 }
 
 data class PublishChangeRecordToGitHubCommand(

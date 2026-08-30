@@ -7,6 +7,8 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
@@ -135,6 +137,32 @@ class GitHubUserRestClientTest {
             RepositoryRole.MAINTAINER,
             client.repositoryRole("user-token", GitHubRepository("acme", "intent-trace")),
         )
+        server.verify()
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["/user", "/user/repos"])
+    fun `사용자와 권한 응답 파싱 오류에 원문을 남기지 않는다`(path: String) {
+        val marker = "test-private-response-marker"
+        val body = if (path == "/user") {
+            """{"id":"$marker","login":"lim"}"""
+        } else {
+            """[{"full_name":"acme/intent-trace","permissions":{"pull":"$marker"}}]"""
+        }
+        server.expect { request -> assertEquals(path, request.uri.path) }
+            .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+
+        val exception = assertFailsWith<GitHubIdentityApiException> {
+            if (path == "/user") {
+                client.authenticate("user-token")
+            } else {
+                client.repositoryRole("user-token", GitHubRepository("acme", "intent-trace"))
+            }
+        }
+
+        val operation = if (path == "/user") "사용자 조회" else "저장소 권한 조회"
+        assertEquals("GitHub $operation 요청을 완료하지 못했습니다.", exception.message)
+        assertFalse(exception.stackTraceToString().contains(marker))
         server.verify()
     }
 

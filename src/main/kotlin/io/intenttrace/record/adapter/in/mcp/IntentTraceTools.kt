@@ -1,10 +1,15 @@
 package io.intenttrace.record.adapter.`in`.mcp
 
+import io.intenttrace.record.adapter.`in`.web.ChangeRecordListResponse
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
+import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
+import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.PublishChangeRecordCommand
+import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.domain.ChangeRecordStatus
 import jakarta.validation.ConstraintViolationException
 import jakarta.validation.Validator
 import org.springframework.ai.mcp.annotation.McpTool
@@ -17,6 +22,30 @@ class IntentTraceTools(
     private val records: TeamChangeRecordService,
     private val validator: Validator,
 ) {
+    @McpTool(
+        name = "list_change_records",
+        description = "저장소의 팀 공개 기록 또는 내 비공개 기록을 페이지로 조회합니다. 파일 경로로 과거 커밋의 기록도 찾지만 현재 코드의 검증으로 간주하지 마세요.",
+        generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(
+            readOnlyHint = true,
+            destructiveHint = false,
+            idempotentHint = true,
+            openWorldHint = false,
+        ),
+    )
+    fun list(
+        @McpToolParam(description = "저장소 식별자 owner/repository", required = true) repositoryKey: String,
+        @McpToolParam(description = "TEAM(기본값) 또는 MY_DRAFTS", required = false) scope: ChangeRecordListScope?,
+        @McpToolParam(description = "정확한 저장소 상대 파일 경로. 생략하면 저장소 전체", required = false) path: String?,
+        @McpToolParam(description = "선택한 기록함 안에서 조회할 상태. 생략하면 모두", required = false) status: ChangeRecordStatus?,
+        @McpToolParam(description = "0부터 시작하는 페이지. 기본값 0", required = false) page: Int?,
+        @McpToolParam(description = "페이지 크기 1~50. 기본값 20", required = false) size: Int?,
+    ): ChangeRecordListResponse = ChangeRecordListResponse.from(
+        records.list(
+            ListChangeRecordsQuery(repositoryKey, scope ?: ChangeRecordListScope.TEAM, path, status, page ?: 0, size ?: 20),
+        ),
+    )
+
     @McpTool(
         name = "create_change_record",
         description = "현재 코드 변경의 요청, 판단, 코드 근거, 실제 검증을 비공개 초안으로 기록합니다. 원문 대화나 숨은 추론은 전달하지 마세요.",
@@ -108,6 +137,34 @@ class IntentTraceTools(
                 UUID.fromString(recordId),
                 expectedVersion,
                 currentSnapshotDigest,
+            ),
+        ),
+    )
+
+    @McpTool(
+        name = "supersede_change_record",
+        description = "작성자가 명시적으로 요청한 공개 기록을 같은 작성자·저장소의 새 공개 기록으로 대체합니다. 기존 본문과 증거는 유지합니다.",
+        generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(
+            readOnlyHint = false,
+            destructiveHint = true,
+            idempotentHint = false,
+            openWorldHint = false,
+        ),
+    )
+    fun supersede(
+        @McpToolParam(description = "대체할 기존 공개 기록 UUID", required = true)
+        recordId: String,
+        @McpToolParam(description = "기존 기록을 조회해 확인한 현재 버전", required = true)
+        expectedVersion: Long,
+        @McpToolParam(description = "먼저 공개한 새 기록 UUID", required = true)
+        replacementRecordId: String,
+    ): ChangeRecordResponse = ChangeRecordResponse.from(
+        records.supersede(
+            SupersedeChangeRecordCommand(
+                UUID.fromString(recordId),
+                expectedVersion,
+                UUID.fromString(replacementRecordId),
             ),
         ),
     )

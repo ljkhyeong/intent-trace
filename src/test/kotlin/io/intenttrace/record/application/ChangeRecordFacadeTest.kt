@@ -8,6 +8,8 @@ import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
 import org.springframework.dao.DuplicateKeyException
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -63,7 +65,18 @@ class ChangeRecordFacadeTest {
     ) : ChangeRecordRepository {
         var findByRequestIdCount = 0
 
+        override fun findSummaries(
+            repositoryKey: String,
+            statuses: Set<ChangeRecordStatus>,
+            authorSubject: String?,
+            relativePath: String?,
+            pageable: Pageable,
+        ): Slice<ChangeRecordSummary> = error("사용하지 않는 테스트 경로")
+
         override fun findById(id: UUID): ChangeRecord? = null
+
+        override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> =
+            error("사용하지 않는 테스트 경로")
 
         override fun findByRequestId(requestId: String): ChangeRecord? {
             findByRequestIdCount += 1

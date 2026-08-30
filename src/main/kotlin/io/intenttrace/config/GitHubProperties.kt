@@ -102,9 +102,10 @@ data class GitHubUserAuthorizationProperties(
         }
         if (scheme.equals("https", ignoreCase = true)) return true
         if (!scheme.equals("http", ignoreCase = true)) return false
-        return host.equals("127.0.0.1", ignoreCase = true) ||
-            host.equals("localhost", ignoreCase = true) ||
-            host == "::1" ||
-            host == "[::1]"
+        return host.lowercase().removeSurrounding("[", "]") in LOOPBACK_HOSTS
+    }
+
+    companion object {
+        private val LOOPBACK_HOSTS = setOf("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")
     }
 }

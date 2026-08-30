@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import java.time.Clock
+import java.time.DateTimeException
 import java.time.Instant
 
 @Component
@@ -94,16 +95,10 @@ class GitHubUserOAuthRestClient(
                 throw GitHubOAuthApiException("GitHub $operation 요청이 거부됐습니다.")
             }
             return response.toTokens()
-        } catch (exception: GitHubOAuthConfigurationException) {
-            throw exception
-        } catch (exception: GitHubOAuthRefreshRejectedException) {
-            throw exception
-        } catch (exception: GitHubOAuthApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw GitHubOAuthApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
-        } catch (exception: RestClientException) {
-            throw GitHubOAuthApiException("GitHub $operation 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubOAuthApiException("GitHub $operation 요청을 완료하지 못했습니다.")
         }
     }
 
@@ -114,12 +109,20 @@ class GitHubUserOAuthRestClient(
         val refreshLifetime = refreshTokenExpiresIn?.takeIf { it > 0 } ?: throw GitHubOAuthConfigurationException()
         if (!tokenType.equals("bearer", ignoreCase = true)) throw GitHubOAuthConfigurationException()
         val now = Instant.now(clock)
-        return GitHubUserOAuthTokens(
-            accessToken = access,
-            accessExpiresAt = now.plusSeconds(accessLifetime),
-            refreshToken = refresh,
-            refreshExpiresAt = now.plusSeconds(refreshLifetime),
-        )
+        return try {
+            GitHubUserOAuthTokens(
+                accessToken = access,
+                accessExpiresAt = now.plusSeconds(accessLifetime),
+                refreshToken = refresh,
+                refreshExpiresAt = now.plusSeconds(refreshLifetime),
+            )
+        } catch (_: IllegalArgumentException) {
+            throw GitHubOAuthApiException("GitHub token 응답 값이 올바르지 않습니다.")
+        } catch (_: DateTimeException) {
+            throw GitHubOAuthApiException("GitHub token 응답의 만료 시각을 처리할 수 없습니다.")
+        } catch (_: ArithmeticException) {
+            throw GitHubOAuthApiException("GitHub token 응답의 만료 시각을 처리할 수 없습니다.")
+        }
     }
 
     private fun requireConfiguration() {

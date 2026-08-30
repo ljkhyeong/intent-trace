@@ -1,8 +1,10 @@
 package io.intenttrace.intellij
 
+import com.intellij.openapi.components.service
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 internal data class LineLookup(
     val repositoryKey: String,
@@ -21,6 +23,22 @@ internal data class LineLookup(
 internal class IntentTraceServer private constructor(val baseUri: URI) {
     fun authorizationStartUri(): URI = URI.create("$baseUri/auth/github/start")
 
+    fun healthUri(): URI = URI.create("$baseUri/actuator/health")
+
+    fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
+
+    fun listUri(query: RecordListQuery): URI {
+        val parameters = listOfNotNull(
+            "repositoryKey" to query.repositoryKey,
+            "scope" to query.scope.name,
+            query.path?.let { "path" to it },
+            query.status?.let { "status" to it },
+            "page" to query.page.toString(),
+            "size" to "20",
+        ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
+        return URI.create("$baseUri/api/v1/change-records?$parameters")
+    }
+
     fun lookupUri(lookup: LineLookup): URI {
         val query = listOf(
             "repositoryKey" to lookup.repositoryKey,
@@ -36,18 +54,18 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
         private const val DEFAULT_URL = "http://127.0.0.1:8080"
         private val LOOPBACK_HOSTS = setOf("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")
 
-        fun fromEnvironment(): IntentTraceServer = parse(System.getenv(URL_ENV))
+        fun current(): IntentTraceServer = service<IntentTraceSettings>().server()
 
         fun parse(raw: String?): IntentTraceServer {
             val candidate = raw?.trim()?.takeIf(String::isNotEmpty) ?: DEFAULT_URL
             val uri = runCatching { URI(candidate) }
-                .getOrElse { throw IntentTraceUsageException("$URL_ENV 값이 URL 형식이 아닙니다.") }
+                .getOrElse { throw IntentTraceUsageException("IntentTrace 서버 주소가 URL 형식이 아닙니다.") }
             val scheme = uri.scheme?.lowercase()
             val host = uri.host?.lowercase()
             if (host == null) {
                 throw IntentTraceUsageException("IntentTrace server URL에서 host를 확인할 수 없습니다.")
             }
-            val loopbackHttp = scheme == "http" && host in LOOPBACK_HOSTS
+            val loopbackHttp = scheme == "http" && host.removeSurrounding("[", "]") in LOOPBACK_HOSTS
             if (scheme != "https" && !loopbackHttp) {
                 throw IntentTraceUsageException("IntentTrace server는 loopback HTTP 또는 HTTPS 주소만 사용할 수 있습니다.")
             }

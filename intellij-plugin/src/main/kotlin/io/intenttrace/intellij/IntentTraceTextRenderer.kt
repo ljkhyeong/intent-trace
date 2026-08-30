@@ -4,6 +4,17 @@ internal object IntentTraceTextRenderer {
     fun render(lookup: LineLookup, records: List<ChangeIntentRecord>): String = buildString {
         appendLine("${lookup.repositoryKey} · ${lookup.revision.take(12)}")
         appendLine("${lookup.relativePath}:${lookup.line}")
+        append(renderRecords(records))
+    }.trimEnd()
+
+    fun renderHistory(record: ChangeIntentRecord): String = buildString {
+        appendLine("${record.repositoryKey} · 기록에 연결된 커밋: ${record.targetRevision ?: "아직 확인하지 않음"}")
+        appendLine("이 기록의 코드와 검증은 당시 스냅샷 기준입니다. 현재 편집 중인 코드의 검증이 아닙니다.")
+        record.supersededBy?.let { appendLine("대체 기록: $it") }
+        append(renderRecords(listOf(record)))
+    }.trimEnd()
+
+    private fun renderRecords(records: List<ChangeIntentRecord>): String = buildString {
         records.forEachIndexed { index, record ->
             if (index > 0) appendLine().appendLine("────────────────────────────────────────")
             appendLine()
@@ -26,7 +37,7 @@ internal object IntentTraceTextRenderer {
                 appendLine("- 기록된 검증 없음")
             } else {
                 record.verifications.forEach { verification ->
-                    val snapshot = if (verification.current) "현재 snapshot" else "이전 snapshot"
+                    val snapshot = if (verification.current) "기록 스냅샷과 일치" else "기록 스냅샷과 불일치"
                     appendLine("- [$snapshot, exit ${verification.exitCode}] ${verification.command}")
                     appendLine("  ${verification.summary}")
                 }
@@ -46,7 +57,9 @@ internal object IntentTraceTextRenderer {
         }
     }.trimEnd()
 
-    private fun status(value: String): String = when (value) {
+    fun status(value: String): String = when (value) {
+        "DRAFT" -> "초안"
+        "AUTHOR_CONFIRMED" -> "작성자 확인 · 비공개"
         "PUBLISHED" -> "공개"
         "SUPERSEDED" -> "대체됨"
         else -> value

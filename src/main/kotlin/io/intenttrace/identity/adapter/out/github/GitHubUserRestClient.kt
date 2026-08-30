@@ -62,20 +62,18 @@ class GitHubUserRestClient(
             throw GitHubIdentityApiException("GitHub 저장소 권한 목록이 허용된 조회 범위를 초과했습니다.")
         } catch (exception: RestClientResponseException) {
             throw mapResponseException("저장소 권한 조회", exception)
-        } catch (exception: RestClientException) {
-            throw GitHubIdentityApiException("GitHub 저장소 권한 조회 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubIdentityApiException("GitHub 저장소 권한 조회 요청을 완료하지 못했습니다.")
         }
     }
 
     private fun <T> safeCall(operation: String, call: () -> T): T {
         try {
             return call()
-        } catch (exception: GitHubIdentityApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw mapResponseException(operation, exception)
-        } catch (exception: RestClientException) {
-            throw GitHubIdentityApiException("GitHub $operation 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubIdentityApiException("GitHub $operation 요청을 완료하지 못했습니다.")
         }
     }
 

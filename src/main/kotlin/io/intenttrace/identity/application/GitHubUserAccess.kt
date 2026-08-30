@@ -44,7 +44,7 @@ class RepositoryAccessService(
 
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
 
-class GitHubIdentityApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+class GitHubIdentityApiException(message: String) : RuntimeException(message)
 
 class RepositoryAccessDeniedException(repositoryKey: String, requiredRole: RepositoryRole) :
     RuntimeException("저장소 $repositoryKey 에 ${requiredRole.name} 권한이 필요합니다.")

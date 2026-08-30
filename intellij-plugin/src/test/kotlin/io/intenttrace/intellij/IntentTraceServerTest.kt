@@ -17,6 +17,16 @@ class IntentTraceServerTest {
     }
 
     @Test
+    fun `IPv6 loopback HTTP는 허용하고 외부 주소와 전체 인터페이스 주소는 거부한다`() {
+        for (address in listOf("http://[::1]:8080", "http://[0:0:0:0:0:0:0:1]:8080")) {
+            assertEquals(address, IntentTraceServer.parse(address).baseUri.toString())
+        }
+        for (address in listOf("http://[2001:db8::1]:8080", "http://[::]:8080")) {
+            assertFailsWith<IntentTraceUsageException> { IntentTraceServer.parse(address) }
+        }
+    }
+
+    @Test
     fun `기존 서버의 GitHub 승인 시작 주소를 만든다`() {
         assertEquals(
             "https://trace.example.com/auth/github/start",
