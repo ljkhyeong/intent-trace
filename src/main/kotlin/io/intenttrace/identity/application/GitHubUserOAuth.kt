@@ -185,6 +185,7 @@ class InMemoryGitHubUserSessionStore(
         val key = TokenDigests.sha256(sessionToken)
         val stored = sessions[key] ?: throw GitHubUserAuthenticationException()
         return stored.lock.withLock {
+            if (sessions[key] !== stored) throw GitHubUserAuthenticationException()
             val now = Instant.now(clock)
             if (!now.isBefore(stored.tokens.refreshExpiresAt)) {
                 sessions.remove(key, stored)
@@ -193,7 +194,7 @@ class InMemoryGitHubUserSessionStore(
             if (!now.isBefore(stored.tokens.accessExpiresAt.minus(properties.userAuthorization.refreshBeforeExpiry))) {
                 stored.tokens = try {
                     oauthGateway.refresh(stored.tokens.refreshToken)
-                } catch (_: GitHubOAuthRefreshRejectedException) {
+                } catch (_: GitHubOAuthException) {
                     sessions.remove(key, stored)
                     throw GitHubUserAuthenticationException()
                 }

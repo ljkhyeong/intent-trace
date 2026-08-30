@@ -155,6 +155,8 @@ bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
 
 IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세스 메모리에만 보관합니다. access token 만료가 가까우면 새 token 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` user access token을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
 
+token 갱신이 거부되거나 갱신 응답을 처리하지 못하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
+
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 GitHub 저장소 권한을 조회합니다. 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
 GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
@@ -206,6 +208,8 @@ MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record
 REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
 검증 시작·종료 시각은 DB와 같은 마이크로초 정밀도로 반올림해 저장하고 동일 요청을 비교합니다. 비밀값 제거 후 저장 길이를 초과하면 내용을 자르지 않고 입력 오류로 반환합니다. 서로 반대 방향의 동시 대체 요청은 하나만 성공하도록 두 기록을 같은 DB 트랜잭션에서 잠급니다.
+
+같은 공개 기록을 HEAD가 같은 여러 PR에 동시에 게시해도 단일 서버에서는 Check Run을 한 번만 생성합니다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지합니다.
 
 모든 API와 MCP 입력에서 작성자 필드는 받지 않습니다. 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 

@@ -10,18 +10,24 @@ import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
@@ -44,7 +50,7 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(record.targetRevision, publication.headRevision)
         assertEquals(42L, publication.checkRunId)
         assertEquals("intent-trace:${record.id}", gateway.lastCommand?.externalId)
-        assertEquals(publication, publicationRepository.saved)
+        assertEquals(publication, publicationRepository.find(record.id, target))
     }
 
     @Test
@@ -56,32 +62,45 @@ class PublishChangeRecordToGitHubTest {
         }
 
         assertEquals(null, gateway.lastCommand)
-        assertEquals(null, publicationRepository.saved)
+        assertEquals(null, publicationRepository.find(record.id, target))
     }
 
-    @Test
-    fun `같은 기록과 PR의 동시 게시는 최초 Check Run을 한 번만 만든다`() {
-        val executor = Executors.newFixedThreadPool(2)
-        val ready = CountDownLatch(2)
-        val start = CountDownLatch(1)
-        try {
-            val results = (1..2).map {
-                executor.submit<GitHubPublication> {
-                    ready.countDown()
-                    start.await()
-                    publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
-                }
-            }
-            check(ready.await(5, TimeUnit.SECONDS))
-            start.countDown()
-
-            results.forEach { it.get(5, TimeUnit.SECONDS) }
-
-            assertEquals(1, gateway.initialUpserts.get())
-            assertEquals(listOf(null, 42L), gateway.commands.map { it.knownCheckRunId })
-        } finally {
-            executor.shutdownNow()
+    @ParameterizedTest
+    @ValueSource(ints = [12, 13])
+    fun `같은 기록의 동시 게시는 PR이 같거나 달라도 Check Run을 한 번만 만든다`(secondPullNumber: Int) {
+        val entered = CountDownLatch(1)
+        val proceed = CountDownLatch(1)
+        gateway.beforeUpsert = {
+            entered.countDown()
+            check(proceed.await(5, TimeUnit.SECONDS))
         }
+        val secondTarget = target.copy(pullNumber = secondPullNumber)
+        val first = FutureTask { publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target)) }
+        val second = FutureTask { publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, secondTarget)) }
+        val firstThread = Thread(first)
+        val secondThread = Thread(second)
+        try {
+            firstThread.start()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            secondThread.start()
+            assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+                while (secondThread.state !in setOf(Thread.State.WAITING, Thread.State.TIMED_WAITING)) Thread.sleep(1)
+            }
+            assertEquals(1, gateway.commands.size)
+        } finally {
+            proceed.countDown()
+            firstThread.join(5_000)
+            secondThread.join(5_000)
+        }
+
+        assertEquals(42L, first.get(5, TimeUnit.SECONDS).checkRunId)
+        assertEquals(42L, second.get(5, TimeUnit.SECONDS).checkRunId)
+        assertEquals(1, gateway.initialUpserts.get())
+        assertEquals(
+            listOf(null, if (secondTarget == target) 42L else null),
+            gateway.commands.map { it.knownCheckRunId },
+        )
+        assertEquals(secondTarget, publicationRepository.find(record.id, secondTarget)?.target)
     }
 
     @Test
@@ -125,6 +144,8 @@ class PublishChangeRecordToGitHubTest {
         val initialUpserts = AtomicInteger()
         val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
         var lastCommand: UpsertGitHubCheckRunCommand? = null
+        var beforeUpsert: () -> Unit = {}
+        @Volatile private var checkRun: GitHubCheckRun? = null
 
         override fun getHeadRevision(target: GitHubPullRequestTarget): String {
             headRequests.incrementAndGet()
@@ -134,21 +155,22 @@ class PublishChangeRecordToGitHubTest {
         override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
             lastCommand = command
             commands += command
-            if (command.knownCheckRunId == null) {
-                initialUpserts.incrementAndGet()
-                Thread.sleep(100)
-            }
-            return GitHubCheckRun(42L, "https://github.test/check-runs/42")
+            val existing = checkRun
+            beforeUpsert()
+            if (existing != null) return existing
+            val id = 42L + initialUpserts.getAndIncrement()
+            return GitHubCheckRun(id, "https://github.test/check-runs/$id").also { checkRun = it }
         }
     }
 
     private class InMemoryGitHubPublicationRepository : GitHubPublicationRepository {
-        @Volatile var saved: GitHubPublication? = null
+        private val records = ConcurrentHashMap<Pair<UUID, GitHubPullRequestTarget>, GitHubPublication>()
 
-        override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? = saved
+        override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? =
+            records[changeRecordId to target]
 
         override fun save(publication: GitHubPublication): GitHubPublication {
-            saved = publication
+            records[publication.changeRecordId to publication.target] = publication
             return publication
         }
     }

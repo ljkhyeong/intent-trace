@@ -17,7 +17,9 @@
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
 - access token 만료 5분 전부터 세션 단위 잠금 안에서 refresh를 한 번 수행하고, GitHub가 회전해 준 access·refresh token 쌍을 함께 교체한다.
+- 갱신 요청이 거부되거나 응답 수신·파싱에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재승인을 요구한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
+- `/user` 조회의 일시 장애는 기존처럼 `502`로 구분하고 세션을 유지한다. 앞서 token 갱신에 성공했다면 새 token 쌍을 다음 요청에 사용한다.
 - 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
 - access·refresh·session token과 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
