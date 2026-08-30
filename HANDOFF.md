@@ -21,16 +21,18 @@
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - GitHub Actions commit SHA 고정, 중복 실행 취소와 Dependabot 정기 갱신
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- Streamable HTTP MCP 도구 7개 (`list_change_records` 포함)
+- Streamable HTTP MCP 도구 8개 (`list_change_records`, `supersede_change_record` 포함)
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - Codex 조회 스킬의 정확한 줄·기록함·파일 이력 분기, 페이지·상세·대체 기록 조회 안내
+- Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
 - IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
 - IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
 - IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
+- IntelliJ 기록함 조회 실패 시 마지막 성공 필터 복원과 기존 목록·선택·페이지 유지
 - tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
 - SECURITY 정책과 0.6.0 변경 이력
@@ -117,9 +119,19 @@
 - 검증용 Chrome 탭 2개를 닫고 테스트 IDE를 정상 종료해 메모리 서버와 임시 세션을 정리했다. 서버 설정이 원래 빈 값인 것을 확인했다. 이후 테스트 환경 변수 없이 원래 파일을 연 IntelliJ로 복원했다.
 - 서버·IntelliJ `test`, IntelliJ 프로젝트 구성·ZIP 구조 검사와 `scripts/validate-plugin.sh`가 성공했다. 두 `test` 작업은 기존 결과를 재사용했다(`UP-TO-DATE`: 서버 100개 통과·PostgreSQL 조건부 4개 건너뜀, IntelliJ 29개 통과). 전체 수동 검증과 0.8.0 릴리스 준비가 끝난 상태는 아니다.
 
+## MCP 기록 대체와 IntelliJ 조회 실패 복원 (2026-08-31)
+
+- MCP `supersede_change_record`가 REST와 같은 대체 서비스를 호출한다. 기존 작성자·저장소·상태·버전 규칙과 공개 본문·증거 불변성을 유지하며, 새 검증 계층이나 DB 스키마를 추가하지 않았다.
+- Codex 조회·기록 스킬에 사용자의 명시적 대체 요청, 후속 기록의 사전 공개, 기존 기록의 조회 버전 사용과 결과 불확실 시 재조회 절차를 추가했다. GitHub Check Run은 자동 갱신하지 않는다.
+- 실제 `/mcp` 요청을 통한 대체 성공, 타인 요청 거부, 오래된 버전 거부와 기존 본문·후속 기록 보존을 통합 테스트했다. 인증은 기존 fake GitHub 사용자 응답과 호환 Bearer 경로를 사용했으며, 실제 OAuth·GitHub 권한 검증을 새로 수행한 것은 아니다.
+- IntelliJ SDK 테스트에서 필터 변경·페이지 이동 실패 시 마지막 성공 조건과 목록·선택·페이지가 유지되고, 이후 조회 성공 시 새 조건과 결과가 적용되는 것을 확인했다.
+- 서버 `./gradlew --no-daemon test`는 105개 중 101개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. DB 계약은 변경하지 않아 PostgreSQL 별도 검증은 재실행하지 않았다.
+- IntelliJ `test` 30개가 모두 통과했고 `buildPlugin`, `verifyPluginProjectConfiguration`, `verifyPluginStructure`, `scripts/validate-plugin.sh`와 스킬 `quick_validate.py`가 성공했다.
+- `intellij-plugin/build/distributions/intent-trace-intellij-0.8.0-SNAPSHOT.zip`을 다시 빌드했다. 이번 ZIP은 설치하지 않았으며, 조회 실패 복원과 앞서 남은 화면 동선의 실제 IDE 검증은 아직 남아 있다. 푸시·릴리스는 하지 않았다.
+
 ## 다음 작업 후보
 
-1. 화면 제어 도구가 정상 작동하는 환경 또는 직접 수동 조작으로 남은 네 가지 기록함 필터와 커밋 없는 초안의 이동 버튼 비활성화를 확인한다. 팝업을 닫은 뒤 화면을 읽지 못하는 환경에서는 같은 자동 조작을 반복하지 않는다. 전체 수동 검증이 끝나기 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
+1. 최신 ZIP을 설치하고 화면 제어 도구가 정상 작동하는 환경 또는 직접 수동 조작으로 조회 실패 후 필터 복원, 남은 네 가지 기록함 필터와 커밋 없는 초안의 이동 버튼 비활성화를 확인한다. 팝업을 닫은 뒤 화면을 읽지 못하는 환경에서는 같은 자동 조작을 반복하지 않는다. 전체 수동 검증이 끝나기 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
 2. 작성자 본인의 비공개 초안 수정·폐기 기능을 설계한다. 공개 기록 불변성과 낙관적 잠금은 유지한다.
 3. 실제 사용자 피드백을 바탕으로 결과 창을 ToolWindow로 바꿀 필요가 있는지 결정한다.
 4. 판단별 코드·검증 연결과 기록 생성 보조를 검토한다.

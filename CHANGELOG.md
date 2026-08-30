@@ -7,11 +7,13 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 ### 추가
 
 - 저장소·파일·상태별 팀 공개 기록과 내 비공개 기록 목록 REST·MCP (`list_change_records`)
+- 기존 공개 기록을 후속 공개 기록으로 연결하는 MCP `supersede_change_record`와 Codex 대체 절차
 - IntelliJ 기록함, 현재 줄 결과가 없을 때 파일 이력 탐색, 원래 커밋·코드 근거·대체 기록 이동
 - IntelliJ 서버 주소 설정과 인증 정보 없는 서버 상태 확인, IDE 재시작 없는 주소 적용
 
 ### 변경
 
+- IntelliJ 기록함 조회 실패 시 마지막 성공 필터를 복원하고 기존 목록·선택·페이지 유지
 - IntelliJ 검증 결과를 현재 IDE 코드가 아닌 기록 스냅샷과의 일치 여부로 표시
 - IntelliJ 조회 응답을 Kotlin serialization으로 읽고, 잘못된 필드 자료형을 응답 형식 오류로 처리
 - IntelliJ에서 IPv6 loopback HTTP 주소를 거부하던 검사 수정

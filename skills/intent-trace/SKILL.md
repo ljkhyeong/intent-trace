@@ -34,6 +34,13 @@ description: AI가 작성하거나 수정한 코드의 요청·판단·검증을
 9. 팀 공개를 명시적으로 요청했고 스냅샷이 그대로일 때만 `publish_change_record`를 호출한다. 팀 공개는 해당 GitHub 저장소의 읽기 권한이 있는 사용자에게만 보인다.
 10. 사용자가 GitHub PR 게시까지 명시적으로 요청하면 `repositoryKey`가 `owner/repository`와 같고 기록이 공개 상태인지 확인한 뒤 `publish_change_record_to_github_pr`를 호출한다.
 
+## 공개 기록 대체
+
+- 사용자가 기존 기록을 새 기록으로 대체하라고 요청한 경우에만 수행한다. 새 기록을 공개했다는 이유만으로 기존 기록을 자동 대체하지 않는다.
+- `get_change_record`로 두 기록의 내용과 UUID를 확인한다. 같은 작성자·저장소의 공개 기록끼리 대체하며, 후속 기록이 아직 초안이면 작성자 확인과 공개에 필요한 사용자 요청을 먼저 받는다.
+- `supersede_change_record(recordId, expectedVersion, replacementRecordId)`를 호출한다. `recordId`와 `expectedVersion`은 방금 조회한 기존 기록의 값이고, `replacementRecordId`는 후속 공개 기록의 UUID다. 기존 본문·증거를 수정하거나 GitHub Check Run을 자동 갱신하지 않는다.
+- 응답을 받지 못했거나 충돌하면 무조건 재전송하지 않고 기존 기록을 다시 조회한다. 원하는 `supersededBy`가 이미 연결됐으면 완료로 보고, 다른 대체 대상이나 버전 변경이 있으면 중단하고 사용자에게 알린다.
+
 ## 조회 절차
 
 - 정확한 줄의 의도를 찾을 때는 저장소, 전체 커밋, 상대 경로, 줄 번호를 확정한 뒤 `find_change_intent`를 사용한다.

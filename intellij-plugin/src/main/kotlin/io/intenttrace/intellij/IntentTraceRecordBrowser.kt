@@ -58,11 +58,16 @@ internal object IntentTraceRecordBrowser {
     }
 }
 
-private class RecordBrowserDialog(
+internal open class RecordBrowserDialog(
     private val project: Project,
     private val context: RepositoryFileContext,
     private var query: RecordListQuery,
     private var page: ChangeRecordPage,
+    private val loadPage: (RecordListQuery) -> ChangeRecordPage? = { nextQuery ->
+        IntentTraceRecordBrowser.load(project) { server, token ->
+            IntentTraceApiClient().list(server, token, nextQuery)
+        }
+    },
 ) : DialogWrapper(project, true) {
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
@@ -123,17 +128,19 @@ private class RecordBrowserDialog(
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
     private fun reload(nextQuery: RecordListQuery) {
-        val loaded = IntentTraceRecordBrowser.load(project) { server, token ->
-            IntentTraceApiClient().list(server, token, nextQuery)
-        } ?: return
+        val loaded = loadPage(nextQuery) ?: return restoreFilters()
         query = nextQuery
         page = loaded
         displayPage()
     }
 
-    private fun displayPage() {
+    private fun restoreFilters() {
         filter.selectedItem = RecordFilter.entries.first { it.scope == query.scope && it.status == query.status }
         fileOnly.isSelected = query.path != null
+    }
+
+    private fun displayPage() {
+        restoreFilters()
         rows.clear()
         rows.addAll(page.items)
         previous.isEnabled = page.page > 0

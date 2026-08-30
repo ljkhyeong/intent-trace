@@ -7,6 +7,7 @@ import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.PublishChangeRecordCommand
+import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.domain.ChangeRecordStatus
 import jakarta.validation.ConstraintViolationException
@@ -136,6 +137,34 @@ class IntentTraceTools(
                 UUID.fromString(recordId),
                 expectedVersion,
                 currentSnapshotDigest,
+            ),
+        ),
+    )
+
+    @McpTool(
+        name = "supersede_change_record",
+        description = "작성자가 명시적으로 요청한 공개 기록을 같은 작성자·저장소의 새 공개 기록으로 대체합니다. 기존 본문과 증거는 유지합니다.",
+        generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(
+            readOnlyHint = false,
+            destructiveHint = true,
+            idempotentHint = false,
+            openWorldHint = false,
+        ),
+    )
+    fun supersede(
+        @McpToolParam(description = "대체할 기존 공개 기록 UUID", required = true)
+        recordId: String,
+        @McpToolParam(description = "기존 기록을 조회해 확인한 현재 버전", required = true)
+        expectedVersion: Long,
+        @McpToolParam(description = "먼저 공개한 새 기록 UUID", required = true)
+        replacementRecordId: String,
+    ): ChangeRecordResponse = ChangeRecordResponse.from(
+        records.supersede(
+            SupersedeChangeRecordCommand(
+                UUID.fromString(recordId),
+                expectedVersion,
+                UUID.fromString(replacementRecordId),
             ),
         ),
     )

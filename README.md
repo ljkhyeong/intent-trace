@@ -205,7 +205,9 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 
-MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `list_change_records`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `list_change_records`, `confirm_change_record`, `publish_change_record`, `supersede_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+
+공개 기록을 대체할 때는 후속 기록을 먼저 확인·공개한 뒤 `supersede_change_record(recordId, expectedVersion, replacementRecordId)`를 호출합니다. 같은 작성자·저장소의 공개 기록끼리만 연결하며 기존 본문·증거는 유지합니다. `expectedVersion`은 기존 기록을 조회한 값입니다. 결과가 불확실하면 상태를 다시 조회하고, 새 버전으로 무조건 재시도하지 않습니다. 이 작업은 GitHub Check Run을 자동 갱신하지 않습니다.
 
 목록은 `repositoryKey`가 필수이며 `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MY_DRAFTS`는 현재 사용자의 초안·작성자 확인 기록을 반환합니다. 선택 `path`는 코드 근거의 정확한 상대 경로, `status`는 해당 기록함 안의 상태입니다. `page`는 0부터, `size`는 기본 20·최대 50이며 응답은 `{items, page, size, hasNext}`입니다. 생성 시각·UUID 내림차순으로 조회하고 작성자·공개 상태를 SQL에서 먼저 제한합니다. 동시 생성·공개 시 페이지 구성은 달라질 수 있습니다.
 
@@ -252,6 +254,8 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 3. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
 4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄 변경 의도 조회`를 실행합니다.
 5. 저장소 파일을 선택하고 `Tools > IntentTrace 기록함 열기`에서 팀 공개 기록·내 비공개 기록·상태·현재 파일 필터를 고른 뒤 `조회`합니다. 기록을 선택하면 원래 커밋·당시 코드·대체 기록을 열 수 있습니다.
+
+기록함 조회에 실패하면 필터를 마지막 성공 조건으로 되돌리고 기존 목록·선택·페이지를 유지합니다. 새 조건은 조회에 성공한 뒤 적용됩니다.
 
 PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다.
 
