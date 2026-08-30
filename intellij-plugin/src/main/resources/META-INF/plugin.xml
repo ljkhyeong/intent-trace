@@ -11,8 +11,7 @@
             id="io.intenttrace.intellij.OpenGitHubAuthorization"
             class="io.intenttrace.intellij.OpenGitHubAuthorizationAction"
             text="IntentTrace GitHub 승인 시작"
-            description="IntentTrace 서버의 GitHub 사용자 승인 페이지를 시스템 브라우저로 엽니다."
-            icon="AllIcons.Actions.OpenInBrowser">
+            description="IntentTrace 서버의 GitHub 사용자 승인 페이지를 시스템 브라우저로 엽니다.">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
         <action
