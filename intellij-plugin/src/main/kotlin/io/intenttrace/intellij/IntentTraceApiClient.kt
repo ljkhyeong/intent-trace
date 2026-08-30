@@ -50,9 +50,4 @@ internal class IntentTraceApiClient {
     }
 }
 
-internal class IntentTraceClientException(message: String, cause: Throwable? = null) :
-    IntentTraceUserException(message) {
-    init {
-        if (cause != null) initCause(cause)
-    }
-}
+internal class IntentTraceClientException(message: String) : IntentTraceUserException(message)

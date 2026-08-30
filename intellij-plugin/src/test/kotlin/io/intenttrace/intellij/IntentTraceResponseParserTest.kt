@@ -3,6 +3,7 @@ package io.intenttrace.intellij
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -60,11 +61,13 @@ class IntentTraceResponseParserTest {
     }
 
     @Test
-    fun `형식이 잘못된 응답은 사용자가 이해할 수 있는 오류로 바꾼다`() {
+    fun `형식이 잘못된 응답은 원문을 남기지 않는 안내 오류로 바꾼다`() {
+        val marker = "test-private-response-marker"
         val exception = assertFailsWith<IntentTraceClientException> {
-            IntentTraceResponseParser.parse("{\"id\":\"record-1\"}")
+            IntentTraceResponseParser.parse("""{"id":"$marker"}""")
         }
 
         assertEquals("IntentTrace 조회 응답 형식을 확인할 수 없습니다.", exception.message)
+        assertFalse(exception.stackTraceToString().contains(marker))
     }
 }

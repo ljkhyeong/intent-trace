@@ -85,8 +85,8 @@ class GitHubRestClient(
                 return null
             }
             throw safeResponseException("Check Run 조회", exception)
-        } catch (exception: RestClientException) {
-            throw GitHubApiException("GitHub Check Run 조회 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubApiException("GitHub Check Run 조회 요청을 완료하지 못했습니다.")
         }
     }
 
@@ -175,8 +175,8 @@ class GitHubRestClient(
                 return null
             }
             throw safeResponseException("Check Run 수정", exception)
-        } catch (exception: RestClientException) {
-            throw GitHubApiException("GitHub Check Run 수정 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubApiException("GitHub Check Run 수정 요청을 완료하지 못했습니다.")
         }
     }
 
@@ -197,8 +197,8 @@ class GitHubRestClient(
             return call()
         } catch (exception: RestClientResponseException) {
             throw safeResponseException(operation, exception)
-        } catch (exception: RestClientException) {
-            throw GitHubApiException("GitHub $operation 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubApiException("GitHub $operation 요청을 완료하지 못했습니다.")
         }
     }
 

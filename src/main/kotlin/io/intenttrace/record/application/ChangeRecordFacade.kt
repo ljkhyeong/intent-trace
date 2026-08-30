@@ -169,6 +169,7 @@ class ChangeRecordFacade(
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
         relativePath = requireRepositoryRelativePath(anchor.relativePath),
+        symbolName = redactor.redactNullable(anchor.symbolName),
         contentHash = anchor.contentHash.lowercase(),
     )
 

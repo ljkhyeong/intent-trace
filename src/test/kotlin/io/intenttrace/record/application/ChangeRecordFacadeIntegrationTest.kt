@@ -41,7 +41,7 @@ class ChangeRecordFacadeIntegrationTest(
                 Decision("검증 결과를 함께 저장한다.", null, PurposeSource.CONFIRMED_AI_SUMMARY),
             ),
             codeAnchors = listOf(
-                CodeAnchor("./src//App.kt/", "App", 10, 20, "d".repeat(64)),
+                CodeAnchor("./src//App.kt/", "App ghu_testOnlyToken /Users/example/project/App.kt", 10, 20, "d".repeat(64)),
                 CodeAnchor("src/Extra.kt", "Extra", 1, 3, "e".repeat(64)),
             ),
             verifications = listOf(
@@ -120,6 +120,7 @@ class ChangeRecordFacadeIntegrationTest(
         assertEquals(actor, first.createdBy)
         assertEquals("API_KEY=[REDACTED] 요청을 안전하게 요약한다.", first.requestSummary)
         assertEquals("src/App.kt", first.codeAnchors.first().relativePath)
+        assertEquals("App [REDACTED] [REDACTED]", first.codeAnchors.first().symbolName)
         assertEquals(ChangeRecordStatus.PUBLISHED, published.status)
         assertEquals(listOf(relatedPublished.id, published.id), found.map { it.id })
         for (expected in listOf(published, relatedPublished)) {

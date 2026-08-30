@@ -9,8 +9,8 @@ internal object IntentTraceResponseParser {
 
     fun parse(body: String): List<ChangeIntentRecord> = try {
         json.decodeFromString<List<ChangeIntentResponse>>(body).map(ChangeIntentResponse::toRecord)
-    } catch (exception: SerializationException) {
-        throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.", exception)
+    } catch (_: SerializationException) {
+        throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.")
     }
 }
 

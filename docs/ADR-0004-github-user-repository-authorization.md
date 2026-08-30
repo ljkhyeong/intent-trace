@@ -17,6 +17,7 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - 읽기 작업은 `READER`, 기록 생성·수명주기·GitHub 게시는 `CONTRIBUTOR` 이상을 요구한다.
 - 비공개 상태는 작성자만 조회하며, `PUBLISHED`와 `SUPERSEDED`도 익명 공개하지 않고 저장소 읽기 권한이 있는 팀원에게만 공개한다.
 - user access token은 요청 속성에만 두고 처리 후 제거한다. 설치 token, JWT와 마찬가지로 영구 저장하거나 로그에 쓰지 않는다.
+- 사용자·저장소 권한 조회의 HTTP·응답 파싱 오류는 기존 인증 실패·연동 장애 분류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 전달하지 않는다.
 - 기존 `created_by` 값은 V3에서 `legacy:<lowercase-login>` subject로 보존하며 자동 계정 연결은 하지 않는다.
 
 ## 영향

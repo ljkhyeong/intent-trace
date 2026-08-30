@@ -5,6 +5,8 @@ import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
@@ -23,6 +25,7 @@ import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class GitHubRestClientTest {
     private val builder = RestClient.builder()
@@ -209,6 +212,45 @@ class GitHubRestClientTest {
 
         assertEquals(revision, client.getHeadRevision(target))
         assertEquals(listOf("installation-token"), tokenProvider.invalidatedTokens)
+        server.verify()
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["목록 조회", "개별 조회", "수정"])
+    fun `Check Run 응답 파싱 오류에 원문을 남기지 않는다`(operation: String) {
+        val marker = "test-private-response-marker"
+        val externalId = "intent-trace:test-record"
+        if (operation == "수정") {
+            server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(
+                    withSuccess(
+                        """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"$externalId"}""",
+                        MediaType.APPLICATION_JSON,
+                    ),
+                )
+        }
+        val path = if (operation == "목록 조회") {
+            "/repos/acme/intent-trace/commits/$revision/check-runs"
+        } else {
+            "/repos/acme/intent-trace/check-runs/55"
+        }
+        val body = if (operation == "목록 조회") {
+            """{"check_runs":[{"id":"$marker"}]}"""
+        } else {
+            """{"id":"$marker"}"""
+        }
+        server.expect { request -> assertEquals(path, request.uri.path) }
+            .andExpect(method(if (operation == "수정") HttpMethod.PATCH else HttpMethod.GET))
+            .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+
+        val exception = assertFailsWith<GitHubApiException> {
+            client.upsertCheckRun(command(externalId).copy(knownCheckRunId = if (operation == "목록 조회") null else 55))
+        }
+
+        val action = if (operation == "수정") "수정" else "조회"
+        assertEquals("GitHub Check Run $action 요청을 완료하지 못했습니다.", exception.message)
+        assertFalse(exception.stackTraceToString().contains(marker))
         server.verify()
     }
 
