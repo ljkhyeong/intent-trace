@@ -6,10 +6,12 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
-- 없음
+- 저장소·파일·상태별 팀 공개 기록과 내 비공개 기록 목록 REST·MCP (`list_change_records`)
+- IntelliJ 기록함, 현재 줄 결과가 없을 때 파일 이력 탐색, 원래 커밋·코드 근거·대체 기록 이동
 
 ### 변경
 
+- IntelliJ 검증 결과를 현재 IDE 코드가 아닌 기록 스냅샷과의 일치 여부로 표시
 - IntelliJ 조회 응답을 Kotlin serialization으로 읽고, 잘못된 필드 자료형을 응답 형식 오류로 처리
 - IntelliJ에서 IPv6 loopback HTTP 주소를 거부하던 검사 수정
 - IntelliJ 조회·세션 작업의 완료·실패 처리를 Task 콜백으로 통일하고 취소 예외를 플랫폼에 전달

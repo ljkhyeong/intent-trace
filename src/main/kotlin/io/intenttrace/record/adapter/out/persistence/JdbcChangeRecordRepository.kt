@@ -2,6 +2,7 @@ package io.intenttrace.record.adapter.out.persistence
 
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordRepository
+import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -9,6 +10,9 @@ import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
+import org.springframework.data.domain.SliceImpl
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
@@ -27,6 +31,54 @@ class JdbcChangeRecordRepository(
     private val namedJdbcTemplate: NamedParameterJdbcTemplate,
 ) : ChangeRecordRepository {
     private val recordRowMapper = RowMapper<ChangeRecord> { resultSet, _ -> mapRecord(resultSet) }
+
+    override fun findSummaries(
+        repositoryKey: String,
+        statuses: Set<ChangeRecordStatus>,
+        authorSubject: String?,
+        relativePath: String?,
+        pageable: Pageable,
+    ): Slice<ChangeRecordSummary> {
+        val rows = namedJdbcTemplate.query(
+            """
+            select records.id, records.repository_key, records.title, records.status,
+                   records.target_revision, records.created_by, records.created_by_subject,
+                   records.created_at, records.published_at, records.superseded_by
+            from change_records records
+            where records.repository_key = :repositoryKey and records.status in (:statuses)
+            ${if (authorSubject != null) "and records.created_by_subject = :authorSubject" else ""}
+            ${if (relativePath != null) """
+            and exists (
+                select 1 from code_anchors anchors
+                where anchors.record_id = records.id and anchors.relative_path = :relativePath
+            )
+            """ else ""}
+            order by records.created_at desc, records.id desc
+            limit :limit offset :offset
+            """.trimIndent(),
+            mapOf(
+                "repositoryKey" to repositoryKey,
+                "statuses" to statuses.map { it.name },
+                "authorSubject" to authorSubject,
+                "relativePath" to relativePath,
+                "limit" to pageable.pageSize + 1,
+                "offset" to pageable.offset,
+            ),
+        ) { row, _ ->
+            ChangeRecordSummary(
+                id = UUID.fromString(row.getString("id")),
+                repositoryKey = row.getString("repository_key"),
+                title = row.getString("title"),
+                status = ChangeRecordStatus.valueOf(row.getString("status")),
+                targetRevision = row.getString("target_revision"),
+                createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
+                createdAt = row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
+                publishedAt = row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
+                supersededBy = row.getString("superseded_by")?.let(UUID::fromString),
+            )
+        }
+        return SliceImpl(rows.take(pageable.pageSize), pageable, rows.size > pageable.pageSize)
+    }
 
     @Transactional(readOnly = true)
     override fun findById(id: UUID): ChangeRecord? =

@@ -18,6 +18,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 @SpringBootTest(
@@ -31,7 +32,56 @@ import java.util.UUID
 class AuthenticatedRestIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val userAccess: TestGitHubUserAccessGateway,
+    @Autowired private val objectMapper: ObjectMapper,
 ) {
+    @Test
+    fun `REST 기록함은 본인 초안만 반환하고 권한 없는 저장소 조회를 거부한다`() {
+        val repository = "acme/rest-history-${UUID.randomUUID()}"
+        val created = mockMvc.post("/api/v1/change-records") {
+            authorized()
+            contentType = MediaType.APPLICATION_JSON
+            content = createRequest(UUID.randomUUID().toString(), "목록 권한을 확인한다.")
+                .replace("acme/intent-trace", repository)
+        }.andExpect { status { isCreated() } }.andReturn()
+        val id = objectMapper.readTree(created.response.contentAsString).get("id").stringValue()
+        mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS&size=1") {
+            authorized()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].id") { value(id) }
+            jsonPath("$.hasNext") { value(false) }
+        }
+        mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
+            authorized()
+        }.andExpect { jsonPath("$.items") { isEmpty() } }
+        userAccess.actor = ActorIdentity.github(84, "teammate")
+        try {
+            mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS") {
+                authorized()
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.items") { isEmpty() }
+                jsonPath("$.hasNext") { value(false) }
+            }
+            userAccess.role = null
+            mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
+                authorized()
+            }.andExpect { status { isForbidden() } }
+        } finally {
+            userAccess.actor = ActorIdentity.github(42, "lim")
+            userAccess.role = RepositoryRole.MAINTAINER
+        }
+    }
+
+    @Test
+    fun `목록 범위와 맞지 않는 상태나 잘못된 페이지 입력은 거부한다`() {
+        for (query in listOf("status=DRAFT", "scope=MY_DRAFTS&status=PUBLISHED", "page=-1", "size=0", "size=51", "path=../App.kt")) {
+            mockMvc.get("/api/v1/change-records?repositoryKey=acme/intent-trace&$query") {
+                authorized()
+            }.andExpect { status { isBadRequest() } }
+        }
+    }
+
     @Test
     fun `기여자는 REST로 기록을 만들고 잘못된 중첩 입력은 거부된다`() {
         mockMvc.post("/api/v1/change-records") {
@@ -125,13 +175,14 @@ class AuthenticatedRestIntegrationTest(
 
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
         var failAuthentication = false
-        var role: RepositoryRole = RepositoryRole.MAINTAINER
+        var role: RepositoryRole? = RepositoryRole.MAINTAINER
+        var actor = ActorIdentity.github(42, "lim")
 
         override fun authenticate(accessToken: String): ActorIdentity {
             if (failAuthentication) throw GitHubIdentityApiException("테스트 사용자 조회 장애")
-            return ActorIdentity.github(42, "lim")
+            return actor
         }
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole = role
+        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? = role
     }
 }

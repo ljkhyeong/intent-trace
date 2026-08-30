@@ -3,6 +3,7 @@ package io.intenttrace.intellij
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 internal data class LineLookup(
     val repositoryKey: String,
@@ -20,6 +21,20 @@ internal data class LineLookup(
 
 internal class IntentTraceServer private constructor(val baseUri: URI) {
     fun authorizationStartUri(): URI = URI.create("$baseUri/auth/github/start")
+
+    fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
+
+    fun listUri(query: RecordListQuery): URI {
+        val parameters = listOfNotNull(
+            "repositoryKey" to query.repositoryKey,
+            "scope" to query.scope.name,
+            query.path?.let { "path" to it },
+            query.status?.let { "status" to it },
+            "page" to query.page.toString(),
+            "size" to "20",
+        ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
+        return URI.create("$baseUri/api/v1/change-records?$parameters")
+    }
 
     fun lookupUri(lookup: LineLookup): URI {
         val query = listOf(

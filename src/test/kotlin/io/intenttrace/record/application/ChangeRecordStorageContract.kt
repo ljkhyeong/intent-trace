@@ -18,6 +18,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 abstract class ChangeRecordStorageContract {
     @Autowired
@@ -25,6 +27,67 @@ abstract class ChangeRecordStorageContract {
 
     @Autowired
     private lateinit var storageJdbc: JdbcTemplate
+
+    @Test
+    fun `파일 이력과 내 초안을 페이지로 조회한다`() {
+        val repositoryKey = "acme/history-${UUID.randomUUID()}"
+        fun draft(owner: ActorIdentity = actor, path: String = "src/Storage.kt"): ChangeRecord =
+            storageFacade.create(
+                command().copy(
+                    repositoryKey = repositoryKey,
+                    codeAnchors = listOf(
+                        CodeAnchor(path, "Storage", 1, 2, digest),
+                        CodeAnchor(path, "Storage", 5, 6, digest),
+                    ),
+                ),
+                owner,
+            )
+        fun confirm(record: ChangeRecord, revision: String = "b".repeat(40)): ChangeRecord =
+            storageFacade.confirm(ConfirmChangeRecordCommand(record.id, record.version, revision, digest), actor)
+        fun publish(record: ChangeRecord): ChangeRecord =
+            storageFacade.publish(PublishChangeRecordCommand(record.id, record.version, digest), actor)
+
+        val ownDraft = draft()
+        val ownConfirmed = confirm(draft())
+        repeat(3) { draft(ActorIdentity.github(2, "teammate")) }
+        draft(path = "src/Other.kt")
+        val old = publish(confirm(draft()))
+        val replacement = publish(confirm(draft(), "c".repeat(40)))
+        storageFacade.supersede(SupersedeChangeRecordCommand(old.id, old.version, replacement.id), actor)
+        // 같은 시각에 만든 기록도 UUID 보조 정렬로 페이지가 겹치지 않아야 한다.
+        storageJdbc.update(
+            "update change_records set created_at = ? where repository_key = ?",
+            Instant.parse("2026-08-30T00:00:00Z").atOffset(ZoneOffset.UTC), repositoryKey,
+        )
+
+        val privateQuery = ListChangeRecordsQuery(
+            repositoryKey.uppercase(), ChangeRecordListScope.MY_DRAFTS, "src/./Storage.kt", size = 1,
+        )
+        val first = storageFacade.list(privateQuery, actor)
+        val second = storageFacade.list(privateQuery.copy(page = 1), actor)
+        assertTrue(first.hasNext())
+        assertFalse(second.hasNext())
+        assertEquals(
+            listOf(ownDraft.id, ownConfirmed.id).map(UUID::toString).sortedDescending(),
+            (first.content + second.content).map { it.id.toString() },
+        )
+        assertTrue(storageFacade.list(privateQuery.copy(page = 2), actor).isEmpty)
+        assertEquals(
+            listOf(ownConfirmed.id),
+            storageFacade.list(privateQuery.copy(status = ChangeRecordStatus.AUTHOR_CONFIRMED), actor).content.map { it.id },
+        )
+
+        val publicQuery = ListChangeRecordsQuery(repositoryKey, path = "src/Storage.kt")
+        val history = storageFacade.list(publicQuery, ActorIdentity.github(2, "teammate")).content
+        assertEquals(setOf(old.id, replacement.id), history.map { it.id }.toSet())
+        assertEquals(2, history.size)
+        assertEquals(replacement.id, history.single { it.id == old.id }.supersededBy)
+        assertEquals(setOf("b".repeat(40), "c".repeat(40)), history.map { it.targetRevision }.toSet())
+        assertEquals(
+            listOf(replacement.id),
+            storageFacade.list(publicQuery.copy(status = ChangeRecordStatus.PUBLISHED), actor).content.map { it.id },
+        )
+    }
 
     @Test
     fun `DB가 반올림해 저장한 검증 시각도 같은 요청으로 재사용한다`() {

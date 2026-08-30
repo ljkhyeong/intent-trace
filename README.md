@@ -19,6 +19,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
 - IntelliJ 현재 줄의 공개 변경 의도 조회 플러그인
+- 저장소·파일·상태별 팀 공개 기록과 내 비공개 기록함, IntelliJ 과거 커밋·코드·대체 기록 탐색
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
 초안 생성 시 설명 필드와 코드 심벌 이름(`symbolName`)의 token·비밀값·개인 home 절대 경로를 제거합니다.
@@ -194,6 +195,7 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 
 ## API
 
+- `GET /api/v1/change-records`: 팀 공개 기록 또는 내 비공개 기록의 페이지 조회
 - `POST /api/v1/change-records`: 비공개 초안 생성
 - `GET /api/v1/change-records/{id}`: 기록 조회
 - `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 전체 커밋 결박
@@ -203,7 +205,11 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 
-MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `list_change_records`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+
+목록은 `repositoryKey`가 필수이며 `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MY_DRAFTS`는 현재 사용자의 초안·작성자 확인 기록을 반환합니다. 선택 `path`는 코드 근거의 정확한 상대 경로, `status`는 해당 기록함 안의 상태입니다. `page`는 0부터, `size`는 기본 20·최대 50이며 응답은 `{items, page, size, hasNext}`입니다. 생성 시각·UUID 내림차순으로 조회하고 작성자·공개 상태를 SQL에서 먼저 제한합니다. 동시 생성·공개 시 페이지 구성은 달라질 수 있습니다.
+
+예를 들어 MCP에 `list_change_records(repositoryKey="owner/repository", scope="MY_DRAFTS")`를 요청하면 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 여러 커밋에 남은 공개 이력을 찾습니다. 상세는 기존 `get_change_record`로 조회합니다.
 
 REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
@@ -244,11 +250,14 @@ export INTENT_TRACE_URL='https://intent.example.com'
 1. IntelliJ의 `Tools > IntentTrace GitHub 승인 시작`을 실행합니다. 또는 브라우저에서 서버의 `/auth/github/start`를 직접 엽니다.
 2. GitHub 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
 3. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
-4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄의 IntentTrace 변경 의도 조회`를 실행합니다.
+4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄 변경 의도 조회`를 실행합니다.
+5. 저장소 파일을 선택하고 `Tools > IntentTrace 기록함 열기`에서 팀 공개 기록·내 비공개 기록·상태·현재 파일 필터를 고른 뒤 `조회`합니다. 기록을 선택하면 원래 커밋·당시 코드·대체 기록을 열 수 있습니다.
 
 PasswordSafe 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. `INTENT_TRACE_SESSION_TOKEN` 환경 변수가 설정돼 있으면 PasswordSafe를 지운 뒤에도 환경 변수 세션을 계속 사용합니다.
 
 플러그인은 현재 GitHub remote, 전체 HEAD commit, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. GitHub access·refresh token은 받거나 저장하지 않습니다.
+
+파일 이력은 수정 중인 파일에서도 조회할 수 있습니다. 현재 줄 결과가 없으면 `이 파일의 과거 기록 보기`를 선택합니다. 이력의 코드 링크는 기록에 저장된 전체 커밋과 줄에 고정되며 현재 편집기 줄로 재해석하지 않습니다. 검증 결과도 기록 스냅샷과의 일치 여부만 뜻합니다. 이름이 바뀐 파일은 자동 추적하지 않으므로 저장소 전체 목록에서 찾아야 합니다.
 
 연결 대기는 최대 5초로 제한합니다. 응답 데이터가 10초 동안 도착하지 않으면 조회를 중단합니다. redirect는 따라가지 않고, 성공 응답은 최대 1,000,000바이트까지 읽습니다.
 GitHub 연동과 IntelliJ 조회에서 응답 파싱이 실패하면 안전한 오류 안내만 전달하며, 응답 원문을 포함할 수 있는 원인 예외는 연결하지 않습니다.
@@ -275,7 +284,7 @@ python3 scripts/test_validate_release_version.py
 - GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
-- IntelliJ 플러그인은 커밋된 현재 파일의 단일 줄 조회만 지원하며 callback token을 자동으로 가져오거나 기록을 생성하지 않습니다.
+- IntelliJ 플러그인은 현재 줄 조회와 기록함·파일 이력을 지원하지만 callback token 자동 가져오기, 기록 생성·수정과 파일 rename 추적은 지원하지 않습니다.
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
 - 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
 
@@ -292,6 +301,7 @@ python3 scripts/test_validate_release_version.py
 - `docs/ADR-0006-single-instance-team-deployment.md`
 - `docs/PRD-0004-intellij-line-intent.md`
 - `docs/ADR-0007-intellij-plugin-client-boundary.md`
+- `docs/PRD-0005-record-browser.md`
 - `docs/operations/team-deployment.md`
 - `CHANGELOG.md`
 - `SECURITY.md`

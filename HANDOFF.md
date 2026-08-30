@@ -7,6 +7,7 @@
 - Flyway 초기 스키마
 - Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키, V5 코드 경로 정규화와 V6 미사용 기준 revision 제거 스키마
 - 변경 의도 생성·확인·공개·대체·라인 조회
+- 저장소·파일·상태별 공개 목록과 내 비공개 기록함, 생성 시각·UUID 순서의 페이지 조회
 - 팀 공유용 Markdown 출력
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
@@ -20,13 +21,14 @@
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - GitHub Actions commit SHA 고정, 중복 실행 취소와 Dependabot 정기 갱신
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- Streamable HTTP MCP 도구 6개
+- Streamable HTTP MCP 도구 7개 (`list_change_records` 포함)
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
 - IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
+- IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
 - tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
 - SECURITY 정책과 0.6.0 변경 이력
@@ -46,6 +48,8 @@
 - 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
 - 공개된 본문과 근거는 수정하지 않고 새 공개 기록으로 대체한다.
 - 팀 조회에는 공개 또는 대체된 기록만 노출한다.
+- 목록은 저장소 읽기 권한을 먼저 확인하고 SQL에서 공개 상태 또는 현재 작성자의 비공개 상태를 제한한 뒤 페이지로 나눈다.
+- 파일 이력은 정확한 상대 경로로만 조회하며 과거 줄·검증을 현재 편집기 코드의 근거로 자동 해석하지 않는다.
 - GitHub 게시 전 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다.
 - Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
 - 같은 기록의 게시 요청은 PR 번호가 달라도 단일 app에서 직렬화한다. PR별 HEAD 확인과 게시 이력은 따로 유지하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
@@ -70,10 +74,11 @@
 
 ## 다음 작업 후보
 
-1. 실제 IntelliJ 사용자 피드백을 바탕으로 결과 UI와 탐색 동선을 다듬는다.
-2. 실제 운영 결과를 바탕으로 서버 측 encrypted session 저장 필요성을 다시 결정한다.
-3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
+1. 실제 IntelliJ에서 새 기록함의 필터·페이지·상세·브라우저 이동 동선을 확인한다. 이번 변경에서는 자동 테스트와 ZIP 빌드만 검증한다.
+2. 작성자 본인의 비공개 초안 수정·폐기 기능을 설계한다. 공개 기록 불변성과 낙관적 잠금은 유지한다.
+3. 실제 사용자 피드백을 바탕으로 결과 창을 ToolWindow로 바꿀 필요가 있는지 결정한다.
+4. 판단별 코드·검증 연결과 기록 생성 보조를 검토한다.
+5. 운영 요구가 생기면 encrypted session, 승인 폐기 webhook, Check Run line annotation을 검토한다.
 
 ## 현재 제한
 
@@ -87,6 +92,8 @@
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
 - Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
-- IntelliJ 플러그인은 커밋되지 않은 파일, callback token 자동 가져오기, 기록 생성과 Marketplace 배포를 아직 지원하지 않는다.
+- IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
+- IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
+- 파일 rename·줄 이동은 자동 추적하지 않으며 목록에 총 건수·전문 검색·고정 검색 스냅샷은 없다.
 - 감사 로그와 기록 보존 정책은 아직 구현하지 않았다.
 - 현재 두 개의 alignment HTML만 저장소에 유지하며 새 HTML은 GitHub Release나 별도 보관소에 둔다.

@@ -65,7 +65,8 @@ class IntentTraceApiClientTest {
     fun `오류는 상태 코드로 안내하고 redirect를 따라가지 않는다`() {
         val messages = mapOf(
             401 to "IntentTrace session이 만료됐습니다. GitHub 승인을 다시 진행해 주세요.",
-            403 to "현재 GitHub 사용자는 이 저장소의 공개 기록을 조회할 권한이 없습니다.",
+            403 to "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다.",
+            404 to "해당 IntentTrace 기록을 찾을 수 없습니다.",
             503 to "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
             302 to "IntentTrace 조회 요청이 거부됐습니다. HTTP 302",
         )

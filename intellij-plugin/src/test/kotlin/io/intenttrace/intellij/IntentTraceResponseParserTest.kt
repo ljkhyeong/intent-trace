@@ -15,6 +15,8 @@ class IntentTraceResponseParserTest {
             [
               {
                 "id": "record-1",
+                "repositoryKey": "team/repository",
+                "targetRevision": "${"a".repeat(40)}",
                 "title": "세션 토큰 저장",
                 "requestSummary": "IDE에서 현재 줄의 변경 의도를 확인한다.",
                 "status": "PUBLISHED",
@@ -52,6 +54,7 @@ class IntentTraceResponseParserTest {
                 """
                 [{
                   "id": "record-1", "title": 123, "requestSummary": "요청", "status": "PUBLISHED",
+                  "repositoryKey": "team/repository", "targetRevision": "${"a".repeat(40)}",
                   "createdBy": {"login": "developer"},
                   "decisions": [], "codeAnchors": [], "verifications": [], "openQuestions": []
                 }]

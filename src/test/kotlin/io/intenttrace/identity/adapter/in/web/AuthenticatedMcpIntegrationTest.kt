@@ -22,6 +22,8 @@ import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
+import tools.jackson.databind.ObjectMapper
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -37,9 +39,10 @@ import kotlin.test.assertTrue
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val tools: IntentTraceTools,
+    @Autowired private val objectMapper: ObjectMapper,
 ) {
     @Test
-    fun `MCP는 인증된 사용자만 초기화하고 잘못된 revision을 거부한다`() {
+    fun `MCP는 인증된 사용자만 초기화하고 목록 기본값과 전체 revision 계약을 적용한다`() {
         val initialize =
             """
             {
@@ -101,6 +104,28 @@ class AuthenticatedMcpIntegrationTest(
             status { isOk() }
             content { string(containsString("\"isError\":true")) }
         }
+
+        val listed = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """
+                {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+                  "name":"list_change_records","arguments":{"repositoryKey":"acme/intent-trace"}
+                }}
+            """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+        }.andReturn()
+        val data = listed.response.contentAsString.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
+        val result = objectMapper.readTree(data).get("result")
+        assertEquals(false, result.get("isError").booleanValue())
+        val page = result.get("structuredContent")
+        assertEquals(0, page.get("items").size())
+        assertEquals(0, page.get("page").intValue())
+        assertEquals(20, page.get("size").intValue())
+        assertEquals(false, page.get("hasNext").booleanValue())
     }
 
     @Test

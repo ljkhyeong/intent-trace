@@ -8,6 +8,14 @@
 
     <actions>
         <action
+            id="io.intenttrace.intellij.BrowseChangeRecords"
+            class="io.intenttrace.intellij.BrowseChangeRecordsAction"
+            text="IntentTrace 기록함 열기"
+            description="팀 공개 기록과 내 비공개 기록을 찾아 원래 커밋, 코드 근거, 대체 기록을 엽니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action
             id="io.intenttrace.intellij.OpenGitHubAuthorization"
             class="io.intenttrace.intellij.OpenGitHubAuthorizationAction"
             text="IntentTrace GitHub 승인 시작"

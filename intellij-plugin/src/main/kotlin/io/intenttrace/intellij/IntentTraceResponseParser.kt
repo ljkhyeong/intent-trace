@@ -7,8 +7,15 @@ import kotlinx.serialization.json.Json
 internal object IntentTraceResponseParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(body: String): List<ChangeIntentRecord> = try {
-        json.decodeFromString<List<ChangeIntentResponse>>(body).map(ChangeIntentResponse::toRecord)
+    fun parse(body: String): List<ChangeIntentRecord> = decode<List<ChangeIntentResponse>>(body)
+        .map(ChangeIntentResponse::toRecord)
+
+    fun parseRecord(body: String): ChangeIntentRecord = decode<ChangeIntentResponse>(body).toRecord()
+
+    fun parsePage(body: String): ChangeRecordPage = decode(body)
+
+    private inline fun <reified T> decode(body: String): T = try {
+        json.decodeFromString<T>(body)
     } catch (_: SerializationException) {
         throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.")
     }
@@ -25,6 +32,9 @@ private data class ChangeIntentResponse(
     val codeAnchors: List<ChangeCodeAnchor>,
     val verifications: List<ChangeVerification>,
     val openQuestions: List<String>,
+    val repositoryKey: String,
+    val targetRevision: String?,
+    val supersededBy: String? = null,
 ) {
     fun toRecord(): ChangeIntentRecord = ChangeIntentRecord(
         id = id,
@@ -36,8 +46,8 @@ private data class ChangeIntentResponse(
         codeAnchors = codeAnchors,
         verifications = verifications,
         openQuestions = openQuestions,
+        repositoryKey = repositoryKey,
+        targetRevision = targetRevision,
+        supersededBy = supersededBy,
     )
 }
-
-@Serializable
-private data class CreatedByResponse(val login: String)

@@ -42,12 +42,19 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
             }
 
             override fun onSuccess() {
+                if (project.isDisposed) return
                 if (records.isEmpty()) {
-                    Messages.showInfoMessage(
+                    val choice = Messages.showYesNoDialog(
                         project,
-                        "현재 HEAD의 ${lookup.relativePath}:${lookup.line}에 연결된 공개 변경 의도가 없습니다.",
+                        "현재 HEAD의 ${lookup.relativePath}:${lookup.line}에 연결된 공개 변경 의도가 없습니다.\n이 파일의 다른 커밋에 기록된 의도를 볼까요?",
                         "IntentTrace",
+                        "이 파일의 과거 기록 보기",
+                        "닫기",
+                        Messages.getQuestionIcon(),
                     )
+                    if (choice == Messages.YES) {
+                        IntentTraceRecordBrowser.open(project, RepositoryFileContext(lookup.repositoryKey, lookup.relativePath), fileOnly = true)
+                    }
                 } else {
                     IntentTraceResultDialog(project, lookup, records).show()
                 }

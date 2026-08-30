@@ -1,7 +1,10 @@
 package io.intenttrace.record.adapter.`in`.web
 
+import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -26,6 +29,18 @@ class ChangeRecordController(
     private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
 ) {
+    @GetMapping
+    fun list(
+        @RequestParam repositoryKey: String,
+        @RequestParam(defaultValue = "TEAM") scope: ChangeRecordListScope,
+        @RequestParam(required = false) path: String?,
+        @RequestParam(required = false) status: ChangeRecordStatus?,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): ChangeRecordListResponse = ChangeRecordListResponse.from(
+        records.list(ListChangeRecordsQuery(repositoryKey, scope, path, status, page, size)),
+    )
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@Valid @RequestBody request: CreateChangeRecordRequest): ChangeRecordResponse =

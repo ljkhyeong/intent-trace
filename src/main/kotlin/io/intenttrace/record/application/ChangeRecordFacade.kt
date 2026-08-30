@@ -10,6 +10,8 @@ import io.intenttrace.record.domain.GitRevision
 import io.intenttrace.record.domain.VerificationRun
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.dao.DuplicateKeyException
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Slice
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -67,6 +69,21 @@ class ChangeRecordFacade(
 
     fun get(id: UUID): ChangeRecord = repository.findById(id)
         ?: throw ChangeRecordNotFoundException(id)
+
+    fun list(query: ListChangeRecordsQuery, actor: ActorIdentity): Slice<ChangeRecordSummary> {
+        require(query.size <= 50) { "목록은 한 번에 50건까지 조회할 수 있습니다." }
+        val pageable = PageRequest.of(query.page, query.size)
+        require(query.status == null || query.status in query.scope.statuses) {
+            "선택한 기록함에서 조회할 수 없는 상태입니다."
+        }
+        return repository.findSummaries(
+            repositoryKey = GitHubRepository.parse(query.repositoryKey).key,
+            statuses = query.status?.let(::setOf) ?: query.scope.statuses,
+            authorSubject = actor.subject.takeIf { query.scope == ChangeRecordListScope.MY_DRAFTS },
+            relativePath = query.path?.let(::requireRepositoryRelativePath),
+            pageable = pageable,
+        )
+    }
 
     fun confirm(command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         return confirm(get(command.recordId), command, actor)

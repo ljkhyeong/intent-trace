@@ -4,6 +4,7 @@ import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import org.springframework.data.domain.Slice
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -46,6 +47,11 @@ class TeamChangeRecordService(
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         access.requireReader(repositoryKey)
         return facade.findIntent(repositoryKey, revision, path, line)
+    }
+
+    fun list(query: ListChangeRecordsQuery): Slice<ChangeRecordSummary> {
+        val actor = access.requireReader(query.repositoryKey)
+        return facade.list(query, actor)
     }
 
     fun requireOwnedContributor(recordId: UUID): ChangeRecord = ownedContributor(recordId).record

@@ -8,8 +8,17 @@ import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import git4idea.repo.GitRepositoryManager
+import git4idea.repo.GitRepository
+
+internal data class RepositoryFileContext(val repositoryKey: String, val relativePath: String)
 
 internal object CurrentLineContextResolver {
+    fun history(project: Project, file: VirtualFile): RepositoryFileContext {
+        val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
+            ?: throw IntentTraceUsageException("현재 파일이 Git 저장소에 포함되어 있지 않습니다.")
+        return fileContext(repository, file)
+    }
+
     fun resolve(project: Project, editor: Editor, file: VirtualFile): LineLookup {
         val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
             ?: throw IntentTraceUsageException("현재 파일이 Git 저장소에 포함되어 있지 않습니다.")
@@ -22,6 +31,16 @@ internal object CurrentLineContextResolver {
         }
         val revision = repository.currentRevision?.lowercase()
             ?: throw IntentTraceUsageException("현재 Git HEAD commit을 확인할 수 없습니다.")
+        val context = fileContext(repository, file)
+        return LineLookup(
+            repositoryKey = context.repositoryKey,
+            revision = revision,
+            relativePath = context.relativePath,
+            line = editor.caretModel.logicalPosition.line + 1,
+        )
+    }
+
+    private fun fileContext(repository: GitRepository, file: VirtualFile): RepositoryFileContext {
         val relativePath = VfsUtilCore.getRelativePath(file, repository.root, '/')
             ?: throw IntentTraceUsageException("현재 파일의 저장소 상대 경로를 계산할 수 없습니다.")
         val repositoryKey = repository.remotes
@@ -31,11 +50,6 @@ internal object CurrentLineContextResolver {
             .mapNotNull(GitHubRemoteParser::repositoryKey)
             .firstOrNull()
             ?: throw IntentTraceUsageException("GitHub origin에서 owner/repository를 확인할 수 없습니다.")
-        return LineLookup(
-            repositoryKey = repositoryKey,
-            revision = revision,
-            relativePath = relativePath,
-            line = editor.caretModel.logicalPosition.line + 1,
-        )
+        return RepositoryFileContext(repositoryKey, relativePath)
     }
 }
