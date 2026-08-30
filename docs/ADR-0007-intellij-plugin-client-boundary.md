@@ -19,6 +19,7 @@
 - 플러그인의 승인 시작 액션은 정규화한 server URL의 `/auth/github/start`만 시스템 브라우저로 연다. OAuth callback과 token 교환은 서버가 계속 담당한다.
 - 연결 해제 액션은 PasswordSafe 자격 증명만 삭제한다. 환경 변수 token이 있으면 해당 연결이 남아 있음을 안내한다.
 - PasswordSafe와 HTTP 요청은 background task에서 실행한다.
+- HTTP 연결과 스트림 정리는 IntelliJ `HttpRequests`에 맡긴다. 연결 제한은 5초, 응답 읽기 제한은 10초이며 redirect를 따라가지 않는다. 성공 응답만 최대 1,000,000바이트까지 읽고, 오류 응답은 본문 없이 상태 코드로 분류한다.
 - 결과 창은 읽기 전용이며 원문 대화, 프롬프트, 코드 본문과 token을 표시하거나 저장하지 않는다.
 
 ## 영향

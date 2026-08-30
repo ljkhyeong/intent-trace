@@ -199,7 +199,7 @@ class JdbcChangeRecordRepository(
                 decision.source.name,
             )
         }
-        executeBatch(
+        jdbcTemplate.batchUpdate(
             """
             insert into change_decisions (
                 id, record_id, sequence_number, summary, rationale, source
@@ -222,7 +222,7 @@ class JdbcChangeRecordRepository(
                 anchor.contentHash,
             )
         }
-        executeBatch(
+        jdbcTemplate.batchUpdate(
             """
             insert into code_anchors (
                 id, record_id, sequence_number, relative_path, symbol_name,
@@ -248,7 +248,7 @@ class JdbcChangeRecordRepository(
                 verification.summary,
             )
         }
-        executeBatch(
+        jdbcTemplate.batchUpdate(
             """
             insert into verification_runs (
                 id, record_id, sequence_number, command_text, exit_code,
@@ -268,17 +268,13 @@ class JdbcChangeRecordRepository(
                 question,
             )
         }
-        executeBatch(
+        jdbcTemplate.batchUpdate(
             """
             insert into open_questions (id, record_id, sequence_number, description)
             values (?, ?, ?, ?)
             """.trimIndent(),
             batch,
         )
-    }
-
-    private fun executeBatch(sql: String, batch: List<Array<Any?>>) {
-        if (batch.isNotEmpty()) jdbcTemplate.batchUpdate(sql, batch)
     }
 
     private fun <T> findChildren(

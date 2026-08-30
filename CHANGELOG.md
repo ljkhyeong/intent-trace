@@ -13,6 +13,12 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 - IntelliJ 조회 응답을 Kotlin serialization으로 읽고, 잘못된 필드 자료형을 응답 형식 오류로 처리
 - IntelliJ에서 IPv6 loopback HTTP 주소를 거부하던 검사 수정
 - IntelliJ 조회·세션 작업의 완료·실패 처리를 Task 콜백으로 통일하고 취소 예외를 플랫폼에 전달
+- IntelliJ HTTP 요청을 SDK API로 전환해 응답 본문이 멈춰도 읽기 제한 시간이 적용되도록 수정
+- OAuth callback에서 긴 IPv6 loopback 주소 표기 허용
+
+### 보안
+
+- OAuth 응답 파싱 실패 시 원인 예외에 응답 원문이 남지 않도록 처리
 
 ## 0.7.0 - 2026-08-30
 

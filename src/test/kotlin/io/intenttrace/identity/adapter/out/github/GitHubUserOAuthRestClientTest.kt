@@ -3,6 +3,7 @@ package io.intenttrace.identity.adapter.out.github
 import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
+import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthRefreshRejectedException
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
@@ -20,6 +21,8 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class GitHubUserOAuthRestClientTest {
     private val builder = RestClient.builder()
@@ -96,6 +99,25 @@ class GitHubUserOAuthRestClientTest {
         assertFailsWith<GitHubOAuthRefreshRejectedException> {
             client.refresh("ghr_expired")
         }
+        server.verify()
+    }
+
+    @Test
+    fun `token 응답 파싱 실패는 원문을 예외에 남기지 않는다`() {
+        server.expect(requestTo("https://github.test/login/oauth/access_token"))
+            .andRespond(
+                withSuccess(
+                    """{"access_token":"ghu_test-private-marker","expires_in":"test-private-marker"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val exception = assertFailsWith<GitHubOAuthApiException> {
+            client.exchange("authorization-code", codeVerifier)
+        }
+
+        assertNull(exception.cause)
+        assertFalse(exception.stackTraceToString().contains("test-private-marker"))
         server.verify()
     }
 

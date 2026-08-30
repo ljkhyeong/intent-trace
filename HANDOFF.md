@@ -58,6 +58,7 @@
 - GitHub 자격 증명 보유 객체의 `toString()`에는 실제 비밀값을 넣지 않는다.
 - IntelliJ 플러그인은 `its_` session만 PasswordSafe에 저장하고 GitHub token을 입력받지 않는다.
 - IntelliJ 현재 줄 조회는 커밋된 파일과 전체 HEAD commit만 사용한다.
+- IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 1,000,000바이트 응답 상한을 유지한다.
 - IntelliJ 승인 시작은 기존 서버 URL만 열고 callback·state·PKCE는 서버가 처리한다.
 - PasswordSafe 세션을 삭제해도 환경 변수 세션이 있으면 해당 연결은 유지된다고 안내한다.
 

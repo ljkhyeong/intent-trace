@@ -96,8 +96,8 @@ class GitHubUserOAuthRestClient(
             return response.toTokens()
         } catch (exception: RestClientResponseException) {
             throw GitHubOAuthApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
-        } catch (exception: RestClientException) {
-            throw GitHubOAuthApiException("GitHub $operation 요청을 완료하지 못했습니다.", exception)
+        } catch (_: RestClientException) {
+            throw GitHubOAuthApiException("GitHub $operation 요청을 완료하지 못했습니다.")
         }
     }
 
