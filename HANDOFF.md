@@ -2,7 +2,7 @@
 
 ## 현재 구현
 
-- IntentTrace 개발 version 0.7.0, 최신 공개 release 0.6.0, Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
+- IntentTrace 개발 version 0.8.0-SNAPSHOT, 최신 공개 release 0.7.0, Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
 - H2 기본 저장소와 PostgreSQL 프로필
 - Flyway 초기 스키마
 - Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키, V5 코드 경로 정규화와 V6 미사용 기준 revision 제거 스키마
