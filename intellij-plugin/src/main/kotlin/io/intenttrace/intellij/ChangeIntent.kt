@@ -1,5 +1,7 @@
 package io.intenttrace.intellij
 
+import kotlinx.serialization.Serializable
+
 internal data class ChangeIntentRecord(
     val id: String,
     val title: String,
@@ -12,18 +14,21 @@ internal data class ChangeIntentRecord(
     val openQuestions: List<String>,
 )
 
+@Serializable
 internal data class ChangeDecision(
     val summary: String,
-    val rationale: String?,
+    val rationale: String? = null,
     val source: String,
 )
 
+@Serializable
 internal data class ChangeCodeAnchor(
     val relativePath: String,
     val startLine: Int,
     val endLine: Int,
 )
 
+@Serializable
 internal data class ChangeVerification(
     val command: String,
     val exitCode: Int,

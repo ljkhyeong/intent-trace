@@ -195,8 +195,6 @@ class GitHubRestClient(
     private fun <T> safeCall(operation: String, call: () -> T): T {
         try {
             return call()
-        } catch (exception: GitHubApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw safeResponseException(operation, exception)
         } catch (exception: RestClientException) {

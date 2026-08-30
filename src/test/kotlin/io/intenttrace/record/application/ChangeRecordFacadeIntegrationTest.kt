@@ -95,6 +95,24 @@ class ChangeRecordFacadeIntegrationTest(
             PublishChangeRecordCommand(unrelatedConfirmed.id, unrelatedConfirmed.version, digest),
             actor,
         )
+        val relatedDraft = facade.create(
+            command.copy(
+                requestId = "integration-turn-related",
+                decisions = listOf(Decision("같은 줄의 다른 판단", null, PurposeSource.STATED_BY_USER)),
+                codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 15, 16, "e".repeat(64))),
+                verifications = emptyList(),
+                openQuestions = listOf("다른 기록의 질문"),
+            ),
+            actor,
+        )
+        val relatedConfirmed = facade.confirm(
+            ConfirmChangeRecordCommand(relatedDraft.id, relatedDraft.version, revision, digest),
+            actor,
+        )
+        val relatedPublished = facade.publish(
+            PublishChangeRecordCommand(relatedConfirmed.id, relatedConfirmed.version, digest),
+            actor,
+        )
         val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/./App.kt", 15)
 
         assertEquals(first.id, retried.id)
@@ -103,12 +121,15 @@ class ChangeRecordFacadeIntegrationTest(
         assertEquals("API_KEY=[REDACTED] 요청을 안전하게 요약한다.", first.requestSummary)
         assertEquals("src/App.kt", first.codeAnchors.first().relativePath)
         assertEquals(ChangeRecordStatus.PUBLISHED, published.status)
-        assertEquals(listOf(published.id), found.map { it.id })
-        val hydrated = found.single()
-        assertEquals(published.decisions, hydrated.decisions)
-        assertEquals(published.codeAnchors, hydrated.codeAnchors)
-        assertEquals(published.verifications, hydrated.verifications)
-        assertEquals(published.openQuestions, hydrated.openQuestions)
+        assertEquals(listOf(relatedPublished.id, published.id), found.map { it.id })
+        for (expected in listOf(published, relatedPublished)) {
+            val hydrated = found.single { it.id == expected.id }
+            assertEquals(expected.decisions, hydrated.decisions)
+            assertEquals(expected.codeAnchors, hydrated.codeAnchors)
+            assertEquals(expected.verifications, hydrated.verifications)
+            assertEquals(expected.openQuestions, hydrated.openQuestions)
+        }
+        val hydrated = found.single { it.id == published.id }
         assertEquals(listOf(true, false), ChangeRecordResponse.from(hydrated).verifications.map { it.current })
     }
 

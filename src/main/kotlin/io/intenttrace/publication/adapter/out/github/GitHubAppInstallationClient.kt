@@ -69,8 +69,6 @@ class GitHubAppInstallationClient(
     private fun <T> safeCall(call: () -> T): T {
         try {
             return call()
-        } catch (exception: GitHubApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw GitHubApiException(
                 "GitHub App installation token 발급 요청이 실패했습니다. HTTP ${exception.statusCode.value()}",

@@ -70,8 +70,6 @@ class GitHubUserRestClient(
     private fun <T> safeCall(operation: String, call: () -> T): T {
         try {
             return call()
-        } catch (exception: GitHubIdentityApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw mapResponseException(operation, exception)
         } catch (exception: RestClientException) {

@@ -11,6 +11,7 @@ import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
@@ -22,6 +23,7 @@ import java.util.UUID
 @Repository
 class JdbcChangeRecordRepository(
     private val jdbcTemplate: JdbcTemplate,
+    private val namedJdbcTemplate: NamedParameterJdbcTemplate,
 ) : ChangeRecordRepository {
     private val recordRowMapper = RowMapper<ChangeRecord> { resultSet, _ -> mapRecord(resultSet) }
 
@@ -285,11 +287,10 @@ class JdbcChangeRecordRepository(
         table: String,
         mapper: (ResultSet) -> T,
     ): Map<UUID, List<T>> {
-        val placeholders = List(recordIds.size) { "?" }.joinToString(",")
-        return jdbcTemplate.query(
-            "select record_id, $columns from $table where record_id in ($placeholders) order by record_id, sequence_number",
+        return namedJdbcTemplate.query(
+            "select record_id, $columns from $table where record_id in (:recordIds) order by record_id, sequence_number",
+            mapOf("recordIds" to recordIds.map(UUID::toString)),
             { resultSet, _ -> UUID.fromString(resultSet.getString("record_id")) to mapper(resultSet) },
-            *recordIds.map(UUID::toString).toTypedArray(),
         ).groupBy({ it.first }, { it.second })
     }
 
