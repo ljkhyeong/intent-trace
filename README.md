@@ -155,7 +155,7 @@ bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
 
 IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세스 메모리에만 보관합니다. access token 만료가 가까우면 새 token 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` user access token을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
 
-token 갱신이 거부되거나 갱신 응답을 처리하지 못하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
+token 갱신이 거부되거나 갱신 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
 
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 GitHub 저장소 권한을 조회합니다. 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
