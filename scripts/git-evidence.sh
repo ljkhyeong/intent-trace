@@ -60,8 +60,10 @@ case "$operation" in
                 exit 1
                 ;;
         esac
-        if [ "$start_line" -lt 1 ] || [ "$end_line" -lt "$start_line" ]; then
-            printf '%s\n' '줄 범위가 올바르지 않습니다.' >&2
+        if ! { [ "$start_line" -ge 1 ] &&
+            [ "$end_line" -ge "$start_line" ] &&
+            [ "$end_line" -le 10000000 ]; } 2>/dev/null; then
+            printf '%s\n' '줄 범위는 1~10000000 사이여야 하며 시작 줄은 끝 줄 이하여야 합니다.' >&2
             exit 1
         fi
         if [ "$(git cat-file -t "$revision:$path" 2>/dev/null)" != blob ]; then

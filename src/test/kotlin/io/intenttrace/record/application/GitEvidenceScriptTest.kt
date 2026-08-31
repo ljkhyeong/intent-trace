@@ -8,6 +8,7 @@ import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.HexFormat
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 
 class GitEvidenceScriptTest {
@@ -42,6 +43,17 @@ class GitEvidenceScriptTest {
         assertNotEquals(0, emptyFile.exitCode)
         assertNotEquals(0, directory.exitCode)
         assertNotEquals(0, missingFile.exitCode)
+    }
+
+    @Test
+    fun `비교할 수 없는 큰 줄 번호는 해시 없이 실패한다`() {
+        val overflow = "9223372036854775808"
+        for (start in listOf("1", overflow)) {
+            val result = runEvidence("anchor", revision, "sample.txt", start, overflow)
+
+            assertNotEquals(0, result.exitCode, result.output)
+            assertFalse(result.output.lineSequence().any { it.matches(Regex("[0-9a-f]{64}")) }, result.output)
+        }
     }
 
     @Test

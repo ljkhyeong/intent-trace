@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component
 @Component
 class SensitiveTextRedactor {
     private val assignmentPattern = Regex(
-        pattern = "(?i)([\"']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret|private[_-]?key|token)[\"']?\\s*[:=]\\s*)(?:\"[^\"\\r\\n]*\"|'[^'\\r\\n]*'|[^\\s,;]+)",
+        pattern = """(?i)(["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret|private[_-]?key|token)["']?\s*[:=]\s*)(?:"(?:\\[^\r\n]|[^"\\\r\n])*+"|'(?:\\[^\r\n]|[^'\\\r\n])*+'|[^\s,;]+)""",
     )
     private val privateKeyPattern = Regex(
         pattern = "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
