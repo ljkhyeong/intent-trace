@@ -59,6 +59,8 @@
 - 같은 기록의 게시 요청은 PR 번호가 달라도 단일 app에서 직렬화한다. PR별 HEAD 확인과 게시 이력은 따로 유지하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
 - GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
 - 코드 근거 경로는 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에서 같은 값으로 비교한다. 정규화 결과는 서버 운영체제와 관계없이 `/`로 연결한다.
+- 스냅샷 helper는 `core.quotePath=true`의 기존 줄바꿈 출력을 사용해 개인 Git 설정의 영향을 제거한다. 예전 `false` 설정의 해시는 README의 명시적인 호환 명령으로 재현하며 저장값과 비교 규칙은 변경하지 않는다.
+- 코드 근거 helper는 Git `blob`과 실제 파일의 줄 범위만 받으며 디렉터리(`tree`)는 거부한다.
 - 코드 심벌 이름(`symbolName`)도 설명 필드와 같은 비밀값·개인 home 절대 경로 제거를 거쳐 저장한다.
 - 같은 `requestId`는 작성자·저장소와 정규화된 저장 내용이 모두 같은 재시도에만 기존 기록을 반환한다.
 - 검증 시작·종료 시각은 DB와 같은 마이크로초 반올림을 적용해 비교·저장한다. 이전 저장 방식의 재시도도 같은 정밀도로 비교한다.
@@ -168,6 +170,15 @@
 - IntelliJ 로컬 HTTP 테스트에서 1MB를 넘는 기록의 단건·현재 줄 조회 성공, 정확히 4MiB인 응답 성공과 한 바이트 초과 응답 거부를 확인했다. 경로 정규화 후 코드 근거 재생성과 재정규화도 회귀 테스트에 추가했다.
 - 서버 `./gradlew --no-daemon test`는 108개 중 104개 통과·PostgreSQL 조건부 4개 건너뜀이다. IntelliJ `test` 31개, `buildPlugin`, `verifyPluginProjectConfiguration`, `verifyPluginStructure`, `scripts/validate-plugin.sh`와 `git diff --check`가 성공했다. 두 `test` 작업 모두 이번 수정으로 다시 실행됐다.
 - DB 스키마·SQL은 변경하지 않아 PostgreSQL 별도 검증은 재실행하지 않았다. Windows 실행 환경과 실제 IntelliJ 화면에서는 이번 수정을 검증하지 않았다. 0.8.0-SNAPSHOT ZIP은 다시 빌드했지만 설치·푸시·릴리스는 하지 않았다.
+
+## Git 증거 해시 일관성과 파일 객체 검사 (2026-08-31)
+
+- `snapshot`의 Git 명령에 `core.quotePath=true`를 고정했다. 한글 등 비ASCII 파일명이 있어도 개인 설정에 따라 해시가 달라지지 않고, 기존 기본 설정의 해시는 유지한다. 줄바꿈 출력 형식과 저장된 기록의 해시는 변경하지 않았다.
+- 예전 `core.quotePath=false`로 만든 기록은 README의 명시적 재현 명령 결과를 기존 `snapshotDigest`와 비교한다. 새 기록은 기본 helper를 사용하며, 서버에 두 해시를 자동 허용하는 로직이나 DB migration을 추가하지 않았다.
+- `anchor`의 객체 존재 검사를 `blob` 타입 검사로 바꿨다. 디렉터리 목록이 파일 내용으로 해싱되지 않으며, 없는 파일·빈 파일의 줄 요청·파일 끝을 넘는 요청도 계속 거부한다.
+- 임시 Git 저장소의 한글 파일명을 사용해 설정별 스냅샷 일치와 기존 기본 해시 유지, 실제 파일 범위와 디렉터리 거부를 검사했다. 수정 전 두 테스트가 실패하고 수정 후 모두 통과하는 것을 확인했다. 스크립트 변경도 테스트를 다시 실행하도록 Gradle 테스트 입력에 등록했다.
+- `./gradlew --no-daemon test`는 109개 중 105개 통과·PostgreSQL 조건부 4개 건너뜀이다. `sh -n scripts/git-evidence.sh`, `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
+- 서버 API·DB·IntelliJ 코드는 변경하지 않았다. PostgreSQL 별도 검증과 IntelliJ 테스트·ZIP 빌드는 재실행하지 않았고, 푸시·릴리스는 하지 않았다.
 
 ## 다음 작업 후보
 

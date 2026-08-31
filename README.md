@@ -193,6 +193,15 @@ scripts/git-evidence.sh snapshot "$(git rev-parse HEAD)"
 scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/File.kt 10 25
 ```
 
+`snapshot`은 `core.quotePath=true`로 고정한 Git 트리 출력의 SHA-256을 계산합니다. 개인 Git 설정과 관계없이 한글 파일명도 같은 해시를 만들며, Git 기본 설정으로 만든 기존 해시는 유지합니다. `anchor`는 해당 커밋의 파일 객체(`blob`)와 실제 줄 범위만 받습니다. 디렉터리와 없는 파일은 거부합니다.
+
+예전에 `core.quotePath=false`에서 한글 등 비ASCII 파일명이 포함된 기록을 만들었다면 기본 계산값이 달라질 수 있습니다. 당시 사용한 전체 커밋 ID로 아래 명령을 실행해 예전 해시를 재현합니다. 결과가 저장된 `snapshotDigest`와 같은 경우에만 그 기록의 확인·공개에 사용하며, 새 기록은 위의 `snapshot` 스크립트를 사용합니다. 기존 기록의 해시를 덮어쓰거나 불일치를 무시하지 않습니다.
+
+```bash
+legacy_revision=$(git rev-parse --verify '작성-당시-전체-커밋-ID^{commit}') &&
+  git -c core.quotePath=false ls-tree -r --full-tree "$legacy_revision" | shasum -a 256 | awk '{print $1}'
+```
+
 ## API
 
 - `GET /api/v1/change-records`: 팀 공개 기록 또는 내 비공개 기록의 페이지 조회

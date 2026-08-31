@@ -31,7 +31,8 @@ case "$operation" in
             usage >&2
             exit 1
         fi
-        git ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
+        # 기존 기본 출력의 해시를 유지하고 개인 파일명 표시 설정은 적용하지 않는다.
+        git -c core.quotePath=true ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
         ;;
     anchor)
         if [ "$#" -ne 5 ]; then
@@ -63,7 +64,7 @@ case "$operation" in
             printf '%s\n' '줄 범위가 올바르지 않습니다.' >&2
             exit 1
         fi
-        if ! git cat-file -e "$revision:$path" 2>/dev/null; then
+        if [ "$(git cat-file -t "$revision:$path" 2>/dev/null)" != blob ]; then
             printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
             exit 1
         fi
