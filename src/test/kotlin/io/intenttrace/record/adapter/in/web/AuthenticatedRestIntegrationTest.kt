@@ -6,7 +6,10 @@ import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
+import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -19,7 +22,9 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 import java.util.UUID
+import kotlin.test.assertTrue
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedRestIntegrationTest.RestTestConfiguration::class],
@@ -113,6 +118,44 @@ class AuthenticatedRestIntegrationTest(
             status { isBadRequest() }
             jsonPath("$.detail") { value("비밀값 제거 후 제목 길이는 200자 이하여야 합니다.") }
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["가", "\u0001"])
+    fun `입력 상한의 한글과 JSON 이스케이프 기록은 4MiB 안에서 상세를 반환한다`(character: String) {
+        val digest = "a".repeat(64)
+        val timestamp = Instant.parse("2026-08-31T00:00:00Z")
+        val path = ("가".repeat(49) + "/").repeat(19) + "가".repeat(50)
+        val request = CreateChangeRecordRequest(
+            requestId = UUID.randomUUID().toString(),
+            repositoryKey = "acme/intent-trace",
+            snapshotDigest = digest,
+            title = character.repeat(200),
+            requestSummary = character.repeat(2000),
+            decisions = List(20) {
+                DecisionRequest(character.repeat(1000), character.repeat(2000), PurposeSource.STATED_BY_USER)
+            },
+            codeAnchors = List(100) {
+                CodeAnchorRequest(path, character.repeat(500), 1, 1, digest)
+            },
+            verifications = List(50) {
+                VerificationRequest(character.repeat(2000), 0, timestamp, timestamp, digest, digest, character.repeat(2000))
+            },
+            openQuestions = List(50) { character.repeat(1000) },
+        )
+        val created = mockMvc.post("/api/v1/change-records") {
+            authorized()
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsBytes(request)
+        }.andExpect { status { isCreated() } }.andReturn()
+        val id = objectMapper.readTree(created.response.contentAsByteArray).get("id").stringValue()
+        val detail = mockMvc.get("/api/v1/change-records/$id") {
+            authorized()
+        }.andExpect { status { isOk() } }.andReturn()
+
+        val responseBytes = detail.response.contentAsByteArray.size
+        assertTrue(responseBytes > 1_000_000)
+        assertTrue(responseBytes <= 4 * 1024 * 1024, "단건 응답이 IntelliJ의 4MiB 상한을 넘습니다: $responseBytes")
     }
 
     @Test

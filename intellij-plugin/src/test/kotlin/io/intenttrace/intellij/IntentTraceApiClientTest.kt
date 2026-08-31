@@ -14,6 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class IntentTraceApiClientTest {
     @Test
@@ -149,16 +150,66 @@ class IntentTraceApiClientTest {
     }
 
     @Test
-    fun `응답 크기 제한을 넘으면 JSON을 해석하지 않는다`() {
+    fun `1MB를 넘는 한글 기록도 단건과 현재 줄 조회에서 끝까지 읽는다`() {
+        val id = "3efecb93-18c5-4af7-84a7-f830d0b63281"
+        val revision = "a".repeat(40)
+        val summary = "가".repeat(1000)
+        val detail = "나".repeat(2000)
+        val symbol = "함".repeat(500)
+        val decisions = List(20) {
+            """{"summary":"$summary","rationale":"$detail","source":"STATED_BY_USER"}"""
+        }.joinToString(",")
+        val anchors = List(100) {
+            """{"relativePath":"src/App.kt","symbolName":"$symbol","startLine":1,"endLine":1}"""
+        }.joinToString(",")
+        val verifications = List(50) {
+            """{"command":"$detail","exitCode":0,"summary":"$detail","current":true}"""
+        }.joinToString(",")
+        val questions = List(50) { "\"$summary\"" }.joinToString(",")
+        val recordJson = """
+            {"id":"$id","repositoryKey":"team/repository","targetRevision":"$revision",
+             "title":"큰 기록","requestSummary":"응답 크기를 확인한다.","status":"PUBLISHED",
+             "createdBy":{"login":"developer"},"decisions":[$decisions],"codeAnchors":[$anchors],
+             "verifications":[$verifications],"openQuestions":[$questions]}
+        """.trimIndent()
+        assertTrue(recordJson.toByteArray(StandardCharsets.UTF_8).size > 1_000_000)
+
         withServer(
+            path = "/api/v1/change-records",
             handler = { exchange ->
-                val body = ByteArray(1_000_001) { ' '.code.toByte() }
+                val json = if (exchange.requestURI.path.endsWith("/lookup")) "[$recordJson]" else recordJson
+                val body = json.toByteArray(StandardCharsets.UTF_8)
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
             },
         ) { server ->
-            val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
-            assertEquals("IntentTrace 조회 응답이 허용 크기를 초과했습니다.", exception.message)
+            val endpoint = IntentTraceServer.parse("http://127.0.0.1:" + server.address.port)
+            val record = IntentTraceApiClient().record(endpoint, token, id)
+
+            assertEquals(record, lookup(server).single())
+            assertEquals(50, record.verifications.size)
+            assertEquals(detail, record.verifications.last().summary)
+            assertEquals(summary, record.openQuestions.last())
+        }
+    }
+
+    @Test
+    fun `4MiB 응답까지 읽고 한 바이트라도 넘으면 JSON을 해석하지 않는다`() {
+        for (size in listOf(4 * 1024 * 1024, 4 * 1024 * 1024 + 1)) {
+            withServer(
+                handler = { exchange ->
+                    val body = ("[]" + " ".repeat(size - 2)).toByteArray(StandardCharsets.UTF_8)
+                    exchange.sendResponseHeaders(200, body.size.toLong())
+                    exchange.responseBody.use { it.write(body) }
+                },
+            ) { server ->
+                if (size == 4 * 1024 * 1024) {
+                    assertEquals(emptyList(), lookup(server))
+                } else {
+                    val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
+                    assertEquals("IntentTrace 조회 응답이 허용 크기를 초과했습니다.", exception.message)
+                }
+            }
         }
     }
 

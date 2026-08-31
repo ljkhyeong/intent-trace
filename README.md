@@ -170,7 +170,7 @@ export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < ~/.config/intent-t
 
 기존 방식이 필요한 로컬 환경에서는 `INTENT_TRACE_GITHUB_TOKEN`에 직접 발급한 token을 넣을 수 있습니다. 이 값이 있으면 GitHub App 자동 발급보다 우선합니다.
 
-변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 하며 저장할 때 소문자로 정규화합니다. 코드 근거 경로는 저장소 상대 경로만 받으며 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에 같은 값을 사용합니다. client secret, private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. private key 파일은 저장소 밖에 두고 저장소의 ignore 규칙도 방어선으로 유지합니다. 서버 게시 자격 증명과 사용자 요청 자격 증명은 서로 대체하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app), [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), [user access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app), [user token 갱신](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)을 기준으로 합니다.
+변경 기록의 `repositoryKey`는 게시 대상과 같은 `owner/repository` 형식이어야 하며 저장할 때 소문자로 정규화합니다. 코드 근거 경로는 저장소 상대 경로만 받으며 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에 같은 값을 사용합니다. 정규화한 경로의 구분자는 서버 운영체제와 관계없이 `/`로 유지합니다. client secret, private key와 token은 DB, 로그나 Check Run 본문에 저장하지 않습니다. private key 파일은 저장소 밖에 두고 저장소의 ignore 규칙도 방어선으로 유지합니다. 서버 게시 자격 증명과 사용자 요청 자격 증명은 서로 대체하지 않습니다. 자세한 인증 계약은 [GitHub App JWT](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app), [installation token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app), [user access token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app), [user token 갱신](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)을 기준으로 합니다.
 
 ## 기록 흐름
 
@@ -265,7 +265,7 @@ PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 
 
 파일 이력은 수정 중인 파일에서도 조회할 수 있습니다. 현재 줄 결과가 없으면 `이 파일의 과거 기록 보기`를 선택합니다. 이력의 코드 링크는 기록에 저장된 전체 커밋과 줄에 고정되며 현재 편집기 줄로 재해석하지 않습니다. 검증 결과도 기록 스냅샷과의 일치 여부만 뜻합니다. 이름이 바뀐 파일은 자동 추적하지 않으므로 저장소 전체 목록에서 찾아야 합니다.
 
-연결 대기는 최대 5초로 제한합니다. 응답 데이터가 10초 동안 도착하지 않으면 조회를 중단합니다. redirect는 따라가지 않고, 성공 응답은 최대 1,000,000바이트까지 읽습니다.
+연결 대기는 최대 5초로 제한합니다. 응답 데이터가 10초 동안 도착하지 않으면 조회를 중단합니다. redirect는 따라가지 않고, 성공 응답은 최대 4MiB(4,194,304바이트)까지 읽습니다. 서버의 필드별 입력 상한으로 만든 단건 기록은 한글·JSON 이스케이프를 포함해 이 범위에서 조회할 수 있습니다. 여러 기록을 함께 반환하는 현재 줄 조회의 합계가 상한을 넘으면 응답을 자르지 않고 거부합니다. 이때는 기록함에서 필요한 기록을 개별 조회합니다.
 GitHub 연동과 IntelliJ 조회에서 응답 파싱이 실패하면 안전한 오류 안내만 전달하며, 응답 원문을 포함할 수 있는 원인 예외는 연결하지 않습니다.
 
 ## 검증

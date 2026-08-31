@@ -13,7 +13,7 @@ fun requireRepositoryRelativePath(value: String): String {
             path.none { it.toString() == ".." },
     ) { PATH_ERROR_MESSAGE }
 
-    val normalized = path.normalize().toString()
+    val normalized = path.normalize().joinToString("/")
     require(normalized.isNotBlank() && normalized != ".") { PATH_ERROR_MESSAGE }
     return normalized
 }

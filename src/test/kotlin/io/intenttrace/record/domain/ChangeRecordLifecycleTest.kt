@@ -62,6 +62,17 @@ class ChangeRecordLifecycleTest {
     }
 
     @Test
+    fun `정규화한 경로는 운영체제와 관계없이 슬래시를 사용하고 다시 코드 근거로 만들 수 있다`() {
+        for (path in listOf("src/main/App.kt", "./src//main/./App.kt/")) {
+            val anchor = CodeAnchor(path, null, 1, 1, "a".repeat(64))
+            val normalized = anchor.copy(relativePath = requireRepositoryRelativePath(path))
+
+            assertEquals("src/main/App.kt", normalized.relativePath)
+            assertEquals(normalized.relativePath, requireRepositoryRelativePath(normalized.relativePath))
+        }
+    }
+
+    @Test
     fun `상위 이동과 Windows 절대 경로는 코드 근거로 받지 않는다`() {
         listOf("src/../secret.txt", "C:\\Users\\lim\\secret.txt").forEach { path ->
             assertFailsWith<IllegalArgumentException> {

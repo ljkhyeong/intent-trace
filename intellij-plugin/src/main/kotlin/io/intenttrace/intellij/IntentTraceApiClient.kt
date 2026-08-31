@@ -63,7 +63,7 @@ internal class IntentTraceApiClient {
 
     companion object {
         const val TOKEN_ENV = "INTENT_TRACE_SESSION_TOKEN"
-        private const val MAX_RESPONSE_BYTES = 1_000_000
+        private const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024
         private val SESSION_TOKEN = Regex("^its_[A-Za-z0-9_-]{43}$")
 
         fun validSessionToken(value: String): Boolean = SESSION_TOKEN.matches(value)
