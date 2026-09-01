@@ -25,7 +25,10 @@ output_directory=$(dirname -- "$output_file")
 mkdir -p -- "$output_directory"
 output_name=$(basename -- "$output_file")
 temporary_file=$(mktemp "$output_directory/.${output_name}.XXXXXX")
-trap 'rm -f -- "$temporary_file"' EXIT HUP INT TERM
+trap 'rm -f -- "$temporary_file"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 docker compose --env-file "$environment_file" exec -T postgres sh -c \
     'exec pg_dump --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --format=custom --no-owner --no-acl' \

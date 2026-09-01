@@ -18,7 +18,10 @@ require_full_revision() {
 
 prepare_workspace() {
     evidence_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-git-evidence.XXXXXX")
-    trap 'rm -rf -- "$evidence_directory"' EXIT HUP INT TERM
+    trap 'rm -rf -- "$evidence_directory"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
 }
 
 sha256_file() {
@@ -33,6 +36,7 @@ fi
 
 operation=$1
 revision=$2
+max_code_anchor_line=10000000
 require_full_revision "$revision"
 
 case "$operation" in
@@ -74,16 +78,15 @@ case "$operation" in
         esac
         if ! { [ "$start_line" -ge 1 ] &&
             [ "$end_line" -ge "$start_line" ] &&
-            [ "$end_line" -le 10000000 ]; } 2>/dev/null; then
-            printf '%s\n' '줄 범위는 1~10000000 사이여야 하며 시작 줄은 끝 줄 이하여야 합니다.' >&2
-            exit 1
-        fi
-        if [ "$(git cat-file -t "$revision:$path" 2>/dev/null)" != blob ]; then
-            printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
+            [ "$end_line" -le "$max_code_anchor_line" ]; } 2>/dev/null; then
+            printf '줄 범위는 1~%s 사이여야 하며 시작 줄은 끝 줄 이하여야 합니다.\n' "$max_code_anchor_line" >&2
             exit 1
         fi
         prepare_workspace
-        git show "$revision:$path" > "$evidence_directory/source"
+        if ! git cat-file blob "$revision:$path" > "$evidence_directory/source" 2>/dev/null; then
+            printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
+            exit 1
+        fi
         line_count=$(awk 'END { print NR }' "$evidence_directory/source")
         if [ "$end_line" -gt "$line_count" ]; then
             printf '%s\n' "요청한 끝 줄이 파일 범위를 벗어났습니다: $end_line > $line_count" >&2

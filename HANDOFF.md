@@ -207,6 +207,16 @@
 - `./gradlew --no-daemon test`는 112개 중 108개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `sh -n scripts/git-evidence.sh`, `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
 - DB schema·REST·MCP·IntelliJ 코드는 변경하지 않았다. PostgreSQL 별도 검증과 IntelliJ 테스트·ZIP 빌드는 재실행하지 않았으며 푸시·배포·릴리스도 하지 않았다.
 
+## 셸 종료 신호와 코드 근거 규칙 정리 (2026-09-01)
+
+- `git-evidence.sh`, `backup-postgres.sh`, `verify-postgres.sh`의 정리 동작을 `EXIT`에만 두고 `HUP`·`INT`·`TERM`은 각각 129·130·143으로 종료하게 분리했다. 종료 신호 뒤 성공 경로를 계속 실행하지 않으며 `EXIT`에서 실행별 임시 파일·디렉터리·Compose 자원을 정리한다.
+- 백업 중 `TERM`을 보낸 회귀 테스트를 추가했다. 수정 전에는 정리 후 다음 명령을 계속 실행해 빈 백업 오류 코드 `1`로 끝났고, 수정 후에는 `143`으로 종료하며 임시 파일과 최종 backup을 남기지 않는다. 기존 동시 backup 보존 테스트도 함께 통과했다.
+- 코드 근거의 10,000,000줄 상한을 `CodeAnchor` 도메인 상수로 옮기고 REST·MCP DTO가 같은 상수를 참조하게 했다. helper의 셸 비교도 이름을 붙인 같은 값으로 유지한다. 수정 전에는 직접 만든 `CodeAnchor`가 상한을 넘을 수 있었고 수정 후 거부한다.
+- `anchor`는 `git cat-file -t`와 `git show`를 나눠 호출하지 않고 `git cat-file blob` 한 번으로 객체 타입과 내용을 확인한다. 정상 파일의 기존 해시가 유지되고 디렉터리·없는 파일 거부도 기존 테스트로 확인했다.
+- `./gradlew --no-daemon test`는 113개 중 109개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `python3 scripts/test_backup_postgres.py`, 전체 셸의 Linux `dash` 문법 검사와 기존 증거 해시 직접 비교도 성공했다.
+- 별도 PostgreSQL 17 임시 Compose 프로젝트에서 migration·JDBC와 backup·restore 왕복을 실행해 기록 12건 복원을 확인했다. 검증 container·network·volume과 임시 파일은 종료 시 정리됐다. 실제 팀 DB와 기존 backup은 사용하거나 변경하지 않았다.
+- DB schema·REST·MCP 응답·IntelliJ 코드는 변경하지 않았다. IntelliJ 테스트·ZIP 빌드는 재실행하지 않았고 푸시·배포·릴리스도 하지 않았다.
+
 ## 다음 작업 후보
 
 1. 화면 제어 서비스 재시작 비교는 마쳤으며, 제품 코드를 바꾸지 않고 화면 조회가 복구됐다. 재발 방지 수정이 확인된 것은 아니므로 팝업을 직접 열지 않는 키보드 선택이나 정상적으로 화면을 읽는 환경에서 `팀 공개 기록 · 공개/대체됨`, `내 비공개 기록 · 전체/초안`과 커밋 없는 초안의 이동 버튼 비활성화를 직접 확인한다. 공용 제어 서비스 재시작은 다른 연결에도 영향을 줄 수 있으므로 상시 우회 수단으로 반복하지 않는다. 남은 수동 검증 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.

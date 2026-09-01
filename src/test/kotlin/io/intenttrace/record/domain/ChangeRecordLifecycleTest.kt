@@ -82,6 +82,13 @@ class ChangeRecordLifecycleTest {
     }
 
     @Test
+    fun `코드 근거 줄 범위는 서버 상한을 넘을 수 없다`() {
+        assertFailsWith<IllegalArgumentException> {
+            CodeAnchor("src/App.kt", "App", 1, 10_000_001, "a".repeat(64))
+        }
+    }
+
+    @Test
     fun `공개 기록은 같은 작성자와 저장소의 공개 기록으로 대체한다`() {
         val current = draft().copy(status = ChangeRecordStatus.PUBLISHED)
         val replacement = draft().copy(id = UUID.randomUUID(), status = ChangeRecordStatus.PUBLISHED)

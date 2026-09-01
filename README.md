@@ -193,7 +193,7 @@ scripts/git-evidence.sh snapshot "$(git rev-parse HEAD)"
 scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/File.kt 10 25
 ```
 
-`snapshot`은 `core.quotePath=true`로 고정한 Git 트리 출력의 SHA-256을 계산합니다. 개인 Git 설정과 관계없이 한글 파일명도 같은 해시를 만들며, Git 기본 설정으로 만든 기존 해시는 유지합니다. `anchor`는 해당 커밋의 파일 객체(`blob`)와 실제 줄 범위만 받습니다. 두 작업 모두 Git 출력과 줄 추출이 성공한 뒤에만 해시를 출력합니다. Git 객체를 읽지 못하거나 줄 추출에 실패하면 빈 내용의 해시를 출력하지 않고 실패합니다. 줄 번호는 서버와 같은 1~10,000,000 범위이며 시작 줄이 끝 줄보다 클 수 없습니다. 디렉터리·없는 파일·비교할 수 없는 큰 줄 번호도 해시를 출력하지 않고 실패합니다.
+`snapshot`은 `core.quotePath=true`로 고정한 Git 트리 출력의 SHA-256을 계산합니다. 개인 Git 설정과 관계없이 한글 파일명도 같은 해시를 만들며, Git 기본 설정으로 만든 기존 해시는 유지합니다. `anchor`는 `git cat-file blob`으로 해당 커밋의 파일 객체와 내용을 한 번에 확인하고 실제 줄 범위만 받습니다. 두 작업 모두 Git 출력과 줄 추출이 성공한 뒤에만 해시를 출력합니다. Git 객체를 읽지 못하거나 줄 추출에 실패하면 빈 내용의 해시를 출력하지 않고 실패합니다. 줄 번호는 도메인과 helper가 함께 적용하는 1~10,000,000 범위이며 시작 줄이 끝 줄보다 클 수 없습니다. 디렉터리·없는 파일·비교할 수 없는 큰 줄 번호도 해시를 출력하지 않고 실패합니다.
 
 예전에 `core.quotePath=false`에서 한글 등 비ASCII 파일명이 포함된 기록을 만들었다면 기본 계산값이 달라질 수 있습니다. 당시 사용한 전체 커밋 ID로 아래 명령을 실행해 예전 해시를 재현합니다. 결과가 저장된 `snapshotDigest`와 같은 경우에만 그 기록의 확인·공개에 사용하며, 새 기록은 위의 `snapshot` 스크립트를 사용합니다. 기존 기록의 해시를 덮어쓰거나 불일치를 무시하지 않습니다.
 
@@ -290,7 +290,7 @@ python3 scripts/test_validate_release_version.py
 python3 scripts/test_backup_postgres.py
 ```
 
-기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. `scripts/test_backup_postgres.py`는 같은 경로를 사용하는 백업이 겹쳐도 먼저 완료된 파일을 덮어쓰거나 삭제하지 않는지 확인합니다. Compose 검증은 service·network·host port·외부 image digest 경계를 확인합니다. GitHub Actions는 pull request와 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
+기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. `scripts/test_backup_postgres.py`는 같은 경로를 사용하는 백업이 겹쳐도 먼저 완료된 파일을 덮어쓰거나 삭제하지 않는지와 종료 신호를 받은 백업이 완료 처리되지 않는지를 확인합니다. Compose 검증은 service·network·host port·외부 image digest 경계를 확인합니다. GitHub Actions는 pull request와 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
 
 ## 현재 제한
 
