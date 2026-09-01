@@ -17,7 +17,7 @@ IntentTrace는 로컬 H2 실행과 PostgreSQL 연결 profile을 제공하지만 
 - app image는 Java 21 다단계 build, 비root 사용자, 읽기 전용 root filesystem, `/tmp` tmpfs와 제거된 Linux capability로 실행한다.
 - PostgreSQL·Caddy·Java build/runtime image와 Dockerfile frontend는 tag와 digest를 함께 기록한다. app image는 배포한 전체 Git commit ID를 tag로 사용해 같은 host에서 이전 image를 식별한다.
 - PostgreSQL volume에는 변경 의도와 GitHub 게시 이력만 저장한다. GitHub access·refresh token과 `its_` session은 계속 app 메모리에만 둔다.
-- backup은 기존 파일을 덮어쓰지 않는 custom-format `pg_dump`로 만들고 권한을 `0600`으로 제한한다.
+- backup은 최종 경로와 같은 디렉터리의 임시 파일에 custom-format `pg_dump`를 만들고 권한을 `0600`으로 제한한다. 완성한 임시 파일은 하드 링크로 최종 경로를 배타적으로 확보한 뒤 공개한다. 같은 경로의 다른 실행이 먼저 완료됐으면 실패한 실행은 자신의 임시 파일만 삭제하고 기존 backup을 유지한다.
 - restore는 app이 중지된 상태와 `--confirm-replace`가 모두 확인될 때만 `pg_restore --clean --single-transaction`으로 실행한다.
 - pull request와 `main` push에서 Gradle Wrapper·테스트, PostgreSQL 17 migration·JDBC·backup·restore, 플러그인 구조, Compose network·port·image 경계, Caddy 설정과 app image build를 검증한다.
 

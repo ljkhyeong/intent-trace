@@ -53,6 +53,9 @@ jobs:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
         run: scripts/validate-plugin.sh
 
+      - name: 동시 백업 파일 보존 확인
+        run: python3 scripts/test_backup_postgres.py
+
       - name: PostgreSQL 계약 검증
         run: scripts/verify-postgres.sh
 
