@@ -72,6 +72,25 @@ class GitEvidenceScriptTest {
         }
     }
 
+    @Test
+    fun `Git 트리 조회가 실패하면 빈 스냅샷 해시를 반환하지 않는다`() {
+        val tree = runGit("rev-parse", "HEAD^{tree}").output.trim()
+        val objectPath = repository.resolve(
+            runGit("rev-parse", "--git-path", "objects/${tree.take(2)}/${tree.drop(2)}").output.trim(),
+        )
+        val missingObjectPath = objectPath.resolveSibling("${objectPath.fileName}.missing")
+        Files.move(objectPath, missingObjectPath)
+
+        try {
+            val result = runEvidence("snapshot", revision)
+
+            assertNotEquals(0, result.exitCode, result.output)
+            assertFalse(result.output.lineSequence().any { it.matches(Regex("[0-9a-f]{64}")) }, result.output)
+        } finally {
+            Files.move(missingObjectPath, objectPath)
+        }
+    }
+
     private fun sha256(text: String): String =
         HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
 

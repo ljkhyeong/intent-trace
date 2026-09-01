@@ -16,6 +16,16 @@ require_full_revision() {
     fi
 }
 
+prepare_workspace() {
+    evidence_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-git-evidence.XXXXXX")
+    trap 'rm -rf -- "$evidence_directory"' EXIT HUP INT TERM
+}
+
+sha256_file() {
+    digest_line=$(shasum -a 256 < "$1")
+    printf '%s\n' "${digest_line%% *}"
+}
+
 if [ "$#" -lt 2 ]; then
     usage >&2
     exit 1
@@ -32,7 +42,9 @@ case "$operation" in
             exit 1
         fi
         # 기존 기본 출력의 해시를 유지하고 개인 파일명 표시 설정은 적용하지 않는다.
-        git -c core.quotePath=true ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
+        prepare_workspace
+        git -c core.quotePath=true ls-tree -r --full-tree "$revision" > "$evidence_directory/snapshot"
+        sha256_file "$evidence_directory/snapshot"
         ;;
     anchor)
         if [ "$#" -ne 5 ]; then
@@ -70,12 +82,15 @@ case "$operation" in
             printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
             exit 1
         fi
-        line_count=$(git show "$revision:$path" | awk 'END { print NR }')
+        prepare_workspace
+        git show "$revision:$path" > "$evidence_directory/source"
+        line_count=$(awk 'END { print NR }' "$evidence_directory/source")
         if [ "$end_line" -gt "$line_count" ]; then
             printf '%s\n' "요청한 끝 줄이 파일 범위를 벗어났습니다: $end_line > $line_count" >&2
             exit 1
         fi
-        git show "$revision:$path" | sed -n "${start_line},${end_line}p" | shasum -a 256 | awk '{print $1}'
+        sed -n "${start_line},${end_line}p" "$evidence_directory/source" > "$evidence_directory/range"
+        sha256_file "$evidence_directory/range"
         ;;
     *)
         usage >&2
