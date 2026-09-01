@@ -4,10 +4,10 @@ import io.intenttrace.publication.adapter.`in`.web.GitHubPublicationResponse
 import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
 import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.record.adapter.`in`.mcp.parseChangeRecordId
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class GitHubPublicationTools(
@@ -36,7 +36,7 @@ class GitHubPublicationTools(
     ): GitHubPublicationResponse = GitHubPublicationResponse.from(
         publisher.publish(
             PublishChangeRecordToGitHubCommand(
-                changeRecordId = UUID.fromString(changeRecordId),
+                changeRecordId = parseChangeRecordId(changeRecordId),
                 target = GitHubPullRequestTarget(owner, repository, pullNumber),
             ),
         ),

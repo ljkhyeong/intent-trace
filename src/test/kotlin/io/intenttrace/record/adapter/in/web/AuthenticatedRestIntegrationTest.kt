@@ -7,6 +7,8 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.PurposeSource
+import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -117,6 +119,21 @@ class AuthenticatedRestIntegrationTest(
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.detail") { value("비밀값 제거 후 제목 길이는 200자 이하여야 합니다.") }
+        }
+    }
+
+    @Test
+    fun `요청 식별자의 비밀값은 저장 전에 원문 없이 거부한다`() {
+        val sessionToken = "its_${"A".repeat(43)}"
+
+        mockMvc.post("/api/v1/change-records") {
+            authorized()
+            contentType = MediaType.APPLICATION_JSON
+            content = createRequest(sessionToken, "판단을 기록한다.")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.detail") { value("요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다.") }
+            content { string(not(containsString(sessionToken))) }
         }
     }
 
