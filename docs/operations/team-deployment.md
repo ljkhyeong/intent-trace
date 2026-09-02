@@ -21,6 +21,7 @@ INTENT_TRACE_SITE_ADDRESS=intent.example.com
 INTENT_TRACE_HTTP_PORT=80
 INTENT_TRACE_HTTPS_PORT=443
 INTENT_TRACE_GITHUB_CALLBACK_URL=https://intent.example.com/auth/github/callback
+INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER=5
 ```
 
 `INTENT_TRACE_DATABASE_PASSWORD`, GitHub App client secret과 Base64 private key는 실제 값으로 교체한다. `.env.team`을 Git, issue, 채팅이나 backup에 넣지 않는다.

@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service
 class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
+    val localSessionId: String? = null,
 ) {
-    override fun toString(): String = "GitHubUserSession(actor=$actor, accessToken=[보호됨])"
+    override fun toString(): String =
+        "GitHubUserSession(actor=$actor, accessToken=[보호됨], localSessionId=[보호됨])"
 }
 
 interface CurrentGitHubUserSession {
@@ -47,6 +49,9 @@ class RepositoryAccessService(
 }
 
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
+
+class LocalGitHubUserSessionRequiredException :
+    RuntimeException("IntentTrace에서 발급한 its_ session으로 요청해야 합니다.")
 
 class GitHubIdentityApiException(message: String) : RuntimeException(message)
 

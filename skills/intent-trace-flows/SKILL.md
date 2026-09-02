@@ -39,6 +39,7 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
 - GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 현재 사용자와 대상 저장소의 권한만 조회한다. 응답의 숫자 사용자 ID가 `/user`로 확인한 subject와 일치해야 하며, `read`는 READER, `write`는 CONTRIBUTOR, `admin`과 `role_name=maintain`은 MAINTAINER로 해석한다. `none`과 404는 권한 없음으로 처리하고 public 저장소의 일반 읽기 가능 여부만으로 팀원이라고 판단하지 않는다.
 - GitHub access·refresh token은 메모리에만 보유하고 DB, URL, cookie, 로그, 예외, 도구 입력에 넣지 않는다. `its_` 원문도 callback 성공 본문 외에는 응답하지 않고 store에는 digest만 인덱스로 둔다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
+- 사용자별 활성 session 상한을 적용하고 새 session 발급 시 같은 사용자의 가장 오래된 session을 폐기한다. `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest만 제거하며 호환용 `ghu_` token을 GitHub에서 폐기하려고 시도하지 않는다.
 - access token 만료 전 refresh는 세션별 잠금 안에서 한 번만 수행하고 새 access·refresh token 쌍으로 함께 교체한다. 갱신 거부, token 거부 또는 사용자 subject 변경은 session을 폐기해 재로그인을 요구한다.
 - V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
 

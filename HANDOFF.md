@@ -15,6 +15,7 @@
 - GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
 - GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
 - SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
+- 현재 `its_` 세션 폐기, 사용자별 활성 세션 기본 5개 상한과 오래된 세션 자동 폐기
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
 - 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
 - 비root·읽기 전용 app container와 분리된 data·edge network
@@ -29,7 +30,7 @@
 - Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
-- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
+- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션의 서버 폐기·삭제
 - IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
 - IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
 - IntelliJ 기록함 조회 실패 시 마지막 성공 필터 복원과 기존 목록·선택·페이지 유지
@@ -47,6 +48,7 @@
 - 미완료 OAuth `state`는 TTL과 전역 개수 상한으로 제한하고 상한 도달 시 새 승인을 거부한다.
 - refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
 - 갱신 거부 또는 응답 수신·파싱·token 값 변환 실패 시 세션을 폐기하고 `401`로 재승인을 요구한다. 잠금을 기다리던 요청도 폐기된 세션을 사용하지 않는다. 단순 사용자 조회 장애는 `502`로 구분하고 세션을 유지한다.
+- 사용자별 활성 세션은 기본 5개로 제한하고 새 세션 발급 시 가장 오래된 세션을 폐기한다. `DELETE /api/v1/session`은 현재 `its_` 세션만 폐기한다.
 - 생성·확인·공개·대체·GitHub 게시는 저장소 쓰기 권한이 필요하다.
 - 확인 시 전체 Git 커밋 ID가 필요하다.
 - 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
@@ -77,7 +79,7 @@
 - IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 4MiB(4,194,304바이트) 응답 상한을 유지한다. 서버 입력 상한의 단건 기록은 수용하고, 여러 기록의 합계가 상한을 넘으면 기록함에서 개별 조회한다.
 - IntelliJ 승인 시작은 기존 서버 URL만 열고 callback·state·PKCE는 서버가 처리한다.
 - IntelliJ 서버 주소는 로컬 IDE 설정, 환경 변수, 기본 loopback 주소 순서로 선택하며 설정 동기화에서 제외한다. 연결 확인은 인증 정보 없이 health만 조회하고 설정을 저장하지 않는다.
-- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션을 삭제해도 해당 서버에 사용할 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
+- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션은 서버 폐기 성공 또는 이미 만료된 `401` 뒤 삭제하고, 서버 장애 때는 다시 시도할 수 있도록 유지한다. 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
 
 ## IntelliJ 설치와 화면 검증 (2026-08-30)
 
@@ -235,18 +237,25 @@
 - GitHub HTTP 계약 테스트에서 단건 요청 경로·역할 매핑·404·사용자 불일치·파싱 오류의 원문 제거를 확인한다. 실제 GitHub 사용자 token이나 저장소 데이터는 사용하지 않는다.
 - `./gradlew --no-daemon clean test`는 125개 중 121개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `scripts/validate-plugin.sh`, 스킬 `quick_validate.py`와 `git diff --check`도 성공했다. DB schema·REST·MCP·IntelliJ 계약은 변경하지 않아 PostgreSQL 별도 검증과 IntelliJ 빌드는 재실행하지 않았으며 푸시·배포·릴리스도 하지 않았다.
 
+## 로컬 세션 폐기와 사용자별 상한 (2026-09-02)
+
+- `DELETE /api/v1/session`이 인증 필터에서 확인한 현재 `its_` 세션의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` 직접 인증 요청은 `400`으로 거부한다.
+- 사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 설정한다. 새 세션 발급 시 만료 세션을 먼저 정리하고 같은 사용자의 가장 오래된 세션을 폐기한다.
+- IntelliJ 저장 세션 삭제 액션은 PasswordSafe 세션을 서버에서 먼저 폐기한다. 성공 또는 이미 만료된 `401` 뒤 로컬 자격 증명을 삭제하고, 서버 장애 때는 token을 유지한다. 환경 변수 세션은 변경하지 않는다.
+- 로컬 HTTP·Spring 통합 테스트로 세션 폐기 이후 `401`, `ghu_` 거부, 사용자별 상한, IntelliJ `DELETE` 요청과 `401` 정리를 확인했다. 서버 `./gradlew --no-daemon clean test`는 130개 중 126개 통과·PostgreSQL 조건부 4개 건너뜀이고, IntelliJ 테스트 32개와 플러그인 빌드·구성·구조 검사, `scripts/validate-plugin.sh`, Compose 검사, 스킬 `quick_validate.py`, `git diff --check`가 성공했다. 실제 GitHub App OAuth·권한은 재인증 시간 초과로 아직 포함하지 않았다.
+
 ## 다음 작업 후보
 
 1. 화면 제어 서비스 재시작 비교는 마쳤으며, 제품 코드를 바꾸지 않고 화면 조회가 복구됐다. 재발 방지 수정이 확인된 것은 아니므로 팝업을 직접 열지 않는 키보드 선택이나 정상적으로 화면을 읽는 환경에서 `팀 공개 기록 · 공개/대체됨`, `내 비공개 기록 · 전체/초안`과 커밋 없는 초안의 이동 버튼 비활성화를 직접 확인한다. 공용 제어 서비스 재시작은 다른 연결에도 영향을 줄 수 있으므로 상시 우회 수단으로 반복하지 않는다. 남은 수동 검증 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
 2. 작성자 본인의 비공개 초안 수정·폐기 기능을 설계한다. 공개 기록 불변성과 낙관적 잠금은 유지한다.
 3. 실제 사용자 피드백을 바탕으로 결과 창을 ToolWindow로 바꿀 필요가 있는지 결정한다.
 4. 판단별 코드·검증 연결과 기록 생성 보조를 검토한다.
-5. 운영 요구가 생기면 encrypted session, 승인 폐기 webhook, Check Run line annotation을 검토한다.
+5. 운영 요구가 생기면 encrypted session, 승인 폐기 webhook, 활성 세션 목록·관리자 폐기와 Check Run line annotation을 검토한다.
 
 ## 현재 제한
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
-- 승인 폐기 webhook과 사용자가 세션을 직접 조회·폐기하는 UI는 없다.
+- 승인 폐기 webhook과 활성 세션 목록·관리자 폐기 UI는 없다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.

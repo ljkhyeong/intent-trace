@@ -93,6 +93,31 @@ class IntentTraceApiClientTest {
         }
     }
 
+    @Test
+    fun `session 폐기는 DELETE와 bearer token을 보내고 이미 만료된 session도 완료로 처리한다`() {
+        for (status in listOf(204, 401)) {
+            val method = AtomicReference<String>()
+            val authorization = AtomicReference<String>()
+            withServer(
+                path = "/api/v1/session",
+                handler = { exchange ->
+                    method.set(exchange.requestMethod)
+                    authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+                    exchange.sendResponseHeaders(status, -1)
+                    exchange.close()
+                },
+            ) { server ->
+                IntentTraceApiClient().revokeSession(
+                    IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
+                    token,
+                )
+            }
+
+            assertEquals("DELETE", method.get())
+            assertEquals("Bearer $token", authorization.get())
+        }
+    }
+
     @Test(timeout = 20_000)
     fun `헤더 이후 본문이 멈추면 읽기 제한 시간으로 실패한다`() {
         val releaseBody = CountDownLatch(1)

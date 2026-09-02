@@ -62,6 +62,7 @@ data class GitHubUserAuthorizationProperties(
     val callbackUrl: URI = URI.create("http://127.0.0.1:8080/auth/github/callback"),
     val stateTtl: Duration = Duration.ofMinutes(10),
     val maxPendingStates: Int = 1_000,
+    val maxSessionsPerUser: Int = 5,
     val refreshBeforeExpiry: Duration = Duration.ofMinutes(5),
 ) {
     init {
@@ -83,6 +84,9 @@ data class GitHubUserAuthorizationProperties(
         require(maxPendingStates in 1..100_000) {
             "GitHub OAuth 대기 state 상한은 1 이상 100,000 이하여야 합니다."
         }
+        require(maxSessionsPerUser in 1..100) {
+            "GitHub 사용자별 session 상한은 1 이상 100 이하여야 합니다."
+        }
         require(
             !refreshBeforeExpiry.isNegative &&
                 !refreshBeforeExpiry.isZero &&
@@ -97,6 +101,7 @@ data class GitHubUserAuthorizationProperties(
     override fun toString(): String =
         "GitHubUserAuthorizationProperties(webBaseUrl=$webBaseUrl, clientSecret=[보호됨], " +
             "callbackUrl=$callbackUrl, stateTtl=$stateTtl, maxPendingStates=$maxPendingStates, " +
+            "maxSessionsPerUser=$maxSessionsPerUser, " +
             "refreshBeforeExpiry=$refreshBeforeExpiry, " +
             "secureCookie=$secureCookie)"
 

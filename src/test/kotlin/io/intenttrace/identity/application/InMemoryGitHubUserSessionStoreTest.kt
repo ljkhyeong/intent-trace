@@ -39,6 +39,36 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @Test
+    fun `session을 폐기하면 해당 token만 다시 사용할 수 없다`() {
+        val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
+        val second = store.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
+
+        store.revoke(store.resolve(first.sessionToken).localSessionId!!)
+
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(first.sessionToken) }
+        assertEquals("ghu_access-2", store.resolve(second.sessionToken).accessToken)
+    }
+
+    @Test
+    fun `사용자별 상한을 넘겨 발급하면 가장 오래된 session을 폐기한다`() {
+        val limitedStore = InMemoryGitHubUserSessionStore(
+            oauth,
+            users,
+            GitHubProperties(userAuthorization = GitHubUserAuthorizationProperties(maxSessionsPerUser = 2)),
+            clock,
+        )
+        val first = limitedStore.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
+        clock.advance(Duration.ofSeconds(1))
+        val second = limitedStore.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
+        clock.advance(Duration.ofSeconds(1))
+        val third = limitedStore.issue(owner, tokens(clock.instant(), "3", Duration.ofHours(8)))
+
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(first.sessionToken) }
+        assertEquals("ghu_access-2", limitedStore.resolve(second.sessionToken).accessToken)
+        assertEquals("ghu_access-3", limitedStore.resolve(third.sessionToken).accessToken)
+    }
+
+    @Test
     fun `만료가 가까우면 token 쌍을 한 번 갱신한다`() {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
 

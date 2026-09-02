@@ -20,6 +20,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
@@ -101,6 +102,48 @@ class GitHubOAuthSessionIntegrationTest(
             status { isOk() }
             content { string(containsString("\"isError\":false")) }
         }
+    }
+
+    @Test
+    fun `현재 로컬 session을 폐기하면 이후 요청은 인증되지 않는다`() {
+        val sessionToken = issueSession()
+
+        mockMvc.delete("/api/v1/session") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
+        }.andExpect {
+            status { isNoContent() }
+        }
+
+        mockMvc.delete("/api/v1/session") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `GitHub access token으로는 로컬 session 폐기를 요청할 수 없다`() {
+        mockMvc.delete("/api/v1/session") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer ghu_direct-access")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.title") { value("IntentTrace session 필요") }
+        }
+    }
+
+    private fun issueSession(): String {
+        val start = mockMvc.get("/auth/github/start").andReturn()
+        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!)
+            .build()
+            .queryParams
+            .getFirst("state")!!
+        val callback = mockMvc.get("/auth/github/callback") {
+            param("code", "authorization-code")
+            param("state", state)
+            cookie(cookie)
+        }.andReturn()
+        return Regex("its_[A-Za-z0-9_-]{40,}").find(callback.response.contentAsString)!!.value
     }
 
     @Test

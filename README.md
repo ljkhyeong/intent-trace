@@ -158,6 +158,8 @@ IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세�
 
 token 갱신이 거부되거나 갱신 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
 
+사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 가장 오래된 세션을 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 token 요청은 `401`을 반환합니다. 호환용 `ghu_` token은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
+
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 권한을 GitHub의 사용자별 단건 권한 API로 조회합니다. 권한 응답의 숫자 사용자 ID가 현재 세션 주체와 일치해야 하며, 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. 권한 없음과 404는 접근 거부로 처리하고 public 저장소의 일반 공개 여부만으로 팀 접근을 허용하지 않습니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
 GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
@@ -268,7 +270,7 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 
 기록함 조회에 실패하면 필터를 마지막 성공 조건으로 되돌리고 기존 목록·선택·페이지를 유지합니다. 새 조건은 조회에 성공한 뒤 적용됩니다.
 
-PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다.
+PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. 플러그인은 저장된 세션을 서버에서 먼저 폐기하고 로컬 자격 증명을 삭제합니다. 서버 장애로 폐기하지 못하면 token을 유지해 다시 시도할 수 있게 합니다.
 
 `INTENT_TRACE_SESSION_TOKEN` 환경 변수는 선택한 주소가 `INTENT_TRACE_URL`의 주소와 같을 때만 PasswordSafe의 대체 수단으로 사용합니다. `INTENT_TRACE_URL`이 없으면 기본 서버에만 적용합니다. 이 경우 PasswordSafe를 지운 뒤에도 환경 변수 세션이 남아 있음을 안내합니다.
 
@@ -298,7 +300,7 @@ python3 scripts/test_backup_postgres.py
 
 - GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 승인 폐기 webhook과 세션 관리 UI는 아직 제공하지 않습니다.
+- GitHub 승인 폐기 webhook과 활성 세션 목록·관리자 폐기 UI는 아직 제공하지 않습니다.
 - GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
