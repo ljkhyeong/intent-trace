@@ -15,6 +15,7 @@
 - GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
 - GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
 - SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
+- 현재 `its_` 세션 폐기, 사용자별 활성 세션 기본 5개 상한과 오래된 세션 자동 폐기
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
 - 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
 - 비root·읽기 전용 app container와 분리된 data·edge network
@@ -29,7 +30,7 @@
 - Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
 - IntentTrace 저장소 전용 개발 스킬
 - IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
-- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션 삭제
+- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션의 서버 폐기·삭제
 - IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
 - IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
 - IntelliJ 기록함 조회 실패 시 마지막 성공 필터 복원과 기존 목록·선택·페이지 유지
@@ -47,6 +48,7 @@
 - 미완료 OAuth `state`는 TTL과 전역 개수 상한으로 제한하고 상한 도달 시 새 승인을 거부한다.
 - refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
 - 갱신 거부 또는 응답 수신·파싱·token 값 변환 실패 시 세션을 폐기하고 `401`로 재승인을 요구한다. 잠금을 기다리던 요청도 폐기된 세션을 사용하지 않는다. 단순 사용자 조회 장애는 `502`로 구분하고 세션을 유지한다.
+- 사용자별 활성 세션은 기본 5개로 제한하고 새 세션 발급 시 가장 오래된 세션을 폐기한다. `DELETE /api/v1/session`은 현재 `its_` 세션만 폐기한다.
 - 생성·확인·공개·대체·GitHub 게시는 저장소 쓰기 권한이 필요하다.
 - 확인 시 전체 Git 커밋 ID가 필요하다.
 - 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
@@ -58,7 +60,9 @@
 - Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
 - 같은 기록의 게시 요청은 PR 번호가 달라도 단일 app에서 직렬화한다. PR별 HEAD 확인과 게시 이력은 따로 유지하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
 - GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
-- 코드 근거 경로는 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에서 같은 값으로 비교한다.
+- 코드 근거 경로는 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에서 같은 값으로 비교한다. 정규화 결과는 서버 운영체제와 관계없이 `/`로 연결한다.
+- 스냅샷 helper는 `core.quotePath=true`의 기존 줄바꿈 출력을 사용해 개인 Git 설정의 영향을 제거한다. 예전 `false` 설정의 해시는 README의 명시적인 호환 명령으로 재현하며 저장값과 비교 규칙은 변경하지 않는다.
+- 코드 근거 helper는 Git `blob`과 실제 파일의 줄 범위만 받으며 디렉터리(`tree`)는 거부한다.
 - 코드 심벌 이름(`symbolName`)도 설명 필드와 같은 비밀값·개인 home 절대 경로 제거를 거쳐 저장한다.
 - 같은 `requestId`는 작성자·저장소와 정규화된 저장 내용이 모두 같은 재시도에만 기존 기록을 반환한다.
 - 검증 시작·종료 시각은 DB와 같은 마이크로초 반올림을 적용해 비교·저장한다. 이전 저장 방식의 재시도도 같은 정밀도로 비교한다.
@@ -72,10 +76,10 @@
 - GitHub 연동과 IntelliJ 응답 파싱 오류는 응답 원문을 포함할 수 있는 원인 예외를 전달하지 않는다.
 - IntelliJ 플러그인은 `its_` session만 PasswordSafe에 저장하고 GitHub token을 입력받지 않는다.
 - IntelliJ 현재 줄 조회는 커밋된 파일과 전체 HEAD commit만 사용한다.
-- IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 1,000,000바이트 응답 상한을 유지한다.
+- IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 4MiB(4,194,304바이트) 응답 상한을 유지한다. 서버 입력 상한의 단건 기록은 수용하고, 여러 기록의 합계가 상한을 넘으면 기록함에서 개별 조회한다.
 - IntelliJ 승인 시작은 기존 서버 URL만 열고 callback·state·PKCE는 서버가 처리한다.
 - IntelliJ 서버 주소는 로컬 IDE 설정, 환경 변수, 기본 loopback 주소 순서로 선택하며 설정 동기화에서 제외한다. 연결 확인은 인증 정보 없이 health만 조회하고 설정을 저장하지 않는다.
-- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션을 삭제해도 해당 서버에 사용할 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
+- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션은 서버 폐기 성공 또는 이미 만료된 `401` 뒤 삭제하고, 서버 장애 때는 다시 시도할 수 있도록 유지한다. 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
 
 ## IntelliJ 설치와 화면 검증 (2026-08-30)
 
@@ -160,18 +164,107 @@
 - 복구 후 화면에서 종료 확인을 눌러 진단용 IDE를 정상 종료했다. 메모리 서버도 종료 코드 0으로 끝났고, 빈 서버 설정과 기존 PasswordSafe 세션을 유지한 채 테스트 환경 변수 없이 IntelliJ를 복원했다. 제품 코드와 설치 파일은 변경하지 않았다. 남은 네 가지 상태 필터·커밋 없는 초안 버튼의 수동 검증은 이번 비교에 포함하지 않았다.
 - 문서 변경 후 서버 `./gradlew --no-daemon test`는 기존 성공 결과를 재사용했다(`UP-TO-DATE`). `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다. 푸시·릴리스는 하지 않았다.
 
+## 큰 기록 조회와 저장소 경로 구분자 수정 (2026-08-31)
+
+- IntelliJ 성공 응답 상한을 1,000,000바이트에서 4MiB(4,194,304바이트)로 조정했다. 서버 입력 한도와 저장된 기록은 변경하지 않았으며, 상한을 넘는 응답은 계속 거부한다. 현재 줄 조회의 여러 기록 합계가 상한을 넘으면 사용자가 기록함에서 개별 조회한다.
+- JDK `Path.normalize()`의 경로 요소를 `/`로 연결한다. Windows에서 정규화한 경로가 역슬래시로 바뀌어 `CodeAnchor.copy()`의 검사에서 실패하던 경로를 수정했다. 새 경로 처리 클래스나 검증 계층은 추가하지 않았다.
+- REST 통합 테스트에서 필드별 상한의 한글과 JSON 이스케이프 입력을 H2에 저장하고 상세를 조회했다. 두 응답 모두 기존 1MB를 넘고 새 4MiB 상한 안에 들어왔다. 실제 GitHub 인증·데이터는 사용하지 않았다.
+- IntelliJ 로컬 HTTP 테스트에서 1MB를 넘는 기록의 단건·현재 줄 조회 성공, 정확히 4MiB인 응답 성공과 한 바이트 초과 응답 거부를 확인했다. 경로 정규화 후 코드 근거 재생성과 재정규화도 회귀 테스트에 추가했다.
+- 서버 `./gradlew --no-daemon test`는 108개 중 104개 통과·PostgreSQL 조건부 4개 건너뜀이다. IntelliJ `test` 31개, `buildPlugin`, `verifyPluginProjectConfiguration`, `verifyPluginStructure`, `scripts/validate-plugin.sh`와 `git diff --check`가 성공했다. 두 `test` 작업 모두 이번 수정으로 다시 실행됐다.
+- DB 스키마·SQL은 변경하지 않아 PostgreSQL 별도 검증은 재실행하지 않았다. Windows 실행 환경과 실제 IntelliJ 화면에서는 이번 수정을 검증하지 않았다. 0.8.0-SNAPSHOT ZIP은 다시 빌드했지만 설치·푸시·릴리스는 하지 않았다.
+
+## Git 증거 해시 일관성과 파일 객체 검사 (2026-08-31)
+
+- `snapshot`의 Git 명령에 `core.quotePath=true`를 고정했다. 한글 등 비ASCII 파일명이 있어도 개인 설정에 따라 해시가 달라지지 않고, 기존 기본 설정의 해시는 유지한다. 줄바꿈 출력 형식과 저장된 기록의 해시는 변경하지 않았다.
+- 예전 `core.quotePath=false`로 만든 기록은 README의 명시적 재현 명령 결과를 기존 `snapshotDigest`와 비교한다. 새 기록은 기본 helper를 사용하며, 서버에 두 해시를 자동 허용하는 로직이나 DB migration을 추가하지 않았다.
+- `anchor`의 객체 존재 검사를 `blob` 타입 검사로 바꿨다. 디렉터리 목록이 파일 내용으로 해싱되지 않으며, 없는 파일·빈 파일의 줄 요청·파일 끝을 넘는 요청도 계속 거부한다.
+- 임시 Git 저장소의 한글 파일명을 사용해 설정별 스냅샷 일치와 기존 기본 해시 유지, 실제 파일 범위와 디렉터리 거부를 검사했다. 수정 전 두 테스트가 실패하고 수정 후 모두 통과하는 것을 확인했다. 스크립트 변경도 테스트를 다시 실행하도록 Gradle 테스트 입력에 등록했다.
+- `./gradlew --no-daemon test`는 109개 중 105개 통과·PostgreSQL 조건부 4개 건너뜀이다. `sh -n scripts/git-evidence.sh`, `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
+- 서버 API·DB·IntelliJ 코드는 변경하지 않았다. PostgreSQL 별도 검증과 IntelliJ 테스트·ZIP 빌드는 재실행하지 않았고, 푸시·릴리스는 하지 않았다.
+
+## 비밀값 이스케이프와 큰 줄 번호 오류 수정 (2026-08-31)
+
+- 저장 전 비밀값 제거 정규식에서 이스케이프된 따옴표·역슬래시를 함께 처리한다. 비밀값의 뒷부분을 남기지 않고 뒤의 일반 필드는 유지한다. 별도 파서나 검증 계층은 추가하지 않았다.
+- 코드 근거 helper가 셸 내장 숫자 비교로 `1 ≤ 시작 줄 ≤ 끝 줄 ≤ 10,000,000`을 확인한다. 숫자 비교 자체가 실패하는 큰 입력도 해시를 출력하지 않고 입력 오류로 종료한다. 정상 파일·줄의 해시 형식은 유지한다.
+- 기존 테스트 클래스에 회귀 테스트를 각각 하나씩 추가했다. 따옴표·역슬래시가 섞인 값과 긴 비밀값, 셸 정수 범위를 넘는 시작·끝 줄을 확인했다. 수정 전 새 테스트 2개가 실패했고 수정 후 관련 테스트 8개가 모두 통과했다.
+- `./gradlew --no-daemon test`는 111개 중 107개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `sh -n scripts/git-evidence.sh`, `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
+- REST·MCP 필드와 DB·IntelliJ 코드는 변경하지 않았다. PostgreSQL 별도 검증과 IntelliJ 테스트·ZIP 빌드는 재실행하지 않았다.
+- 기존 저장 데이터와 GitHub 게시물은 조회하거나 자동 재처리하지 않았다. 이미 저장·공개된 기록에 대한 비밀값 잔여 여부 점검은 이번 범위에 포함하지 않았으며, 푸시·배포·릴리스도 하지 않았다.
+
+## 동시 PostgreSQL backup 파일 보존 수정 (2026-09-01)
+
+- `backup-postgres.sh`가 `pg_dump`를 최종 경로와 같은 디렉터리의 임시 파일에 만든다. `0600` 권한과 비어 있지 않은 결과를 확인한 뒤 하드 링크로 최종 경로를 배타적으로 확보한다.
+- 같은 출력 경로의 다른 실행이 먼저 완료됐으면 후속 실행은 실패한다. 실패한 실행의 종료 처리는 자신이 만든 임시 파일만 삭제하므로 먼저 완료된 backup을 덮어쓰거나 삭제하지 않는다.
+- 가짜 `docker`와 두 백업 프로세스를 사용한 회귀 테스트를 추가했다. 두 번째 덤프가 성공하는 경우와 실패하는 경우 모두 첫 backup 보존, 후속 실행 실패와 임시 파일 정리를 확인한다. 수정 전에는 각각 덮어쓰기와 파일 삭제로 실패했고 수정 후 통과했다.
+- GitHub Actions 서버 검증에 동시 backup 파일 보존 테스트를 추가했다. 운영 절차와 ADR에는 배타적 최종 경로 확보와 실패 정리 범위를 기록했다.
+- `./gradlew --no-daemon test`, `python3 scripts/test_backup_postgres.py`, `sh -n scripts/backup-postgres.sh`, `scripts/validate-plugin.sh`와 `git diff --check`가 성공했다.
+- 별도 PostgreSQL 17 임시 Compose 프로젝트에서 migration·JDBC와 backup·restore 왕복을 실행해 기록 12건 복원을 확인했다. 검증 container·network·volume은 종료 시 정리됐다. 실제 팀 DB와 기존 backup은 사용하거나 변경하지 않았다.
+- DB schema·REST·MCP·IntelliJ 코드는 변경하지 않았다. 푸시·배포·릴리스도 하지 않았다.
+
+## Git 증거 생성 실패 전파 수정 (2026-09-01)
+
+- `git-evidence.sh`가 스냅샷과 코드 근거의 Git 출력을 실행별 임시 작업 공간에 먼저 저장한다. Git 조회와 줄 추출이 각각 성공한 뒤 파일을 SHA-256으로 해싱하므로 앞 단계의 실패를 빈 내용의 성공 해시로 바꾸지 않는다.
+- 정상 스냅샷과 코드 근거의 기존 해시가 유지되는 것을 직접 비교했다. Git 트리 객체를 잠시 이동한 재현에서도 종료 코드 `128`과 Git 오류만 반환하고 64자리 해시를 출력하지 않았다.
+- Git 트리 조회 실패 회귀 테스트를 추가했다. 테스트 저장소의 loose tree 객체를 잠시 이동하고 `finally`에서 복구해 유효한 커밋의 트리 읽기 실패가 성공 처리되지 않는지 확인한다. 관련 테스트 4개가 모두 통과했다.
+- `./gradlew --no-daemon test`는 112개 중 108개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `sh -n scripts/git-evidence.sh`, `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
+- DB schema·REST·MCP·IntelliJ 코드는 변경하지 않았다. PostgreSQL 별도 검증과 IntelliJ 테스트·ZIP 빌드는 재실행하지 않았으며 푸시·배포·릴리스도 하지 않았다.
+
+## 셸 종료 신호와 코드 근거 규칙 정리 (2026-09-01)
+
+- `git-evidence.sh`, `backup-postgres.sh`, `verify-postgres.sh`의 정리 동작을 `EXIT`에만 두고 `HUP`·`INT`·`TERM`은 각각 129·130·143으로 종료하게 분리했다. 종료 신호 뒤 성공 경로를 계속 실행하지 않으며 `EXIT`에서 실행별 임시 파일·디렉터리·Compose 자원을 정리한다.
+- 백업 중 `TERM`을 보낸 회귀 테스트를 추가했다. 수정 전에는 정리 후 다음 명령을 계속 실행해 빈 백업 오류 코드 `1`로 끝났고, 수정 후에는 `143`으로 종료하며 임시 파일과 최종 backup을 남기지 않는다. 기존 동시 backup 보존 테스트도 함께 통과했다.
+- 코드 근거의 10,000,000줄 상한을 `CodeAnchor` 도메인 상수로 옮기고 REST·MCP DTO가 같은 상수를 참조하게 했다. helper의 셸 비교도 이름을 붙인 같은 값으로 유지한다. 수정 전에는 직접 만든 `CodeAnchor`가 상한을 넘을 수 있었고 수정 후 거부한다.
+- `anchor`는 `git cat-file -t`와 `git show`를 나눠 호출하지 않고 `git cat-file blob` 한 번으로 객체 타입과 내용을 확인한다. 정상 파일의 기존 해시가 유지되고 디렉터리·없는 파일 거부도 기존 테스트로 확인했다.
+- `./gradlew --no-daemon test`는 113개 중 109개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `python3 scripts/test_backup_postgres.py`, 전체 셸의 Linux `dash` 문법 검사와 기존 증거 해시 직접 비교도 성공했다.
+- 별도 PostgreSQL 17 임시 Compose 프로젝트에서 migration·JDBC와 backup·restore 왕복을 실행해 기록 12건 복원을 확인했다. 검증 container·network·volume과 임시 파일은 종료 시 정리됐다. 실제 팀 DB와 기존 backup은 사용하거나 변경하지 않았다.
+- DB schema·REST·MCP 응답·IntelliJ 코드는 변경하지 않았다. IntelliJ 테스트·ZIP 빌드는 재실행하지 않았고 푸시·배포·릴리스도 하지 않았다.
+
+## 요청 식별자와 MCP 입력 오류의 비밀값 노출 방지 (2026-09-01)
+
+- `requestId`에서 기존 비밀값 제거기가 token·자격 증명·private key 또는 개인 home 절대 경로를 감지하면 멱등 키를 치환하지 않고 저장 전에 거부한다. 서로 다른 요청을 `[REDACTED]` 하나로 합치지 않으며 정상 요청 ID의 재시도 계약은 유지한다.
+- 같은 `requestId`의 작성자·저장소·저장 내용이 달라 발생하는 충돌 오류에서 실제 요청 ID를 제거했다. REST 오류 본문에도 고정된 충돌 설명만 반환한다.
+- MCP 기록 조회·확인·공개·대체와 GitHub PR 게시의 문자열 기록 ID를 공용 파서에서 JDK `UUID.fromString`으로 변환한다. 잘못된 값은 입력 원문이나 원인 예외 없이 고정된 도구 오류로 반환한다.
+- GitHub API 버전은 날짜 모양 정규식 대신 JDK `LocalDate.parse`로 실제 날짜를 확인한다. 10자 `YYYY-MM-DD` 형식은 유지하며 존재하지 않는 월·일을 시작 시 거부한다.
+- REST에서 `its_` 세션 형태의 요청 ID가 원문 없이 거부되는지, 실제 MCP SSE 오류에서 민감한 입력이 빠지는지, 존재하지 않는 API 버전 날짜를 거부하는지 회귀 테스트를 추가했다. 요청 ID 충돌 예외도 실제 값을 포함하지 않는지 확인한다.
+- 첫 전체 테스트는 `build/classes`에 남아 있던 이름 끝의 ` 2.class` 중복 생성물 때문에 JVM 클래스 이름 검사가 실패했다. 소스 파일이 아닌 Gradle 산출물임을 확인하고 `./gradlew --no-daemon clean test`로 다시 빌드해 116개 중 112개 통과·PostgreSQL 조건부 4개 건너뜀을 확인했다. `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
+- DB schema·SQL·IntelliJ 코드는 변경하지 않아 PostgreSQL 별도 검증과 IntelliJ 빌드는 재실행하지 않았다. 기존 저장 데이터는 변경하지 않았고 푸시·배포·릴리스도 하지 않았다.
+
+## GitHub 저장소 권한 단건 조회 전환 (2026-09-02)
+
+- 현재 사용자의 저장소 전체 목록을 최대 100페이지까지 순회하던 권한 확인을 `GET /repos/{owner}/{repo}/collaborators/{login}/permission` 단건 조회로 바꿨다. 저장소 수와 관계없이 권한 확인 요청은 한 번만 수행한다.
+- GitHub의 기본 권한 `read`, `write`, `admin`을 기존 내부 역할에 연결하고, 기본 권한이 `write`로 축약되는 `maintain`은 `role_name`으로 구분한다. `none`과 404는 권한 없음으로 처리한다.
+- 권한 응답의 숫자 사용자 ID를 `/user`로 확인한 현재 세션 subject와 비교한다. login은 API 경로에만 사용하며, 다른 사용자의 응답이나 알 수 없는 권한 값은 원문 없는 연동 오류로 중단한다.
+- GitHub HTTP 계약 테스트에서 단건 요청 경로·역할 매핑·404·사용자 불일치·파싱 오류의 원문 제거를 확인한다. 실제 GitHub 사용자 token이나 저장소 데이터는 사용하지 않는다.
+- `./gradlew --no-daemon clean test`는 125개 중 121개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `scripts/validate-plugin.sh`, 스킬 `quick_validate.py`와 `git diff --check`도 성공했다. DB schema·REST·MCP·IntelliJ 계약은 변경하지 않아 PostgreSQL 별도 검증과 IntelliJ 빌드는 재실행하지 않았으며 푸시·배포·릴리스도 하지 않았다.
+
+## 로컬 세션 폐기와 사용자별 상한 (2026-09-02)
+
+- `DELETE /api/v1/session`이 인증 필터에서 확인한 현재 `its_` 세션의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` 직접 인증 요청은 `400`으로 거부한다.
+- 사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 설정한다. 새 세션 발급 시 만료 세션을 먼저 정리하고 같은 사용자의 가장 오래된 세션을 폐기한다.
+- IntelliJ 저장 세션 삭제 액션은 PasswordSafe 세션을 서버에서 먼저 폐기한다. 성공 또는 이미 만료된 `401` 뒤 로컬 자격 증명을 삭제하고, 서버 장애 때는 token을 유지한다. 환경 변수 세션은 변경하지 않는다.
+- 로컬 HTTP·Spring 통합 테스트로 세션 폐기 이후 `401`, `ghu_` 거부, 사용자별 상한, IntelliJ `DELETE` 요청과 `401` 정리를 확인했다. 서버 `./gradlew --no-daemon clean test`는 130개 중 126개 통과·PostgreSQL 조건부 4개 건너뜀이고, IntelliJ 테스트 32개와 플러그인 빌드·구성·구조 검사, `scripts/validate-plugin.sh`, Compose 검사, 스킬 `quick_validate.py`, `git diff --check`가 성공했다. 실제 GitHub App OAuth·권한은 재인증 시간 초과로 아직 포함하지 않았다.
+
+## 실제 GitHub OAuth와 IntelliJ 조회 검증 (2026-09-02)
+
+- `IntentTrace ljkhyeong` GitHub App의 기존 사용자 승인을 폐기하고 `@ljkhyeong` 계정으로 다시 승인했다. callback은 `http://127.0.0.1:18080/auth/github/callback`을 사용했고, 새 승인은 expiring user authorization token 설정 아래에서 수행했다.
+- 검증용 client secret은 파일·로그·셸 인자에 저장하지 않고 로컬 서버 프로세스 환경에만 전달했다. OAuth callback에서 `its_` 세션을 발급받은 뒤 `GET /api/v1/change-records?repositoryKey=ljkhyeong%2Fintent-trace&scope=TEAM&page=0&size=1`을 호출해 HTTP 200을 확인했다. 이 요청은 GitHub `/user` 사용자 확인과 저장소 단건 권한 조회를 실제 GitHub 응답으로 통과했다.
+- IntelliJ에서 서버 주소를 `http://127.0.0.1:18080`으로 설정하고 상태 `UP`을 확인한 뒤, 발급된 세션을 PasswordSafe에 저장했다. `IntentTrace 기록함 · ljkhyeong/intent-trace`가 열리고 팀 공개 기록 전체 조회가 1페이지 0건으로 완료돼 PasswordSafe 읽기, 세션 인증과 저장소 권한 조회가 함께 동작함을 확인했다.
+- 설치돼 있던 `0.8.0-SNAPSHOT` 플러그인은 서버 세션 폐기 기능을 넣기 전 빌드였다. 따라서 실제 IntelliJ 검증은 서버 설정·PasswordSafe 저장·기록함 조회까지이며, 새 `DELETE /api/v1/session` 연결 해제 동작은 자동화 테스트로만 확인했다.
+- 검증 후 임시 client secret 두 개를 삭제하고 기존 운영 client secret 하나만 유지했다. 로컬 서버를 정상 종료해 메모리의 GitHub token과 `its_` 세션을 제거했고, 검증 중 만든 `8080`·`18080` PasswordSafe 항목도 삭제한 뒤 IntelliJ 서버 주소를 빈 기본 설정으로 복원했다. GitHub App 사용자 승인은 유지했다.
+- 실제 변경 기록 생성·수정, GitHub Check Run 게시와 PR 쓰기는 수행하지 않았다. client secret, GitHub token과 `its_` 원문은 저장소 문서나 변경 파일에 기록하지 않았다.
+
 ## 다음 작업 후보
 
 1. 화면 제어 서비스 재시작 비교는 마쳤으며, 제품 코드를 바꾸지 않고 화면 조회가 복구됐다. 재발 방지 수정이 확인된 것은 아니므로 팝업을 직접 열지 않는 키보드 선택이나 정상적으로 화면을 읽는 환경에서 `팀 공개 기록 · 공개/대체됨`, `내 비공개 기록 · 전체/초안`과 커밋 없는 초안의 이동 버튼 비활성화를 직접 확인한다. 공용 제어 서비스 재시작은 다른 연결에도 영향을 줄 수 있으므로 상시 우회 수단으로 반복하지 않는다. 남은 수동 검증 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
 2. 작성자 본인의 비공개 초안 수정·폐기 기능을 설계한다. 공개 기록 불변성과 낙관적 잠금은 유지한다.
 3. 실제 사용자 피드백을 바탕으로 결과 창을 ToolWindow로 바꿀 필요가 있는지 결정한다.
 4. 판단별 코드·검증 연결과 기록 생성 보조를 검토한다.
-5. 운영 요구가 생기면 encrypted session, 승인 폐기 webhook, Check Run line annotation을 검토한다.
+5. 운영 요구가 생기면 encrypted session, 승인 폐기 webhook, 활성 세션 목록·관리자 폐기와 Check Run line annotation을 검토한다.
 
 ## 현재 제한
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
-- 승인 폐기 webhook과 사용자가 세션을 직접 조회·폐기하는 UI는 없다.
+- 승인 폐기 webhook과 활성 세션 목록·관리자 폐기 UI는 없다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.

@@ -14,20 +14,21 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 2. callback이 일회성 `state`를 검증하고 code를 만료되는 user access·refresh token 쌍으로 교환한다.
 3. IntentTrace가 GitHub `/user`에서 숫자 ID와 login을 확인하고 메모리 세션을 만든다.
 4. Codex나 REST 클라이언트가 `its_` session token을 Bearer 헤더로 보낸다.
-5. IntentTrace가 session의 GitHub token으로 사용자와 명시적 접근 저장소 권한을 확인한다.
+5. IntentTrace가 session의 GitHub token으로 사용자와 대상 저장소의 실제 권한을 확인한다.
 6. 쓰기 권한이 있는 사용자는 자기 초안을 만들고 확인·공개·대체한다.
 7. 읽기 권한이 있는 팀원은 공개·대체 기록을 조회한다.
 8. access token 만료가 가까우면 refresh token으로 token 쌍을 교체하고 같은 사용자인지 다시 확인한다.
+9. 사용자가 연결을 끝내면 현재 `its_` session을 폐기한다.
 
 ## 권한 계약
 
-| GitHub 응답 | 내부 역할 | 허용 작업 |
+| GitHub 권한 응답 | 내부 역할 | 허용 작업 |
 |---|---|---|
-| `pull` 또는 `triage` | `READER` | 공개·대체 기록 조회 |
-| `push` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
-| `maintain` 또는 `admin` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
+| `permission=read` | `READER` | 공개·대체 기록 조회 |
+| `permission=write` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
+| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
 
-권한 판정은 GitHub `/user/repos`를 `owner,collaborator,organization_member` 범위로 조회한 결과만 사용합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
+권한 판정은 GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`의 최고 유효 권한을 사용합니다. 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자와 일치해야 하며, `permission=none`과 404는 권한 없음으로 처리합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
 
 ## 불변식
 
@@ -35,6 +36,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - callback은 같은 브라우저의 HttpOnly·SameSite cookie와 TTL 안의 미사용 `state`, PKCE `S256` verifier가 모두 일치할 때만 code를 교환한다.
 - 미완료 OAuth `state`는 TTL과 설정 가능한 전역 개수 상한을 적용하고, 상한에 도달하면 새 승인 시작을 `429`로 거부한다.
 - 작성자 subject는 `/user.id`로 만든 `github:<id>`이며 login은 표시용이다.
+- 저장소 권한 응답의 `user.id`는 현재 작성자 subject의 숫자 ID와 일치해야 한다.
 - 작성자 값을 요청 본문이나 MCP 도구 인자로 받지 않는다.
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다.
 - `PUBLISHED`와 `SUPERSEDED`는 저장소 `READER` 이상에게만 노출한다.
@@ -42,9 +44,12 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - GitHub access·refresh token은 메모리에만 두고 DB·URL·cookie·로그·오류 본문·MCP 도구 인자에 저장하거나 노출하지 않는다.
 - GitHub token, private key와 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
+- 사용자별 활성 session은 기본 5개로 제한하고, 새 session 발급 시 상한을 넘는 가장 오래된 session을 폐기한다.
+- `DELETE /api/v1/session`은 현재 `its_` session만 폐기한다. `ghu_` 직접 인증은 로컬 session 폐기 대상이 아니다.
 - refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 갱신이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구한다. 사용자 subject가 바뀐 경우에도 세션을 폐기한다.
 - 세션 잠금을 기다리던 요청은 잠금 획득 후 세션이 아직 등록돼 있는지 확인한다. 앞선 요청이 폐기한 세션으로는 token 갱신이나 사용자 조회를 다시 수행하지 않는다.
 - 같은 `requestId`를 다른 사용자·저장소가 재사용하거나 저장할 내용이 달라지면 기존 기록을 반환하지 않고 충돌로 처리한다.
+- `requestId`에서 GitHub·IntentTrace token, client secret, private key 또는 개인 home 절대 경로가 감지되면 저장 전에 원문 없는 입력 오류로 거부하고, 충돌 오류에도 실제 값을 포함하지 않는다.
 
 ## 성공 기준
 
@@ -57,6 +62,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - 만료된·재사용된·cookie와 다른 OAuth `state`는 code 교환 전에 거부한다.
 - access token 만료 전 갱신과 동시 요청이 refresh token 한 번만 사용한다.
 - callback 성공 응답과 실패 응답은 `no-store`와 `no-referrer` 보안 header를 반환한다.
+- 현재 session 폐기 뒤 같은 `its_` token으로 보호 API를 호출하면 `401`을 반환한다.
 
 ## 제외
 

@@ -21,6 +21,7 @@ INTENT_TRACE_SITE_ADDRESS=intent.example.com
 INTENT_TRACE_HTTP_PORT=80
 INTENT_TRACE_HTTPS_PORT=443
 INTENT_TRACE_GITHUB_CALLBACK_URL=https://intent.example.com/auth/github/callback
+INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER=5
 ```
 
 `INTENT_TRACE_DATABASE_PASSWORD`, GitHub App client secret과 Base64 private key는 실제 값으로 교체한다. `.env.team`을 Git, issue, 채팅이나 backup에 넣지 않는다.
@@ -74,7 +75,7 @@ docker compose --env-file .env.team logs --tail=200 postgres
 INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh
 ```
 
-기본 출력은 `backups/intent-trace-<UTC 시각>.dump`이며 기존 파일을 덮어쓰지 않는다. backup에는 변경 요청·판단·검증 요약이 포함될 수 있으므로 별도 암호화 저장소로 옮기고 접근 권한을 제한한다. GitHub access·refresh token과 `its_` session은 DB에 없으므로 포함되지 않는다.
+기본 출력은 `backups/intent-trace-<UTC 시각>.dump`이며 기존 파일을 덮어쓰지 않는다. 같은 초에 실행이 겹치거나 같은 출력 경로를 지정해도 먼저 완료된 backup만 남고 다른 실행은 실패한다. 실패하거나 종료 신호를 받은 실행은 성공 경로를 계속 진행하지 않고 자신이 만든 임시 파일만 정리한다. backup에는 변경 요청·판단·검증 요약이 포함될 수 있으므로 별도 암호화 저장소로 옮기고 접근 권한을 제한한다. GitHub access·refresh token과 `its_` session은 DB에 없으므로 포함되지 않는다.
 
 ## Restore
 

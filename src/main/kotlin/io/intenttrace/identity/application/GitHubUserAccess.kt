@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service
 class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
+    val localSessionId: String? = null,
 ) {
-    override fun toString(): String = "GitHubUserSession(actor=$actor, accessToken=[보호됨])"
+    override fun toString(): String =
+        "GitHubUserSession(actor=$actor, accessToken=[보호됨], localSessionId=[보호됨])"
 }
 
 interface CurrentGitHubUserSession {
@@ -19,7 +21,11 @@ interface CurrentGitHubUserSession {
 interface GitHubUserAccessGateway {
     fun authenticate(accessToken: String): ActorIdentity
 
-    fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole?
+    fun repositoryRole(
+        accessToken: String,
+        actor: ActorIdentity,
+        repository: GitHubRepository,
+    ): RepositoryRole?
 }
 
 @Service
@@ -34,7 +40,7 @@ class RepositoryAccessService(
     private fun require(repositoryKey: String, minimumRole: RepositoryRole): ActorIdentity {
         val repository = GitHubRepository.parse(repositoryKey)
         val session = currentSession.require()
-        val role = gateway.repositoryRole(session.accessToken, repository)
+        val role = gateway.repositoryRole(session.accessToken, session.actor, repository)
         if (role == null || !role.allows(minimumRole)) {
             throw RepositoryAccessDeniedException(repository.key, minimumRole)
         }
@@ -43,6 +49,9 @@ class RepositoryAccessService(
 }
 
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
+
+class LocalGitHubUserSessionRequiredException :
+    RuntimeException("IntentTrace에서 발급한 its_ session으로 요청해야 합니다.")
 
 class GitHubIdentityApiException(message: String) : RuntimeException(message)
 

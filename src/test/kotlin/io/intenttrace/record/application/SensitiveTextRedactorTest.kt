@@ -24,6 +24,23 @@ class SensitiveTextRedactorTest {
     }
 
     @Test
+    fun `이스케이프된 따옴표와 역슬래시를 포함한 비밀값 전체를 제거한다`() {
+        val sources = listOf(
+            """{"password": "prefix\"TAIL_ONLY_FOR_TEST", "label": "남길 값"}""",
+            """{"password": "prefix\\\"TAIL_ONLY_FOR_TEST", "label": "남길 값"}""",
+            """{"password": "prefix\\", "label": "남길 값"}""",
+            """{"password": "${"a".repeat(1900)}\"TAIL_ONLY_FOR_TEST", "label": "남길 값"}""",
+        )
+        sources.forEach { source ->
+            assertEquals("""{"password": [REDACTED], "label": "남길 값"}""", redactor.redact(source))
+        }
+        assertEquals(
+            "secret=[REDACTED]; label=남길값",
+            redactor.redact("""secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값"""),
+        )
+    }
+
+    @Test
     fun `PEM private key 본문 전체를 제거한다`() {
         val source = """
             -----BEGIN PRIVATE KEY-----

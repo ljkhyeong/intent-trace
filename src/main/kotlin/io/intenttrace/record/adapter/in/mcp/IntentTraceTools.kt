@@ -15,7 +15,6 @@ import jakarta.validation.Validator
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class IntentTraceTools(
@@ -80,7 +79,7 @@ class IntentTraceTools(
     fun get(
         @McpToolParam(description = "변경 의도 기록 UUID", required = true)
         recordId: String,
-    ): ChangeRecordResponse = ChangeRecordResponse.from(records.get(UUID.fromString(recordId)))
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.get(parseChangeRecordId(recordId)))
 
     @McpTool(
         name = "confirm_change_record",
@@ -105,7 +104,7 @@ class IntentTraceTools(
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.confirm(
             ConfirmChangeRecordCommand(
-                UUID.fromString(recordId),
+                parseChangeRecordId(recordId),
                 expectedVersion,
                 immutableRevision,
                 currentSnapshotDigest,
@@ -134,7 +133,7 @@ class IntentTraceTools(
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.publish(
             PublishChangeRecordCommand(
-                UUID.fromString(recordId),
+                parseChangeRecordId(recordId),
                 expectedVersion,
                 currentSnapshotDigest,
             ),
@@ -162,9 +161,9 @@ class IntentTraceTools(
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.supersede(
             SupersedeChangeRecordCommand(
-                UUID.fromString(recordId),
+                parseChangeRecordId(recordId),
                 expectedVersion,
-                UUID.fromString(replacementRecordId),
+                parseChangeRecordId(replacementRecordId),
             ),
         ),
     )

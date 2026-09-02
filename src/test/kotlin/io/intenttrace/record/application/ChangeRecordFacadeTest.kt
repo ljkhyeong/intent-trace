@@ -15,6 +15,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 
 class ChangeRecordFacadeTest {
@@ -35,9 +36,11 @@ class ChangeRecordFacadeTest {
         val repository = DuplicateRequestRepository(record())
         val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
 
-        assertFailsWith<ChangeRecordRequestConflictException> {
+        val exception = assertFailsWith<ChangeRecordRequestConflictException> {
             facade.create(command().copy(title = "다른 변경 의도"), actor)
         }
+
+        assertFalse(exception.message.orEmpty().contains("concurrent-request"))
     }
 
     @Test

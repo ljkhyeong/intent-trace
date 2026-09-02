@@ -138,6 +138,9 @@ class ChangeRecordFacade(
 
     private fun validateCreate(command: CreateChangeRecordCommand) {
         require(command.requestId.isNotBlank()) { "요청 식별자는 비어 있을 수 없습니다." }
+        require(redactor.redact(command.requestId) == command.requestId) {
+            "요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다."
+        }
         require(command.repositoryKey.isNotBlank()) { "저장소 식별자는 비어 있을 수 없습니다." }
         require(command.title.isNotBlank()) { "제목은 비어 있을 수 없습니다." }
         require(command.requestSummary.isNotBlank()) { "요청 요약은 비어 있을 수 없습니다." }
@@ -161,7 +164,7 @@ class ChangeRecordFacade(
             existing.createdBy.subject != candidate.createdBy.subject ||
             !existing.hasSameCreatePayload(candidate)
         ) {
-            throw ChangeRecordRequestConflictException(candidate.requestId)
+            throw ChangeRecordRequestConflictException()
         }
         return existing
     }

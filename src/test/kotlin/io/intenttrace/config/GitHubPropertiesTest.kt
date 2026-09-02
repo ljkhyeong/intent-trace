@@ -37,6 +37,20 @@ class GitHubPropertiesTest {
     }
 
     @Test
+    fun `사용자별 session 상한은 1 이상이어야 한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            GitHubUserAuthorizationProperties(maxSessionsPerUser = 0)
+        }
+    }
+
+    @Test
+    fun `GitHub API 버전은 실제 날짜여야 한다`() {
+        assertFailsWith<IllegalArgumentException> {
+            GitHubProperties(apiVersion = "2026-99-99")
+        }
+    }
+
+    @Test
     fun `callback은 IPv6 loopback HTTP만 허용한다`() {
         for (host in listOf("[::1]", "[0:0:0:0:0:0:0:1]")) {
             val callback = URI.create("http://$host:8080/auth/github/callback")

@@ -30,6 +30,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -126,6 +127,36 @@ class AuthenticatedMcpIntegrationTest(
         assertEquals(0, page.get("page").intValue())
         assertEquals(20, page.get("size").intValue())
         assertEquals(false, page.get("hasNext").booleanValue())
+    }
+
+    @Test
+    fun `MCP 기록 ID 오류는 입력값을 응답에 포함하지 않는다`() {
+        val sensitiveInput = "ghu_private-marker"
+        val initialized = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = initialize
+        }.andExpect { status { isOk() } }.andReturn()
+        val sessionId = initialized.response.getHeader("Mcp-Session-Id")
+        assertNotNull(sessionId)
+
+        val response = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """
+                {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+                  "name":"get_change_record","arguments":{"recordId":"$sensitiveInput"}
+                }}
+            """.trimIndent()
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray
+            .toString(Charsets.UTF_8)
+
+        assertTrue(response.contains("\"isError\":true"))
+        assertTrue(response.contains("변경 의도 기록 ID는 UUID 형식이어야 합니다."))
+        assertFalse(response.contains(sensitiveInput))
     }
 
     @Test
@@ -230,6 +261,7 @@ class AuthenticatedMcpIntegrationTest(
 
             override fun repositoryRole(
                 accessToken: String,
+                actor: ActorIdentity,
                 repository: GitHubRepository,
             ): RepositoryRole = RepositoryRole.MAINTAINER
         }

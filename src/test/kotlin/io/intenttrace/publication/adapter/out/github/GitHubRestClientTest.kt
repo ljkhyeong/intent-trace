@@ -55,6 +55,19 @@ class GitHubRestClientTest {
     }
 
     @Test
+    fun `PR HEAD 응답이 전체 커밋 ID가 아니면 원문 없이 거부한다`() {
+        val marker = "test-private-response-marker"
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+            .andRespond(withSuccess("""{"head":{"sha":"$marker"}}""", MediaType.APPLICATION_JSON))
+
+        val exception = assertFailsWith<GitHubApiException> { client.getHeadRevision(target) }
+
+        assertEquals("GitHub Pull Request HEAD 응답 형식이 올바르지 않습니다.", exception.message)
+        assertFalse(exception.stackTraceToString().contains(marker))
+        server.verify()
+    }
+
+    @Test
     fun `같은 external id의 Check Run이 있으면 새로 만들지 않고 갱신한다`() {
         val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
         server.expect { request ->
@@ -117,6 +130,41 @@ class GitHubRestClientTest {
         val result = client.upsertCheckRun(command(externalId))
 
         assertEquals(88L, result.id)
+        server.verify()
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["잘못된 ID", "다른 HEAD", "다른 external id", "HTTP URL"])
+    fun `Check Run 생성 응답이 게시 요청과 일치하지 않거나 URL이 안전하지 않으면 거부한다`(case: String) {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request ->
+            assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
+        }.andRespond(withSuccess("""{"check_runs":[]}""", MediaType.APPLICATION_JSON))
+        val id = if (case == "잘못된 ID") 0 else 88
+        val headRevision = if (case == "다른 HEAD") "c".repeat(40) else revision
+        val responseExternalId = if (case == "다른 external id") "intent-trace:other" else externalId
+        val url = if (case == "HTTP URL") {
+            "http://github.test/check-runs/88"
+        } else {
+            "https://github.test/check-runs/88"
+        }
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(
+                withSuccess(
+                    """{"id":$id,"head_sha":"$headRevision","html_url":"$url","external_id":"$responseExternalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val exception = assertFailsWith<GitHubApiException> { client.upsertCheckRun(command(externalId)) }
+
+        val expectedMessage = if (case == "HTTP URL") {
+            "GitHub Check Run 응답 URL 형식이 올바르지 않습니다."
+        } else {
+            "GitHub Check Run 응답이 게시 요청과 일치하지 않습니다."
+        }
+        assertEquals(expectedMessage, exception.message)
         server.verify()
     }
 

@@ -23,11 +23,33 @@ internal class IntentTraceApiClient {
     fun record(server: IntentTraceServer, sessionToken: String, id: String): ChangeIntentRecord =
         IntentTraceResponseParser.parseRecord(get(server.recordUri(id), sessionToken))
 
-    private fun get(uri: URI, sessionToken: String?): String {
-        if (sessionToken != null && !SESSION_TOKEN.matches(sessionToken)) {
-            throw IntentTraceUsageException("IntentTrace session token은 its_ 형식이어야 합니다.")
+    fun revokeSession(server: IntentTraceServer, sessionToken: String) {
+        requireSessionToken(sessionToken)
+        execute {
+            HttpRequests.request(server.sessionUri().toString())
+                .connectTimeout(5_000)
+                .readTimeout(10_000)
+                .followRedirects(false)
+                .throwStatusCodeException(false)
+                .tuner { connection ->
+                    (connection as HttpURLConnection).requestMethod = "DELETE"
+                    connection.setRequestProperty("Authorization", "Bearer $sessionToken")
+                }
+                .connect { request ->
+                    when (val status = (request.connection as HttpURLConnection).responseCode) {
+                        204, 401 -> Unit
+                        in 500..599 -> throw IntentTraceClientException(
+                            "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
+                        )
+                        else -> throw IntentTraceClientException("IntentTrace session 폐기 요청이 거부됐습니다. HTTP $status")
+                    }
+                }
         }
-        return try {
+    }
+
+    private fun get(uri: URI, sessionToken: String?): String {
+        sessionToken?.let(::requireSessionToken)
+        return execute {
             HttpRequests.request(uri.toString())
                 .connectTimeout(5_000)
                 .readTimeout(10_000)
@@ -54,16 +76,26 @@ internal class IntentTraceApiClient {
                         })
                     }
                 }
-        } catch (_: SocketTimeoutException) {
-            throw IntentTraceClientException("IntentTrace server의 응답 대기 시간을 초과했습니다.")
-        } catch (_: IOException) {
-            throw IntentTraceClientException("IntentTrace server에 연결하지 못했습니다.")
         }
+    }
+
+    private fun requireSessionToken(sessionToken: String) {
+        if (!SESSION_TOKEN.matches(sessionToken)) {
+            throw IntentTraceUsageException("IntentTrace session token은 its_ 형식이어야 합니다.")
+        }
+    }
+
+    private fun <T> execute(block: () -> T): T = try {
+        block()
+    } catch (_: SocketTimeoutException) {
+        throw IntentTraceClientException("IntentTrace server의 응답 대기 시간을 초과했습니다.")
+    } catch (_: IOException) {
+        throw IntentTraceClientException("IntentTrace server에 연결하지 못했습니다.")
     }
 
     companion object {
         const val TOKEN_ENV = "INTENT_TRACE_SESSION_TOKEN"
-        private const val MAX_RESPONSE_BYTES = 1_000_000
+        private const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024
         private val SESSION_TOKEN = Regex("^its_[A-Za-z0-9_-]{43}$")
 
         fun validSessionToken(value: String): Boolean = SESSION_TOKEN.matches(value)

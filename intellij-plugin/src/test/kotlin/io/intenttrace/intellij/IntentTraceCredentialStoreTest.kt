@@ -36,6 +36,7 @@ class IntentTraceCredentialStoreTest {
         credentials.clear(server)
 
         assertEquals(environmentToken, credentials.load(server))
+        assertNull(credentials.loadStored(server))
         assertTrue(credentials.environmentSessionConfigured(server))
     }
 

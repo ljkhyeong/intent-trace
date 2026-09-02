@@ -66,6 +66,20 @@ interface GitHubUserSessionStore {
     fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens): IssuedGitHubUserSession
 
     fun resolve(sessionToken: String): GitHubUserSession
+
+    fun revoke(localSessionId: String)
+}
+
+@Service
+class GitHubUserSessionService(
+    private val currentSession: CurrentGitHubUserSession,
+    private val sessions: GitHubUserSessionStore,
+) {
+    fun revokeCurrent() {
+        val localSessionId = currentSession.require().localSessionId
+            ?: throw LocalGitHubUserSessionRequiredException()
+        sessions.revoke(localSessionId)
+    }
 }
 
 @Service
@@ -166,20 +180,24 @@ class InMemoryGitHubUserSessionStore(
     private val clock: Clock,
 ) : GitHubUserSessionStore {
     private val sessions = ConcurrentHashMap<String, StoredSession>()
+    private val issuanceLock = ReentrantLock()
 
-    override fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens): IssuedGitHubUserSession {
-        val now = Instant.now(clock)
-        require(now.isBefore(tokens.accessExpiresAt)) { "이미 만료된 GitHub token은 session에 넣을 수 없습니다." }
-        sessions.entries.removeIf { !now.isBefore(it.value.tokens.refreshExpiresAt) }
-        val sessionToken = "its_${SecureTokens.random()}"
-        sessions[TokenDigests.sha256(sessionToken)] = StoredSession(actor, tokens)
-        return IssuedGitHubUserSession(
-            actor = actor,
-            sessionToken = sessionToken,
-            accessExpiresAt = tokens.accessExpiresAt,
-            refreshExpiresAt = tokens.refreshExpiresAt,
-        )
-    }
+    override fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens): IssuedGitHubUserSession =
+        issuanceLock.withLock {
+            val now = Instant.now(clock)
+            require(now.isBefore(tokens.accessExpiresAt)) { "이미 만료된 GitHub token은 session에 넣을 수 없습니다." }
+            removeExpiredSessions(now)
+            removeOldestSessionsAtLimit(actor)
+            val sessionToken = "its_${SecureTokens.random()}".also {
+                sessions[TokenDigests.sha256(it)] = StoredSession(actor, tokens, now)
+            }
+            IssuedGitHubUserSession(
+                actor = actor,
+                sessionToken = sessionToken,
+                accessExpiresAt = tokens.accessExpiresAt,
+                refreshExpiresAt = tokens.refreshExpiresAt,
+            )
+        }
 
     override fun resolve(sessionToken: String): GitHubUserSession {
         val key = TokenDigests.sha256(sessionToken)
@@ -211,14 +229,45 @@ class InMemoryGitHubUserSessionStore(
                 throw GitHubUserAuthenticationException()
             }
             stored.actor = verifiedActor
-            GitHubUserSession(verifiedActor, stored.tokens.accessToken)
+            GitHubUserSession(verifiedActor, stored.tokens.accessToken, key)
+        }
+    }
+
+    override fun revoke(localSessionId: String) {
+        val stored = sessions[localSessionId] ?: return
+        stored.lock.withLock {
+            sessions.remove(localSessionId, stored)
+        }
+    }
+
+    private fun removeExpiredSessions(now: Instant) {
+        sessions.forEach { (key, stored) ->
+            stored.lock.withLock {
+                if (!now.isBefore(stored.tokens.refreshExpiresAt)) {
+                    sessions.remove(key, stored)
+                }
+            }
+        }
+    }
+
+    private fun removeOldestSessionsAtLimit(actor: ActorIdentity) {
+        val activeSessions = sessions.entries
+            .filter { it.value.subject == actor.subject }
+            .sortedBy { it.value.issuedAt }
+        val removalCount = activeSessions.size - properties.userAuthorization.maxSessionsPerUser + 1
+        activeSessions.take(removalCount.coerceAtLeast(0)).forEach { (key, stored) ->
+            stored.lock.withLock {
+                sessions.remove(key, stored)
+            }
         }
     }
 
     private class StoredSession(
         var actor: ActorIdentity,
         @Volatile var tokens: GitHubUserOAuthTokens,
+        val issuedAt: Instant,
     ) {
+        val subject = actor.subject
         val lock = ReentrantLock()
 
         override fun toString(): String = "StoredSession(actor=$actor, tokens=[보호됨])"
