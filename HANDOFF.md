@@ -227,6 +227,14 @@
 - 첫 전체 테스트는 `build/classes`에 남아 있던 이름 끝의 ` 2.class` 중복 생성물 때문에 JVM 클래스 이름 검사가 실패했다. 소스 파일이 아닌 Gradle 산출물임을 확인하고 `./gradlew --no-daemon clean test`로 다시 빌드해 116개 중 112개 통과·PostgreSQL 조건부 4개 건너뜀을 확인했다. `scripts/validate-plugin.sh`와 `git diff --check`도 성공했다.
 - DB schema·SQL·IntelliJ 코드는 변경하지 않아 PostgreSQL 별도 검증과 IntelliJ 빌드는 재실행하지 않았다. 기존 저장 데이터는 변경하지 않았고 푸시·배포·릴리스도 하지 않았다.
 
+## GitHub 저장소 권한 단건 조회 전환 (2026-09-02)
+
+- 현재 사용자의 저장소 전체 목록을 최대 100페이지까지 순회하던 권한 확인을 `GET /repos/{owner}/{repo}/collaborators/{login}/permission` 단건 조회로 바꿨다. 저장소 수와 관계없이 권한 확인 요청은 한 번만 수행한다.
+- GitHub의 기본 권한 `read`, `write`, `admin`을 기존 내부 역할에 연결하고, 기본 권한이 `write`로 축약되는 `maintain`은 `role_name`으로 구분한다. `none`과 404는 권한 없음으로 처리한다.
+- 권한 응답의 숫자 사용자 ID를 `/user`로 확인한 현재 세션 subject와 비교한다. login은 API 경로에만 사용하며, 다른 사용자의 응답이나 알 수 없는 권한 값은 원문 없는 연동 오류로 중단한다.
+- GitHub HTTP 계약 테스트에서 단건 요청 경로·역할 매핑·404·사용자 불일치·파싱 오류의 원문 제거를 확인한다. 실제 GitHub 사용자 token이나 저장소 데이터는 사용하지 않는다.
+- `./gradlew --no-daemon clean test`는 125개 중 121개 통과·PostgreSQL 조건부 테스트 4개 건너뜀이다. `scripts/validate-plugin.sh`, 스킬 `quick_validate.py`와 `git diff --check`도 성공했다. DB schema·REST·MCP·IntelliJ 계약은 변경하지 않아 PostgreSQL 별도 검증과 IntelliJ 빌드는 재실행하지 않았으며 푸시·배포·릴리스도 하지 않았다.
+
 ## 다음 작업 후보
 
 1. 화면 제어 서비스 재시작 비교는 마쳤으며, 제품 코드를 바꾸지 않고 화면 조회가 복구됐다. 재발 방지 수정이 확인된 것은 아니므로 팝업을 직접 열지 않는 키보드 선택이나 정상적으로 화면을 읽는 환경에서 `팀 공개 기록 · 공개/대체됨`, `내 비공개 기록 · 전체/초안`과 커밋 없는 초안의 이동 버튼 비활성화를 직접 확인한다. 공용 제어 서비스 재시작은 다른 연결에도 영향을 줄 수 있으므로 상시 우회 수단으로 반복하지 않는다. 남은 수동 검증 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.

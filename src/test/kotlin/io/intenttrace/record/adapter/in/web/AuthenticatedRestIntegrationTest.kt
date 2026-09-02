@@ -243,6 +243,10 @@ class AuthenticatedRestIntegrationTest(
             return actor
         }
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? = role
+        override fun repositoryRole(
+            accessToken: String,
+            actor: ActorIdentity,
+            repository: GitHubRepository,
+        ): RepositoryRole? = role
     }
 }

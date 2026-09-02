@@ -194,7 +194,11 @@ class InMemoryGitHubUserSessionStoreTest {
             return if (accessToken == "ghu_access-2") refreshedActor else owner
         }
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? =
+        override fun repositoryRole(
+            accessToken: String,
+            actor: ActorIdentity,
+            repository: GitHubRepository,
+        ): RepositoryRole? =
             error("사용하지 않는 테스트 경로")
     }
 

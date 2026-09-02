@@ -209,6 +209,7 @@ class GitHubOAuthSessionIntegrationTest(
 
         override fun repositoryRole(
             accessToken: String,
+            actor: ActorIdentity,
             repository: GitHubRepository,
         ): RepositoryRole = RepositoryRole.MAINTAINER
     }

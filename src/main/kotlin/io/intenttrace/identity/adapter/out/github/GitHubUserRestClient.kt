@@ -42,29 +42,35 @@ class GitHubUserRestClient(
         }
     }
 
-    override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? {
+    override fun repositoryRole(
+        accessToken: String,
+        actor: ActorIdentity,
+        repository: GitHubRepository,
+    ): RepositoryRole? {
         try {
-            for (page in 1..MAX_REPOSITORY_PAGES) {
-                val response = client.get()
-                    .uri { builder ->
-                        builder.path("/user/repos")
-                            .queryParam("affiliation", REPOSITORY_AFFILIATIONS)
-                            .queryParam("per_page", REPOSITORIES_PER_PAGE)
-                            .queryParam("page", page)
-                            .build()
-                    }
-                    .headers { it.setBearerAuth(accessToken) }
-                    .retrieve()
-                    .toEntity(Array<GitHubRepositoryResponse>::class.java)
-                val repositories = response.body
-                    ?: throw GitHubIdentityApiException("GitHub 저장소 권한 응답이 비어 있습니다.")
-                repositories.firstOrNull { it.fullName.equals(repository.key, ignoreCase = true) }
-                    ?.let { return it.permissions.toRole() }
-                if (!response.headers.hasNextPage()) return null
-            }
+            val response = client.get()
+                .uri(
+                    "/repos/{owner}/{repository}/collaborators/{username}/permission",
+                    repository.canonicalOwner,
+                    repository.canonicalName,
+                    actor.login,
+                )
+                .headers { it.setBearerAuth(accessToken) }
+                .retrieve()
+                .body(GitHubRepositoryPermissionResponse::class.java)
+                ?: throw GitHubIdentityApiException("GitHub 저장소 권한 응답이 비어 있습니다.")
 
-            throw GitHubIdentityApiException("GitHub 저장소 권한 목록이 허용된 조회 범위를 초과했습니다.")
+            val responseActor = try {
+                ActorIdentity.github(response.user.id, response.user.login)
+            } catch (_: IllegalArgumentException) {
+                throw GitHubIdentityApiException("GitHub 저장소 권한 응답 값이 올바르지 않습니다.")
+            }
+            if (responseActor.subject != actor.subject) {
+                throw GitHubIdentityApiException("GitHub 저장소 권한 응답 사용자가 현재 사용자와 일치하지 않습니다.")
+            }
+            return response.toRole()
         } catch (exception: RestClientResponseException) {
+            if (exception.statusCode == HttpStatus.NOT_FOUND) return null
             throw mapResponseException("저장소 권한 조회", exception)
         } catch (_: RestClientException) {
             throw GitHubIdentityApiException("GitHub 저장소 권한 조회 요청을 완료하지 못했습니다.")
@@ -88,22 +94,21 @@ class GitHubUserRestClient(
             GitHubIdentityApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
         }
 
-    private fun GitHubRepositoryPermissions.toRole(): RepositoryRole? = when {
-        admin || maintain -> RepositoryRole.MAINTAINER
-        push -> RepositoryRole.CONTRIBUTOR
-        pull || triage -> RepositoryRole.READER
-        else -> null
+    private fun GitHubRepositoryPermissionResponse.toRole(): RepositoryRole? = when {
+        permission.equals("admin", ignoreCase = true) -> RepositoryRole.MAINTAINER
+        permission.equals("write", ignoreCase = true) -> if (roleName.equals("maintain", ignoreCase = true)) {
+            RepositoryRole.MAINTAINER
+        } else {
+            RepositoryRole.CONTRIBUTOR
+        }
+        permission.equals("read", ignoreCase = true) -> RepositoryRole.READER
+        permission.equals("none", ignoreCase = true) -> null
+        else -> throw GitHubIdentityApiException("GitHub 저장소 권한 응답 값이 올바르지 않습니다.")
     }
-
-    private fun HttpHeaders.hasNextPage(): Boolean =
-        this[HttpHeaders.LINK].orEmpty().any { it.contains("rel=\"next\"") }
 
     companion object {
         private const val GITHUB_JSON = "application/vnd.github+json"
         private const val API_VERSION_HEADER = "X-GitHub-Api-Version"
-        private const val REPOSITORY_AFFILIATIONS = "owner,collaborator,organization_member"
-        private const val REPOSITORIES_PER_PAGE = 100
-        private const val MAX_REPOSITORY_PAGES = 100
     }
 }
 
@@ -114,16 +119,8 @@ private data class GitHubUserResponse(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-private data class GitHubRepositoryResponse(
-    @JsonProperty("full_name") val fullName: String,
-    val permissions: GitHubRepositoryPermissions = GitHubRepositoryPermissions(),
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-private data class GitHubRepositoryPermissions(
-    val pull: Boolean = false,
-    val triage: Boolean = false,
-    val push: Boolean = false,
-    val maintain: Boolean = false,
-    val admin: Boolean = false,
+private data class GitHubRepositoryPermissionResponse(
+    val permission: String,
+    @JsonProperty("role_name") val roleName: String? = null,
+    val user: GitHubUserResponse,
 )

@@ -19,7 +19,11 @@ interface CurrentGitHubUserSession {
 interface GitHubUserAccessGateway {
     fun authenticate(accessToken: String): ActorIdentity
 
-    fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole?
+    fun repositoryRole(
+        accessToken: String,
+        actor: ActorIdentity,
+        repository: GitHubRepository,
+    ): RepositoryRole?
 }
 
 @Service
@@ -34,7 +38,7 @@ class RepositoryAccessService(
     private fun require(repositoryKey: String, minimumRole: RepositoryRole): ActorIdentity {
         val repository = GitHubRepository.parse(repositoryKey)
         val session = currentSession.require()
-        val role = gateway.repositoryRole(session.accessToken, repository)
+        val role = gateway.repositoryRole(session.accessToken, session.actor, repository)
         if (role == null || !role.allows(minimumRole)) {
             throw RepositoryAccessDeniedException(repository.key, minimumRole)
         }

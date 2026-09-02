@@ -14,20 +14,20 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 2. callback이 일회성 `state`를 검증하고 code를 만료되는 user access·refresh token 쌍으로 교환한다.
 3. IntentTrace가 GitHub `/user`에서 숫자 ID와 login을 확인하고 메모리 세션을 만든다.
 4. Codex나 REST 클라이언트가 `its_` session token을 Bearer 헤더로 보낸다.
-5. IntentTrace가 session의 GitHub token으로 사용자와 명시적 접근 저장소 권한을 확인한다.
+5. IntentTrace가 session의 GitHub token으로 사용자와 대상 저장소의 실제 권한을 확인한다.
 6. 쓰기 권한이 있는 사용자는 자기 초안을 만들고 확인·공개·대체한다.
 7. 읽기 권한이 있는 팀원은 공개·대체 기록을 조회한다.
 8. access token 만료가 가까우면 refresh token으로 token 쌍을 교체하고 같은 사용자인지 다시 확인한다.
 
 ## 권한 계약
 
-| GitHub 응답 | 내부 역할 | 허용 작업 |
+| GitHub 권한 응답 | 내부 역할 | 허용 작업 |
 |---|---|---|
-| `pull` 또는 `triage` | `READER` | 공개·대체 기록 조회 |
-| `push` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
-| `maintain` 또는 `admin` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
+| `permission=read` | `READER` | 공개·대체 기록 조회 |
+| `permission=write` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
+| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
 
-권한 판정은 GitHub `/user/repos`를 `owner,collaborator,organization_member` 범위로 조회한 결과만 사용합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
+권한 판정은 GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`의 최고 유효 권한을 사용합니다. 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자와 일치해야 하며, `permission=none`과 404는 권한 없음으로 처리합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
 
 ## 불변식
 
@@ -35,6 +35,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - callback은 같은 브라우저의 HttpOnly·SameSite cookie와 TTL 안의 미사용 `state`, PKCE `S256` verifier가 모두 일치할 때만 code를 교환한다.
 - 미완료 OAuth `state`는 TTL과 설정 가능한 전역 개수 상한을 적용하고, 상한에 도달하면 새 승인 시작을 `429`로 거부한다.
 - 작성자 subject는 `/user.id`로 만든 `github:<id>`이며 login은 표시용이다.
+- 저장소 권한 응답의 `user.id`는 현재 작성자 subject의 숫자 ID와 일치해야 한다.
 - 작성자 값을 요청 본문이나 MCP 도구 인자로 받지 않는다.
 - `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다.
 - `PUBLISHED`와 `SUPERSEDED`는 저장소 `READER` 이상에게만 노출한다.

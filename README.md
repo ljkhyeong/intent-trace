@@ -158,7 +158,7 @@ IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세�
 
 token 갱신이 거부되거나 갱신 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
 
-서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 GitHub 저장소 권한을 조회합니다. 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
+서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 권한을 GitHub의 사용자별 단건 권한 API로 조회합니다. 권한 응답의 숫자 사용자 ID가 현재 세션 주체와 일치해야 하며, 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. 권한 없음과 404는 접근 거부로 처리하고 public 저장소의 일반 공개 여부만으로 팀 접근을 허용하지 않습니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
 GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
 
