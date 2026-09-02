@@ -35,7 +35,11 @@ class GitHubUserRestClient(
             .body(GitHubUserResponse::class.java)
             ?: throw GitHubIdentityApiException("GitHub 사용자 응답이 비어 있습니다.")
 
-        ActorIdentity.github(response.id, response.login)
+        try {
+            ActorIdentity.github(response.id, response.login)
+        } catch (_: IllegalArgumentException) {
+            throw GitHubIdentityApiException("GitHub 사용자 응답 값이 올바르지 않습니다.")
+        }
     }
 
     override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? {

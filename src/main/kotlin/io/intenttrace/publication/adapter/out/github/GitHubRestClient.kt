@@ -6,6 +6,7 @@ import io.intenttrace.publication.application.GitHubPullRequestGateway
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.record.domain.GitRevision
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.http.HttpHeaders
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
+import java.net.URI
 
 @Component
 class GitHubRestClient(
@@ -42,23 +44,29 @@ class GitHubRestClient(
         }
             ?: throw GitHubApiException("GitHub Pull Request 응답이 비어 있습니다.")
 
-        response.head.sha
+        try {
+            GitRevision.parse(response.head.sha).value
+        } catch (_: IllegalArgumentException) {
+            throw GitHubApiException("GitHub Pull Request HEAD 응답 형식이 올바르지 않습니다.")
+        }
     }
 
     override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
         command.knownCheckRunId?.let { knownId ->
             val known = getCheckRun(command, knownId)
             if (known != null) {
-                updateCheckRun(command, known.id, tolerateMissing = true)?.let { return it.toDomain() }
+                updateCheckRun(command, known.id, tolerateMissing = true)
+                    ?.let { return it.toDomain(command, known.id) }
             }
         }
 
         val existing = findCheckRun(command)
         if (existing != null) {
-            return checkNotNull(updateCheckRun(command, existing.id, tolerateMissing = false)).toDomain()
+            return checkNotNull(updateCheckRun(command, existing.id, tolerateMissing = false))
+                .toDomain(command, existing.id)
         }
 
-        return createCheckRun(command).toDomain()
+        return createCheckRun(command).toDomain(command)
     }
 
     private fun getCheckRun(command: UpsertGitHubCheckRunCommand, checkRunId: Long): CheckRunResponse? {
@@ -77,9 +85,7 @@ class GitHubRestClient(
             }
                 ?: throw GitHubApiException("GitHub Check Run 조회 응답이 비어 있습니다.")
 
-            return response.takeIf {
-                it.externalId == command.externalId && it.headSha.equals(command.headRevision, ignoreCase = true)
-            }
+            return response.takeIf { it.id == checkRunId && it.hasIdentity(command) }
         } catch (exception: RestClientResponseException) {
             if (exception.statusCode == HttpStatus.NOT_FOUND) {
                 return null
@@ -113,7 +119,7 @@ class GitHubRestClient(
                 }
                 ?: throw GitHubApiException("GitHub Check Run 목록 응답이 비어 있습니다.")
 
-            response.checkRuns.firstOrNull { it.externalId == command.externalId }?.let { return@safeCall it }
+            response.checkRuns.firstOrNull { it.hasIdentity(command) }?.let { return@safeCall it }
             if (response.checkRuns.size < CHECK_RUN_PAGE_SIZE) {
                 return@safeCall null
             }
@@ -205,7 +211,27 @@ class GitHubRestClient(
     private fun safeResponseException(operation: String, exception: RestClientResponseException): GitHubApiException =
         GitHubApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
 
-    private fun CheckRunResponse.toDomain(): GitHubCheckRun = GitHubCheckRun(id, htmlUrl)
+    private fun CheckRunResponse.hasIdentity(command: UpsertGitHubCheckRunCommand): Boolean =
+        id > 0 && externalId == command.externalId && headSha.equals(command.headRevision, ignoreCase = true)
+
+    private fun CheckRunResponse.toDomain(
+        command: UpsertGitHubCheckRunCommand,
+        expectedId: Long? = null,
+    ): GitHubCheckRun {
+        if (!hasIdentity(command) || expectedId?.let { id != it } == true) {
+            throw GitHubApiException("GitHub Check Run 응답이 게시 요청과 일치하지 않습니다.")
+        }
+        val uri = runCatching { URI.create(htmlUrl) }.getOrNull()
+        if (
+            uri == null ||
+            !uri.scheme.equals("https", ignoreCase = true) ||
+            uri.host.isNullOrBlank() ||
+            uri.userInfo != null
+        ) {
+            throw GitHubApiException("GitHub Check Run 응답 URL 형식이 올바르지 않습니다.")
+        }
+        return GitHubCheckRun(id, uri.toString())
+    }
 
     companion object {
         private const val GITHUB_JSON = "application/vnd.github+json"

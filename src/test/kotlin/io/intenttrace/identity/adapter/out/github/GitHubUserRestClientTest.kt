@@ -51,6 +51,19 @@ class GitHubUserRestClientTest {
     }
 
     @Test
+    fun `GitHub 사용자 응답 값이 올바르지 않으면 연동 오류로 변환한다`() {
+        server.expect(requestTo("https://api.github.test/user"))
+            .andRespond(withSuccess("""{"id":0,"login":"lim"}""", MediaType.APPLICATION_JSON))
+
+        val exception = assertFailsWith<GitHubIdentityApiException> {
+            client.authenticate("user-token")
+        }
+
+        assertEquals("GitHub 사용자 응답 값이 올바르지 않습니다.", exception.message)
+        server.verify()
+    }
+
+    @Test
     fun `저장소 응답의 push 권한을 기여자 역할로 해석한다`() {
         server.expect { request ->
             assertEquals("/user/repos", request.uri.path)

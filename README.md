@@ -228,6 +228,8 @@ REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용�
 
 같은 공개 기록을 HEAD가 같은 여러 PR에 동시에 게시해도 단일 서버에서는 Check Run을 한 번만 생성합니다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지합니다.
 
+GitHub 게시 전 PR HEAD는 전체 커밋 ID인지 확인하고, Check Run 생성·수정 응답의 ID·HEAD·`external_id`와 HTTPS URL이 요청과 일치할 때만 게시 이력을 저장합니다. 팀 공유 Markdown에서 제목·요약·판단·질문은 Markdown 문법이 아닌 일반 문장으로 처리하며, 명령·경로·심벌에 백틱이 포함돼도 하나의 코드 표현으로 유지합니다.
+
 모든 API와 MCP 입력에서 작성자 필드는 받지 않습니다. 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 
 ## Codex 플러그인
