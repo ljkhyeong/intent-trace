@@ -244,6 +244,15 @@
 - IntelliJ 저장 세션 삭제 액션은 PasswordSafe 세션을 서버에서 먼저 폐기한다. 성공 또는 이미 만료된 `401` 뒤 로컬 자격 증명을 삭제하고, 서버 장애 때는 token을 유지한다. 환경 변수 세션은 변경하지 않는다.
 - 로컬 HTTP·Spring 통합 테스트로 세션 폐기 이후 `401`, `ghu_` 거부, 사용자별 상한, IntelliJ `DELETE` 요청과 `401` 정리를 확인했다. 서버 `./gradlew --no-daemon clean test`는 130개 중 126개 통과·PostgreSQL 조건부 4개 건너뜀이고, IntelliJ 테스트 32개와 플러그인 빌드·구성·구조 검사, `scripts/validate-plugin.sh`, Compose 검사, 스킬 `quick_validate.py`, `git diff --check`가 성공했다. 실제 GitHub App OAuth·권한은 재인증 시간 초과로 아직 포함하지 않았다.
 
+## 실제 GitHub OAuth와 IntelliJ 조회 검증 (2026-09-02)
+
+- `IntentTrace ljkhyeong` GitHub App의 기존 사용자 승인을 폐기하고 `@ljkhyeong` 계정으로 다시 승인했다. callback은 `http://127.0.0.1:18080/auth/github/callback`을 사용했고, 새 승인은 expiring user authorization token 설정 아래에서 수행했다.
+- 검증용 client secret은 파일·로그·셸 인자에 저장하지 않고 로컬 서버 프로세스 환경에만 전달했다. OAuth callback에서 `its_` 세션을 발급받은 뒤 `GET /api/v1/change-records?repositoryKey=ljkhyeong%2Fintent-trace&scope=TEAM&page=0&size=1`을 호출해 HTTP 200을 확인했다. 이 요청은 GitHub `/user` 사용자 확인과 저장소 단건 권한 조회를 실제 GitHub 응답으로 통과했다.
+- IntelliJ에서 서버 주소를 `http://127.0.0.1:18080`으로 설정하고 상태 `UP`을 확인한 뒤, 발급된 세션을 PasswordSafe에 저장했다. `IntentTrace 기록함 · ljkhyeong/intent-trace`가 열리고 팀 공개 기록 전체 조회가 1페이지 0건으로 완료돼 PasswordSafe 읽기, 세션 인증과 저장소 권한 조회가 함께 동작함을 확인했다.
+- 설치돼 있던 `0.8.0-SNAPSHOT` 플러그인은 서버 세션 폐기 기능을 넣기 전 빌드였다. 따라서 실제 IntelliJ 검증은 서버 설정·PasswordSafe 저장·기록함 조회까지이며, 새 `DELETE /api/v1/session` 연결 해제 동작은 자동화 테스트로만 확인했다.
+- 검증 후 임시 client secret 두 개를 삭제하고 기존 운영 client secret 하나만 유지했다. 로컬 서버를 정상 종료해 메모리의 GitHub token과 `its_` 세션을 제거했고, 검증 중 만든 `8080`·`18080` PasswordSafe 항목도 삭제한 뒤 IntelliJ 서버 주소를 빈 기본 설정으로 복원했다. GitHub App 사용자 승인은 유지했다.
+- 실제 변경 기록 생성·수정, GitHub Check Run 게시와 PR 쓰기는 수행하지 않았다. client secret, GitHub token과 `its_` 원문은 저장소 문서나 변경 파일에 기록하지 않았다.
+
 ## 다음 작업 후보
 
 1. 화면 제어 서비스 재시작 비교는 마쳤으며, 제품 코드를 바꾸지 않고 화면 조회가 복구됐다. 재발 방지 수정이 확인된 것은 아니므로 팝업을 직접 열지 않는 키보드 선택이나 정상적으로 화면을 읽는 환경에서 `팀 공개 기록 · 공개/대체됨`, `내 비공개 기록 · 전체/초안`과 커밋 없는 초안의 이동 버튼 비활성화를 직접 확인한다. 공용 제어 서비스 재시작은 다른 연결에도 영향을 줄 수 있으므로 상시 우회 수단으로 반복하지 않는다. 남은 수동 검증 전에는 0.8.0 릴리스 준비가 완료됐다고 판단하지 않는다.
