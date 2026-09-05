@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
+import { BridgeFailure } from './errors.mjs';
 
 const script = fileURLToPath(import.meta.url);
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
@@ -61,6 +62,12 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => {
+    if (error instanceof BridgeFailure) {
+      console.error(error.message);
+      console.error(`INTENT_TRACE_ERROR ${error.details.code}${error.details.retryAfterSeconds === undefined ? '' : ` ${error.details.retryAfterSeconds}`}`);
+      process.exitCode = 1;
+      return;
+    }
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
       ? '먼저 npm ci --prefix clients/zed --ignore-scripts를 실행하세요.'

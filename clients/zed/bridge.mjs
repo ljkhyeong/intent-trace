@@ -5,18 +5,26 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { sessionToken } from './intent-trace.mjs';
+import { httpFailure, parseFailureLine, safeFailure } from './errors.mjs';
 
-const version = '0.10.0';
+const version = '0.11.0';
 const timeout = 60_000;
 
 export async function serve(url) {
   const remote = new Client({ name: 'intent-trace-zed-bridge', version });
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: { headers: { Authorization: `Bearer ${sessionToken()}` }, redirect: 'error' },
-    fetch: (input, init) => {
+    fetch: async (input, init) => {
       const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
       if (target.href !== url.href) throw new Error('허용한 MCP 주소가 아닙니다.');
-      return fetch(input, { ...init, redirect: 'error' });
+      const response = await fetch(input, { ...init, redirect: 'error' });
+      // SSE 조회와 연결 종료의 405는 SDK가 처리한다. 오류 본문은 읽지 않는다.
+      if (!response.ok && !(response.status === 405 && init?.method !== 'POST')) {
+        const failure = httpFailure(response.status, response.headers.get('Retry-After'));
+        await response.body?.cancel().catch(() => {});
+        throw failure;
+      }
+      return response;
     },
   });
   const local = new Server({ name: 'intent-trace', version }, { capabilities: { tools: {} } });
@@ -27,8 +35,9 @@ export async function serve(url) {
     await Promise.allSettled([remote.close(), local.close()]);
   };
   const forward = async action => {
-    try { return await action(); } catch {
-      throw new McpError(ErrorCode.InternalError, 'IntentTrace 요청을 완료하지 못했습니다. 연결·세션을 확인하고 변경 요청은 기록 또는 게시 상태를 먼저 조회하세요.');
+    try { return await action(); } catch (error) {
+      const failure = safeFailure(error);
+      throw new McpError(ErrorCode.InternalError, failure.message, failure.details);
     }
   };
   local.setRequestHandler(ListToolsRequestSchema, (request, extra) =>
@@ -44,7 +53,7 @@ export async function serve(url) {
     await local.connect(new StdioServerTransport());
   } catch (error) {
     await close();
-    throw error;
+    throw safeFailure(error);
   }
 }
 
@@ -54,8 +63,15 @@ export async function check(script, url, repositoryKey) {
     command: process.execPath, args: [script, 'serve', url.href],
     env: { INTENT_TRACE_SESSION_TOKEN: sessionToken() }, stderr: 'pipe',
   });
-  // 자식 프로세스 오류 원문도 외부로 출력하지 않는다.
-  transport.stderr?.resume();
+  // 정해진 오류 코드 줄만 해석하고 자식 프로세스의 다른 출력은 버린다.
+  let childFailure;
+  let pending = '';
+  transport.stderr?.on('data', bytes => {
+    pending = (pending + bytes.toString()).slice(-8192);
+    const lines = pending.split('\n');
+    pending = lines.pop();
+    for (const line of lines) childFailure = parseFailureLine(line) ?? childFailure;
+  });
   try {
     await client.connect(transport, { timeout });
     const result = await client.listTools();
@@ -68,6 +84,8 @@ export async function check(script, url, repositoryKey) {
       for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}`);
       if (diagnosis.checks.some(item => item.status === 'FAILED')) process.exitCode = 1;
     }
+  } catch (error) {
+    throw childFailure ?? safeFailure(error);
   } finally {
     await client.close();
   }
