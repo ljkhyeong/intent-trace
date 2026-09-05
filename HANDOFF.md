@@ -19,9 +19,12 @@
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- Streamable HTTP MCP 도구 13개
+- Streamable HTTP MCP 도구 18개
 - 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
 - MCP 기록 대체와 Markdown의 후속 기록 링크
+- Flyway V7 게시 시도 이력, 게시 결과 조회·응답 유실 복구·기존 Check Run 대체 안내
+- 내 세션 목록과 선택·전체 폐기, 갱신 도중 폐기 처리
+- GitHub 호출 제한 429·Retry-After와 기능별 Micrometer 지표
 - Flyway V5 최초 생성 내용 해시와 목록 조회 인덱스, V6 코드 근거 BASE·TARGET과 실행 결과 출처
 - GitHub 코드 해시 확인과 이전 커밋의 동일 파일·관련 기록 조회
 - 로컬 실행 도구의 종료 코드·시각·출력 해시 수집과 변경 파일 감지
@@ -33,7 +36,7 @@
 ## 확인할 불변식
 
 - 초안은 만든 작성자만 확인한다.
-- 초안과 확인 기록은 만든 작성자만 조회하고, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 조회한다.
+- 초안·확인·폐기 기록은 만든 작성자만 조회하고, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 조회한다.
 - 작성자는 요청 본문이 아니라 `/user`에서 확인한 GitHub 숫자 ID로 결정한다.
 - Codex에는 GitHub token 대신 `its_` session token만 전달하고 GitHub token 쌍은 메모리 밖으로 노출하지 않는다.
 - callback은 같은 브라우저의 cookie와 미사용 `state`가 일치할 때만 code를 교환한다.
@@ -43,18 +46,18 @@
 - 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
 - 공개된 본문과 근거는 수정하지 않고 새 공개 기록으로 대체한다.
 - 팀 조회에는 공개 또는 대체된 기록만 노출한다.
-- GitHub 게시 전 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다.
+- 새 기록을 GitHub에 게시할 때 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다. 기존 Check Run의 대체 안내는 원래 커밋을 확인하고 진행된 PR HEAD를 허용한다.
 - Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
 - GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
 - 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
 - PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
 - restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.
-- MCP 생성 도구는 Jakarta Validator를 명시적으로 실행하고 전체 Git commit 형식은 도메인 값 객체에서 검증한다.
+- MCP 생성·수정 도구는 Jakarta Validator를 명시적으로 실행하고 전체 Git commit 형식은 도메인 값 객체에서 검증한다. 선택 입력은 MCP 명세에도 선택값으로 등록한다.
 - GitHub 자격 증명 보유 객체의 `toString()`에는 실제 비밀값을 넣지 않는다.
 
 ## 다음 작업 후보
 
-2026-09-05 코드 검토에서 확인한 기능 공백과 우선순위 제안은 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)에 정리했다. 아래 후보를 포함한 제안이며 아직 확정한 개발 범위는 아니다.
+2026-09-05 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)의 9개 항목은 REST·MCP·로컬 실행 도구의 최소 기능을 구현했다. 계약은 PRD-0004, ADR-0007·0008과 기존 PRD의 확장 절을 따른다. 외부 지표 대시보드·줄 이동 자동 추적은 후속 작업이다.
 
 1. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
@@ -64,7 +67,7 @@
 ## 현재 제한
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
-- 승인 폐기 webhook과 사용자가 세션을 직접 조회·폐기하는 UI는 없다.
+- 승인 폐기 webhook과 웹 세션 관리 화면은 없다. REST·MCP에서 본인 세션을 조회·폐기할 수 있다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
@@ -75,4 +78,5 @@
 - Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IDE 자동 연동은 아직 구현하지 않았다.
-- 감사 로그와 기록 보존 정책은 아직 구현하지 않았다.
+- 게시 시도 이력 외의 감사 로그와 자동 보존 정책은 아직 구현하지 않았다.
+- Micrometer 지표는 수집하지만 외부 수집기와 대시보드는 별도 연결해야 한다.

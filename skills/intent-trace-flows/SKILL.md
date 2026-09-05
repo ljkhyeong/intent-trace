@@ -26,26 +26,33 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - 판단 출처의 `STATED_*`, `CONFIRMED_AI_SUMMARY`, `INFERRED`, `UNKNOWN` 의미를 섞지 않는다.
 - 작성자 확인과 공개는 전체 Git 커밋 ID 및 같은 SHA-256 스냅샷을 요구한다.
 - 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다.
+- 본문 수정은 `DRAFT`에서만 허용한다. 확인 취소는 연결한 target revision을 비우고, `DISCARDED`는 작성자에게만 보이는 종료 상태로 유지한다.
 - GitHub 저장소 식별자는 입력 경계에서 소문자 `owner/repository`로 정규화하고 DB에도 같은 값만 저장한다.
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
-- Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
+- Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성·수정 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 선택 입력은 `McpToolParam(required = false)`로 명시하고 생략한 실제 요청도 확인한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
+- `BASE` 코드 근거는 `baseRevision`, `TARGET` 근거는 `targetRevision`을 사용한다. 변경 전 코드 조회에 변경 후 테스트를 현재 검증으로 표시하지 않는다.
+- GitHub 코드 확인은 제출된 해시와 원격 객체를 비교할 뿐 로컬 명령 실행을 증명하지 않는다. 실행 도구로 수집한 결과도 `LOCAL_RUNNER_REPORTED`로 구분한다.
 
 ## 팀 사용자와 저장소 접근 경계
 
 - 모든 REST·MCP 요청은 기본적으로 `its_` session token을 받고, 메모리의 GitHub App user access token으로 `/user`를 확인해 숫자 사용자 ID를 `github:<id>` subject로 사용한다. login은 표시값이며 소유권 키로 사용하지 않는다. 기존 `ghu_` 직접 Bearer 인증은 호환 경로로만 유지한다.
 - OAuth 시작은 256비트 무작위 `state`의 digest·TTL과 PKCE verifier를 서버에 두고 `state` 원문은 callback 경로의 HttpOnly·SameSite cookie로 전달한다. callback은 query·cookie 일치, TTL·미사용 여부와 PKCE `S256`을 검증하기 전 code를 교환하지 않는다.
-- 작성자·사용자 ID를 REST나 MCP 도구 입력으로 받지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다.
-- `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
+- 기록 작성자는 입력값으로 정하지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다. 팀 목록의 작성자 ID 필터는 조회 조건으로만 사용한다.
+- `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경하고 `DISCARDED`는 만든 작성자만 조회한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
 - GitHub `/user/repos`의 `owner,collaborator,organization_member` 목록에 포함된 저장소만 팀 범위로 인정한다. 그 목록의 `pull`은 READER, `push`는 CONTRIBUTOR, `maintain`·`admin`은 MAINTAINER로 해석한다. public 저장소의 일반 읽기 가능 여부만으로 팀원이라고 판단하지 않는다.
 - GitHub access·refresh token은 메모리에만 보유하고 DB, URL, cookie, 로그, 예외, 도구 입력에 넣지 않는다. `its_` 원문도 callback 성공 본문 외에는 응답하지 않고 store에는 digest만 인덱스로 둔다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
 - access token 만료 전 refresh는 세션별 잠금 안에서 한 번만 수행하고 새 access·refresh token 쌍으로 함께 교체한다. 갱신 거부, token 거부 또는 사용자 subject 변경은 session을 폐기해 재로그인을 요구한다.
+- 세션 목록에는 본인의 비밀값 없는 메타데이터만 반환한다. 갱신 중 폐기한 세션을 다시 활성화하지 않는다.
 - V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
 
 ## 외부 게시 경계
 
 - GitHub 게시 전 공개 기록인지 확인하고 PR `head.sha`가 기록의 `targetRevision`과 정확히 같은지 서버 응답으로 검증한다.
+- PR 응답의 base·head 저장소가 게시 대상과 일치하는지도 확인하고 Fork 게시를 거부한다.
+- 대체 안내는 기존 Check Run의 `external_id`와 원래 `head_sha`를 검증한 뒤 PATCH만 수행한다. 이 안내에는 진행된 PR HEAD를 허용하되 새 기록 게시에는 전체 커밋 일치 규칙을 유지한다.
 - Check Run의 `external_id`에는 `intent-trace:<변경 기록 UUID>`를 사용해 재시도 시 기존 실행을 찾아 갱신한다.
+- 게시 시도와 원격 결과를 구분한다. 응답 유실은 `RESULT_UNKNOWN`으로 기록하고 기존 게시 요청을 재실행해 확인한다. 호출 제한은 `Retry-After`를 전달하며 즉시 반복 호출하지 않는다.
 - GitHub 원격 호출을 DB 트랜잭션 안에서 실행하지 않는다. 외부 성공 뒤 로컬 저장이 실패해도 같은 요청을 안전하게 재시도할 수 있어야 한다.
 - GitHub App client ID와 Base64 PEM private key는 환경 변수로만 주입하고 JWT·installation token을 DB, 로그, 오류 응답, Check Run 본문에 넣지 않는다.
 - installation token은 대상 저장소와 필요한 권한으로 축소하고 만료 전에 메모리에서 갱신한다.

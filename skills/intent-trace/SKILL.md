@@ -53,7 +53,7 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 작성자 피드백은 `revise_change_record`에 현재 버전과 전체 수정 내용을 전달한다. 최초 요청 ID와 저장소는 유지한다. 생성 도구에 같은 ID와 다른 내용을 보내는 것은 수정이 아니다.
 - 확인한 비공개 기록을 고치려면 `reopen_change_record`로 확인을 취소하고 수정한 뒤 작성자의 확인을 다시 받는다.
 - 사용자가 비공개 기록 폐기를 요청하면 `discard_change_record`를 사용한다.
-- 새 공개 기록으로 교체할 때는 `supersede_change_record`를 사용한다. GitHub의 기존 Check Run 반영 여부는 별도로 확인한다.
+- 새 공개 기록으로 교체할 때는 `supersede_change_record`를 사용한다. 사용자가 GitHub 반영까지 요청하면 `sync_superseded_record_to_github_pr`로 기존 Check Run에 대체 안내를 반영한다.
 
 ## 실행 증거와 이전 코드
 
@@ -61,3 +61,9 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 삭제·이름 변경 이전의 근거는 `side=BASE`로 만들고 `baseRevision`에 전체 커밋을 지정한다. 변경 후는 `TARGET`이다. 이름 변경은 반대쪽 근거의 `relatedPath`로 연결한다.
 - `check_change_record_evidence`는 GitHub 코드와 해시만 확인한다. `codeVerified=true`를 테스트 실행 증명으로 설명하지 않는다.
 - 정확한 줄 조회에 결과가 없으면 `find_related_change_intent`로 같은 파일의 이전 기록을 찾는다. `RELATED_UNVERIFIED`를 현재 코드의 확정 의도로 설명하지 않으며 다른 커밋의 테스트를 현재 테스트로 재사용하지 않는다.
+
+## 게시 복구와 연결 관리
+
+- GitHub 응답을 받지 못하면 `get_github_publication_status`로 먼저 확인한다. `RESULT_UNKNOWN`은 실패 확정이 아니다. 같은 게시 요청 또는 대체 안내 요청을 다시 실행해 기존 Check Run으로 복구한다.
+- GitHub 호출 제한 오류가 안내하는 시간이 지나기 전에는 자동 재시도하지 않는다.
+- `list_my_sessions`로 본인의 연결 정보를 확인한다. 사용자가 종료를 요청한 경우에만 `revoke_my_session` 또는 `revoke_all_my_sessions`를 호출한다. 연결 ID 대신 token을 도구 인자로 보내지 않는다.

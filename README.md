@@ -19,9 +19,12 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - PR 설명에 붙일 수 있는 Markdown 출력
 - PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
 - GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
+- GitHub 게시 시도 조회·응답 유실 복구와 기존 Check Run 대체 안내
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
+- 내 세션 조회·선택 폐기·전체 폐기
+- GitHub 호출 제한 대기 시간 안내와 기능별 Micrometer 지표
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
 
@@ -162,12 +165,18 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 - `GET /api/v1/change-records/history`: 현재 커밋·파일·줄의 관련 기록 조회
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
+- `GET /api/v1/change-records/{id}/github-pull-request`: 게시 대상별 결과·시도 이력 조회
+- `POST /api/v1/change-records/{id}/github-pull-request/supersession`: 기존 Check Run에 대체 안내 반영
+- `GET /api/v1/me/sessions`: 내 세션 조회
+- `DELETE /api/v1/me/sessions/current`: 현재 연결 폐기
+- `DELETE /api/v1/me/sessions/{sessionId}`: 선택한 내 연결 폐기
+- `DELETE /api/v1/me/sessions`: 내 전체 연결 폐기
 
-MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 생성·조회·확인·공개·목록·수정·확인 취소·폐기·대체 도구와 `find_change_intent`, `find_related_change_intent`, `check_change_record_evidence`, `publish_change_record_to_github_pr`를 제공합니다.
+MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 생성·조회·확인·공개·목록·수정·확인 취소·폐기·대체 도구와 `find_change_intent`, `find_related_change_intent`, `check_change_record_evidence`, `publish_change_record_to_github_pr`를 제공합니다. 게시 상태 조회·대체 안내는 `get_github_publication_status`, `sync_superseded_record_to_github_pr`, 세션 관리는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`를 사용합니다.
 
-REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
+REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
-모든 API와 MCP 입력에서 작성자 필드는 받지 않습니다. 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
+작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. 팀 목록의 `authorId`는 조회 필터이며 작성자를 지정하는 입력이 아닙니다. `DRAFT`, `AUTHOR_CONFIRMED`, `DISCARDED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 
 ## Codex 플러그인
 
@@ -196,13 +205,16 @@ scripts/verify-postgres.sh
 
 - GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 승인 폐기 webhook과 세션 관리 UI는 아직 제공하지 않습니다.
+- GitHub 승인 폐기 webhook과 웹 세션 관리 화면은 제공하지 않습니다. 세션 조회·폐기는 REST·MCP를 사용합니다.
 - GitHub 권한은 요청마다 조회하며 짧은 캐시나 webhook 기반 무효화는 아직 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
-- 감사 로그와 보존 정책은 아직 구현하지 않았습니다.
+- 게시 시도 이력은 저장하지만 전체 감사 로그·자동 보존 정책은 아직 제공하지 않습니다. 폐기한 비공개 기록은 작성자에게 남습니다.
+- 코드 확인은 일부 트리·2 MiB 초과 blob을 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
+- 이전 기록 조회는 같은 경로의 파일 비교를 지원하고 줄 이동 자동 추적은 제공하지 않습니다.
+- Micrometer 지표의 외부 수집기와 대시보드는 별도 연결이 필요합니다.
 
 ## 문서
 
@@ -217,5 +229,6 @@ scripts/verify-postgres.sh
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
 - `docs/ADR-0006-single-instance-team-deployment.md`
 - `docs/ADR-0007-evidence-check-and-history.md`
+- `docs/ADR-0008-publication-recovery.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`

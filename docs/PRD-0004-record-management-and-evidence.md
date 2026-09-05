@@ -2,7 +2,7 @@
 
 ## 상태
 
-구현 진행 중. 완료한 API와 현재 제한은 README·HANDOFF에 구분한다.
+초안 관리·기록 목록·코드 확인·이전 기록 탐색의 최소 기능 구현 완료. 현재 제한은 README·HANDOFF에 구분한다.
 
 ## 목표
 
@@ -42,7 +42,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 
 - 코드 근거의 `side` 기본값은 `TARGET`이다. `BASE`는 전체 `baseRevision`을 요구한다. `relatedPath`는 반대쪽 근거의 경로여야 한다.
 - 기존 줄 조회도 근거가 가리키는 BASE·TARGET 커밋으로 검색한다. 삭제 이전 줄을 변경 후 커밋의 줄로 취급하지 않는다.
-- 검증의 `source`는 `CLIENT_REPORTED` 또는 `LOCAL_RUNNER_REPORTED`이며 응답의 `serverExecutionVerified`는 항상 false다. `current`는 기록 스냅샷과 제출한 검증 스냅샷의 일치만 의미한다.
+- 검증의 `source`는 `CLIENT_REPORTED` 또는 `LOCAL_RUNNER_REPORTED`이며 응답의 `serverExecutionVerified`는 항상 false다. `current`는 기록 스냅샷과 제출한 검증 스냅샷의 일치만 의미한다. 줄 조회에서 조회 커밋이 target과 다르면 false로 반환한다.
 - `GET /api/v1/change-records/{id}/evidence-check`와 `check_change_record_evidence`는 GitHub의 커밋 트리와 코드 줄 해시를 확인한다. 기록의 전체 커밋 확인이 선행되어야 하며 결과에 기록 ID·버전·커밋·스냅샷·확인 시각을 반환한다.
 - `codeVerified`는 스냅샷과 모든 코드 근거가 일치할 때만 true다. 코드 확인 실패는 기존 기록이나 해시를 수정하지 않는다. 결과는 요청 시 계산하며 저장하지 않는다.
 - GitHub 사용자 권한에 `Contents: read`가 필요하다. 일부만 반환한 트리와 2 MiB를 넘는 코드 파일은 확인할 수 없다고 응답한다.

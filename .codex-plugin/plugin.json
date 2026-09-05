@@ -1,6 +1,6 @@
 {
   "name": "intent-trace",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "AI가 만든 코드의 요청, 판단, 코드 근거, 검증 결과를 작성자 확인 후 공유하는 플러그인",
   "author": {
     "name": "IntentTrace contributors"
