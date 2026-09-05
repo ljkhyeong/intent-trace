@@ -26,10 +26,18 @@ data class ChangeRecord(
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
     val creationDigest: String? = null,
+    val derivedFromRecordId: UUID? = null,
 ) {
     fun content(): ChangeRecordContent = ChangeRecordContent(
-        baseRevision, snapshotDigest, title, requestSummary, decisions, codeAnchors, verifications, openQuestions,
+        baseRevision, snapshotDigest, title, requestSummary, decisions, codeAnchors, verifications, openQuestions, derivedFromRecordId,
     )
+
+    fun requireSuccessorSource(actor: ActorIdentity) {
+        check(status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED) {
+            "공개하거나 대체된 기록에서만 후속 초안을 만들 수 있습니다."
+        }
+        check(actor.subject == createdBy.subject) { "작성자만 후속 초안을 만들 수 있습니다." }
+    }
 
     fun revise(actor: ActorIdentity, content: ChangeRecordContent): ChangeRecord {
         check(status == ChangeRecordStatus.DRAFT) { "초안만 수정할 수 있습니다. 확인한 기록은 먼저 확인을 취소하세요." }

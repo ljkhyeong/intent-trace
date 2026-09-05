@@ -17,6 +17,18 @@ class TeamChangeRecordService(
         return facade.create(command, actor)
     }
 
+    fun createSuccessor(recordId: UUID, command: SuccessorDraftCommand): ChangeRecord {
+        val (source, actor) = ownedContributor(recordId)
+        source.requireSuccessorSource(actor)
+        return facade.create(CreateChangeRecordCommand(
+            requestId = command.requestId, repositoryKey = source.repositoryKey,
+            baseRevision = command.baseRevision, snapshotDigest = command.snapshotDigest,
+            title = source.title, requestSummary = source.requestSummary,
+            decisions = source.decisions, codeAnchors = command.codeAnchors,
+            verifications = emptyList(), openQuestions = source.openQuestions, derivedFromRecordId = source.id,
+        ), actor)
+    }
+
     fun get(recordId: UUID): ChangeRecord {
         val record = facade.get(recordId)
         val actor = access.requireReader(record.repositoryKey)

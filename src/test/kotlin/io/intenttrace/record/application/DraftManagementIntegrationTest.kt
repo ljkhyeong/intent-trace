@@ -100,6 +100,34 @@ class DraftManagementIntegrationTest(
         assertFailsWith<IllegalArgumentException> { catalog.list(repository, q = "a".repeat(201)) }
     }
 
+    @Test
+    fun `후속 초안은 원본과 최초 요청을 보존하고 새 근거와 재확인을 요구한다`() {
+        session.actor = owner
+        val original = records.create(command("source-${UUID.randomUUID()}").copy(
+            verifications = listOf(io.intenttrace.record.domain.VerificationRun("test", 0, java.time.Instant.EPOCH,
+                java.time.Instant.EPOCH, digest, digest, "이전 검증")),
+        ))
+        val input = SuccessorDraftCommand("successor-${UUID.randomUUID()}", revision, "d".repeat(64), original.codeAnchors)
+        assertFailsWith<IllegalStateException> { records.createSuccessor(original.id, input) }
+        records.confirm(ConfirmChangeRecordCommand(original.id, 0, revision, digest))
+        records.publish(PublishChangeRecordCommand(original.id, 1, digest))
+        val draft = records.createSuccessor(original.id, input)
+        assertEquals(original.id, records.get(draft.id).derivedFromRecordId)
+        assertEquals(original.decisions, draft.decisions)
+        assertEquals(ChangeRecordStatus.DRAFT, draft.status)
+        assertNull(draft.targetRevision)
+        assertNull(draft.confirmedAt)
+        assertTrue(draft.verifications.isEmpty())
+        assertFailsWith<IllegalStateException> { records.publish(PublishChangeRecordCommand(draft.id, 0, input.snapshotDigest)) }
+        assertEquals(draft.id, records.createSuccessor(original.id, input).id)
+        assertFailsWith<ChangeRecordRequestConflictException> { records.createSuccessor(original.id, input.copy(snapshotDigest = digest)) }
+        assertEquals(ChangeRecordStatus.PUBLISHED, records.get(original.id).status)
+        session.actor = other
+        assertFailsWith<ChangeRecordOwnershipException> { records.createSuccessor(original.id, input) }
+        assertFailsWith<ChangeRecordOwnershipException> { records.get(draft.id) }
+        session.actor = owner
+    }
+
     class TestSession(var actor: ActorIdentity = owner) : CurrentGitHubUserSession {
         override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token")
     }

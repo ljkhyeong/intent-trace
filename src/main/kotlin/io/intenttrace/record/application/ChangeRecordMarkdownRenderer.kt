@@ -16,6 +16,10 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         appendLine("- 상태: `${record.status}`")
         val recordUrl = properties.userAuthorization.callbackUrl.resolve("/records/${record.id}")
         appendLine("- 기록 열람: [브라우저에서 읽기]($recordUrl)")
+        record.derivedFromRecordId?.let {
+            val url = properties.userAuthorization.callbackUrl.resolve("/records/$it")
+            appendLine("- 원본 공개 기록: [기록 읽기]($url)")
+        }
         record.supersededBy?.let {
             val url = properties.userAuthorization.callbackUrl.resolve("/records/$it")
             appendLine("- 대체 기록: [$it]($url) — 저장소 접근 권한이 필요합니다.")

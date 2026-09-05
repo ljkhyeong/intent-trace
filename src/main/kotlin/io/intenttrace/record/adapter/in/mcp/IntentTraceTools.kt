@@ -3,6 +3,7 @@ package io.intenttrace.record.adapter.`in`.mcp
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
+import io.intenttrace.record.adapter.`in`.web.SuccessorDraftRequest
 import io.intenttrace.record.application.ChangeRecordCatalogService
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
@@ -36,6 +37,15 @@ class IntentTraceTools(
         @McpToolParam(description = "1~100 사이의 목록 크기", required = false) limit: Int? = null,
         @McpToolParam(description = "제목·요청·판단과 근거에서 찾을 검색어, 최대 200자", required = false) q: String? = null,
     ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit ?: 20, q)
+
+    @McpTool(name = "create_successor_draft", description = "내 공개 기록의 판단으로 후속 초안을 만듭니다. 새 스냅샷과 코드 근거가 필요하며 검증 결과와 확인 상태는 복사하지 않습니다.", generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false))
+    fun successor(@McpToolParam(description = "원본 공개 기록 UUID", required = true) recordId: String,
+                  @McpToolParam(description = "새 요청 ID와 코드 근거", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
+        return ChangeRecordResponse.from(records.createSuccessor(UUID.fromString(recordId), request.toCommand()))
+    }
 
     @McpTool(name = "revise_change_record", description = "작성자의 DRAFT 내용만 수정합니다. 요청 ID와 저장소는 유지합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))
@@ -180,6 +190,8 @@ class IntentTraceTools(
         path: String,
         @McpToolParam(description = "조회할 1부터 시작하는 줄 번호", required = true)
         line: Int,
-    ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
-        .map { ChangeRecordResponse.from(it, revision) }
+    ): ChangeIntentLookup = ChangeIntentLookup(records.findIntent(repositoryKey, revision, path, line)
+        .map { ChangeRecordResponse.from(it, revision) })
 }
+
+data class ChangeIntentLookup(val items: List<ChangeRecordResponse>)

@@ -75,6 +75,13 @@ class PostgresRepositorySmokeTest(
         assertEquals(PublicationAttemptStatus.SUCCEEDED, saved.status)
         assertEquals(42L, saved.checkRunId)
         assertEquals(digest, saved.contentDigest)
+        assertEquals(listOf(published.id), catalog.search(RecordCatalogQuery(
+            published.repositoryKey, setOf(published.status), null, null, null, 20, pullNumber = 1,
+        )).map { it.id })
+        val successor = facade.create(CreateChangeRecordCommand("postgres-successor", published.repositoryKey,
+            revision, digest, published.title, published.requestSummary, published.decisions, published.codeAnchors,
+            emptyList(), emptyList(), published.id), actor)
+        assertEquals(published.id, facade.get(successor.id).derivedFromRecordId)
     }
 
     companion object {

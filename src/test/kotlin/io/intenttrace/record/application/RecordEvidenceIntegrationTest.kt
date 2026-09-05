@@ -56,11 +56,18 @@ class RecordEvidenceIntegrationTest(
         val checked = evidence.check(draft.id)
         assertTrue(checked.codeVerified)
         assertFalse(checked.serverExecutionVerified)
-        val old = history.find(repository.key, nextRevision, "new.txt", 1).items.single()
+        val related = history.find(repository.key, nextRevision, "new.txt", 1).items
+        assertEquals(IntentMatch.ANCESTOR_RENAMED_FILE, related.single { it.side == CodeSide.BASE }.match)
+        val old = related.single { it.side == CodeSide.TARGET }
         assertEquals(IntentMatch.ANCESTOR_UNCHANGED_FILE, old.match)
         assertFalse(old.verificationAppliesToQuery)
         val changed = history.find(repository.key, changedRevision, "new.txt", 1).items.single()
         assertEquals(IntentMatch.RELATED_UNVERIFIED, changed.match)
+        val moved = history.find(repository.key, movedRevision, "new.txt", 2).items.single()
+        assertEquals(IntentMatch.ANCESTOR_MOVED_LINES, moved.match)
+        assertEquals(2, moved.currentStartLine)
+        assertEquals(3, moved.currentEndLine)
+        assertFalse(moved.verificationAppliesToQuery)
         val wrong = records.create(command.copy(requestId = "wrong-${UUID.randomUUID()}", codeAnchors = listOf(CodeAnchor("new.txt", null, 1, 2, "f".repeat(64)))))
         records.confirm(ConfirmChangeRecordCommand(wrong.id, wrong.version, targetRevision, snapshot))
         assertFalse(evidence.check(wrong.id).codeVerified)
@@ -70,12 +77,16 @@ class RecordEvidenceIntegrationTest(
     class FakeEvidence : GitEvidenceGateway {
         override fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot {
             val path = if (revision == baseRevision) "old.txt" else "new.txt"
-            val sha = if (revision == changedRevision) "f".repeat(40) else "e".repeat(40)
+            val sha = when (revision) { changedRevision -> "f".repeat(40); movedRevision -> "d".repeat(40); else -> "e".repeat(40) }
             val entries = mutableListOf(GitTreeEntry(path, "100644", "blob", sha))
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
             return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
         }
-        override fun blob(repository: GitHubRepository, sha: String): ByteArray = bytes
+        override fun blob(repository: GitHubRepository, sha: String): ByteArray = when (sha) {
+            "f".repeat(40) -> "바뀐 코드\n".toByteArray()
+            "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes
+            else -> bytes
+        }
         override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean = true
     }
 
@@ -88,6 +99,7 @@ class RecordEvidenceIntegrationTest(
         private val baseRevision = "1".repeat(40)
         private val targetRevision = "2".repeat(40)
         private val nextRevision = "3".repeat(40)
+        private val movedRevision = "5".repeat(40)
         private val changedRevision = "4".repeat(40)
         private val bytes = "첫 줄\n마지막 줄\n".toByteArray()
     }

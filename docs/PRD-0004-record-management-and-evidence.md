@@ -59,3 +59,21 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - 결과의 `EXACT_REVISION`은 근거 커밋·줄 일치, `ANCESTOR_UNCHANGED_FILE`은 조상 커밋과 동일 blob 확인, `RELATED_UNVERIFIED`는 현재 줄과 내용의 일치를 확인하지 않은 관련 후보다. 다른 커밋의 검증은 파일 내용이 같아도 현재 검증으로 승격하지 않는다.
 - `scripts/run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령과 인자>`는 실제 명령을 실행하고 검증 JSON을 표준 출력으로 반환한다. 원문 출력은 메모리에서 해시만 계산하고 버린다. 명령과 요약의 비밀값·개인 경로를 제거한다.
 - 실행 전후 HEAD가 같고 Git이 보고하는 수정·미추적 파일이 없어야 한다. 변경되면 저장 가능한 검증 JSON을 반환하지 않는다. Git이 무시하는 파일, 실행 도중 변경 후 복원, 빌드 환경 전체의 동일성까지 증명하지는 않는다.
+
+## 공개 기록에서 후속 초안 만들기
+
+- `POST /api/v1/change-records/{id}/successor`와 `create_successor_draft`는 본인의 `PUBLISHED`·`SUPERSEDED` 기록에서 초안을 만든다. 저장소 쓰기 권한이 필요하다.
+- 입력은 새 `requestId`, `snapshotDigest`, `codeAnchors`와 선택 `baseRevision`이다. 새 코드 근거에도 생성과 같은 검증을 적용한다.
+- 제목·요청·판단과 출처·남은 질문을 복사한다. 이전 검증 결과·target 커밋·확인 시각·공개 상태를 복사하지 않는다. 작성자는 다시 검토·수정·검증·확인해야 한다.
+- `derivedFromRecordId`로 원본을 보존하며 이후 수정으로 바꾸지 않는다. 최초 내용 해시에 원본 ID도 포함해 다른 원본의 같은 요청 ID 재사용을 거부한다.
+- 이 작업은 원본을 대체하지 않는다. 새 초안을 공개한 다음 명시적인 대체 요청을 별도로 처리한다.
+
+## 파일 이름과 줄 이동 조회
+
+- 이름이 달라진 기록을 찾기 위해 history는 저장소의 팀 공개 후보를 최신순으로 기본 5개·최대 20개씩 살핀다. `scannedRecords`는 살펴본 기록 수다. 결과가 비어 있어도 `nextCursor`가 있으면 다음 후보를 조회할 수 있다.
+- `ANCESTOR_RENAMED_FILE`은 조상 관계, 원본·현재 트리에서 같은 blob이 각각 하나뿐임, 이전 경로 삭제와 새 경로 추가, 저장된 줄 해시를 모두 확인한 경우다.
+- 같은 경로의 파일 내용이 바뀌었어도 저장된 줄 해시가 원본과 일치하고 코드 조각이 원본·현재 파일에서 각각 한 곳에만 있으면 현재 줄 범위를 계산한다. 범위가 이동했으면 `ANCESTOR_MOVED_LINES`, 같은 줄이면 `ANCESTOR_UNCHANGED_LINES`다.
+- 원래 CRLF·LF와 마지막 줄 바이트를 그대로 비교한다. 공백뿐인 조각, 중복 조각, 코드 수정·이름 변경이 함께 일어난 경우는 자동 이동 확인 범위에서 제외한다.
+- `sourcePath`, `sourceStartLine`, `sourceEndLine`과 확인한 `currentStartLine`, `currentEndLine`을 반환한다. 현재 줄 일치를 확인하지 못하면 현재 범위는 null이다.
+- 이전 커밋에서 온 모든 연결의 `verificationAppliesToQuery`는 false다.
+- 0.9.0부터 MCP `find_change_intent`는 최상위 배열 대신 `{ "items": [...] }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 REST `/lookup` 배열 응답은 유지한다.

@@ -57,6 +57,7 @@ class ChangeRecordFacade(
             verifications = content.verifications,
             openQuestions = content.openQuestions,
             creationDigest = creationDigest,
+            derivedFromRecordId = command.derivedFromRecordId,
         )
 
         return try {
@@ -150,6 +151,7 @@ class ChangeRecordFacade(
         codeAnchors = command.codeAnchors.map(::normalize),
         verifications = command.verifications.map(::redact),
         openQuestions = command.openQuestions.map(redactor::redact),
+        derivedFromRecordId = command.derivedFromRecordId,
     )
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {

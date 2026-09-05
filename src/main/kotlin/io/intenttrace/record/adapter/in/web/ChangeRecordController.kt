@@ -43,6 +43,11 @@ class ChangeRecordController(
         @RequestParam(required = false) q: String?,
     ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit, q)
 
+    @PostMapping("/{recordId}/successor")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun successor(@PathVariable recordId: UUID, @Valid @RequestBody request: SuccessorDraftRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.createSuccessor(recordId, request.toCommand()))
+
     @PostMapping("/{recordId}/revise")
     fun revise(@PathVariable recordId: UUID, @Valid @RequestBody request: ReviseChangeRecordRequest): ChangeRecordResponse =
         ChangeRecordResponse.from(records.revise(recordId, request.expectedVersion, request.content.toCommand()))

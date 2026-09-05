@@ -23,6 +23,16 @@ class JdbcChangeRecordCatalog(private val jdbc: JdbcTemplate) : ChangeRecordCata
             conditions += "exists (select 1 from code_anchors a where a.record_id = r.id and a.relative_path = ?)"
             parameters += it
         }
+        query.pullNumber?.let { number ->
+            conditions += """
+                (exists (select 1 from github_publication_attempts a where a.change_record_id = r.id
+                    and a.repository_key = ? and a.pull_number = ?)
+                 or exists (select 1 from github_publications p where p.change_record_id = r.id
+                    and p.repository_owner = ? and p.repository_name = ? and p.pull_number = ?))
+            """.trimIndent()
+            val repository = io.intenttrace.identity.domain.GitHubRepository.parse(query.repositoryKey)
+            parameters.addAll(listOf(repository.key, number, repository.canonicalOwner, repository.canonicalName, number))
+        }
         query.keyword?.let {
             val pattern = "%${it.replace("!", "!!").replace("%", "!%").replace("_", "!_")}%"
             conditions += """

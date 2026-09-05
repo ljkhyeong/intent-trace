@@ -51,6 +51,7 @@ data class RecordCatalogQuery(
     val cursor: RecordCursor?,
     val limit: Int,
     val keyword: String? = null,
+    val pullNumber: Int? = null,
 )
 
 interface ChangeRecordCatalog {
@@ -71,7 +72,9 @@ class ChangeRecordCatalogService(
         cursor: String? = null,
         limit: Int = 20,
         q: String? = null,
+        pullNumber: Int? = null,
     ): ChangeRecordPage {
+        require(pullNumber == null || pullNumber > 0) { "PR 번호는 양수여야 합니다." }
         require(limit in 1..100) { "목록 크기는 1~100이어야 합니다." }
         require(q == null || q.length <= 200) { "검색어는 200자 이하여야 합니다." }
         val keyword = q?.trim()?.takeIf { it.isNotEmpty() }
@@ -90,7 +93,7 @@ class ChangeRecordCatalogService(
             RecordCatalogQuery(
                 key, statuses,
                 if (scope == RecordScope.MINE) actor.subject else authorId?.let { "github:$it" },
-                path, cursor?.let(RecordCursor::parse), limit + 1, keyword,
+                path, cursor?.let(RecordCursor::parse), limit + 1, keyword, pullNumber,
             ),
         )
         val page = items.take(limit)

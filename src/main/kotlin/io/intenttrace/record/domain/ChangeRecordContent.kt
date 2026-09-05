@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.UUID
 
 data class ChangeRecordContent(
     val baseRevision: String?,
@@ -14,6 +15,7 @@ data class ChangeRecordContent(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
+    val derivedFromRecordId: UUID? = null,
 ) {
     fun digest(): String {
         val bytes = ByteArrayOutputStream()
@@ -26,6 +28,7 @@ data class ChangeRecordContent(
                     output.write(encoded)
                 }
             }
+            if (derivedFromRecordId != null) { text("successor-v1"); text(derivedFromRecordId.toString()) }
             text(baseRevision); text(snapshotDigest); text(title); text(requestSummary)
             output.writeInt(decisions.size)
             decisions.forEach { text(it.summary); text(it.rationale); text(it.source.name) }

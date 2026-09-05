@@ -60,6 +60,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     fun record(actor: ActorIdentity, record: ChangeRecord): String = layout(record.title, actor, buildString {
         append("<a class=\"back-link\" href=\"${html(url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM"))}\">${html(record.repositoryKey)} 기록 목록</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
+        record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새로운 기록으로 대체됐습니다. <a href=\"/records/$it\">후속 기록 읽기</a></aside>") }
         append("<div class=\"reading-layout\"><article>")
         append("<section><h2>요청</h2><p class=\"prose lead\">${html(record.requestSummary)}</p></section>")

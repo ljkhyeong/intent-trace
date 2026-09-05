@@ -16,6 +16,7 @@ data class CreateChangeRecordCommand(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
+    val derivedFromRecordId: UUID? = null,
 )
 
 data class ConfirmChangeRecordCommand(
@@ -35,4 +36,12 @@ data class SupersedeChangeRecordCommand(
     val recordId: UUID,
     val expectedVersion: Long,
     val replacementRecordId: UUID,
+)
+
+
+data class SuccessorDraftCommand(
+    val requestId: String,
+    val baseRevision: String?,
+    val snapshotDigest: String,
+    val codeAnchors: List<CodeAnchor>,
 )

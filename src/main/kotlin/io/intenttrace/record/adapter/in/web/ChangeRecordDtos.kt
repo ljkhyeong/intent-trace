@@ -5,6 +5,7 @@ import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.CreateChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
+import io.intenttrace.record.application.SuccessorDraftCommand
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
@@ -172,6 +173,7 @@ data class ChangeRecordResponse(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationResponse>,
     val openQuestions: List<String>,
+    val derivedFromRecordId: UUID?,
 ) {
     companion object {
         fun from(record: ChangeRecord, queryRevision: String? = null): ChangeRecordResponse = ChangeRecordResponse(
@@ -206,6 +208,7 @@ data class ChangeRecordResponse(
                 )
             },
             openQuestions = record.openQuestions,
+            derivedFromRecordId = record.derivedFromRecordId,
         )
     }
 }
@@ -222,3 +225,15 @@ data class VerificationResponse(
     val source: VerificationSource,
     val serverExecutionVerified: Boolean = false,
 )
+
+
+data class SuccessorDraftRequest(
+    @field:NotBlank @field:Size(max = 120) val requestId: String,
+    @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN) val baseRevision: String? = null,
+    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$") val snapshotDigest: String,
+    @field:NotEmpty @field:Size(max = 100) val codeAnchors: List<@Valid CodeAnchorRequest>,
+) {
+    fun toCommand() = SuccessorDraftCommand(
+        requestId, baseRevision, snapshotDigest, codeAnchors.map(CodeAnchorRequest::toDomain),
+    )
+}

@@ -86,6 +86,9 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("sync_superseded_record_to_github_pr")) }
             content { string(containsString("revoke_all_my_sessions")) }
             content { string(containsString("check_change_record_evidence")) }
+            content { string(containsString("create_successor_draft")) }
+            content { string(containsString("list_pull_request_records")) }
+            content { string(containsString("diagnose_connection")) }
         }
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")
@@ -96,6 +99,18 @@ class AuthenticatedMcpIntegrationTest(
         }.andExpect {
             status { isOk() }
             content { string(containsString("\"isError\":false")) }
+        }
+
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"diagnose_connection","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("\"isError\":false")) }
+            content { string(containsString("NOT_CONFIGURED")) }
         }
 
         mockMvc.post("/mcp") {

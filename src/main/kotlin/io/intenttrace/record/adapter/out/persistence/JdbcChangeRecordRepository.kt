@@ -84,8 +84,8 @@ class JdbcChangeRecordRepository(
             insert into change_records (
                 id, request_id, repository_key, base_revision, target_revision,
                 snapshot_digest, title, request_summary, status, created_by, created_by_subject,
-                created_at, confirmed_at, published_at, superseded_by, version, creation_digest
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, confirmed_at, published_at, superseded_by, version, creation_digest, derived_from_record_id
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
@@ -104,6 +104,7 @@ class JdbcChangeRecordRepository(
             record.supersededBy?.toString(),
             record.version,
             record.creationDigest,
+            record.derivedFromRecordId?.toString(),
         )
         insertDecisions(record)
         insertCodeAnchors(record)
@@ -308,6 +309,7 @@ class JdbcChangeRecordRepository(
         supersededBy = resultSet.getString("superseded_by")?.let(UUID::fromString),
         version = resultSet.getLong("version"),
         creationDigest = resultSet.getString("creation_digest"),
+        derivedFromRecordId = resultSet.getString("derived_from_record_id")?.let(UUID::fromString),
         decisions = emptyList(),
         codeAnchors = emptyList(),
         verifications = emptyList(),
