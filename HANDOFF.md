@@ -397,4 +397,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 관련 `focusedTest` 24개, `scripts/verify-postgres.sh`의 PostgreSQL 5개, 마지막 `./gradlew test` 169개가 통과했다. PostgreSQL 백업·복구 뒤 기록 15건·변경 이력 34건을 확인했다. 부분 테스트는 전체에 포함된다.
 - 검토 문서의 [반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#반영-결과)에 상세 범위를 남겼다. 실제 GitHub 게시·배포·IDE 화면은 확인하지 않았다.
 
-- 이후 [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md#추가-검토)에서 이력 재개 시 같은 기록의 반복 읽기와 전체 세션 종료 시 Map 재검색을 확인했다. 두 항목은 아직 구현하지 않았다.
+- 이후 [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md#추가-검토)에서 이력 재개 시 같은 기록의 반복 읽기와 전체 세션 종료 시 Map 재검색을 확인했다. 두 항목은 아래 2026-09-06 작업에서 반영했다.
+
+## 2026-09-06 이력 재개와 전체 세션 종료의 반복 조회 제거
+
+- 이력 재개·실패 재조회는 한 요청 안에서 읽은 기록을 재사용한다. 기존 통합 테스트에서 기록별 조회가 요청당 한 번이고 다음 요청에서는 다시 읽는 것을 확인했다.
+- 전체 세션 종료는 찾은 Map 항목으로 처리한다. 활성 상태 변경·조건부 삭제를 유지하고 여러 연결의 종료 건수, 다른 사용자 세션 유지와 갱신 도중 종료를 기존 테스트로 확인했다.
+- 관련 `focusedTest` 18개와 최종 `./gradlew test` 170개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [추가 반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#추가-반영-결과)에 범위를 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
