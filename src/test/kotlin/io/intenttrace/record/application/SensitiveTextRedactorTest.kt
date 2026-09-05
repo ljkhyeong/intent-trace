@@ -13,13 +13,15 @@ class SensitiveTextRedactorTest {
             Authorization: Bearer ghu_userToken123
             {"client_secret": "공백이 있는 비밀값"}
             session=its_sessionToken123
+            browser=itb_browserSession123
             /Users/lim/devProject/intent-trace C:\Users\lim\intent-trace
         """.trimIndent()
 
         val redacted = redactor.redact(source)
 
-        assertEquals(5, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
+        assertEquals(6, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
         assertFalse(redacted.contains("ghu_userToken123"))
+        assertFalse(redacted.contains("itb_browserSession123"))
         assertFalse(redacted.contains("lim"))
     }
 

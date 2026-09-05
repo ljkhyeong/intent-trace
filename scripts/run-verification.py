@@ -29,7 +29,7 @@ def require_clean(revision: str) -> None:
 def redact(text: str) -> str:
     text = re.sub(r"(?i)([\"']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret|private[_-]?key|token)[\"']?\s*[:=]\s*)(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;]+)", r"\1[REDACTED]", text)
     text = re.sub(r"(?i)\bBearer\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?", "Bearer [REDACTED]", text)
-    text = re.sub(r"(?i)\b(?:ghp|gho|ghu|ghs|ghr|github_pat|its)_[A-Za-z0-9_=-]+", "[REDACTED]", text)
+    text = re.sub(r"(?i)\b(?:ghp|gho|ghu|ghs|ghr|github_pat|its|itb)_[A-Za-z0-9_=-]+", "[REDACTED]", text)
     text = re.sub(r"(?i)/(?:Users|home)/[^\s\"'`,;)\]}]+|[A-Z]:\\Users\\[^\s\"'`,;)\]}]+", "[REDACTED]", text)
     text = re.sub(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", "[REDACTED]", text, flags=re.S)
     return text

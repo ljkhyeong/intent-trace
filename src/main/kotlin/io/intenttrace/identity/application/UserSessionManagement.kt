@@ -12,6 +12,8 @@ data class UserSessionInfo(
     val accessExpiresAt: Instant,
     val refreshExpiresAt: Instant,
     val current: Boolean = false,
+    val channel: SessionChannel = SessionChannel.CLIENT,
+    val expiresAt: Instant = refreshExpiresAt,
 )
 
 data class MySessions(val actor: ActorIdentity, val authentication: String, val sessions: List<UserSessionInfo>)

@@ -12,6 +12,7 @@ import io.intenttrace.identity.application.GitHubOAuthStateException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.IssuedGitHubUserSession
+import io.intenttrace.identity.application.BROWSER_SESSION_TTL
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.util.HtmlUtils
 import java.time.Duration
+import java.net.URI
 
 @RestController
 @RequestMapping("/auth/github")
@@ -38,8 +40,8 @@ class GitHubOAuthController(
     private val properties: GitHubProperties,
 ) {
     @GetMapping("/start")
-    fun start(): ResponseEntity<Void> {
-        val start = flow.start()
+    fun start(@RequestParam(required = false) returnTo: String?): ResponseEntity<Void> {
+        val start = flow.start(returnTo)
         val stateCookie = ResponseCookie.from(STATE_COOKIE, start.state)
             .httpOnly(true)
             .secure(properties.userAuthorization.secureCookie)
@@ -62,7 +64,13 @@ class GitHubOAuthController(
         response: HttpServletResponse,
     ): ResponseEntity<String> {
         response.addHeader(HttpHeaders.SET_COOKIE, expiredStateCookie())
-        val issued = flow.complete(code, state, cookieState, error)
+        val completion = flow.complete(code, state, cookieState, error)
+        val issued = completion.session
+        completion.returnTo?.let {
+            val cookie = browserSessionCookie(properties, issued.sessionToken, BROWSER_SESSION_TTL)
+            return secure(ResponseEntity.status(HttpStatus.SEE_OTHER)).location(URI.create(it))
+                .header(HttpHeaders.SET_COOKIE, cookie.toString()).body("")
+        }
         return secure(ResponseEntity.ok())
             .contentType(HTML_UTF8)
             .body(successPage(issued))
@@ -85,6 +93,9 @@ class GitHubOAuthController(
 @RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class GitHubOAuthExceptionHandler {
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun invalidReturnPath(): ResponseEntity<String> = secure(ResponseEntity.badRequest())
+        .contentType(HTML_UTF8).body(errorPage("기록으로 돌아갈 주소가 올바르지 않습니다."))
     @ExceptionHandler(GitHubRateLimitException::class)
     fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)).contentType(HTML_UTF8)
@@ -115,6 +126,12 @@ class GitHubOAuthExceptionHandler {
             .contentType(HTML_UTF8)
             .body(errorPage("GitHub 승인 요청을 완료하지 못했습니다."))
 }
+
+const val BROWSER_SESSION_COOKIE = "intent_trace_browser"
+
+fun browserSessionCookie(properties: GitHubProperties, value: String, maxAge: Duration): ResponseCookie =
+    ResponseCookie.from(BROWSER_SESSION_COOKIE, value).httpOnly(true)
+        .secure(properties.userAuthorization.secureCookie).sameSite("Lax").path("/records").maxAge(maxAge).build()
 
 private fun successPage(session: IssuedGitHubUserSession): String =
     page(

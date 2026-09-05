@@ -64,10 +64,11 @@ class GitHubOAuthFlowServiceTest {
     }
 
     private object FakeSessionStore : GitHubUserSessionStore {
-        override fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens): IssuedGitHubUserSession =
+        override fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens, channel: SessionChannel): IssuedGitHubUserSession =
             error("사용하지 않는 테스트 경로")
 
         override fun resolve(sessionToken: String): GitHubUserSession = error("사용하지 않는 테스트 경로")
+        override fun revokeBrowser(sessionToken: String) = error("사용하지 않는 테스트 경로")
     }
 
     private class MutableClock(private var current: Instant) : Clock() {

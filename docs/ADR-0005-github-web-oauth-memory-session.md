@@ -4,6 +4,8 @@
 
 채택
 
+브라우저 기록 열람은 [ADR-0009](ADR-0009-browser-record-access.md)의 전용 세션으로 확장한다.
+
 ## 배경
 
 `ADR-0004`는 GitHub user access token으로 실제 사용자를 확인하는 경계를 정했지만, 사용자가 `ghu_` token을 외부에서 발급해 Codex 환경 변수에 넣고 만료 때마다 교체해야 했습니다. refresh token을 클라이언트에 전달하면 GitHub 자격 증명의 노출 범위와 갱신 책임도 커집니다.

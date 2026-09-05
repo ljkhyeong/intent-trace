@@ -46,3 +46,7 @@ out/
 backups/
 intent-trace.private-key.pem
 *.private-key.pem
+
+### 브라우저 확인 결과 ###
+.playwright-cli/
+output/playwright/

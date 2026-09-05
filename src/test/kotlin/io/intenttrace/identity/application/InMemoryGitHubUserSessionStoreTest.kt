@@ -41,6 +41,7 @@ class InMemoryGitHubUserSessionStoreTest {
     @Test
     fun `만료가 가까우면 token 쌍을 한 번 갱신한다`() {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
+        clock.advance(Duration.ofMinutes(1))
 
         val first = store.resolve(issued.sessionToken)
         val second = store.resolve(issued.sessionToken)
@@ -48,6 +49,7 @@ class InMemoryGitHubUserSessionStoreTest {
         assertEquals("ghu_access-2", first.accessToken)
         assertEquals("ghu_access-2", second.accessToken)
         assertEquals(1, oauth.refreshCount.get())
+        assertEquals(clock.instant().plus(Duration.ofDays(180)), store.list(owner.subject).single().expiresAt)
     }
 
     @Test
@@ -138,6 +140,18 @@ class InMemoryGitHubUserSessionStoreTest {
             assertTrue(error.cause is GitHubUserAuthenticationException)
             assertFailsWith<GitHubUserAuthenticationException> { store.resolve(issued.sessionToken) }
         } finally { release.countDown(); executor.shutdownNow() }
+    }
+
+    @Test
+    fun `브라우저 세션은 갱신해도 발급 후 8시간에 만료되고 클라이언트 세션은 유지된다`() {
+        val browser = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)), SessionChannel.BROWSER)
+        val client = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
+        assertTrue(browser.sessionToken.startsWith("itb_"))
+        store.resolve(browser.sessionToken)
+        clock.advance(Duration.ofHours(8))
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(browser.sessionToken) }
+        store.revokeBrowser(client.sessionToken)
+        assertEquals(owner, store.resolve(client.sessionToken).actor)
     }
 
     private class FakeGitHubUserOAuthGateway(

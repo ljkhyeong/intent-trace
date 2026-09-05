@@ -74,3 +74,10 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - MCP는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`다. token을 도구 인자로 받지 않는다.
 - 폐기 후의 새 인증은 거부한다. token 갱신 중 폐기해도 세션을 다시 활성화하지 않는다. 이미 인증을 끝내 처리 중인 요청의 작업을 취소하지는 않는다.
 - GitHub 호출 제한은 REST·MCP 인증 경로에서도 `429`와 `Retry-After`로 안내한다. 도구 실행 중 제한은 오류 메시지에도 대기 시간을 담는다.
+
+## 브라우저 기록 열람 인증
+
+- `GET /auth/github/start`에 선택 `returnTo`를 지정하면 ADR-0009의 브라우저 세션을 발급하고 기록 화면으로 돌아온다. 생략하면 기존 CLI용 `its_` 표시를 유지한다.
+- 브라우저 cookie에는 GitHub token 대신 `itb_`를 넣으며 기록 화면에서만 사용한다. REST·MCP는 cookie나 `itb_` Bearer를 받지 않는다.
+- 세션 목록의 `channel`은 `CLIENT` 또는 `BROWSER`, `expiresAt`은 로컬 세션의 실제 만료 시각이다. `accessExpiresAt`·`refreshExpiresAt`은 GitHub token 수명이고 로컬 세션 수명과 구분한다.
+- 본인의 선택·전체 세션 폐기는 브라우저 연결에도 적용한다. 브라우저 로그아웃은 현재 연결만 폐기한다.
