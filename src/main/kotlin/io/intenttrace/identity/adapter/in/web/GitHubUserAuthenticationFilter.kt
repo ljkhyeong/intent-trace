@@ -6,6 +6,7 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.GitHubUserSession
+import io.intenttrace.config.GitHubRateLimitException
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -49,6 +50,9 @@ class GitHubUserAuthenticationFilter(
         try {
             request.setAttribute(SESSION_ATTRIBUTE, credentials.authenticate(accessToken))
             filterChain.doFilter(request, response)
+        } catch (exception: GitHubRateLimitException) {
+            response.setHeader(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
+            problem(response, 429, exception.message ?: "GitHub 호출 제한")
         } catch (_: GitHubUserAuthenticationException) {
             unauthorized(response)
         } catch (_: GitHubIdentityApiException) {

@@ -16,12 +16,15 @@ import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 @Service
 class ChangeRecordFacade(
     private val repository: ChangeRecordRepository,
     private val redactor: SensitiveTextRedactor,
     private val clock: Clock,
+    private val meters: MeterRegistry = SimpleMeterRegistry(),
 ) {
     fun create(command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         validateCreate(command)
@@ -57,7 +60,7 @@ class ChangeRecordFacade(
         )
 
         return try {
-            repository.saveNew(record)
+            repository.saveNew(record).also { measured("create") }
         } catch (exception: DuplicateKeyException) {
             val existing = repository.findByRequestId(command.requestId) ?: throw exception
             reuseExisting(existing, repositoryKey, actor, command.requestId, creationDigest)
@@ -80,7 +83,7 @@ class ChangeRecordFacade(
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
             now = Instant.now(clock),
         )
-        return repository.update(confirmed, command.expectedVersion)
+        return repository.update(confirmed, command.expectedVersion).also { measured("confirm") }
     }
 
     fun publish(command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -95,7 +98,7 @@ class ChangeRecordFacade(
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
             now = Instant.now(clock),
         )
-        return repository.update(published, command.expectedVersion)
+        return repository.update(published, command.expectedVersion).also { measured("publish") }
     }
 
     fun supersede(command: SupersedeChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -112,7 +115,7 @@ class ChangeRecordFacade(
             "대체 명령과 변경 의도 기록이 일치하지 않습니다."
         }
         requireExpectedVersion(current, command.expectedVersion)
-        return repository.update(current.supersede(actor, replacement), command.expectedVersion)
+        return repository.update(current.supersede(actor, replacement), command.expectedVersion).also { measured("supersede") }
     }
 
     fun revise(current: ChangeRecord, expectedVersion: Long, command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -121,17 +124,21 @@ class ChangeRecordFacade(
         }
         validateCreate(command)
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.revise(actor, normalize(command)), expectedVersion)
+        return repository.update(current.revise(actor, normalize(command)), expectedVersion).also { measured("revise") }
     }
 
     fun reopen(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.reopen(actor), expectedVersion)
+        return repository.update(current.reopen(actor), expectedVersion).also { measured("reopen") }
     }
 
     fun discard(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.discard(actor), expectedVersion)
+        return repository.update(current.discard(actor), expectedVersion).also { measured("discard") }
+    }
+
+    private fun measured(operation: String) {
+        meters.counter("intenttrace.record.operation", "operation", operation).increment()
     }
 
     private fun normalize(command: CreateChangeRecordCommand): ChangeRecordContent = ChangeRecordContent(

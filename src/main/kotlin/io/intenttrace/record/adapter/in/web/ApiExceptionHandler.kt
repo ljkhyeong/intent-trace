@@ -16,12 +16,23 @@ import io.intenttrace.record.application.ChangeRecordRequestConflictException
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
+import org.springframework.http.ResponseEntity
+import org.springframework.http.HttpHeaders
+import io.intenttrace.config.GitHubRateLimitException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
 class ApiExceptionHandler {
+    @ExceptionHandler(GitHubRateLimitException::class)
+    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<ProblemDetail> =
+        ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
+            .body(problem(HttpStatus.TOO_MANY_REQUESTS, "GitHub 호출 제한", exception.message).also {
+                it.setProperty("code", "GITHUB_RATE_LIMITED")
+                it.setProperty("retryAfterSeconds", exception.retryAfterSeconds)
+            })
+
     @ExceptionHandler(ChangeRecordNotFoundException::class)
     fun notFound(exception: ChangeRecordNotFoundException): ProblemDetail =
         problem(HttpStatus.NOT_FOUND, "변경 의도 기록 없음", exception.message)

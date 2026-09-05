@@ -2,6 +2,7 @@ package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GITHUB_OAUTH_CALLBACK_PATH
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthCodeException
 import io.intenttrace.identity.application.GitHubOAuthConfigurationException
@@ -84,6 +85,12 @@ class GitHubOAuthController(
 @RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class GitHubOAuthExceptionHandler {
+    @ExceptionHandler(GitHubRateLimitException::class)
+    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> =
+        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)).contentType(HTML_UTF8)
+            .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
+            .body(errorPage(exception.message ?: "GitHub 호출 제한에 도달했습니다."))
+
     @ExceptionHandler(GitHubOAuthStateException::class, GitHubOAuthCodeException::class)
     fun invalidRequest(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.BAD_REQUEST))

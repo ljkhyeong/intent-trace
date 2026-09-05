@@ -49,6 +49,19 @@ class GitHubUserAuthenticationFilterTest {
         assertNull(request.getAttribute(GitHubUserAuthenticationFilter.SESSION_ATTRIBUTE))
     }
 
+    @Test
+    fun `인증 중 호출 제한도 429와 재시도 대기 시간을 반환한다`() {
+        val limited = GitHubUserAuthenticationFilter(object : GitHubUserCredentialProvider {
+            override fun authenticate(bearerToken: String): GitHubUserSession = throw io.intenttrace.config.GitHubRateLimitException(120)
+        })
+        val request = MockHttpServletRequest("POST", "/mcp")
+        request.addHeader("Authorization", "Bearer its_test")
+        val response = MockHttpServletResponse()
+        limited.doFilter(request, response, FilterChain { _, _ -> error("호출하면 안 되는 경로") })
+        assertEquals(429, response.status)
+        assertEquals("120", response.getHeader("Retry-After"))
+    }
+
     private class FakeGitHubUserCredentialProvider : GitHubUserCredentialProvider {
         var authenticatedToken: String? = null
 
