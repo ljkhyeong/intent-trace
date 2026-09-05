@@ -25,9 +25,25 @@ export function sessionToken() {
 }
 
 async function main() {
-  const [mode, address, repositoryKey] = process.argv.slice(2);
+  const [mode, ...arguments_] = process.argv.slice(2);
+  if (mode === 'configure') {
+    const { configure, defaultSettingsPath } = await import('./settings.mjs');
+    let path = defaultSettingsPath();
+    let address;
+    let apply = false;
+    for (let i = 0; i < arguments_.length; i++) {
+      const value = arguments_[i];
+      if (value === '--apply' && !apply) apply = true;
+      else if (value === '--settings' && arguments_[i + 1] && !arguments_[i + 1].startsWith('--')) path = arguments_[++i];
+      else if (!value.startsWith('--') && !address) address = value;
+      else throw new Error('Zed 설정: configure [MCP 주소] [--settings 설정파일] [--apply] 형식을 확인하세요.');
+    }
+    return configure(path, { command: process.execPath, args: [script, 'serve', endpoint(address).href], env: {} }, apply);
+  }
+  const [address, repositoryKey] = arguments_;
+  if (arguments_.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   if (!['config', 'serve', 'check'].includes(mode)) {
-    console.log('사용법: node clients/zed/intent-trace.mjs config|check|serve [MCP 주소] [check 시 저장소 owner/repo]');
+    console.log('사용법: node clients/zed/intent-trace.mjs config|check|serve [MCP 주소] [check 시 저장소 owner/repo] 또는 configure [MCP 주소] [--settings 설정파일] [--apply]');
     return;
   }
   const url = endpoint(address);
@@ -48,7 +64,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
       ? '먼저 npm ci --prefix clients/zed --ignore-scripts를 실행하세요.'
-      : error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소')
+      : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소')
         ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
     console.error(message);
     process.exitCode = 1;

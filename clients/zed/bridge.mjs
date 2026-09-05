@@ -6,7 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { sessionToken } from './intent-trace.mjs';
 
-const version = '0.9.0';
+const version = '0.10.0';
 const timeout = 60_000;
 
 export async function serve(url) {
