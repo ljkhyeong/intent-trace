@@ -44,6 +44,7 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - GitHub access·refresh token은 메모리에만 보유하고 DB, URL, cookie, 로그, 예외, 도구 입력에 넣지 않는다. `its_` 원문도 callback 성공 본문 외에는 응답하지 않고 store에는 digest만 인덱스로 둔다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
 - access token 만료 전 refresh는 세션별 잠금 안에서 한 번만 수행하고 새 access·refresh token 쌍으로 함께 교체한다. 갱신 거부, token 거부 또는 사용자 subject 변경은 session을 폐기해 재로그인을 요구한다.
 - 세션 목록에는 본인의 비밀값 없는 메타데이터만 반환한다. 갱신 중 폐기한 세션을 다시 활성화하지 않는다.
+- 브라우저 기록 화면은 `itb_` 전용 세션으로 읽기 사용 사례만 호출한다. 복귀 주소는 기록 경로만 허용하고 cookie를 REST·MCP 인증으로 확장하지 않는다. GitHub token을 cookie나 HTML에 넣지 않는다.
 - V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
 
 ## 외부 게시 경계

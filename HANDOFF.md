@@ -19,6 +19,9 @@
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
+- 브라우저 기록 열람·로그인 복귀·로그아웃과 8시간 전용 세션
+- REST·MCP·브라우저의 제목·요청·판단 키워드 검색
+- Zed MCP 연결 안내와 환경 변수 설정 예시
 - Streamable HTTP MCP 도구 18개
 - 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
 - MCP 기록 대체와 Markdown의 후속 기록 링크
@@ -38,6 +41,7 @@
 - 초안은 만든 작성자만 확인한다.
 - 초안·확인·폐기 기록은 만든 작성자만 조회하고, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 조회한다.
 - 작성자는 요청 본문이 아니라 `/user`에서 확인한 GitHub 숫자 ID로 결정한다.
+- 브라우저에는 기록 화면에서만 쓰는 `itb_` cookie를 발급하며 REST·MCP에서 사용하지 않는다.
 - Codex에는 GitHub token 대신 `its_` session token만 전달하고 GitHub token 쌍은 메모리 밖으로 노출하지 않는다.
 - callback은 같은 브라우저의 cookie와 미사용 `state`가 일치할 때만 code를 교환한다.
 - refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
@@ -59,7 +63,7 @@
 
 2026-09-05 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)의 9개 항목은 REST·MCP·로컬 실행 도구의 최소 기능을 구현했다. 계약은 PRD-0004, ADR-0007·0008과 기존 PRD의 확장 절을 따른다. 외부 지표 대시보드·줄 이동 자동 추적은 후속 작업이다.
 
-1. IntelliJ에서 현재 줄의 공개 변경 의도를 조회한다.
+1. IntelliJ·Zed에서 현재 줄의 공개 변경 의도를 편집기 UI로 조회한다. Zed Agent의 MCP 연결은 별도 사용 안내를 제공한다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
 4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.

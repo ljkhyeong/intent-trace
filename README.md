@@ -7,6 +7,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - 변경 의도 초안 생성과 최초 내용 해시 기반 멱등 처리
 - 초안 수정·확인 취소·폐기와 작성자 전용 목록
 - 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
+- 브라우저 로그인 후 기록 열람과 제목·요청·판단 내용 검색
 - `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
 - 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
 - 변경 전후 커밋·파일·줄·콘텐츠 해시 기반 코드 근거와 이름 변경 연결
@@ -151,6 +152,10 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 ## API
 
+브라우저에서는 `/records`에서 로그인하고 저장소·검색어로 기록을 찾습니다. `/records/{UUID}` 링크는 로그인 후 해당 기록으로 돌아옵니다. 브라우저 연결은 8시간 뒤 만료되며 서버 재시작 시 다시 로그인해야 합니다. GitHub에 생성하는 기본·대체 기록 링크도 이 화면을 엽니다.
+
+검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·판단·판단 근거에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
+
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
 - `POST /api/v1/change-records/{id}/revise`: 초안 수정 (`expectedVersion`, 생성 요청 형식의 `content`)
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
@@ -191,6 +196,8 @@ REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을
 
 플러그인 훅은 원문 프롬프트나 도구 출력을 수집하지 않습니다. Codex에 기록 원칙만 전달합니다.
 
+Zed Agent에서도 같은 MCP 서버를 사용할 수 있습니다. 토큰을 설정 파일에 넣지 않는 환경 변수 연결 예시는 [Zed 사용 안내](docs/clients/zed.md)에 있습니다. Codex 플러그인 파일을 Zed 확장으로 직접 설치하는 방식은 아닙니다.
+
 ## 검증
 
 ```bash
@@ -230,5 +237,7 @@ scripts/verify-postgres.sh
 - `docs/ADR-0006-single-instance-team-deployment.md`
 - `docs/ADR-0007-evidence-check-and-history.md`
 - `docs/ADR-0008-publication-recovery.md`
+- `docs/ADR-0009-browser-record-access.md`
+- `docs/clients/zed.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`
