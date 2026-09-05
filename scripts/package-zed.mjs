@@ -33,16 +33,22 @@ if (publication.every(Boolean)) {
 const output = resolve(options['--output'] || join(root, 'build/zed-release'));
 const staging = await mkdtemp(join(tmpdir(), 'intent-trace-package-'));
 try {
-  const pkg = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'));
+  const manifest = await readFile(join(source, 'package.json'));
+  const lockfile = await readFile(join(source, 'package-lock.json'));
+  const pkg = JSON.parse(manifest);
+  // 작업 폴더의 설치 상태를 사용하지 않고 잠금 파일로 배포 의존성을 준비한다.
+  await writeFile(join(staging, 'package.json'), manifest);
+  await writeFile(join(staging, 'package-lock.json'), lockfile);
+  const installed = spawnSync('npm', ['ci', '--ignore-scripts', '--omit=dev', '--include=optional', '--include=peer', '--install-strategy=hoisted', '--no-audit', '--no-fund', '--logs-max=0'], { cwd: staging, encoding: 'utf8' });
+  if (installed.status !== 0) throw new Error('잠금 파일로 배포 의존성을 설치하지 못했습니다. package.json·package-lock.json 일치 여부와 npm 연결을 확인하세요.');
   // 실행에 필요한 파일만 복사한다. 사용자 설정과 프로젝트 문서는 패키지에 넣지 않는다.
   for (const name of ['intent-trace.mjs', 'bridge.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
     await cp(join(source, name), join(staging, name));
   }
   await cp(join(root, 'scripts/zed-with-intent-trace.py'), join(staging, 'zed-with-intent-trace.py'));
-  await cp(join(source, 'node_modules'), join(staging, 'node_modules'), { recursive: true });
   pkg.scripts = {};
   pkg.bin = { 'intent-trace-zed': 'intent-trace.mjs' };
-  pkg.files = ['*.mjs', 'zed-with-intent-trace.py', 'README.md'];
+  pkg.files = ['*.mjs', 'zed-with-intent-trace.py', 'README.md', 'build-info.json'];
   pkg.bundleDependencies = Object.keys(pkg.dependencies);
   pkg.license = 'UNLICENSED';
   let descriptor;
@@ -67,14 +73,17 @@ try {
       }],
     };
   }
+  const buildInfo = { packageName: pkg.name, version: pkg.version, lockfileSha256: createHash('sha256').update(lockfile).digest('hex') };
+  await writeFile(join(staging, 'build-info.json'), JSON.stringify(buildInfo, null, 2) + '\n');
   await writeFile(join(staging, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
   await mkdir(output, { recursive: true });
   const npm = 'npm';
   const packed = spawnSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: staging, encoding: 'utf8' });
-  if (packed.status !== 0) throw new Error('패키지를 만들지 못했습니다. 고정 의존성을 먼저 설치해 주세요.');
+  if (packed.status !== 0) throw new Error('패키지를 만들지 못했습니다. npm 실행과 출력 폴더 권한을 확인하세요.');
   const { filename } = JSON.parse(packed.stdout)[0];
   const digest = createHash('sha256').update(await readFile(join(output, filename))).digest('hex');
   await writeFile(join(output, `${filename}.sha256`), `${digest}  ${filename}\n`);
+  await writeFile(join(output, `${filename}.build.json`), JSON.stringify({ ...buildInfo, tarballSha256: digest }, null, 2) + '\n');
   if (descriptor) await writeFile(join(output, 'server.json'), JSON.stringify(descriptor, null, 2) + '\n');
   console.log(`배포 파일 생성 완료: ${filename}${descriptor ? ' · server.json' : ' · 로컬 설치용'}`);
 } finally {
