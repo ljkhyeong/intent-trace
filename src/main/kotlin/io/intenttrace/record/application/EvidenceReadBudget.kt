@@ -40,6 +40,10 @@ class HistoryReadPolicy(
     @Value("\${intent-trace.history.time-limit:30s}") private val timeLimit: Duration,
     @Value("\${intent-trace.history.max-remote-calls:40}") private val maxRemoteCalls: Int,
 ) {
-    init { EvidenceReadBudget(timeLimit, maxRemoteCalls) }
+    init {
+        // 빈 캐시에서도 원본·대상 커밋과 트리 4회, 조상 비교 1회, 두 blob 2회를 읽을 수 있어야 한다.
+        require(maxRemoteCalls in 7..200) { "intent-trace.history.max-remote-calls는 코드 근거 하나를 확인할 수 있도록 7~200으로 설정해 주세요." }
+        EvidenceReadBudget(timeLimit, maxRemoteCalls)
+    }
     fun start() = EvidenceReadBudget(timeLimit, maxRemoteCalls)
 }

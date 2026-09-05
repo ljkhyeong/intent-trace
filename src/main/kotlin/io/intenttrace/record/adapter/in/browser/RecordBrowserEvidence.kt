@@ -21,7 +21,7 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
             fun query(extra: String, value: String) = html(url("/records/history", "repositoryKey" to repository,
                 "revision" to revision, "path" to path, "line" to line.toString(), extra to value))
             append("<p>후보 ${result.scannedRecords}건 살펴봄 · 일치 또는 관련 결과 ${result.items.size}건</p>")
-            if (result.items.isEmpty()) append("<p class=\"empty\">이번 후보에서 연결된 기록을 찾지 못했습니다.</p>")
+            if (result.items.isEmpty()) append("<p class=\"empty\">${if (result.complete) "이번 후보에서 연결된 기록을 찾지 못했습니다." else "이번 요청에서 반환할 결과가 없습니다. 아직 확인하지 못한 근거가 있습니다."}</p>")
             if (result.failures.isNotEmpty()) append("<aside class=\"notice\">확인하지 못한 후보가 있습니다. 아래 사유와 재조회를 확인해 주세요.</aside>")
             result.stopReason?.let {
                 val reason = when (it) {
@@ -29,7 +29,10 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                     HistoryStopReason.CALL_LIMIT -> "한 번에 확인할 GitHub 호출 수에 도달했습니다."
                     HistoryStopReason.CANCELLED -> "조회 취소가 전달되어 추가 확인을 중단했습니다."
                 }
-                append("<aside class=\"notice\">$reason 아래에서 중단한 근거부터 이어서 확인할 수 있습니다.</aside>")
+                val guidance = if (result.resumeBlocked) {
+                    "이번 요청은 근거 하나도 끝까지 확인하지 못했습니다. 같은 조건으로 반복하면 같은 위치에서 멈출 수 있습니다. 서버 관리자에게 조회 제한과 GitHub 응답 지연을 확인해 달라고 요청한 뒤 다시 확인해 주세요."
+                } else "아래에서 중단한 근거부터 이어서 확인할 수 있습니다."
+                append("<aside class=\"notice\">$reason $guidance</aside>")
             }
             append("<ul class=\"records\">")
             val labels = mapOf(IntentMatch.EXACT_REVISION to "커밋·줄 일치", IntentMatch.ANCESTOR_UNCHANGED_FILE to "과거의 동일 파일",
@@ -51,7 +54,14 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                 }
                 append("</ul><p class=\"muted\">크기와 객체 형식이 그대로라면 재조회해도 같은 사유가 나올 수 있습니다.</p></section>")
             }
-            result.nextCursor?.let { append("<nav class=\"pagination\"><a class=\"button\" href=\"${query("cursor", it)}\">${if (result.stopReason != null) "중단한 근거부터 계속" else "다음 후보 확인"}</a><p>결과가 없어도 아직 확인할 후보가 남아 있습니다.</p></nav>") }
+            result.nextCursor?.let {
+                val label = when {
+                    result.resumeBlocked -> "원인 확인 후 다시 조회"
+                    result.stopReason != null -> "중단한 근거부터 계속"
+                    else -> "다음 후보 확인"
+                }
+                append("<nav class=\"pagination\"><a class=\"button\" href=\"${query("cursor", it)}\">$label</a><p>결과가 없어도 아직 확인할 후보가 남아 있습니다.</p></nav>")
+            }
         }
     })
 

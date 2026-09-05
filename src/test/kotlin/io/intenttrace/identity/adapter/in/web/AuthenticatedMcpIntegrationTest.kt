@@ -126,6 +126,7 @@ class AuthenticatedMcpIntegrationTest(
         }.andExpect {
             status { isOk() }; content { string(containsString("\"isError\":false")) }
             content { string(containsString("\"complete\":true")) }; content { string(containsString("\"stopReason\":null")) }
+            content { string(containsString("\"resumeBlocked\":false")) }
         }
 
         mockMvc.post("/mcp") {

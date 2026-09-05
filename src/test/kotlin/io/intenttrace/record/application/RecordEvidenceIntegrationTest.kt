@@ -140,10 +140,20 @@ class RecordEvidenceIntegrationTest(
             val first = service.find(repo, nextRevision, "new.txt", 1, limit = 1)
             assertFalse(first.complete)
             assertEquals(HistoryStopReason.TIME_LIMIT, first.stopReason)
+            assertFalse(first.resumeBlocked)
             assertEquals(listOf(newer.id to CodeSide.BASE), first.items.map { it.record.id to it.side })
+            repeat(2) {
+                val blocked = service.find(repo, nextRevision, "new.txt", 1, cursor = first.nextCursor)
+                assertTrue(blocked.resumeBlocked)
+                assertFalse(blocked.complete)
+                assertEquals(HistoryStopReason.TIME_LIMIT, blocked.stopReason)
+                assertTrue(blocked.items.isEmpty())
+                assertEquals(first.nextCursor, blocked.nextCursor)
+            }
             gateway.failure = null
             val resumed = service.find(repo, nextRevision, "new.txt", 1, cursor = first.nextCursor)
             assertTrue(resumed.complete)
+            assertFalse(resumed.resumeBlocked)
             assertEquals(listOf(newer.id to CodeSide.TARGET), resumed.items.map { it.record.id to it.side })
             val next = service.find(repo, nextRevision, "new.txt", 1, cursor = resumed.nextCursor)
             assertEquals(setOf(older.id), next.items.map { it.record.id }.toSet())
@@ -152,6 +162,18 @@ class RecordEvidenceIntegrationTest(
             val badCursor = HistoryResumeCursor(HistoryResumeCursor.queryDigest("acme/another", nextRevision, "new.txt", 1),
                 RecordCursor(newer.createdAt, newer.id), 1, 1, false).encode()
             assertFailsWith<ChangeRecordNotFoundException> { service.find("acme/another", nextRevision, "new.txt", 1, cursor = badCursor) }
+
+            for (invalid in listOf(1, 6, 201)) {
+                assertFailsWith<IllegalArgumentException> { HistoryReadPolicy(java.time.Duration.ofSeconds(30), invalid) }
+            }
+            val minimum = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 7))
+            val limited = minimum.find(repo, movedRevision, "new.txt", 2, limit = 1)
+            assertEquals(HistoryStopReason.CALL_LIMIT, limited.stopReason)
+            assertFalse(limited.resumeBlocked)
+            assertEquals(listOf(CodeSide.BASE), limited.items.map { it.side })
+            val continued = minimum.find(repo, movedRevision, "new.txt", 2, cursor = limited.nextCursor)
+            assertTrue(continued.complete)
+            assertEquals(listOf(CodeSide.TARGET), continued.items.map { it.side })
         } finally { gateway.failure = null }
     }
 
@@ -161,6 +183,7 @@ class RecordEvidenceIntegrationTest(
         var blobCalls = 0
         var ancestryCalls = 0
         override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
+            repeat(2) { budget?.beforeRemoteCall() }
             snapshotCalls[revision] = (snapshotCalls[revision] ?: 0) + 1
             failure?.takeIf { it.first == revision }?.let { throw it.second }
             val path = if (revision == baseRevision) "old.txt" else "new.txt"
@@ -170,6 +193,7 @@ class RecordEvidenceIntegrationTest(
             return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
         }
         override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
+            budget?.beforeRemoteCall()
             blobCalls++
             return when (sha) {
             "f".repeat(40) -> "바뀐 코드\n".toByteArray()
@@ -177,7 +201,7 @@ class RecordEvidenceIntegrationTest(
             else -> bytes
         }
         }
-        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean { ancestryCalls++; return true }
+        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean { budget?.beforeRemoteCall(); ancestryCalls++; return true }
     }
 
     @TestConfiguration

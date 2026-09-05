@@ -30,6 +30,7 @@ data class ChangeIntentHistory(
     val failures: List<HistoryCandidateFailure> = emptyList(),
     val stopReason: HistoryStopReason? = null,
     val complete: Boolean = failures.isEmpty() && stopReason == null,
+    val resumeBlocked: Boolean = false,
 )
 
 data class HistoryCandidateFailure(val recordId: UUID, val reason: EvidenceUnavailableReason)
@@ -127,7 +128,8 @@ class ChangeIntentHistoryService(
                 } catch (stopped: EvidenceReadStopped) {
                     val next = HistoryResumeCursor(queryDigest, RecordCursor(summary.createdAt, summary.id), anchorIndex,
                         page.items.size - candidateIndex, page.nextCursor != null).encode()
-                    return ChangeIntentHistory(queryRevision, path, items, next, candidateIndex + 1, failures, stopped.reason)
+                    return ChangeIntentHistory(queryRevision, path, items, next, candidateIndex + 1, failures, stopped.reason,
+                        resumeBlocked = candidateIndex == 0 && anchorIndex == startAnchor && stopped.reason != HistoryStopReason.CANCELLED)
                 }
             }
         }
