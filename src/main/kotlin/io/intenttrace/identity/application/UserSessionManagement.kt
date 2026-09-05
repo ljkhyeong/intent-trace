@@ -35,7 +35,7 @@ class MySessionService(private val current: CurrentGitHubUserSession, private va
 
     fun revoke(sessionId: UUID? = null): SessionRevocation {
         val session = current.require()
-        val id = sessionId ?: requireNotNull(session.sessionId) { "직접 GitHub token 인증에는 현재 로컬 session이 없습니다." }
+        val id = sessionId ?: requireNotNull(session.sessionId) { "GitHub 토큰으로 직접 인증한 요청에는 현재 IntentTrace 세션이 없습니다." }
         return SessionRevocation(if (sessions.revoke(session.actor.subject, id)) 1 else 0)
     }
 

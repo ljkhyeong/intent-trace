@@ -98,7 +98,7 @@ class GitHubAppInstallationClient(
             check(token.token.isNotBlank()) { "발급 token이 없습니다." }
             expiresAt = Instant.parse(token.expiresAt)
             check(expiresAt.isAfter(Instant.now(clock))) { "발급 token이 만료됐습니다." }
-            verified("대상 저장소로 제한한 token을 메모리에서 발급했습니다.")
+            verified("GitHub App 토큰을 발급받았습니다.")
             stage = "repository_scope"
             val scopeMatches = token.repositories?.map { it.fullName.lowercase() } == listOf(repository.key)
             checks += PublicationCredentialCheck(stage, if (scopeMatches) PreflightStatus.VERIFIED else PreflightStatus.FAILED,

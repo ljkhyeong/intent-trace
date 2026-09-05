@@ -122,7 +122,8 @@ class DraftManagementIntegrationTest(
         assertEquals("확인 후 수정", records.get(draft.id).title)
         assertEquals(listOf("추가 점검"), records.get(draft.id).openQuestions)
         assertEquals(updated.id, records.create(command).id)
-        assertFailsWith<ChangeRecordRequestConflictException> { records.create(command.copy(title = "다른 생성 요청")) }
+        val conflict = assertFailsWith<ChangeRecordRequestConflictException> { records.create(command.copy(title = "다른 생성 요청")) }
+        assertEquals("요청 ID ${command.requestId}가 기존 요청과 충돌합니다. 작성자·저장소·내용을 확인하세요.", conflict.message)
         assertFailsWith<ConcurrentChangeRecordUpdateException> { records.revise(draft.id, reopened.version, command) }
         val rechecked = records.confirm(ConfirmChangeRecordCommand(draft.id, updated.version, revision, digest))
         val published = records.publish(PublishChangeRecordCommand(draft.id, rechecked.version, digest))

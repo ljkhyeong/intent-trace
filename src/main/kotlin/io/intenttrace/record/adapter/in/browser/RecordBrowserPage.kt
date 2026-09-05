@@ -46,7 +46,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             append("""
                 <form action="/records" method="get" class="search-form record-search">
                 <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required maxlength="255" autocapitalize="none" spellcheck="false"></label>
-                <label class="keyword">검색어<input name="q" value="${html(q.orEmpty())}" placeholder="제목, 요청 또는 판단 내용" maxlength="200"></label>
+                <label class="keyword">검색어<input name="q" value="${html(q.orEmpty())}" placeholder="제목, 요청, 구현 결정·이유" maxlength="200"></label>
                 <input type="hidden" name="scope" value="${scope.name}">
                 <label>상태<select name="status"><option value="">${if (scope == RecordScope.MINE) "초안·작성자 확인" else "공개·대체 전체"}</option>${statuses.joinToString("") { "<option value=\"${it.name}\" ${if (it == status) "selected" else ""}>${it.label}</option>" }}</select></label>
                 <label>파일 경로<input name="path" value="${html(path.orEmpty())}" placeholder="src/App.kt" autocapitalize="none" spellcheck="false"></label>
@@ -54,7 +54,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 <button type="submit">검색</button></form>
             """.trimIndent())
             if (page == null) {
-                append("<div class=\"empty\"><h2>저장소부터 선택해 주세요</h2><p>검색어를 비워두면 최근 기록부터 볼 수 있습니다.</p></div>")
+                append("<div class=\"empty\"><h2>저장소를 입력하세요</h2><p>검색어를 비워두면 최근 기록부터 볼 수 있습니다.</p></div>")
             } else {
                 append("<div class=\"result-heading\"><h2>${if (scope == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</h2><span>이 페이지 ${page.items.size}건</span></div>")
                 if (page.items.isEmpty()) append("<div class=\"empty\"><h3>일치하는 기록이 없습니다</h3><p>검색어를 줄이거나 저장소와 조회 범위를 확인해 주세요.</p></div>")
@@ -97,7 +97,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("</ul><p class=\"muted\">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p>")
         if (record.targetRevision != null) append("<a class=\"button secondary\" href=\"/records/${record.id}/evidence\">GitHub 코드와 비교</a>")
         append("</section>")
-        append("<section><h2>실행한 검증</h2>")
+        append("<section><h2>등록된 검증 결과</h2>")
         if (record.verifications.isEmpty()) append("<p class=\"muted\">등록된 검증 결과가 없습니다.</p>")
         record.verifications.forEach { verification ->
             val status = if (!verification.isCurrentFor(record)) "다른 스냅샷의 결과" else if (verification.exitCode == 0) "통과" else "실패"

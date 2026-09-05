@@ -42,6 +42,7 @@ class GitHubAppInstallationClientTest {
             else request.andRespond(withSuccess("""{"token":"synthetic-secret-token","expires_at":"2026-09-05T01:00:00Z","repositories":[{"full_name":"${if (scenario == "scope") "acme/other" else "acme/repo"}"}],"permissions":{"checks":"${if (scenario == "permissions") "read" else "write"}","pull_requests":"read"}}""", MediaType.APPLICATION_JSON))
             val result = client.inspect(GitHubRepository.parse("acme/repo"))
             assertEquals(scenario == "ok", result.checks.all { it.status == PreflightStatus.VERIFIED })
+            if (scenario != "rejected") assertEquals("GitHub App 토큰을 발급받았습니다.", result.checks.single { it.name == "token_issuance" }.message)
             if (scenario == "scope") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "repository_scope" }.status)
             if (scenario == "permissions") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "permissions" }.status)
             if (scenario == "rejected") assertEquals(PreflightStatus.NOT_CHECKED, result.checks.single { it.name == "permissions" }.status)

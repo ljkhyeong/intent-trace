@@ -69,6 +69,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val currentId = sessionStore.resolve(cookie.value).sessionId!!
         val page = mvc.get("/records/sessions") { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("현재 연결")) }; content { string(containsString(clientId.toString())) }
+            content { string(containsString("내 모든 브라우저·Agent·API 연결이 종료됩니다.")) }
         }.andReturn().response.contentAsString
         preview("sessions", page)
         assertFalse(page.contains(otherId.toString()))
@@ -86,10 +87,12 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             status { isSeeOther() }; header { string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")) }
         }
         val renewed = login("/records/sessions")
+        val anotherBrowser = login("/records/sessions")
         issue(actor)
         mvc.post("/records/sessions/revoke-all") { cookie(renewed); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }.andExpect { status { isSeeOther() } }
         assertTrue(sessionManagement.list(actor.subject).isEmpty())
         assertTrue(sessionManagement.list(other.subject).isNotEmpty())
+        mvc.get("/records/sessions") { cookie(anotherBrowser) }.andExpect { content { string(containsString("연결이 만료됐습니다")) } }
         mvc.get("/records/sessions") { cookie(renewed) }.andExpect { content { string(containsString("연결이 만료됐습니다")) } }
     }
 

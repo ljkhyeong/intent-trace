@@ -14,7 +14,7 @@ internal fun RecordBrowserPage.sessions(actor: ActorIdentity, result: MySessions
         append("<dl><dt>생성</dt><dd>${stamp(session.createdAt)}</dd><dt>최근 사용</dt><dd>${stamp(session.lastUsedAt)}</dd><dt>만료</dt><dd>${stamp(session.expiresAt)}</dd></dl>")
         append("<form method=\"post\" action=\"/records/sessions/${session.id}/revoke\"><button class=\"secondary\">${if (session.current) "현재 연결 종료·로그아웃" else "이 연결 종료"}</button></form></div></li>")
     }
-    append("</ul><section class=\"session-actions\"><h2>모든 연결 종료</h2><p>현재 브라우저와 연결된 모든 Agent·API가 로그아웃됩니다. 다시 사용하려면 로그인해야 합니다.</p><form method=\"post\" action=\"/records/sessions/revoke-all\"><button>모든 연결 종료·로그아웃</button></form></section>")
+    append("</ul><section class=\"session-actions\"><h2>모든 연결 종료</h2><p>내 모든 브라우저·Agent·API 연결이 종료됩니다. 다시 사용하려면 로그인하세요.</p><form method=\"post\" action=\"/records/sessions/revoke-all\"><button>모든 연결 종료·로그아웃</button></form></section>")
 })
 
 internal fun RecordBrowserPage.activities(actor: ActorIdentity, result: RecordActivities): String = layout("기록 변경 이력", actor, buildString {

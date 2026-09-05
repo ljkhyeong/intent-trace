@@ -61,11 +61,11 @@ class ConnectionDiagnostics(
         } else checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
         val evidenceRevision = ref ?: pr?.headRevision
         if (readable && evidenceRevision != null) check("git_tree_read") { evidence.snapshot(repository, evidenceRevision) }
-        else checks += ConnectionCheck("git_tree_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 전체 커밋 또는 PR 번호가 필요합니다.")
+        else checks += ConnectionCheck("git_tree_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 커밋 해시 또는 PR 번호가 필요합니다.")
         val publishingConfigured = properties.token.isNotBlank() || (properties.app.clientId.isNotBlank() && properties.app.privateKeyBase64.isNotBlank())
         checks += ConnectionCheck("publication_credentials",
             if (publishingConfigured) DiagnosticStatus.CONFIGURED_UNVERIFIED else DiagnosticStatus.NOT_CONFIGURED,
-            if (publishingConfigured) "서버 게시 자격 증명이 설정되어 있습니다. 키 유효성·설치 권한·Checks 쓰기는 확인하지 않았습니다."
+            if (publishingConfigured) "GitHub 게시 인증이 설정돼 있습니다. 키 유효성과 설치·Checks 쓰기 권한은 확인하지 않았습니다."
             else "운영자가 서버 게시용 GitHub App client ID와 private key를 설정해야 합니다.")
         return ConnectionDiagnosis(repository.key, Instant.now(clock), checks)
     }

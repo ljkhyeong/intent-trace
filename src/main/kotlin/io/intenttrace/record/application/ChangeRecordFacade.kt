@@ -174,15 +174,15 @@ class ChangeRecordFacade(
         require(command.title.isNotBlank()) { "제목은 비어 있을 수 없습니다." }
         require(command.requestSummary.isNotBlank()) { "요청 요약은 비어 있을 수 없습니다." }
         require(SHA_256.matches(command.snapshotDigest)) { "기록에는 SHA-256 스냅샷 해시가 필요합니다." }
-        require(command.decisions.isNotEmpty()) { "최소 한 개의 판단이 필요합니다." }
-        require(command.codeAnchors.isNotEmpty()) { "최소 한 개의 코드 근거가 필요합니다." }
+        require(command.decisions.isNotEmpty()) { "구현 결정을 1개 이상 입력하세요." }
+        require(command.codeAnchors.isNotEmpty()) { "관련 코드를 1개 이상 입력하세요." }
         require(command.baseRevision != null || command.codeAnchors.none { it.side == CodeSide.BASE }) {
-            "변경 전 코드 근거에는 전체 base 커밋이 필요합니다."
+            "변경 전 관련 코드에는 변경 전 커밋 해시(전체 길이)가 필요합니다."
         }
         command.codeAnchors.forEach { anchor ->
             anchor.relatedPath?.let { related ->
                 require(command.codeAnchors.any { it.side != anchor.side && it.relativePath == related }) {
-                    "이름 변경의 연결 경로는 반대쪽 코드 근거에 있어야 합니다."
+                    "이름 변경의 연결 경로는 반대쪽 관련 코드에 있어야 합니다."
                 }
             }
         }

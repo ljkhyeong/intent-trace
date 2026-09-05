@@ -32,7 +32,7 @@ class ConnectionController(private val diagnostics: ConnectionDiagnostics, priva
 
 @Component
 class ConnectionTools(private val diagnostics: ConnectionDiagnostics, private val overview: PullRequestOverviewService, private val preflight: PublicationPreflightService) {
-    @McpTool(name = "check_publication_credentials", description = "저장소 관리자만 App 키·설치·발급 권한을 사전 점검합니다. 메모리에서 token을 발급하며 Check Run은 만들지 않습니다.", generateOutputSchema = true,
+    @McpTool(name = "check_publication_credentials", description = "저장소 관리자만 App 키·설치·발급 권한을 사전 점검합니다. GitHub에서 토큰을 발급받아 메모리에만 보관하며 Check Run은 만들지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = true))
     fun preflight(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String): PublicationPreflight = preflight.check(repositoryKey)
 

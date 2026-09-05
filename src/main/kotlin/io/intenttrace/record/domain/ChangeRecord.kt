@@ -82,7 +82,7 @@ data class ChangeRecord(
     fun publish(actor: ActorIdentity, currentSnapshotDigest: String, now: Instant): ChangeRecord {
         check(status == ChangeRecordStatus.AUTHOR_CONFIRMED) { "작성자가 확인한 기록만 공개할 수 있습니다." }
         check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 공개할 수 있습니다." }
-        check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 검증과 판단이 오래된 상태입니다." }
+        check(snapshotDigest == currentSnapshotDigest) { "기록과 현재 스냅샷 해시가 달라 공개할 수 없습니다." }
         check(targetRevision != null) { "전체 Git 커밋 ID가 없는 기록은 공개할 수 없습니다." }
 
         return copy(
