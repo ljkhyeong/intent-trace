@@ -34,7 +34,8 @@ class IntentTraceTools(
         @McpToolParam(description = "팀 공개 목록의 작성자 GitHub 숫자 ID 필터", required = false) authorId: Long? = null,
         @McpToolParam(description = "직전 응답의 nextCursor", required = false) cursor: String? = null,
         @McpToolParam(description = "1~100 사이의 목록 크기", required = false) limit: Int? = null,
-    ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit ?: 20)
+        @McpToolParam(description = "제목·요청·판단과 근거에서 찾을 검색어, 최대 200자", required = false) q: String? = null,
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit ?: 20, q)
 
     @McpTool(name = "revise_change_record", description = "작성자의 DRAFT 내용만 수정합니다. 요청 ID와 저장소는 유지합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))

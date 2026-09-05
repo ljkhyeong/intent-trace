@@ -27,6 +27,7 @@ import kotlin.test.assertEquals
 class PostgresRepositorySmokeTest(
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking,
+    @Autowired private val catalog: ChangeRecordCatalog,
 ) {
     @Test
     fun `PostgreSQL에서 migration과 변경 기록 조회를 확인한다`() {
@@ -38,7 +39,7 @@ class PostgresRepositorySmokeTest(
                 snapshotDigest = digest,
                 title = "PostgreSQL 검증",
                 requestSummary = "실제 PostgreSQL에서 기록 수명주기를 확인한다.",
-                decisions = listOf(Decision("PostgreSQL 17을 사용한다.", null, PurposeSource.STATED_BY_USER)),
+                decisions = listOf(Decision("PostgreSQL 17을 사용한다.", "회귀검색_100%", PurposeSource.STATED_BY_USER)),
                 codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 3, 7, "c".repeat(64)),
                     CodeAnchor("src/Old.kt", null, 1, 2, "d".repeat(64), CodeSide.BASE)),
                 verifications = listOf(VerificationRun("test", 0, Instant.EPOCH, Instant.EPOCH, digest,
@@ -62,6 +63,9 @@ class PostgresRepositorySmokeTest(
         assertEquals(listOf(published.id), found.map { it.id })
         assertEquals(CodeSide.BASE, found.single().codeAnchors.last().side)
         assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, found.single().verifications.single().source)
+        assertEquals(listOf(published.id), catalog.search(RecordCatalogQuery(
+            published.repositoryKey, setOf(published.status), null, null, null, 20, "검색_100%",
+        )).map { it.id })
         val target = GitHubPullRequestTarget("acme", "intent-trace", 1)
         val attempt = tracking.start(published.id, target, PublicationOperation.PUBLISH)
         val publication = GitHubPublication(UUID.randomUUID(), published.id, target, revision, 42,

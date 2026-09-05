@@ -23,6 +23,15 @@ class JdbcChangeRecordCatalog(private val jdbc: JdbcTemplate) : ChangeRecordCata
             conditions += "exists (select 1 from code_anchors a where a.record_id = r.id and a.relative_path = ?)"
             parameters += it
         }
+        query.keyword?.let {
+            val pattern = "%${it.replace("!", "!!").replace("%", "!%").replace("_", "!_")}%"
+            conditions += """
+                (lower(r.title) like lower(?) escape '!' or lower(r.request_summary) like lower(?) escape '!'
+                 or exists (select 1 from change_decisions d where d.record_id = r.id
+                     and (lower(d.summary) like lower(?) escape '!' or lower(d.rationale) like lower(?) escape '!')))
+            """.trimIndent()
+            repeat(4) { parameters += pattern }
+        }
         query.cursor?.let {
             conditions += "(r.created_at < ? or (r.created_at = ? and r.id < ?))"
             val timestamp = OffsetDateTime.ofInstant(it.createdAt, ZoneOffset.UTC)

@@ -40,7 +40,8 @@ class ChangeRecordController(
         @RequestParam(required = false) authorId: Long?,
         @RequestParam(required = false) cursor: String?,
         @RequestParam(defaultValue = "20") limit: Int,
-    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit)
+        @RequestParam(required = false) q: String?,
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit, q)
 
     @PostMapping("/{recordId}/revise")
     fun revise(@PathVariable recordId: UUID, @Valid @RequestBody request: ReviseChangeRecordRequest): ChangeRecordResponse =

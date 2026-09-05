@@ -77,6 +77,29 @@ class DraftManagementIntegrationTest(
         assertFailsWith<IllegalArgumentException> { catalog.list("acme/catalog", status = ChangeRecordStatus.DRAFT) }
     }
 
+    @Test
+    fun `검색은 제목 요청 판단 근거를 찾고 특수문자와 비공개 범위를 보존한다`() {
+        session.actor = owner
+        val repository = "acme/keyword"
+        val seeds = listOf(
+            command("title-${UUID.randomUUID()}", repository).copy(title = "키워드 Cache 변경"),
+            command("request-${UUID.randomUUID()}", repository).copy(requestSummary = "키워드 Cache 요청"),
+            command("decision-${UUID.randomUUID()}", repository).copy(decisions = listOf(Decision("키워드 Cache 판단", null, PurposeSource.STATED_BY_USER))),
+            command("rationale-${UUID.randomUUID()}", repository).copy(decisions = listOf(Decision("판단", "키워드 Cache 근거 100%_정확!", PurposeSource.STATED_BY_USER))),
+        ).map { records.create(it) }
+        session.actor = other
+        records.create(command("private-${UUID.randomUUID()}", repository).copy(title = "키워드 Cache 비공개"))
+        session.actor = owner
+        val first = catalog.list(repository, RecordScope.MINE, q = "  cache  ", limit = 2)
+        val second = catalog.list(repository, RecordScope.MINE, q = "cache", limit = 2, cursor = assertNotNull(first.nextCursor))
+        assertEquals(seeds.map { it.id }.toSet(), (first.items + second.items).map { it.id }.toSet())
+        assertNull(second.nextCursor)
+        assertEquals(listOf(seeds.last().id), catalog.list(repository, RecordScope.MINE, q = "%_정확!").items.map { it.id })
+        assertTrue(catalog.list(repository, q = "cache").items.isEmpty())
+        assertTrue(catalog.list(repository, RecordScope.MINE, q = "없는 검색어").items.isEmpty())
+        assertFailsWith<IllegalArgumentException> { catalog.list(repository, q = "a".repeat(201)) }
+    }
+
     class TestSession(var actor: ActorIdentity = owner) : CurrentGitHubUserSession {
         override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token")
     }
