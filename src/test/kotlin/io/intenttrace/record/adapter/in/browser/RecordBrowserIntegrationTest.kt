@@ -109,14 +109,14 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val cookie = login("/records/history?repositoryKey=acme%2Fhistory-browser&revision=${"b".repeat(40)}&path=src%2FApp.kt&line=1")
         val page = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1")
-        }.andExpect { status { isOk() }; content { string(containsString("커밋·줄 일치")) }; content { string(containsString("다음 후보 확인")) } }.andReturn().response.contentAsString
+        }.andExpect { status { isOk() }; content { string(containsString("커밋·줄 일치")) }; content { string(containsString("다음 기록 조회")) } }.andReturn().response.contentAsString
         preview("history", page)
         val retry = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", failed.id.toString())
-        }.andExpect { status { isOk() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }; content { string(containsString("이 후보 다시 확인")) } }.andReturn().response.contentAsString
+        }.andExpect { status { isOk() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }; content { string(containsString("이 기록 다시 조회")) } }.andReturn().response.contentAsString
         preview("history-failure", retry)
         val evidence = mvc.get("/records/${matched.id}/evidence") { cookie(cookie) }.andExpect {
-            status { isOk() }; content { string(containsString("스냅샷과 모든 코드 근거가 일치")) }; content { string(containsString("테스트 실행 자체를 확인한 결과는 아닙니다")) }
+            status { isOk() }; content { string(containsString("스냅샷 해시와 모든 관련 코드가 일치")) }; content { string(containsString("서버는 테스트 실행 여부를 확인하지 않습니다")) }
         }.andReturn().response.contentAsString
         preview("evidence", evidence)
         val unavailable = mvc.get("/records/${failed.id}/evidence") { cookie(cookie) }.andExpect {
@@ -129,8 +129,8 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())
-        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 수")) }; content { string(containsString("같은 위치에서 멈출 수 있습니다")) } }.andReturn().response.contentAsString
-        assertFalse(paused.contains("중단한 근거부터 계속"))
+        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 수")) }; content { string(containsString("반복 조회 전에 관리자에게")) } }.andReturn().response.contentAsString
+        assertFalse(paused.contains("중단 위치부터 계속 조회"))
         preview("history-stopped", paused)
         val activities = mvc.get("/records/${matched.id}/activities") { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("작성자 확인")) }; content { string(containsString("초안 생성")) }
@@ -158,7 +158,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
             header { string("Content-Security-Policy", containsString("default-src 'none'")) }
             content { string(containsString("&lt;script&gt;")) }
-            content { string(containsString("판단과 근거")) }
+            content { string(containsString("구현 결정과 이유")) }
         }.andReturn().response.contentAsString
         preview("record", displayed)
         val search = mvc.get("/records") { cookie(cookie); param("repositoryKey", "acme/browser"); param("q", "브라우저") }.andExpect {
@@ -246,7 +246,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         tracking.finish(attempt, PublicationAttemptStatus.RESULT_UNKNOWN, "UNKNOWN", null)
         val cookie = login("/records/pull-requests?repositoryKey=acme%2Fbrowser&pullNumber=12")
         val overview = mvc.get("/records/pull-requests") { cookie(cookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12") }
-            .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("이전 커밋의 기록")) } }.andReturn().response.contentAsString
+            .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("PR 최신 커밋과 다름")) } }.andReturn().response.contentAsString
         preview("pull-requests", overview)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
@@ -254,7 +254,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         preview("connection", diagnosis)
         val comparisonCookie = login("/records/${successor.id}/comparison")
         val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
-            .andExpect { status { isOk() }; content { string(containsString("후속 기록에 제출된 검증이 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
+            .andExpect { status { isOk() }; content { string(containsString("새 기록에 등록된 검증 결과가 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
         preview("comparison", compared)
         assertTrue(compared.contains("내용 변경 · 출처"))
         assertTrue(compared.contains("<del>사용자 요청</del>"))

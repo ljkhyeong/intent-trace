@@ -16,10 +16,10 @@ def main():
     token = os.environ.get("INTENT_TRACE_SESSION_TOKEN")
     if not token:
         try:
-            # 숨긴 입력을 제공할 수 없으면 표준 입력으로 대체하기 전에 중단한다.
+            # 토큰이 화면에 표시될 수 있으면 표준 입력으로 대체하기 전에 중단한다.
             with warnings.catch_warnings():
                 warnings.simplefilter("error", getpass.GetPassWarning)
-                token = getpass.getpass("IntentTrace its_ 세션: ")
+                token = getpass.getpass("IntentTrace 세션 토큰(its_): ")
         except getpass.GetPassWarning:
             print("세션 입력을 숨길 수 없습니다. 터미널에서 실행하거나 INTENT_TRACE_SESSION_TOKEN 환경 변수로 세션을 전달하세요.", file=sys.stderr)
             return 1

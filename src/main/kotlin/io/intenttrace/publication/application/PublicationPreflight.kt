@@ -28,7 +28,7 @@ class PublicationPreflightService(
         access.requireMaintainer(repository.key)
         val inspection = when {
             properties.token.isNotBlank() -> PublicationCredentialInspection(null, null, listOf(PublicationCredentialCheck(
-                "fixed_token", PreflightStatus.CONFIGURED_UNVERIFIED, "고정 token을 사용 중입니다. 이 점검은 App 키로 발급하는 자격 증명만 원격 확인합니다.")))
+                "fixed_token", PreflightStatus.CONFIGURED_UNVERIFIED, "고정 토큰은 이 점검에서 확인하지 않습니다. GitHub App 키로 발급한 토큰만 검증합니다.")))
             properties.app.clientId.isBlank() || properties.app.privateKeyBase64.isBlank() -> PublicationCredentialInspection(null, null,
                 listOf(PublicationCredentialCheck("private_key", PreflightStatus.NOT_CONFIGURED, "App client ID와 private key를 설정해 주세요.")))
             else -> inspector.inspect(repository)

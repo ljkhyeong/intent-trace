@@ -21,6 +21,12 @@ test('설정에 토큰을 넣지 않고 절대 실행 경로를 생성한다', (
   assert.equal(config.args[0], script);
   assert.deepEqual(config.env, {});
   assert.ok(!result.stdout.includes(token));
+  const invalid = spawnSync(process.execPath, [script, 'serve'], {
+    env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: 'invalid-session-for-test' }, encoding: 'utf8',
+  });
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
+  assert.ok(!invalid.stderr.includes('invalid-session-for-test'));
 });
 
 test('원격 HTTP와 인증 정보가 포함된 주소를 거부한다', () => {
@@ -48,7 +54,7 @@ test('인증 실패 응답의 원문과 토큰을 로그로 내보내지 않는�
     const code = await new Promise(resolve => child.once('close', resolve));
     assert.equal(code, 1);
     assert.ok(!output.includes(token));
-    assert.match(output, /다시 로그인한 세션/);
+    assert.match(output, /다시 로그인해 받은 세션 토큰/);
     assert.match(output, /INTENT_TRACE_ERROR AUTHENTICATION_REQUIRED/);
   } finally {
     child.kill();
@@ -86,6 +92,7 @@ test('연결 후 인증과 호출 제한 및 서버 장애를 구분하고 원�
         assert.equal(error.data.retryAfterSeconds, status === 429 ? 120 : undefined);
         assert.ok(!JSON.stringify(error).includes(token));
         assert.ok(!error.message.includes(token));
+        if (status === 502) assert.match(error.message, /IntentTrace 서버 오류가 발생했습니다/);
         return true;
       });
     }
@@ -114,5 +121,5 @@ test('대기 시간 형식을 제한하고 시간 초과는 변경 상태 확인
   assert.equal(retryAfterSeconds('120'), 120);
   assert.equal(retryAfterSeconds('Sat, 05 Sep 2026 00:02:00 GMT', Date.parse('2026-09-05T00:00:00Z')), 120);
   for (const input of ['-1', '1e2', 'Infinity', '99999999', token]) assert.equal(retryAfterSeconds(input), undefined);
-  assert.match(safeFailure({ code: -32001 }).message, /기록 또는 게시 상태/);
+  assert.match(safeFailure({ code: -32001 }).message, /다시 보내기 전에 기록·게시 상태/);
 });

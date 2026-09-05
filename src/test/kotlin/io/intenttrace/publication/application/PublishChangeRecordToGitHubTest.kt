@@ -48,6 +48,7 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(42L, publication.checkRunId)
         assertEquals("intent-trace:${record.id}", gateway.lastCommand?.externalId)
         assertEquals(publication, publicationRepository.saved)
+        assertTrue(gateway.lastCommand!!.markdown.contains("등록된 검증 결과가 없습니다."))
     }
 
     @Test

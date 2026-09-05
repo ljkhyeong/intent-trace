@@ -73,6 +73,7 @@ h1 {
   font-size:2.15rem;
   line-height:1.35;
   letter-spacing:-.04em;
+  word-break:keep-all;
   overflow-wrap:anywhere;
 }
 
@@ -282,6 +283,11 @@ main {
 
 .welcome>p {
   font-size:1.1rem;
+}
+
+.welcome>p,.page-heading p,.notice,footer {
+  word-break:keep-all;
+  overflow-wrap:anywhere;
 }
 
 .welcome .muted {

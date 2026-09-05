@@ -35,13 +35,13 @@ class IntentTraceTools(
         @McpToolParam(description = "팀 공개 목록의 작성자 GitHub 숫자 ID 필터", required = false) authorId: Long? = null,
         @McpToolParam(description = "직전 응답의 nextCursor", required = false) cursor: String? = null,
         @McpToolParam(description = "1~100 사이의 목록 크기", required = false) limit: Int? = null,
-        @McpToolParam(description = "제목·요청·판단과 근거에서 찾을 검색어, 최대 200자", required = false) q: String? = null,
+        @McpToolParam(description = "제목·요청·구현 결정과 이유에서 찾을 검색어, 최대 200자", required = false) q: String? = null,
     ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit ?: 20, q)
 
-    @McpTool(name = "create_successor_draft", description = "내 공개 기록의 판단으로 후속 초안을 만듭니다. 새 스냅샷과 코드 근거가 필요하며 검증 결과와 확인 상태는 복사하지 않습니다.", generateOutputSchema = true,
+    @McpTool(name = "create_successor_draft", description = "내 공개 기록의 구현 결정으로 새 초안을 만듭니다. 새 스냅샷 해시와 관련 코드가 필요하며 검증 결과와 확인 상태는 복사하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     fun successor(@McpToolParam(description = "원본 공개 기록 UUID", required = true) recordId: String,
-                  @McpToolParam(description = "새 요청 ID와 코드 근거", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
+                  @McpToolParam(description = "새 요청 ID와 관련 코드", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
         return ChangeRecordResponse.from(records.createSuccessor(UUID.fromString(recordId), request.toCommand()))
@@ -77,7 +77,7 @@ class IntentTraceTools(
 
     @McpTool(
         name = "create_change_record",
-        description = "현재 코드 변경의 요청, 판단, 코드 근거, 실제 검증을 비공개 초안으로 기록합니다. 원문 대화나 숨은 추론은 전달하지 마세요.",
+        description = "코드 변경의 요청·구현 결정·관련 코드·검증 결과를 비공개 초안으로 기록합니다. 원문 대화나 숨은 추론은 전달하지 마세요.",
         generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(
             readOnlyHint = false,
@@ -113,7 +113,7 @@ class IntentTraceTools(
 
     @McpTool(
         name = "confirm_change_record",
-        description = "작성자가 검토한 초안을 전체 Git 커밋과 현재 코드 스냅샷에 묶어 확인합니다.",
+        description = "작성자가 검토한 초안을 커밋 해시와 현재 스냅샷 해시에 연결해 확인합니다.",
         generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(
             readOnlyHint = false,
@@ -127,9 +127,9 @@ class IntentTraceTools(
         recordId: String,
         @McpToolParam(description = "낙관적 잠금용 현재 기록 버전", required = true)
         expectedVersion: Long,
-        @McpToolParam(description = "40자 또는 64자 전체 Git 커밋 ID", required = true)
+        @McpToolParam(description = "커밋 해시(40자 또는 64자)", required = true)
         immutableRevision: String,
-        @McpToolParam(description = "작성자가 확인한 현재 코드의 SHA-256 스냅샷", required = true)
+        @McpToolParam(description = "작성자가 확인한 현재 코드의 스냅샷 해시(SHA-256)", required = true)
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.confirm(
@@ -158,7 +158,7 @@ class IntentTraceTools(
         recordId: String,
         @McpToolParam(description = "낙관적 잠금용 현재 기록 버전", required = true)
         expectedVersion: Long,
-        @McpToolParam(description = "공개할 현재 코드의 SHA-256 스냅샷", required = true)
+        @McpToolParam(description = "공개할 현재 코드의 스냅샷 해시(SHA-256)", required = true)
         currentSnapshotDigest: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(
         records.publish(

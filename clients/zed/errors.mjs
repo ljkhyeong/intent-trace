@@ -1,9 +1,9 @@
-const recovery = '변경 요청은 기록 또는 게시 상태를 먼저 조회하세요.';
+const recovery = '변경 요청을 다시 보내기 전에 기록·게시 상태를 확인하세요.';
 const messages = {
-  AUTHENTICATION_REQUIRED: 'IntentTrace 인증이 만료되었거나 거부됐습니다. 다시 로그인한 세션으로 연결하세요.',
+  AUTHENTICATION_REQUIRED: 'IntentTrace 인증에 실패했습니다. 다시 로그인해 받은 세션 토큰으로 연결하세요.',
   ACCESS_DENIED: 'IntentTrace 접근이 거부됐습니다. 저장소 권한을 확인하세요.',
   RATE_LIMITED: 'IntentTrace 호출 제한에 도달했습니다.',
-  UPSTREAM_UNAVAILABLE: 'IntentTrace 서버의 외부 연동에 장애가 있습니다.',
+  UPSTREAM_UNAVAILABLE: 'IntentTrace 서버 오류가 발생했습니다.',
   REQUEST_TIMEOUT: 'IntentTrace 응답 대기 시간이 지났습니다.',
   CONNECTION_FAILED: 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소와 연결 상태를 확인하세요.',
 };

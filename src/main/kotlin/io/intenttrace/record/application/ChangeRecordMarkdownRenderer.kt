@@ -26,22 +26,22 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         }
         appendLine("- 저장소: `${record.repositoryKey}`")
         appendLine("- 커밋: `${record.targetRevision ?: "작성자 확인 전"}`")
-        appendLine("- 스냅샷: `${record.snapshotDigest}`")
+        appendLine("- 스냅샷 해시: `${record.snapshotDigest}`")
         appendLine("- 작성자: `@${record.createdBy.login}` (`${record.createdBy.subject}`)")
         appendLine()
         appendLine("## 요청")
         appendLine()
         appendLine(record.requestSummary)
         appendLine()
-        appendLine("## 판단")
+        appendLine("## 구현 결정과 이유")
         appendLine()
         record.decisions.forEach { decision ->
             append("- ${decision.summary} — ${decision.source.label}")
-            decision.rationale?.takeIf(String::isNotBlank)?.let { append("\n  - 근거: $it") }
+            decision.rationale?.takeIf(String::isNotBlank)?.let { append("\n  - 이유: $it") }
             appendLine()
         }
         appendLine()
-        appendLine("## 코드 근거")
+        appendLine("## 관련 코드")
         appendLine()
         record.codeAnchors.forEach { anchor ->
             val symbol = anchor.symbolName?.let { " (`$it`)" }.orEmpty()
@@ -59,11 +59,11 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         appendLine("## 검증")
         appendLine()
         if (record.verifications.isEmpty()) {
-            appendLine("- 실행한 검증이 없습니다.")
+            appendLine("- 등록된 검증 결과가 없습니다.")
         } else {
             record.verifications.forEach { verification ->
                 val state = when {
-                    !verification.isCurrentFor(record) -> "오래된 스냅샷"
+                    !verification.isCurrentFor(record) -> "다른 스냅샷의 결과"
                     verification.exitCode == 0 -> "통과"
                     else -> "실패"
                 }

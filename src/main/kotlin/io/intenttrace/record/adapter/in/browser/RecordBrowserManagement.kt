@@ -20,14 +20,14 @@ internal fun RecordBrowserPage.sessions(actor: ActorIdentity, result: MySessions
 internal fun RecordBrowserPage.activities(actor: ActorIdentity, result: RecordActivities): String = layout("기록 변경 이력", actor, buildString {
     append("<a class=\"back-link\" href=\"/records/${result.recordId}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>기록 변경 이력</h1><p>저장에 성공한 작업과 처리 시각입니다. 이전 본문은 저장하지 않습니다.</p></header>")
     if (result.visibility == ActivityVisibility.TEAM) append("<aside class=\"notice\">팀원에게는 공개·대체 작업만 표시합니다. 비공개 작업 이력은 작성자만 읽습니다.</aside>")
-    if (result.historyStartsAtCreation == false) append("<aside class=\"notice\">이력 수집 시작 전 작업은 확인할 수 없습니다. 과거 작업을 추정해서 채우지 않습니다.</aside>")
+    if (result.historyStartsAtCreation == false) append("<aside class=\"notice\">이력 수집 전 작업은 저장되어 있지 않습니다.</aside>")
     if (result.items.isEmpty()) append("<p class=\"empty\">표시할 변경 이력이 없습니다.</p>")
     append("<ol class=\"records\">")
     result.items.forEach { activity ->
         val operation = when (activity.operation) {
             RecordOperation.CREATE -> "초안 생성"; RecordOperation.REVISE -> "초안 수정"; RecordOperation.CONFIRM -> "작성자 확인"
             RecordOperation.REOPEN -> "작성자 확인 취소"; RecordOperation.PUBLISH -> "팀 공개"; RecordOperation.DISCARD -> "기록 폐기"
-            RecordOperation.SUPERSEDE -> "후속 기록으로 대체"
+            RecordOperation.SUPERSEDE -> "새 기록으로 대체"
         }
         append("<li><div><span class=\"status\">버전 ${activity.version}</span><h2>$operation</h2><p>${stamp(activity.occurredAt)}</p><p>처리한 사용자: ${html(activity.actorSubject)}</p>")
         append("<p>${activity.previousStatus?.let { "${it.label} → " }.orEmpty()}${activity.status.label}</p></div></li>")

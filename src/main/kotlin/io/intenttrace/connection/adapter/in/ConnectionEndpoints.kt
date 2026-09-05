@@ -39,7 +39,7 @@ class ConnectionTools(private val diagnostics: ConnectionDiagnostics, private va
     @McpTool(name = "diagnose_connection", description = "사용자·저장소 권한, 선택 PR·코드 읽기와 게시 설정을 진단합니다. 실제 게시나 테스트 실행은 하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
     fun diagnose(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String,
-                 @McpToolParam(description = "코드 읽기를 확인할 전체 Git 커밋", required = false) revision: String? = null,
+                 @McpToolParam(description = "코드 읽기를 확인할 커밋 해시(40자 또는 64자)", required = false) revision: String? = null,
                  @McpToolParam(description = "조회할 PR 번호", required = false) pullNumber: Int? = null): ConnectionDiagnosis =
         diagnostics.diagnose(repositoryKey, revision, pullNumber)
 

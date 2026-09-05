@@ -139,9 +139,9 @@ private fun successPage(session: IssuedGitHubUserSession): String =
         content =
             """
             <p><strong>@${escapeHtml(session.actor.login)}</strong> 계정이 IntentTrace에 연결됐습니다.</p>
-            <p>아래 session token은 이 화면에서만 확인할 수 있습니다. <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수에 저장하세요.</p>
+            <p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수에 저장하세요.</p>
             <pre><code>${session.sessionToken}</code></pre>
-            <p>IntentTrace를 재시작하면 이 session은 사라지며 다시 연결해야 합니다.</p>
+            <p>IntentTrace 서버를 재시작하면 다시 로그인해야 합니다.</p>
             """.trimIndent(),
     )
 

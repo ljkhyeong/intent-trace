@@ -22,7 +22,7 @@ export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl)
 export function sessionToken() {
   const value = process.env.INTENT_TRACE_SESSION_TOKEN;
   if (!value || !/^its_[A-Za-z0-9_-]{32,128}$/.test(value)) {
-    throw new Error('INTENT_TRACE_SESSION_TOKEN에 로그인 화면에서 받은 its_ 세션을 환경 변수로 전달하세요.');
+    throw new Error('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
   }
   return value;
 }
@@ -82,7 +82,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
     }
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
-      ? '설치한 연결 도구를 다시 설치하거나 저장소에서 고정 의존성을 설치해 주세요.'
+      ? '연결 도구를 다시 설치하세요. 소스 실행 시 clients/zed에서 npm ci를 실행하세요.'
       : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소')
         ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
     console.error(message);
