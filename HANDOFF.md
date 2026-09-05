@@ -384,3 +384,8 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - JWT는 키 식별자가 없는 `JWKSet`을 전달해 기존 헤더를 유지한다. PKCS1·PKCS8 입력, `iss`·`iat`·`exp`, RS256 서명과 안전한 오류 응답을 확인했다.
 - `./gradlew focusedTest --tests '*GitHubAppJwtFactoryTest'` 3개, 이후 `./gradlew test` 168개가 통과했다. 부분 테스트는 전체에 포함된다. 요청별 토큰·호출 제한·전체 조회 기한과 REST·MCP·Zed 연결도 전체 검증에 포함됐다.
 - PostgreSQL·IntelliJ 구현은 변경하지 않아 해당 테스트를 다시 실행하지 않았다. 실제 GitHub 게시·배포·IDE 화면은 이번 검증 대상에 포함하지 않았다.
+
+## 2026-09-05 조회 코드 추가 검토
+
+- [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md)에 PR 목록의 기록별 반복 조회·최신 한 건을 위한 이력 20건 조회와 검색 SQL의 위치 기반 매개변수 관리를 정리했다. PR 목록의 게시 정보 일괄 조회를 먼저 권장한다.
+- 제품 코드는 수정하지 않았다. 추가 확인 범위에서 바로 제거할 중복 검증은 더 찾지 못했다.
