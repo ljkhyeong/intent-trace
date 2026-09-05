@@ -372,3 +372,8 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `focusedTest`·`test`·`postgresTest`로 결과 경로를 나누고 Zed·검증 스크립트를 Gradle 입력에 등록했다. PostgreSQL 검증은 빈 로컬 포트를 배정받는다.
 - 서버 165개, 부분 실행 9개, PostgreSQL 4개와 결과 집계 도구 3개가 통과했다. DB 복구 후 기록 13건·이력 28건을 확인했다. 이후 전체 테스트는 `UP-TO-DATE`였고 기존 XML 결과도 유지됐다.
 - 작업 재개 시 [로컬 검증 절차](docs/development/verification.md)에서 실행 범위를 고르고 `scripts/test-summary.py`로 필요한 결과만 확인한다. [이전 작업 점검과 변경 근거](docs/reviews/2026-09-05-agent-verification-loop.md)에 관찰 범위·재시도 원인·검증 결과를 남겼다.
+
+## 2026-09-05 Java·Spring API와 중복 검증 검토
+
+- [검토 결과](docs/reviews/2026-09-05-standard-api-review.md)에 오류 JSON 직접 조립, HTTP 설정 중복, 저장소 빈 값 중복 검사, Duration 표현과 JWT 인코더 도입을 정리했다. 필요한 도메인·권한·동시성 검증은 별도로 구분했다.
+- 제품 코드는 변경하지 않았다. 구현할 때 해당 항목의 조건과 기존 테스트를 확인한다.
