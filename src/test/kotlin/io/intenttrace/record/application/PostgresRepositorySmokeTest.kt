@@ -5,6 +5,14 @@ import io.intenttrace.publication.application.GitHubPublicationRepository
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationRun
+import io.intenttrace.record.domain.VerificationSource
+import io.intenttrace.publication.application.GitHubPublicationTracking
+import io.intenttrace.publication.application.PublicationOperation
+import io.intenttrace.publication.application.PublicationAttemptStatus
+import java.time.Instant
+import java.util.UUID
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
@@ -12,8 +20,6 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
-import java.time.Instant
-import java.util.UUID
 import kotlin.test.assertEquals
 
 @SpringBootTest
@@ -21,6 +27,9 @@ import kotlin.test.assertEquals
 @EnabledIfEnvironmentVariable(named = "INTENT_TRACE_POSTGRES_SMOKE", matches = "true")
 class PostgresRepositorySmokeTest(
     @Autowired private val facade: ChangeRecordFacade,
+    @Autowired private val tracking: GitHubPublicationTracking,
+    @Autowired private val catalog: ChangeRecordCatalog,
+    @Autowired private val activities: RecordActivityStore,
     @Autowired private val publicationRepository: GitHubPublicationRepository,
 ) : ChangeRecordStorageContract() {
     @Test
@@ -29,12 +38,15 @@ class PostgresRepositorySmokeTest(
             CreateChangeRecordCommand(
                 requestId = "postgres-smoke",
                 repositoryKey = "Acme/Intent-Trace",
+                baseRevision = "e".repeat(40),
                 snapshotDigest = digest,
                 title = "PostgreSQL 검증",
                 requestSummary = "실제 PostgreSQL에서 기록 수명주기를 확인한다.",
-                decisions = listOf(Decision("PostgreSQL 17을 사용한다.", null, PurposeSource.STATED_BY_USER)),
-                codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 3, 7, "c".repeat(64))),
-                verifications = emptyList(),
+                decisions = listOf(Decision("PostgreSQL 17을 사용한다.", "회귀검색_100%", PurposeSource.STATED_BY_USER)),
+                codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 3, 7, "c".repeat(64)),
+                    CodeAnchor("src/Old.kt", null, 1, 2, "d".repeat(64), CodeSide.BASE)),
+                verifications = listOf(VerificationRun("test", 0, Instant.EPOCH, Instant.EPOCH, digest,
+                    "f".repeat(64), "수집 결과", VerificationSource.LOCAL_RUNNER_REPORTED)),
                 openQuestions = emptyList(),
             ),
             actor,
@@ -52,29 +64,53 @@ class PostgresRepositorySmokeTest(
 
         assertEquals("acme/intent-trace", published.repositoryKey)
         assertEquals(listOf(published.id), found.map { it.id })
+        assertEquals(CodeSide.BASE, found.single().codeAnchors.last().side)
+        assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, found.single().verifications.single().source)
+        assertEquals(listOf(published.id), catalog.search(RecordCatalogQuery(
+            published.repositoryKey, setOf(published.status), null, null, null, 20, "검색_100%",
+        )).map { it.id })
+        val target = GitHubPullRequestTarget("acme", "intent-trace", 1)
+        val attempt = tracking.start(published.id, target, PublicationOperation.PUBLISH)
+        val publication = GitHubPublication(UUID.randomUUID(), published.id, target, revision, 42,
+            "https://github.test/check/42", digest, Instant.EPOCH)
+        tracking.finish(attempt, PublicationAttemptStatus.SUCCEEDED, null, publication)
+        val saved = tracking.recent(published.id, target).single()
+        assertEquals(PublicationAttemptStatus.SUCCEEDED, saved.status)
+        assertEquals(42L, saved.checkRunId)
+        assertEquals(digest, saved.contentDigest)
+        assertEquals(listOf(published.id), catalog.search(RecordCatalogQuery(
+            published.repositoryKey, setOf(published.status), null, null, null, 20, pullNumber = 1,
+        )).map { it.id })
+        val successor = facade.create(CreateChangeRecordCommand("postgres-successor", published.repositoryKey,
+            revision, digest, published.title, published.requestSummary, published.decisions, published.codeAnchors,
+            emptyList(), emptyList(), published.id), actor)
+        assertEquals(published.id, facade.get(successor.id).derivedFromRecordId)
+        assertEquals(listOf(RecordOperation.PUBLISH, RecordOperation.CONFIRM, RecordOperation.CREATE),
+            activities.list(published.id, true, null, 50).map { it.operation })
+        assertEquals(listOf(RecordOperation.PUBLISH), activities.list(published.id, false, null, 50).map { it.operation })
 
-        val target = GitHubPullRequestTarget("ACME", "INTENT-TRACE", 12)
-        val publication = GitHubPublication(
+        val updateTarget = GitHubPullRequestTarget("ACME", "INTENT-TRACE", 12)
+        val updatePublication = GitHubPublication(
             id = UUID.randomUUID(),
             changeRecordId = published.id,
-            target = target,
+            target = updateTarget,
             headRevision = revision,
             checkRunId = 42,
             checkRunUrl = "https://github.test/check-runs/42",
             contentDigest = "e".repeat(64),
             publishedAt = Instant.parse("2026-08-29T00:00:00Z"),
         )
-        publicationRepository.save(publication)
+        publicationRepository.save(updatePublication)
         val updatedPublication = publicationRepository.save(
-            publication.copy(
+            updatePublication.copy(
                 checkRunId = 43,
                 checkRunUrl = "https://github.test/check-runs/43",
                 publishedAt = Instant.parse("2026-08-29T00:01:00Z"),
             ),
         )
 
-        assertEquals(publication.id, updatedPublication.id)
-        assertEquals(43L, publicationRepository.find(published.id, target)?.checkRunId)
+        assertEquals(updatePublication.id, updatedPublication.id)
+        assertEquals(43L, publicationRepository.find(published.id, updateTarget)?.checkRunId)
     }
 
     companion object {

@@ -46,6 +46,7 @@ import kotlin.test.assertTrue
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val tools: IntentTraceTools,
+    @Autowired private val records: io.intenttrace.record.application.ChangeRecordFacade,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val facade: ChangeRecordFacade,
 ) {
@@ -78,6 +79,71 @@ class AuthenticatedMcpIntegrationTest(
 
         val sessionId = authenticated.response.getHeader("Mcp-Session-Id")
         assertNotNull(sessionId)
+
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":3,"method":"tools/list"}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("sync_superseded_record_to_github_pr")) }
+            content { string(containsString("revoke_all_my_sessions")) }
+            content { string(containsString("check_change_record_evidence")) }
+            content { string(containsString("create_successor_draft")) }
+            content { string(containsString("list_pull_request_records")) }
+            content { string(containsString("diagnose_connection")) }
+            content { string(containsString("compare_change_record")) }
+            content { string(containsString("check_publication_credentials")) }
+            content { string(containsString("list_record_activities")) }
+        }
+        val activityRecord = records.create(CreateChangeRecordRequest(
+            requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
+            title = "변경 이력 조회", requestSummary = "선택 버전을 생략하고 이력을 조회한다.",
+            decisions = listOf(DecisionRequest("기록과 이력을 함께 저장한다.", null, PurposeSource.STATED_BY_USER)),
+            codeAnchors = listOf(CodeAnchorRequest("src/App.kt", null, 1, 2, "b".repeat(64))),
+        ).toCommand(), ActorIdentity.github(42, "lim"))
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_record_activities","arguments":{"recordId":"${activityRecord.id}"}}}"""
+        }.andExpect {
+            status { isOk() }; content { string(containsString("\"isError\":false")) }
+            content { string(containsString("CREATE")) }; content { string(containsString("AUTHOR")) }
+        }
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_change_records","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("\"isError\":false")) }
+        }
+
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"find_related_change_intent","arguments":{"repositoryKey":"acme/intent-trace","revision":"${"b".repeat(40)}","path":"src/App.kt","line":1}}}"""
+        }.andExpect {
+            status { isOk() }; content { string(containsString("\"isError\":false")) }
+            content { string(containsString("\"complete\":true")) }; content { string(containsString("\"stopReason\":null")) }
+            content { string(containsString("\"resumeBlocked\":false")) }
+        }
+
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"diagnose_connection","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("\"isError\":false")) }
+            content { string(containsString("NOT_CONFIGURED")) }
+        }
 
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")
@@ -141,22 +207,24 @@ class AuthenticatedMcpIntegrationTest(
         val sessionId = initialized.response.getHeader("Mcp-Session-Id")
         assertNotNull(sessionId)
 
-        val response = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = """
-                {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-                  "name":"get_change_record","arguments":{"recordId":"$sensitiveInput"}
-                }}
-            """.trimIndent()
-        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray
-            .toString(Charsets.UTF_8)
+        for (tool in listOf("get_change_record", "list_record_activities", "compare_change_record", "check_change_record_evidence")) {
+            val response = mockMvc.post("/mcp") {
+                header("Authorization", "Bearer ghu_user-token")
+                header("Mcp-Session-Id", sessionId)
+                contentType = MediaType.APPLICATION_JSON
+                header("Accept", "application/json, text/event-stream")
+                content = """
+                    {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+                      "name":"$tool","arguments":{"recordId":"$sensitiveInput"}
+                    }}
+                """.trimIndent()
+            }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray
+                .toString(Charsets.UTF_8)
 
-        assertTrue(response.contains("\"isError\":true"))
-        assertTrue(response.contains("변경 의도 기록 ID는 UUID 형식이어야 합니다."))
-        assertFalse(response.contains(sensitiveInput))
+            assertTrue(response.contains("\"isError\":true"))
+            assertTrue(response.contains("변경 의도 기록 ID는 UUID 형식이어야 합니다."))
+            assertFalse(response.contains(sensitiveInput))
+        }
     }
 
     @Test

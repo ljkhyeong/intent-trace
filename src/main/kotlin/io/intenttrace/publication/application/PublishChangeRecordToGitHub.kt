@@ -25,9 +25,17 @@ class PublishChangeRecordToGitHub(
     private val publicationLocks = Array(PUBLICATION_LOCK_STRIPES) { ReentrantLock() }
 
     fun publish(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand): GitHubPublication {
+        return send(record, command, supersession = false)
+    }
+
+    fun syncSupersession(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand): GitHubPublication {
+        return send(record, command, supersession = true)
+    }
+
+    private fun send(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand, supersession: Boolean): GitHubPublication {
         require(record.id == command.changeRecordId) { "GitHub 게시 명령과 변경 의도 기록이 일치하지 않습니다." }
-        check(record.status == ChangeRecordStatus.PUBLISHED) {
-            "공개 상태의 변경 의도 기록만 GitHub에 게시할 수 있습니다."
+        check(record.status == if (supersession) ChangeRecordStatus.SUPERSEDED else ChangeRecordStatus.PUBLISHED) {
+            "기록 상태가 GitHub 게시 또는 대체 안내 작업과 일치하지 않습니다."
         }
 
         val target = command.target
@@ -41,7 +49,7 @@ class PublishChangeRecordToGitHub(
         }
 
         return publicationLocks[Math.floorMod(record.id.hashCode(), publicationLocks.size)].withLock {
-            publishLocked(record, target, markdown)
+            publishLocked(record, target, markdown, supersession)
         }
     }
 
@@ -49,25 +57,26 @@ class PublishChangeRecordToGitHub(
         record: ChangeRecord,
         target: GitHubPullRequestTarget,
         markdown: String,
+        supersession: Boolean,
     ): GitHubPublication {
         val recordRevision = checkNotNull(record.targetRevision) { "변경 의도 기록에 Git 커밋 ID가 없습니다." }
         val pullRequestRevision = gitHubGateway.getHeadRevision(target).lowercase()
-        if (recordRevision != pullRequestRevision) {
+        if (!supersession && recordRevision != pullRequestRevision) {
             throw PullRequestRevisionMismatchException(recordRevision, pullRequestRevision)
         }
 
         val previous = publicationRepository.find(record.id, target)
-        val checkRun = gitHubGateway.upsertCheckRun(
-            UpsertGitHubCheckRunCommand(
-                target = target,
-                headRevision = recordRevision,
-                externalId = "intent-trace:${record.id}",
-                knownCheckRunId = previous?.checkRunId,
-                title = record.title,
-                summary = "작성자가 확인한 IntentTrace 변경 의도 기록입니다.",
-                markdown = markdown,
-            ),
+        check(!supersession || previous != null) { "대체 안내를 반영할 GitHub 게시 이력이 없습니다." }
+        val checkCommand = UpsertGitHubCheckRunCommand(
+            target = target,
+            headRevision = recordRevision,
+            externalId = "intent-trace:${record.id}",
+            knownCheckRunId = previous?.checkRunId,
+            title = if (supersession) "대체됨: ${record.title}" else record.title,
+            summary = if (supersession) "새 기록으로 대체됐습니다. 본문의 후속 기록을 확인하세요." else "작성자가 확인한 IntentTrace 변경 의도 기록입니다.",
+            markdown = markdown,
         )
+        val checkRun = if (supersession) gitHubGateway.updateExistingCheckRun(checkCommand) else gitHubGateway.upsertCheckRun(checkCommand)
 
         return publicationRepository.save(
             GitHubPublication(

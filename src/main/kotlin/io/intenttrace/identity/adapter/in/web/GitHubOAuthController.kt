@@ -2,6 +2,7 @@ package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GITHUB_OAUTH_CALLBACK_PATH
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthCodeException
 import io.intenttrace.identity.application.GitHubOAuthCapacityException
@@ -12,6 +13,7 @@ import io.intenttrace.identity.application.GitHubOAuthStateException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.IssuedGitHubUserSession
+import io.intenttrace.identity.application.BROWSER_SESSION_TTL
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.util.HtmlUtils
 import java.time.Duration
+import java.net.URI
 
 @RestController
 @RequestMapping("/auth/github")
@@ -38,8 +41,8 @@ class GitHubOAuthController(
     private val properties: GitHubProperties,
 ) {
     @GetMapping("/start")
-    fun start(): ResponseEntity<Void> {
-        val start = flow.start()
+    fun start(@RequestParam(required = false) returnTo: String?): ResponseEntity<Void> {
+        val start = flow.start(returnTo)
         val stateCookie = ResponseCookie.from(STATE_COOKIE, start.state)
             .httpOnly(true)
             .secure(properties.userAuthorization.secureCookie)
@@ -62,7 +65,13 @@ class GitHubOAuthController(
         response: HttpServletResponse,
     ): ResponseEntity<String> {
         response.addHeader(HttpHeaders.SET_COOKIE, expiredStateCookie())
-        val issued = flow.complete(code, state, cookieState, error)
+        val completion = flow.complete(code, state, cookieState, error)
+        val issued = completion.session
+        completion.returnTo?.let {
+            val cookie = browserSessionCookie(properties, issued.sessionToken, BROWSER_SESSION_TTL)
+            return secure(ResponseEntity.status(HttpStatus.SEE_OTHER)).location(URI.create(it))
+                .header(HttpHeaders.SET_COOKIE, cookie.toString()).body("")
+        }
         return secure(ResponseEntity.ok())
             .contentType(HTML_UTF8)
             .body(successPage(issued))
@@ -85,6 +94,14 @@ class GitHubOAuthController(
 @RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class GitHubOAuthExceptionHandler {
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun invalidReturnPath(): ResponseEntity<String> = secure(ResponseEntity.badRequest())
+        .contentType(HTML_UTF8).body(errorPage("기록으로 돌아갈 주소가 올바르지 않습니다."))
+    @ExceptionHandler(GitHubRateLimitException::class)
+    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> =
+        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)).contentType(HTML_UTF8)
+            .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
+            .body(errorPage(exception.message ?: "GitHub 호출 제한에 도달했습니다."))
     @ExceptionHandler(GitHubOAuthCapacityException::class)
     fun tooManyRequests(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS))
@@ -116,15 +133,21 @@ class GitHubOAuthExceptionHandler {
             .body(errorPage("GitHub 승인 요청을 완료하지 못했습니다."))
 }
 
+const val BROWSER_SESSION_COOKIE = "intent_trace_browser"
+
+fun browserSessionCookie(properties: GitHubProperties, value: String, maxAge: Duration): ResponseCookie =
+    ResponseCookie.from(BROWSER_SESSION_COOKIE, value).httpOnly(true)
+        .secure(properties.userAuthorization.secureCookie).sameSite("Lax").path("/records").maxAge(maxAge).build()
+
 private fun successPage(session: IssuedGitHubUserSession): String =
     page(
         title = "GitHub 연결 완료",
         content =
             """
             <p><strong>@${escapeHtml(session.actor.login)}</strong> 계정이 IntentTrace에 연결됐습니다.</p>
-            <p>아래 session token은 이 화면에서만 확인할 수 있습니다. <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수에 저장하세요.</p>
+            <p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수에 저장하세요.</p>
             <pre><code>${session.sessionToken}</code></pre>
-            <p>IntentTrace를 재시작하면 이 session은 사라지며 다시 연결해야 합니다.</p>
+            <p>IntentTrace 서버를 재시작하면 다시 로그인해야 합니다.</p>
             """.trimIndent(),
     )
 

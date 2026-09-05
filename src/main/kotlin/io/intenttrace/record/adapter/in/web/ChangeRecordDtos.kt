@@ -5,9 +5,12 @@ import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.CreateChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
+import io.intenttrace.record.application.SuccessorDraftCommand
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import io.intenttrace.record.domain.MAX_CODE_ANCHOR_LINE
@@ -28,6 +31,8 @@ data class CreateChangeRecordRequest(
     val requestId: String,
     @field:NotBlank @field:Size(max = 255)
     val repositoryKey: String,
+    @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN)
+    val baseRevision: String? = null,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val snapshotDigest: String,
     @field:NotBlank @field:Size(max = 200)
@@ -46,6 +51,7 @@ data class CreateChangeRecordRequest(
     fun toCommand(): CreateChangeRecordCommand = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
+        baseRevision = baseRevision,
         snapshotDigest = snapshotDigest,
         title = title,
         requestSummary = requestSummary,
@@ -55,6 +61,13 @@ data class CreateChangeRecordRequest(
         openQuestions = openQuestions,
     )
 }
+
+data class ReviseChangeRecordRequest(
+    @field:Min(0) val expectedVersion: Long,
+    @field:Valid val content: CreateChangeRecordRequest,
+)
+
+data class RecordVersionRequest(@field:Min(0) val expectedVersion: Long)
 
 data class DecisionRequest(
     @field:NotBlank @field:Size(max = 1000)
@@ -77,8 +90,10 @@ data class CodeAnchorRequest(
     val endLine: Int,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val contentHash: String,
+    val side: CodeSide = CodeSide.TARGET,
+    @field:Size(max = 1000) val relatedPath: String? = null,
 ) {
-    fun toDomain(): CodeAnchor = CodeAnchor(relativePath, symbolName, startLine, endLine, contentHash)
+    fun toDomain(): CodeAnchor = CodeAnchor(relativePath, symbolName, startLine, endLine, contentHash, side, relatedPath)
 }
 
 data class VerificationRequest(
@@ -93,6 +108,7 @@ data class VerificationRequest(
     val outputDigest: String,
     @field:NotBlank @field:Size(max = 2000)
     val summary: String,
+    val source: VerificationSource = VerificationSource.CLIENT_REPORTED,
 ) {
     fun toDomain(): VerificationRun = VerificationRun(
         command,
@@ -102,6 +118,7 @@ data class VerificationRequest(
         snapshotDigest,
         outputDigest,
         summary,
+        source,
     )
 }
 
@@ -141,6 +158,7 @@ data class ChangeRecordResponse(
     val id: UUID,
     val requestId: String,
     val repositoryKey: String,
+    val baseRevision: String?,
     val targetRevision: String?,
     val snapshotDigest: String,
     val title: String,
@@ -156,12 +174,14 @@ data class ChangeRecordResponse(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationResponse>,
     val openQuestions: List<String>,
+    val derivedFromRecordId: UUID?,
 ) {
     companion object {
-        fun from(record: ChangeRecord): ChangeRecordResponse = ChangeRecordResponse(
+        fun from(record: ChangeRecord, queryRevision: String? = null): ChangeRecordResponse = ChangeRecordResponse(
             id = record.id,
             requestId = record.requestId,
             repositoryKey = record.repositoryKey,
+            baseRevision = record.baseRevision,
             targetRevision = record.targetRevision,
             snapshotDigest = record.snapshotDigest,
             title = record.title,
@@ -184,10 +204,12 @@ data class ChangeRecordResponse(
                     snapshotDigest = it.snapshotDigest,
                     outputDigest = it.outputDigest,
                     summary = it.summary,
-                    current = it.isCurrentFor(record),
+                    current = it.isCurrentFor(record) && (queryRevision == null || record.targetRevision == queryRevision.lowercase()),
+                    source = it.source,
                 )
             },
             openQuestions = record.openQuestions,
+            derivedFromRecordId = record.derivedFromRecordId,
         )
     }
 }
@@ -201,4 +223,18 @@ data class VerificationResponse(
     val outputDigest: String,
     val summary: String,
     val current: Boolean,
+    val source: VerificationSource,
+    val serverExecutionVerified: Boolean = false,
 )
+
+
+data class SuccessorDraftRequest(
+    @field:NotBlank @field:Size(max = 120) val requestId: String,
+    @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN) val baseRevision: String? = null,
+    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$") val snapshotDigest: String,
+    @field:NotEmpty @field:Size(max = 100) val codeAnchors: List<@Valid CodeAnchorRequest>,
+) {
+    fun toCommand() = SuccessorDraftCommand(
+        requestId, baseRevision, snapshotDigest, codeAnchors.map(CodeAnchorRequest::toDomain),
+    )
+}

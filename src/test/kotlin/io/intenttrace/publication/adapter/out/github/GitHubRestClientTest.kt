@@ -23,8 +23,10 @@ import org.springframework.web.util.UriComponentsBuilder
 import org.springframework.web.util.UriUtils
 import java.net.URI
 import kotlin.test.assertEquals
-import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
+import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
+import io.intenttrace.publication.application.GitHubRepositoryMismatchException
+import kotlin.test.assertContains
 import kotlin.test.assertFalse
 
 class GitHubRestClientTest {
@@ -48,7 +50,7 @@ class GitHubRestClientTest {
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer installation-token"))
             .andExpect(header("X-GitHub-Api-Version", "2026-03-10"))
-            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"Acme/Intent-Trace"}}}""", MediaType.APPLICATION_JSON))
 
         assertEquals(revision, client.getHeadRevision(target))
         server.verify()
@@ -58,7 +60,7 @@ class GitHubRestClientTest {
     fun `PR HEAD 응답이 전체 커밋 ID가 아니면 원문 없이 거부한다`() {
         val marker = "test-private-response-marker"
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
-            .andRespond(withSuccess("""{"head":{"sha":"$marker"}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$marker","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"acme/intent-trace"}}}""", MediaType.APPLICATION_JSON))
 
         val exception = assertFailsWith<GitHubApiException> { client.getHeadRevision(target) }
 
@@ -256,10 +258,34 @@ class GitHubRestClientTest {
             .andRespond(withStatus(HttpStatus.UNAUTHORIZED))
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
             .andExpect(header("Authorization", "Bearer refreshed-token"))
-            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"Acme/Intent-Trace"}}}""", MediaType.APPLICATION_JSON))
 
         assertEquals(revision, client.getHeadRevision(target))
         assertEquals(listOf("installation-token"), tokenProvider.invalidatedTokens)
+        server.verify()
+    }
+
+    @Test
+    fun `Fork와 다른 base 저장소와 누락된 저장소 응답을 거부한다`() {
+        val responses = listOf(
+            """{"head":{"sha":"$revision","repo":{"id":2,"full_name":"fork/intent-trace"}},"base":{"repo":{"id":1,"full_name":"acme/intent-trace"}}}""" to ForkPullRequestUnsupportedException::class,
+            """{"head":{"sha":"$revision","repo":{"id":1,"full_name":"other/repo"}},"base":{"repo":{"id":1,"full_name":"other/repo"}}}""" to GitHubRepositoryMismatchException::class,
+            """{"head":{"sha":"$revision"}}""" to GitHubApiException::class,
+        )
+        responses.forEach { (body, expected) ->
+            server.reset()
+            server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+            assertFailsWith(expected) { client.getHeadRevision(target) }
+            server.verify()
+        }
+    }
+
+    @Test
+    fun `대체 안내는 다른 기록의 Check Run에 쓰거나 새로 생성하지 않는다`() {
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andRespond(withSuccess("""{"id":55,"head_sha":"$revision","html_url":"https://github.test/55","external_id":"other"}""", MediaType.APPLICATION_JSON))
+        assertFailsWith<IllegalStateException> { client.updateExistingCheckRun(command("intent-trace:record").copy(knownCheckRunId = 55)) }
         server.verify()
     }
 

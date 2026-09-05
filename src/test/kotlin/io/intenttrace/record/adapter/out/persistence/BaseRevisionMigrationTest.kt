@@ -7,6 +7,8 @@ import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class BaseRevisionMigrationTest {
     @Test
@@ -45,7 +47,7 @@ class BaseRevisionMigrationTest {
             }
         }
 
-        Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration").load().migrate()
+        Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration").target("6").load().migrate()
 
         DriverManager.getConnection(url, "sa", "").use { connection ->
             connection.createStatement().use { statement ->
@@ -56,6 +58,21 @@ class BaseRevisionMigrationTest {
             }
             connection.metaData.getColumns(null, null, "change_records", "base_revision").use { columns ->
                 assertFalse(columns.next())
+            }
+        }
+        Flyway.configure().dataSource(url, "sa", "").locations("classpath:db/migration").load().migrate()
+        DriverManager.getConnection(url, "sa", "").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select title, base_revision from change_records").use { result ->
+                    assertTrue(result.next())
+                    assertEquals("기존 기록", result.getString("title"))
+                    assertNull(result.getString("base_revision"))
+                    assertFalse(result.next())
+                }
+                statement.executeQuery("select count(*) from record_activities").use { result ->
+                    result.next()
+                    assertEquals(0, result.getInt(1))
+                }
             }
         }
     }

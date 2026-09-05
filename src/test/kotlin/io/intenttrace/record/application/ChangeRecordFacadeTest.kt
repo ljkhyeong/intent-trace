@@ -96,7 +96,7 @@ class ChangeRecordFacadeTest {
         override fun saveNew(record: ChangeRecord): ChangeRecord =
             throw DuplicateKeyException("request_id unique 제약 충돌")
 
-        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord =
+        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord =
             error("사용하지 않는 테스트 경로")
     }
 

@@ -4,6 +4,9 @@ import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.application.ChangeRecordCatalogService
+import io.intenttrace.record.application.ChangeRecordPage
+import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import jakarta.validation.Valid
@@ -28,18 +31,38 @@ import java.util.UUID
 class ChangeRecordController(
     private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
+    private val catalog: io.intenttrace.record.application.ChangeRecordListingService,
 ) {
     @GetMapping
     fun list(
         @RequestParam repositoryKey: String,
-        @RequestParam(defaultValue = "TEAM") scope: ChangeRecordListScope,
+        @RequestParam(defaultValue = "TEAM") scope: RecordScope,
         @RequestParam(required = false) path: String?,
         @RequestParam(required = false) status: ChangeRecordStatus?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int,
-    ): ChangeRecordListResponse = ChangeRecordListResponse.from(
-        records.list(ListChangeRecordsQuery(repositoryKey, scope, path, status, page, size)),
-    )
+        @RequestParam(required = false) authorId: Long?,
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) q: String?,
+        @RequestParam(required = false) page: Int?,
+        @RequestParam(required = false) size: Int?,
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit, q, page, size)
+
+    @PostMapping("/{recordId}/successor")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun successor(@PathVariable recordId: UUID, @Valid @RequestBody request: SuccessorDraftRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.createSuccessor(recordId, request.toCommand()))
+
+    @PostMapping("/{recordId}/revise")
+    fun revise(@PathVariable recordId: UUID, @Valid @RequestBody request: ReviseChangeRecordRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.revise(recordId, request.expectedVersion, request.content.toCommand()))
+
+    @PostMapping("/{recordId}/reopen")
+    fun reopen(@PathVariable recordId: UUID, @Valid @RequestBody request: RecordVersionRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.reopen(recordId, request.expectedVersion))
+
+    @PostMapping("/{recordId}/discard")
+    fun discard(@PathVariable recordId: UUID, @Valid @RequestBody request: RecordVersionRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.discard(recordId, request.expectedVersion))
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -75,7 +98,7 @@ class ChangeRecordController(
         @RequestParam @NotBlank @Size(max = 1000) path: String,
         @RequestParam @Min(1) line: Int,
     ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
-        .map(ChangeRecordResponse::from)
+        .map { ChangeRecordResponse.from(it, revision) }
 
     @GetMapping("/{recordId}/markdown", produces = [MediaType.TEXT_MARKDOWN_VALUE])
     fun markdown(@PathVariable recordId: UUID): String = markdownRenderer.render(records.get(recordId))

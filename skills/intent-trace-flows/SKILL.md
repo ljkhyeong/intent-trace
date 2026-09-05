@@ -25,28 +25,37 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - 원문 대화, 숨은 추론, 검증 원문 출력은 영구 저장하거나 팀에 게시하지 않는다.
 - 판단 출처의 `STATED_*`, `CONFIRMED_AI_SUMMARY`, `INFERRED`, `UNKNOWN` 의미를 섞지 않는다.
 - 작성자 확인과 공개는 전체 Git 커밋 ID 및 같은 SHA-256 스냅샷을 요구한다.
-- 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다.
+- 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다. 후속 초안에는 새 근거를 받고 원본 ID를 보존하며 검증·확인·공개 상태를 복사하지 않는다.
+- 본문 수정은 `DRAFT`에서만 허용한다. 확인 취소는 연결한 target revision을 비우고, `DISCARDED`는 작성자에게만 보이는 종료 상태로 유지한다.
 - GitHub 저장소 식별자는 입력 경계에서 소문자 `owner/repository`로 정규화하고 DB에도 같은 값만 저장한다.
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
-- Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
+- Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성·수정 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 선택 입력은 `McpToolParam(required = false)`로 명시하고 생략한 실제 요청도 확인한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
+- MCP 출력 스키마의 최상위 값은 객체로 유지한다. 목록은 `items`로 감싸고 Zed 중계기와 실제 서버를 연결하는 표준 SDK 통합 테스트로 확인한다.
+- `BASE` 코드 근거는 `baseRevision`, `TARGET` 근거는 `targetRevision`을 사용한다. 변경 전 코드 조회에 변경 후 테스트를 현재 검증으로 표시하지 않는다.
+- GitHub 코드 확인은 제출된 해시와 원격 객체를 비교할 뿐 로컬 명령 실행을 증명하지 않는다. 실행 도구로 수집한 결과도 `LOCAL_RUNNER_REPORTED`로 구분한다.
 
 ## 팀 사용자와 저장소 접근 경계
 
 - 모든 REST·MCP 요청은 기본적으로 `its_` session token을 받고, 메모리의 GitHub App user access token으로 `/user`를 확인해 숫자 사용자 ID를 `github:<id>` subject로 사용한다. login은 표시값이며 소유권 키로 사용하지 않는다. 기존 `ghu_` 직접 Bearer 인증은 호환 경로로만 유지한다.
 - OAuth 시작은 256비트 무작위 `state`의 digest·TTL과 PKCE verifier를 서버에 두고 `state` 원문은 callback 경로의 HttpOnly·SameSite cookie로 전달한다. callback은 query·cookie 일치, TTL·미사용 여부와 PKCE `S256`을 검증하기 전 code를 교환하지 않는다.
-- 작성자·사용자 ID를 REST나 MCP 도구 입력으로 받지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다.
-- `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
+- 기록 작성자는 입력값으로 정하지 않는다. 현재 요청의 인증 사용자만 초안 작성자가 된다. 팀 목록의 작성자 ID 필터는 조회 조건으로만 사용한다.
+- `DRAFT`와 `AUTHOR_CONFIRMED`는 만든 작성자만 조회·변경하고 `DISCARDED`는 만든 작성자만 조회한다. `PUBLISHED`와 `SUPERSEDED`는 해당 GitHub 저장소의 읽기 권한이 있는 팀원만 조회한다.
 - GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 현재 사용자와 대상 저장소의 권한만 조회한다. 응답의 숫자 사용자 ID가 `/user`로 확인한 subject와 일치해야 하며, `read`는 READER, `write`는 CONTRIBUTOR, `admin`과 `role_name=maintain`은 MAINTAINER로 해석한다. `none`과 404는 권한 없음으로 처리하고 public 저장소의 일반 읽기 가능 여부만으로 팀원이라고 판단하지 않는다.
 - GitHub access·refresh token은 메모리에만 보유하고 DB, URL, cookie, 로그, 예외, 도구 입력에 넣지 않는다. `its_` 원문도 callback 성공 본문 외에는 응답하지 않고 store에는 digest만 인덱스로 둔다. 서버 게시용 installation token과 사용자 token의 책임을 섞지 않는다.
 - 사용자별 활성 session 상한을 적용하고 새 session 발급 시 같은 사용자의 가장 오래된 session을 폐기한다. `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest만 제거하며 호환용 `ghu_` token을 GitHub에서 폐기하려고 시도하지 않는다.
 - access token 만료 전 refresh는 세션별 잠금 안에서 한 번만 수행하고 새 access·refresh token 쌍으로 함께 교체한다. 갱신 거부, token 거부 또는 사용자 subject 변경은 session을 폐기해 재로그인을 요구한다.
+- 세션 목록에는 본인의 비밀값 없는 메타데이터만 반환한다. 갱신 중 폐기한 세션을 다시 활성화하지 않는다.
+- 브라우저 기록 화면은 `itb_` 전용 세션으로 읽기와 본인 연결 관리만 호출한다. 연결 종료 POST는 동일 출처를 확인하고 현재 연결을 종료하면 cookie를 지운다. 복귀 주소는 허용된 기록·연결 목록 경로만 받으며 종료 POST를 로그인 뒤 재실행하지 않는다. cookie를 REST·MCP 인증으로 확장하거나 GitHub token을 cookie·HTML에 넣지 않는다.
 - V3 이전 작성자는 `legacy:<lowercase-login>`으로 보존하고 자동으로 GitHub 계정에 연결하지 않는다.
 
 ## 외부 게시 경계
 
 - GitHub 게시 전 공개 기록인지 확인하고 PR `head.sha`가 기록의 `targetRevision`과 정확히 같은지 서버 응답으로 검증한다.
+- PR 응답의 base·head 저장소가 게시 대상과 일치하는지도 확인하고 Fork 게시를 거부한다.
+- 대체 안내는 기존 Check Run의 `external_id`와 원래 `head_sha`를 검증한 뒤 PATCH만 수행한다. 이 안내에는 진행된 PR HEAD를 허용하되 새 기록 게시에는 전체 커밋 일치 규칙을 유지한다.
 - Check Run의 `external_id`에는 `intent-trace:<변경 기록 UUID>`를 사용해 재시도 시 기존 실행을 찾아 갱신한다.
+- 게시 시도와 원격 결과를 구분한다. 응답 유실은 `RESULT_UNKNOWN`으로 기록하고 기존 게시 요청을 재실행해 확인한다. 호출 제한은 `Retry-After`를 전달하며 즉시 반복 호출하지 않는다.
 - GitHub 원격 호출을 DB 트랜잭션 안에서 실행하지 않는다. 외부 성공 뒤 로컬 저장이 실패해도 같은 요청을 안전하게 재시도할 수 있어야 한다.
 - GitHub App client ID와 Base64 PEM private key는 환경 변수로만 주입하고 JWT·installation token을 DB, 로그, 오류 응답, Check Run 본문에 넣지 않는다.
 - installation token은 대상 저장소와 필요한 권한으로 축소하고 만료 전에 메모리에서 갱신한다.
@@ -68,7 +77,7 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 
 1. 요청을 기록 수명주기, 사용자·권한·OAuth session, 증거, 조회, GitHub 게시, 플러그인 또는 운영 중 하나로 분류한다.
 2. `rg`로 같은 책임의 도메인 규칙, 포트, 어댑터, SQL, DTO, MCP 도구와 문서를 찾는다.
-3. 가장 좁은 소유 계층에서 시작해 필요한 포트와 어댑터만 전파한다.
+3. 해당 기능을 담당하는 계층부터 수정한다. 필요한 포트와 어댑터만 함께 바꾼다.
 4. 스키마 변경은 다음 Flyway 버전으로 추가하고 적용된 migration을 수정하지 않는다.
 5. HTTP·MCP나 외부 계약이 바뀌면 같은 변경에서 기준 PRD·ADR과 README·HANDOFF의 영향 부분만 갱신한다.
 6. 도메인 정책, 애플리케이션 조율과 실제 실패 가능한 DB·HTTP 경계만 필요한 만큼 검증한다.
@@ -80,3 +89,31 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - 테스트는 가장 작은 관련 대상을 먼저 실행하고 Flyway·Spring 조립·OAuth callback·외부 어댑터를 바꾸면 통합 테스트로 넓힌다.
 - 동일한 조건을 단위·웹·통합 테스트에 반복하지 않는다. 외부 쓰기는 fake 또는 로컬 stub으로 검증하며 실제 GitHub PR을 테스트에 사용하지 않는다.
 - 최종 회귀 검증은 `./gradlew test`, 플러그인 변경은 `scripts/validate-plugin.sh`, 스킬 변경은 `quick_validate.py`를 실행한다. Flyway·JDBC·backup·restore 계약을 바꾸면 `scripts/verify-postgres.sh`로 PostgreSQL 17에서도 확인한다.
+
+## Zed 연결 도구 검증
+
+`clients/zed` 변경은 `npm ci --prefix clients/zed --ignore-scripts`, `npm test --prefix clients/zed`와 `ZedBridgeIntegrationTest`를 실행한다. `its_`는 환경 변수와 메모리에만 유지하며 설정·명령 인자·로그에 넣지 않는다. MCP 주소의 redirect를 따르지 않고 외부 오류 본문을 출력하지 않는다. 실제 Zed 앱 확인과 표준 연결 테스트의 범위를 구분한다.
+
+## 조회 개선 검증
+
+- 권한 캐시는 인증 요청 객체의 수명 안에서만 공유한다. `its_` 장기 세션에 저장하거나 새 요청에 이전 권한을 넘기지 않는다.
+- history의 지원 불가 예외만 후보 실패로 반환한다. 인증·권한·호출 제한을 부분 결과로 숨기지 않으며 실패 ID 재조회에도 공개 상태와 저장소 범위를 확인한다.
+- 게시 사전 점검은 MAINTAINER와 실제 발급 응답의 저장소·권한을 확인한다. token·JWT·외부 오류 본문을 진단 결과로 반환하지 않는다.
+- 원본 비교와 새 브라우저 화면은 기존 읽기 서비스의 소유권 검사를 거친다. 비교 때문에 공개 본문이나 검증 상태를 갱신하지 않는다.
+- Zed `configure`는 미리보기와 명시적 적용을 구분하고 JSONC 주석·다른 서버·비밀값 미노출·반복 실행을 확인한다.
+- Zed 전송 오류는 정해진 오류 코드와 확인한 대기 시간만 전달한다. 외부 응답 본문은 읽지 않으며 초기화·연결 후 호출·연결 점검에서 같은 분류를 쓴다. 변경 요청을 자동 재시도하지 않는다.
+- 기록 변경 이력은 JDBC 기록 저장과 같은 트랜잭션에서 추가한다. 이력 저장 실패·버전 충돌·생성 재시도가 본문과 이력을 어긋나게 하지 않는지 확인한다. 작성자는 전체 이력, 팀원은 공개·대체 이력만 읽는다. 수집 이전 이력은 추정하지 않는다.
+- 비교 항목이 중복되면 임의로 대응시키지 않는다. 새 항목 삽입으로 밀린 번호를 순서 변경으로 표시하지 않고 출처 변경을 숨기지 않는다.
+
+## 0.12.0 조회 재개와 설치 패키지 검증
+
+- history는 HTTP 호출 직전과 근거 처리 전후에 요청 전용 기한·호출 수·interrupt를 확인한다. 중단 커서는 같은 조건과 공개 기록의 미완료 근거에 연결하고 이어 읽을 때 누락·중복을 확인한다. 스레드에 전달되지 않은 클라이언트 취소를 즉시 처리한다고 설명하지 않는다.
+- 중단 커서 재개는 결과를 추가하고 지원 불가 ID 재조회는 같은 후보 결과를 교체한다. `complete`와 `stopReason`, 후보 실패를 구분한다.
+- 웹 목록의 다음 페이지와 로그인에는 상태·파일·작성자 조건을 유지한다. 범위 변경은 호환되지 않는 필터를 지우고 새 검색은 이전 커서를 전달하지 않는다.
+- Zed 패키지는 실행 파일과 고정 의존성만 묶고 빈 캐시에서 오프라인 설치·설정·MCP 연결을 확인한다. 공개 제출 자료에는 선택한 이름·저장소와 비밀 입력 선언만 넣고 실제 token·개인 서버 주소를 넣지 않는다. 파일 생성과 외부 등록 완료를 구분한다.
+
+## 0.12.1 설치·조회 오류 처리
+
+- 세션 토큰을 화면에서 숨길 수 없으면 표준 입력으로 대체하기 전에 중단한다. 환경 변수 실행은 유지하고 EOF·입력 취소에서 세션이나 traceback을 출력하지 않는다.
+- Zed 배포 의존성은 임시 폴더에서 잠금 파일로 새로 설치한다. 작업 폴더의 설치 상태를 복사하지 않고 설치 스크립트를 끈다. 직접·하위 의존성 불일치와 패키지·잠금 파일 해시를 확인한다.
+- history 정책의 최소 7회는 빈 캐시의 한 근거 처리 호출 수다. 원격 단계를 바꾸면 이 기준도 갱신한다. `resumeBlocked`는 결과 개수가 아니라 미완료 근거의 진행 여부로 판단하고 클라이언트의 자동 반복을 막는 안내를 유지한다.

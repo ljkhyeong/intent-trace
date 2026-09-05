@@ -32,3 +32,11 @@ installation token을 환경 변수로 직접 교체하면 한 시간 만료와 
 - 고정 installation token만 사용: 구현은 단순하지만 한 시간마다 외부에서 교체해야 해 운영 기본값으로 선택하지 않았다.
 - 사용자 token을 Check Run 게시 자격 증명으로 사용: 서버 주도 게시 권한과 사람의 요청 인증 책임이 섞이므로 선택하지 않았다. 사용자 행위 인증에는 `ADR-0004`의 별도 user access token을 사용한다.
 - token DB 저장: 여러 인스턴스 공유는 쉽지만 단기 비밀값의 저장·암호화·폐기 책임이 늘어나 현재 범위에서 선택하지 않았다.
+
+## 0.10.0 관리자용 게시 사전 점검
+
+`POST /api/v1/publication-preflight?repositoryKey=owner/repo`와 MCP `check_publication_credentials`는 대상 저장소 MAINTAINER만 실행한다. 키로 JWT 서명, GitHub `/app` 인증 수락, 저장소의 설치 ID 조회, 대상 한 곳으로 제한한 token 발급, 응답의 저장소 목록과 `checks: write`·`pull_requests: read/write`를 순서대로 확인한다.
+
+응답에는 단계별 `VERIFIED`, `FAILED`, `NOT_CHECKED`, `NOT_CONFIGURED`, `CONFIGURED_UNVERIFIED`와 설치 ID·만료 시각·확인 시각만 넣는다. 모든 단계가 확인된 경우만 `ready=true`다. 저장소 범위나 권한 필드가 없으면 확인 성공으로 추정하지 않는다. 고정 token은 이 원격 발급 점검의 대상이 아니므로 미확인으로 남긴다.
+
+발급 token은 메모리에서 응답 검사 후 버리고 DB나 로그에 보관하지 않는다. Check Run을 만들거나 수정하지 않는다. 호출 제한은 기존 429 계약을 따르고 그 밖의 단계 실패에는 외부 오류 원문을 노출하지 않는다. 이 결과는 점검 시점의 발급 권한이며 이후 PR HEAD·정책·권한 변경에 따른 실제 게시 성공을 보장하지 않는다.

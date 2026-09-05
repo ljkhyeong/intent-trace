@@ -4,14 +4,26 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.springframework.stereotype.Service
+import java.util.UUID
 
 class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
+    val sessionId: UUID? = null,
     val localSessionId: String? = null,
 ) {
-    override fun toString(): String =
-        "GitHubUserSession(actor=$actor, accessToken=[보호됨], localSessionId=[보호됨])"
+    // 인증할 때마다 새로 만드는 객체이며 장기 세션 저장소에는 보관하지 않는다.
+    private val repositoryRoles = mutableMapOf<String, RepositoryRole?>()
+
+    @Synchronized
+    internal fun repositoryRole(repository: GitHubRepository, gateway: GitHubUserAccessGateway): RepositoryRole? {
+        if (!repositoryRoles.containsKey(repository.key)) {
+            repositoryRoles[repository.key] = gateway.repositoryRole(accessToken, actor, repository)
+        }
+        return repositoryRoles[repository.key]
+    }
+
+    override fun toString(): String = "GitHubUserSession(actor=$actor, accessToken=[보호됨])"
 }
 
 interface CurrentGitHubUserSession {
@@ -37,10 +49,12 @@ class RepositoryAccessService(
 
     fun requireContributor(repositoryKey: String): ActorIdentity = require(repositoryKey, RepositoryRole.CONTRIBUTOR)
 
+    fun requireMaintainer(repositoryKey: String): ActorIdentity = require(repositoryKey, RepositoryRole.MAINTAINER)
+
     private fun require(repositoryKey: String, minimumRole: RepositoryRole): ActorIdentity {
         val repository = GitHubRepository.parse(repositoryKey)
         val session = currentSession.require()
-        val role = gateway.repositoryRole(session.accessToken, session.actor, repository)
+        val role = session.repositoryRole(repository, gateway)
         if (role == null || !role.allows(minimumRole)) {
             throw RepositoryAccessDeniedException(repository.key, minimumRole)
         }

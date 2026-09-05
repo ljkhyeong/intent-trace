@@ -18,15 +18,3 @@ data class ListChangeRecordsQuery(
     val page: Int = 0,
     val size: Int = 20,
 )
-
-data class ChangeRecordSummary(
-    val id: UUID,
-    val repositoryKey: String,
-    val title: String,
-    val status: ChangeRecordStatus,
-    val targetRevision: String?,
-    val createdBy: ActorIdentity,
-    val createdAt: Instant,
-    val publishedAt: Instant?,
-    val supersededBy: UUID?,
-)

@@ -109,6 +109,21 @@ docker compose --env-file .env.team ps
 
 현재 구성은 rolling 배포가 아니다. image 교체 동안 짧은 중단이 발생하고 기존 `its_` session은 사라진다.
 
+## 호출 제한과 기능 지표
+
+GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다. 표시한 대기 시간이 지난 뒤 원래 요청을 다시 시도한다. `403`만으로 호출 제한이라고 판단하지 않으며 GitHub의 제한 관련 헤더도 함께 확인한다. 자동으로 반복 호출하지 않는다.
+
+애플리케이션은 Micrometer에 다음 지표를 수집한다. 저장소·사용자·token·원문 요청·코드 경로는 label에 넣지 않는다.
+
+- `intenttrace.github.request`: GitHub 작업 종류와 결과별 호출 수·응답 헤더까지의 지연. `outcome=rate_limited`로 호출 제한을 구분한다.
+- `intenttrace.record.operation`: 생성·수정·확인 취소·폐기·확인·공개·대체의 성공 수. 같은 생성 요청의 재시도는 새 생성으로 집계하지 않는다.
+- `intenttrace.publication.attempt`: 게시·대체 안내별 성공·실패·결과 미확인 수.
+
+현재 외부 Actuator 노출은 health·info이며 지표 외부 수집기와 대시보드는 별도로 연결해야 한다. 지표는 영구 감사 로그를 대신하지 않는다. 세션은 `/records/sessions`, `/api/v1/me/sessions`와 MCP에서 본인이 직접 폐기할 수 있으며 DB backup에는 포함되지 않는다.
+
+기록 변경 이력은 병합 후 Flyway V11에서 추가한다. 개발 브랜치 0.11.0의 V9와 같은 기능이며 메인의 V1~V6 이후 순서로 통합했다. 기존 backup에 함께 포함되며 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 모두 비교한다. 기존 기록의 수집 이전 이력은 소급 생성하지 않는다. 자격 증명·세션은 계속 메모리에만 둔다.
+
+`RESULT_UNKNOWN` 게시 시도는 실패로 확정된 상태가 아니다. 기록의 게시 상태를 조회하고 원래 게시 도구를 재실행하면 기존 Check Run을 찾아 갱신한다. `SUPERSEDED` 기록의 안내 갱신은 별도 supersession 경로로 재시도한다.
 ## Rollback
 
 먼저 되돌릴 commit의 `intent-trace:<전체-commit-ID>` image가 host에 남아 있는지 확인하고, 해당 버전이 현재 DB schema와 호환되는지 migration을 확인한다.
@@ -133,3 +148,18 @@ docker build --tag intent-trace:<전체-commit-ID> ../intent-trace-rollback
 ```
 
 열 삭제나 타입 변경처럼 이전 app과 호환되지 않는 migration이 적용됐다면 app image만 되돌리지 않는다. app과 Caddy를 중지하고 업그레이드 직전에 만든 backup을 `Restore` 절차로 복구한 뒤, 이전 commit의 Compose 설정과 image를 함께 실행한다. V6의 `base_revision` 열 제거보다 이전 app으로 돌아갈 때도 이 절차가 필요하다.
+
+
+## 메인과 개발 브랜치의 DB 변경 이력 통합
+
+메인에서 사용한 V1~V6는 파일 내용과 번호를 유지한다. V7에서 변경 전 코드 비교에 필요한 `base_revision`을 다시 추가하며, 기존 기록은 이 값이 없는 상태로 유지한다. 새 초안부터 변경 전 커밋을 지정할 수 있다.
+
+| 개발 브랜치의 기존 번호 | 병합 후 번호 | 변경 |
+| --- | --- | --- |
+| V5 | V7 | 최초 생성 내용 해시·목록 인덱스, 변경 전 커밋 열 복원 |
+| V6 | V8 | 변경 전후 코드·검증 출처 |
+| V7 | V9 | 게시 시도 이력 |
+| V8 | V10 | 원본 공개 기록 연결 |
+| V9 | V11 | 기록 변경 이력 |
+
+이 업그레이드 경로는 새 DB와 메인 V6까지 적용한 DB에 사용한다. 개발 브랜치의 기존 V5~V9를 적용한 DB에는 그대로 실행하지 않는다. 먼저 backup을 보관하고 기존 버전에서 데이터를 내보낸 뒤 별도 DB에 통합 스키마를 적용해 이관해야 한다. Flyway `repair`, 이력 삭제 또는 기존 DB 초기화로 우회하지 않는다. 이번 병합 작업은 사용자 DB를 변경하지 않는다.

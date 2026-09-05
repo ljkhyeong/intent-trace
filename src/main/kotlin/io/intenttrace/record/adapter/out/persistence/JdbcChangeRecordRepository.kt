@@ -2,10 +2,15 @@ package io.intenttrace.record.adapter.out.persistence
 
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordRepository
+import io.intenttrace.record.application.RecordActivity
+import io.intenttrace.record.application.RecordActivityStore
+import io.intenttrace.record.application.RecordOperation
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
@@ -28,6 +33,7 @@ import java.util.UUID
 @Repository
 class JdbcChangeRecordRepository(
     private val jdbcTemplate: JdbcTemplate,
+    private val activities: RecordActivityStore,
     private val namedJdbcTemplate: NamedParameterJdbcTemplate,
 ) : ChangeRecordRepository {
     private val recordRowMapper = RowMapper<ChangeRecord> { resultSet, _ -> mapRecord(resultSet) }
@@ -41,7 +47,7 @@ class JdbcChangeRecordRepository(
     ): Slice<ChangeRecordSummary> {
         val rows = namedJdbcTemplate.query(
             """
-            select records.id, records.repository_key, records.title, records.status,
+            select records.id, records.repository_key, records.title, records.request_summary, records.version, records.status,
                    records.target_revision, records.created_by, records.created_by_subject,
                    records.created_at, records.published_at, records.superseded_by
             from change_records records
@@ -69,6 +75,8 @@ class JdbcChangeRecordRepository(
                 id = UUID.fromString(row.getString("id")),
                 repositoryKey = row.getString("repository_key"),
                 title = row.getString("title"),
+                requestSummary = row.getString("request_summary"),
+                version = row.getLong("version"),
                 status = ChangeRecordStatus.valueOf(row.getString("status")),
                 targetRevision = row.getString("target_revision"),
                 createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
@@ -117,12 +125,13 @@ class JdbcChangeRecordRepository(
             select records.*
             from change_records records
             where records.repository_key = ?
-              and records.target_revision = ?
               and records.status in ('PUBLISHED', 'SUPERSEDED')
               and exists (
                   select 1
                   from code_anchors anchors
                   where anchors.record_id = records.id
+                    and ((anchors.anchor_side = 'TARGET' and records.target_revision = ?)
+                      or (anchors.anchor_side = 'BASE' and records.base_revision = ?))
                     and anchors.relative_path = ?
                     and anchors.start_line <= ?
                     and anchors.end_line >= ?
@@ -131,6 +140,7 @@ class JdbcChangeRecordRepository(
             """.trimIndent(),
             recordRowMapper,
             repositoryKey,
+            targetRevision,
             targetRevision,
             relativePath,
             line,
@@ -144,14 +154,15 @@ class JdbcChangeRecordRepository(
         jdbcTemplate.update(
             """
             insert into change_records (
-                id, request_id, repository_key, target_revision,
+                id, request_id, repository_key, base_revision, target_revision,
                 snapshot_digest, title, request_summary, status, created_by, created_by_subject,
-                created_at, confirmed_at, published_at, superseded_by, version
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, confirmed_at, published_at, superseded_by, version, creation_digest, derived_from_record_id
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
             record.repositoryKey,
+            record.baseRevision,
             record.targetRevision,
             record.snapshotDigest,
             record.title,
@@ -164,21 +175,25 @@ class JdbcChangeRecordRepository(
             record.publishedAt?.toDatabaseTime(),
             record.supersededBy?.toString(),
             record.version,
+            record.creationDigest,
+            record.derivedFromRecordId?.toString(),
         )
         insertDecisions(record)
         insertCodeAnchors(record)
         insertVerifications(record)
         insertOpenQuestions(record)
+        activities.append(RecordActivity(record.id, RecordOperation.CREATE, record.createdBy.subject,
+            null, record.version, null, record.status, record.createdAt))
         return record
     }
 
     @Transactional
-    override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord {
+    override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord {
         val updated = jdbcTemplate.update(
             """
             update change_records
             set target_revision = ?, status = ?, confirmed_at = ?, published_at = ?,
-                superseded_by = ?, version = ?
+                superseded_by = ?, version = ?, creation_digest = ?
             where id = ? and version = ?
             """.trimIndent(),
             record.targetRevision,
@@ -187,12 +202,27 @@ class JdbcChangeRecordRepository(
             record.publishedAt?.toDatabaseTime(),
             record.supersededBy?.toString(),
             record.version,
+            record.creationDigest,
             record.id.toString(),
             expectedVersion,
         )
         if (updated != 1) {
             throw ConcurrentChangeRecordUpdateException(record.id)
         }
+        if (record.status == ChangeRecordStatus.DRAFT) {
+            jdbcTemplate.update(
+                "update change_records set base_revision = ?, snapshot_digest = ?, title = ?, request_summary = ? where id = ?",
+                record.baseRevision, record.snapshotDigest, record.title, record.requestSummary, record.id.toString(),
+            )
+            listOf("change_decisions", "code_anchors", "verification_runs", "open_questions").forEach { table ->
+                jdbcTemplate.update("delete from $table where record_id = ?", record.id.toString())
+            }
+            insertDecisions(record)
+            insertCodeAnchors(record)
+            insertVerifications(record)
+            insertOpenQuestions(record)
+        }
+        activities.append(activity)
         return record
     }
 
@@ -210,7 +240,7 @@ class JdbcChangeRecordRepository(
         }
         val anchors = findChildren(
             recordIds,
-            "relative_path, symbol_name, start_line, end_line, content_hash",
+            "relative_path, symbol_name, start_line, end_line, content_hash, anchor_side, related_path",
             "code_anchors",
         ) { resultSet ->
             CodeAnchor(
@@ -219,11 +249,13 @@ class JdbcChangeRecordRepository(
                 startLine = resultSet.getInt("start_line"),
                 endLine = resultSet.getInt("end_line"),
                 contentHash = resultSet.getString("content_hash"),
+                side = CodeSide.valueOf(resultSet.getString("anchor_side")),
+                relatedPath = resultSet.getString("related_path"),
             )
         }
         val verifications = findChildren(
             recordIds,
-            "command_text, exit_code, started_at, finished_at, snapshot_digest, output_digest, summary",
+            "command_text, exit_code, started_at, finished_at, snapshot_digest, output_digest, summary, source",
             "verification_runs",
         ) { resultSet ->
             VerificationRun(
@@ -234,6 +266,7 @@ class JdbcChangeRecordRepository(
                 snapshotDigest = resultSet.getString("snapshot_digest"),
                 outputDigest = resultSet.getString("output_digest"),
                 summary = resultSet.getString("summary"),
+                source = VerificationSource.valueOf(resultSet.getString("source")),
             )
         }
         val questions = findChildren(recordIds, "description", "open_questions") { resultSet ->
@@ -282,14 +315,16 @@ class JdbcChangeRecordRepository(
                 anchor.startLine,
                 anchor.endLine,
                 anchor.contentHash,
+                anchor.side.name,
+                anchor.relatedPath,
             )
         }
         jdbcTemplate.batchUpdate(
             """
             insert into code_anchors (
                 id, record_id, sequence_number, relative_path, symbol_name,
-                start_line, end_line, content_hash
-            ) values (?, ?, ?, ?, ?, ?, ?, ?)
+                start_line, end_line, content_hash, anchor_side, related_path
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             batch,
         )
@@ -308,14 +343,15 @@ class JdbcChangeRecordRepository(
                 verification.snapshotDigest,
                 verification.outputDigest,
                 verification.summary,
+                verification.source.name,
             )
         }
         jdbcTemplate.batchUpdate(
             """
             insert into verification_runs (
                 id, record_id, sequence_number, command_text, exit_code,
-                started_at, finished_at, snapshot_digest, output_digest, summary
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                started_at, finished_at, snapshot_digest, output_digest, summary, source
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             batch,
         )
@@ -356,6 +392,7 @@ class JdbcChangeRecordRepository(
         id = UUID.fromString(resultSet.getString("id")),
         requestId = resultSet.getString("request_id"),
         repositoryKey = resultSet.getString("repository_key"),
+        baseRevision = resultSet.getString("base_revision"),
         targetRevision = resultSet.getString("target_revision"),
         snapshotDigest = resultSet.getString("snapshot_digest"),
         title = resultSet.getString("title"),
@@ -370,6 +407,8 @@ class JdbcChangeRecordRepository(
         publishedAt = resultSet.getNullableInstant("published_at"),
         supersededBy = resultSet.getString("superseded_by")?.let(UUID::fromString),
         version = resultSet.getLong("version"),
+        creationDigest = resultSet.getString("creation_digest"),
+        derivedFromRecordId = resultSet.getString("derived_from_record_id")?.let(UUID::fromString),
         decisions = emptyList(),
         codeAnchors = emptyList(),
         verifications = emptyList(),

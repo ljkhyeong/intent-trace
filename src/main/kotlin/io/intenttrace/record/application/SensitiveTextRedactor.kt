@@ -13,7 +13,7 @@ class SensitiveTextRedactor {
     )
     private val bearerPattern = Regex("(?i)\\bBearer\\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?")
     private val intentTraceSessionPattern = Regex(
-        "(?<![A-Za-z0-9_])its_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])",
+        "(?<![A-Za-z0-9_])(?:its|itb)_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])",
     )
     private val githubTokenPattern = Regex(
         "(?i)(?<![A-Za-z0-9_])(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_=-]+(?![A-Za-z0-9_=-])",
@@ -29,8 +29,8 @@ class SensitiveTextRedactor {
         .replace(assignmentPattern) { match -> "${match.groupValues[1]}[REDACTED]" }
         .replace(bearerPattern, "Bearer [REDACTED]")
         .replace(intentTraceSessionPattern, "[REDACTED]")
-        .replace(githubTokenPattern, "[REDACTED]")
         .replace(compactJwtPattern, "[REDACTED]")
+        .replace(githubTokenPattern, "[REDACTED]")
         .replace(unixHomePathPattern, "[REDACTED]")
         .replace(windowsHomePathPattern, "[REDACTED]")
 }

@@ -51,7 +51,7 @@ class ChangeRecordLifecycleTest {
             confirmed.publish(author, "c".repeat(64), Instant.parse("2026-08-27T12:02:00Z"))
         }
 
-        assertEquals("코드 스냅샷이 달라져 검증과 판단이 오래된 상태입니다.", exception.message)
+        assertEquals("기록과 현재 스냅샷 해시가 달라 공개할 수 없습니다.", exception.message)
     }
 
     @Test

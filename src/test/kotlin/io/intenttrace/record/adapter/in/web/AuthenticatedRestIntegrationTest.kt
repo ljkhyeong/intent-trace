@@ -58,6 +58,14 @@ class AuthenticatedRestIntegrationTest(
             jsonPath("$.items[0].id") { value(id) }
             jsonPath("$.hasNext") { value(false) }
         }
+        mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE&limit=1&path=./src/App.kt") {
+            authorized()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items[0].id") { value(id) }
+            jsonPath("$.size") { value(1) }
+            jsonPath("$.hasNext") { value(false) }
+        }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
             authorized()
         }.andExpect { jsonPath("$.items") { isEmpty() } }
@@ -82,7 +90,7 @@ class AuthenticatedRestIntegrationTest(
 
     @Test
     fun `목록 범위와 맞지 않는 상태나 잘못된 페이지 입력은 거부한다`() {
-        for (query in listOf("status=DRAFT", "scope=MY_DRAFTS&status=PUBLISHED", "page=-1", "size=0", "size=51", "path=../App.kt")) {
+        for (query in listOf("status=DRAFT", "scope=MY_DRAFTS&status=PUBLISHED", "page=-1", "size=0", "size=51", "path=../App.kt", "page=0&cursor=invalid", "size=10&q=검색", "scope=MY_DRAFTS&limit=10")) {
             mockMvc.get("/api/v1/change-records?repositoryKey=acme/intent-trace&$query") {
                 authorized()
             }.andExpect { status { isBadRequest() } }
