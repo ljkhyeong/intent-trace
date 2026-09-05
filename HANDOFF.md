@@ -396,3 +396,5 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 기존 H2 PR 통합 테스트에서 기록 20건의 JDBC 조회 3회, 빈 페이지 1회를 확인했다. H2·PostgreSQL 공통 저장 테스트로 같은 시각의 최신 시도와 조회 범위를 확인했다.
 - 관련 `focusedTest` 24개, `scripts/verify-postgres.sh`의 PostgreSQL 5개, 마지막 `./gradlew test` 169개가 통과했다. PostgreSQL 백업·복구 뒤 기록 15건·변경 이력 34건을 확인했다. 부분 테스트는 전체에 포함된다.
 - 검토 문서의 [반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#반영-결과)에 상세 범위를 남겼다. 실제 GitHub 게시·배포·IDE 화면은 확인하지 않았다.
+
+- 이후 [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md#추가-검토)에서 이력 재개 시 같은 기록의 반복 읽기와 전체 세션 종료 시 Map 재검색을 확인했다. 두 항목은 아직 구현하지 않았다.

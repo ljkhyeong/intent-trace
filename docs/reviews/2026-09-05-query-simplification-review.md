@@ -1,6 +1,6 @@
 # 조회 반복과 SQL 매개변수 추가 검토
 
-최초 검토 기준: `dd11ddf`. 앞서 반영한 표준 API 개선 다섯 건을 제외하고 목록·게시 이력·검증 흐름을 확인했다. 아래 설명과 행 번호는 검토 당시 상태이며, 후속 구현과 검증은 마지막 반영 결과에 정리했다.
+최초 검토 기준: `dd11ddf`. 앞서 반영한 표준 API 개선 다섯 건을 제외하고 목록·게시 이력·검증 흐름을 확인했다. 아래 설명과 행 번호는 검토 당시 상태이며, 후속 구현과 검증은 반영 결과에 정리했다.
 
 ## 1. PR 기록 목록의 반복 조회와 불필요한 이력 조회
 
@@ -34,3 +34,21 @@ PR 조회와 공통 목록 서비스의 권한·크기 검사는 각각의 진�
 - 검색 SQL은 `NamedParameterJdbcTemplate`로 전환했다. 기존 검색·페이지 테스트로 네 검색 필드, `%`·`_`·`!`, 작성자 범위와 커서를 확인했다.
 - 관련 테스트 24개, `scripts/verify-postgres.sh`의 PostgreSQL 5개와 백업·복구, 마지막 `./gradlew test`의 서버 전체 169개가 통과했다. 복구 전후 기록 15건·변경 이력 34건이 일치했다. 부분 테스트 24개는 서버 전체에 포함된다.
 - DB 스키마·외부 API·IDE 구현은 변경하지 않았다. 실제 GitHub 게시·배포·IDE 화면 검증은 이번 범위에 포함하지 않았다.
+
+## 추가 검토
+
+기준 `a546a1b`. 아래 두 항목은 아직 구현하지 않았다.
+
+### 이력 조회 재개의 같은 기록 반복 읽기
+
+- [ChangeIntentHistoryService.kt:58](../../src/main/kotlin/io/intenttrace/record/application/ChangeIntentHistoryService.kt#L58)에서 요약을 만들며 기록을 읽고, 67행에서 근거 개수를 확인하려고 다시 읽으며, 79행의 처리 루프에서 한 번 더 읽는다. 정상 재개 경로는 같은 기록을 세 번, 실패 기록 재조회는 두 번 읽는다.
+- 요청 함수 안의 Map과 [`getOrPut`](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/get-or-put.html)로 이미 읽은 기록을 재사용하면 각각 한 번으로 줄일 수 있다. 공개 본문의 불변성, 저장소·공개 상태 검사와 커서 조건은 유지한다. 요청 밖의 캐시는 필요 없다.
+- 기존 이력 재개·실패 재조회 테스트에서 결과·중단 위치와 기록별 저장소 조회 횟수를 확인한다. 추가 데이터 일괄 조회 API나 캐시 라이브러리는 필요 없다.
+
+### 전체 세션 종료의 같은 Map 반복 검색
+
+- [GitHubUserOAuth.kt:308](../../src/main/kotlin/io/intenttrace/identity/application/GitHubUserOAuth.kt#L308)은 사용자 세션을 찾은 뒤 각 세션에 `revoke(subject, id)`를 호출한다. 이 메서드는 302행에서 Map을 다시 검색한다. 사용자 세션이 M개면 최초 순회 뒤 검색을 최대 M번 더 수행한다.
+- 처음 찾은 Map 항목의 키와 값을 종료 처리에 전달해 한 번의 순회로 끝낸다. `active.compareAndSet()`과 [`remove(key, value)`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ConcurrentMap.html)의 조건부 삭제, 종료 건수의 의미를 유지한다. 사용자별 상한이 있어 실제 이득은 전체 세션 수에 따라 달라진다.
+- 기존 세션 테스트에 여러 사용자·여러 연결의 전체 종료와 갱신 도중 종료를 함께 확인한다. 전역 세션 인덱스나 별도 캐시 도입은 권장하지 않는다.
+
+추가 검토에서는 호출 경로와 기존 테스트를 확인했다. 제품 코드 변경이 없어 테스트를 다시 실행하지 않았다. 그 밖의 권한·도메인·세션 동시성 검사를 추가 삭제할 근거는 찾지 못했다.
