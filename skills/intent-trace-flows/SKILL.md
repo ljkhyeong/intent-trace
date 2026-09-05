@@ -33,16 +33,16 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 
 ## 변경별 검증
 
-아래에서 영향받는 항목만 실행한다. 동작을 바꾸지 않은 문서 수정에는 서버·IDE 테스트가 필요하지 않다. 전체 릴리스 검증은 [README의 검증 목록](../../README.md#검증)을 따른다.
+아래에서 영향받는 항목만 실행한다. 수정 중에는 관련 테스트, 코드 수정을 마친 뒤에는 필요한 전체 검증을 한 번 실행한다. 결과 정리·작업 재개는 [로컬 검증 절차](../../docs/development/verification.md)를 따른다. 동작을 바꾸지 않은 문서 수정에는 서버·IDE 테스트가 필요하지 않다.
 
 | 변경 대상 | 검증 |
 | --- | --- |
-| 서버 Kotlin·Spring 설정 | 관련 테스트 후 `./gradlew test` |
+| 서버 Kotlin·Spring 설정 | 수정 중 `./gradlew focusedTest --tests '*대상테스트명'`, 수정 완료 후 `./gradlew test` |
 | Flyway·JDBC·백업·복구 | `scripts/verify-postgres.sh`, 백업 스크립트 수정 시 `python3 scripts/test_backup_postgres.py` |
 | Codex 플러그인·스킬 | `scripts/validate-plugin.sh`, 스킬 frontmatter·문서 링크·사용 조건 확인. `quick_validate.py`가 설치되어 있으면 변경한 스킬에 실행 |
-| IntelliJ | `./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` |
-| Zed·MCP 연결 | `npm ci --prefix clients/zed --ignore-scripts`, `npm test --prefix clients/zed`, `./gradlew test --tests '*ZedBridgeIntegrationTest'` |
+| IntelliJ | `./gradlew -p intellij-plugin test`, 패키지·설정 변경 시 `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`도 실행 |
+| Zed·MCP 연결 | 의존성이 없거나 명세가 바뀌면 `npm ci --prefix clients/zed --ignore-scripts`. `npm test --prefix clients/zed`와 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`. 서버 전체 검증에서 연결 테스트가 통과했다면 별도 실행 생략 |
 | Compose | `python3 scripts/validate-compose.py .env.team.example`, Caddy 수정 시 운영 문서의 설정 검증 |
 | 릴리스 버전·패키지 | [릴리스 절차](../../docs/operations/release.md)의 해당 검사 |
 
-실행한 명령과 결과만 보고한다. SDK·stub 검증을 실제 IDE 화면 확인이나 GitHub 게시 성공으로 설명하지 않는다.
+결과 집계는 `python3 scripts/test-summary.py server focused postgres intellij`에서 실행한 대상만 지정한다. SDK·stub 검증을 실제 IDE 화면 확인이나 GitHub 게시 성공으로 설명하지 않는다. 전체 릴리스는 [README 검증 목록](../../README.md#검증)을 따른다.

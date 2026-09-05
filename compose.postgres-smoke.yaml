@@ -1,7 +1,9 @@
 services:
   postgres:
     ports:
-      - "127.0.0.1:${INTENT_TRACE_POSTGRES_SMOKE_PORT:-55432}:5432"
+      - target: 5432
+        host_ip: "127.0.0.1"
+        published: "${INTENT_TRACE_POSTGRES_SMOKE_PORT:-0}"
 
 networks:
   data:
