@@ -1,5 +1,7 @@
 package io.intenttrace.publication.application
 
+class ForkPullRequestUnsupportedException : RuntimeException("Fork 저장소에서 만든 Pull Request 게시는 지원하지 않습니다.")
+
 class PullRequestRevisionMismatchException(recordRevision: String, pullRequestRevision: String) :
     RuntimeException("변경 기록 커밋 $recordRevision 과 Pull Request HEAD $pullRequestRevision 이 일치하지 않습니다.")
 

@@ -9,6 +9,7 @@
 - 변경 의도 생성·확인·공개·대체·라인 조회
 - 팀 공유용 Markdown 출력
 - PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
+- GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
 - GitHub user access token 인증과 저장소별 READER·CONTRIBUTOR·MAINTAINER 역할 판정
 - GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증

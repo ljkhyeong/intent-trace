@@ -4,6 +4,7 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
 import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException
 import io.intenttrace.publication.application.GitHubPublicationContentTooLargeException
@@ -45,7 +46,7 @@ class ApiExceptionHandler {
     fun githubIdentityFailure(exception: GitHubIdentityApiException): ProblemDetail =
         problem(HttpStatus.BAD_GATEWAY, "GitHub 사용자 권한 조회 실패", exception.message)
 
-    @ExceptionHandler(PullRequestRevisionMismatchException::class, GitHubRepositoryMismatchException::class)
+    @ExceptionHandler(PullRequestRevisionMismatchException::class, GitHubRepositoryMismatchException::class, ForkPullRequestUnsupportedException::class)
     fun githubTargetConflict(exception: RuntimeException): ProblemDetail =
         problem(HttpStatus.CONFLICT, "GitHub 게시 대상 불일치", exception.message)
 

@@ -13,6 +13,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - REST API와 Spring AI Streamable HTTP MCP 도구
 - PR 설명에 붙일 수 있는 Markdown 출력
 - PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
+- GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신

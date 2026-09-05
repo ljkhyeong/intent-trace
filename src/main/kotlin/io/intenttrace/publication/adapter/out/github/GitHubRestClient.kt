@@ -2,6 +2,9 @@ package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
+import io.intenttrace.publication.application.GitHubRepositoryMismatchException
+import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubPullRequestGateway
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubCheckRun
@@ -42,6 +45,16 @@ class GitHubRestClient(
         }
             ?: throw GitHubApiException("GitHub Pull Request 응답이 비어 있습니다.")
 
+        val base = response.base?.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
+        val head = response.head.repo ?: throw GitHubApiException("GitHub PR의 head 저장소를 확인할 수 없습니다.")
+        if (base.id <= 0 || head.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
+        val baseKey = GitHubRepository.parse(base.fullName).key
+        if (baseKey != target.repositoryKey) {
+            throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
+        }
+        if (head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey) {
+            throw ForkPullRequestUnsupportedException()
+        }
         response.head.sha
     }
 
@@ -221,11 +234,19 @@ class GitHubRestClient(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class PullRequestResponse(
     val head: PullRequestHeadResponse,
+    val base: PullRequestHeadResponse? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class PullRequestHeadResponse(
-    val sha: String,
+    val sha: String = "",
+    val repo: PullRequestRepositoryResponse? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class PullRequestRepositoryResponse(
+    val id: Long,
+    @JsonProperty("full_name") val fullName: String,
 )
 
 private data class CreateCheckRunRequest(

@@ -31,6 +31,8 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - installation token은 만료 전에 메모리에서 갱신하고 인증 거부 시 한 번만 새 token으로 재시도한다.
 - Check Run Markdown이 65,535자를 넘으면 GitHub 호출 전에 거부한다.
 
+- PR 응답의 base 저장소 이름은 게시 대상과 같아야 하며 head·base 저장소 ID와 이름이 모두 같아야 한다. Fork는 `409`, 저장소 응답 누락은 `502`로 외부 쓰기 전에 거부한다.
+
 ## 계약
 
 - REST: `POST /api/v1/change-records/{recordId}/github-pull-request`

@@ -20,6 +20,10 @@ import org.springframework.web.util.UriComponentsBuilder
 import org.springframework.web.util.UriUtils
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
+import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 
 class GitHubRestClientTest {
     private val builder = RestClient.builder()
@@ -42,7 +46,7 @@ class GitHubRestClientTest {
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer installation-token"))
             .andExpect(header("X-GitHub-Api-Version", "2026-03-10"))
-            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"Acme/Intent-Trace"}}}""", MediaType.APPLICATION_JSON))
 
         assertEquals(revision, client.getHeadRevision(target))
         server.verify()
@@ -147,11 +151,27 @@ class GitHubRestClientTest {
             .andRespond(withStatus(HttpStatus.UNAUTHORIZED))
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
             .andExpect(header("Authorization", "Bearer refreshed-token"))
-            .andRespond(withSuccess("""{"head":{"sha":"$revision"}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$revision","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"Acme/Intent-Trace"}}}""", MediaType.APPLICATION_JSON))
 
         assertEquals(revision, client.getHeadRevision(target))
         assertEquals(listOf("installation-token"), tokenProvider.invalidatedTokens)
         server.verify()
+    }
+
+    @Test
+    fun `Fork와 다른 base 저장소와 누락된 저장소 응답을 거부한다`() {
+        val responses = listOf(
+            """{"head":{"sha":"$revision","repo":{"id":2,"full_name":"fork/intent-trace"}},"base":{"repo":{"id":1,"full_name":"acme/intent-trace"}}}""" to ForkPullRequestUnsupportedException::class,
+            """{"head":{"sha":"$revision","repo":{"id":1,"full_name":"other/repo"}},"base":{"repo":{"id":1,"full_name":"other/repo"}}}""" to GitHubRepositoryMismatchException::class,
+            """{"head":{"sha":"$revision"}}""" to GitHubApiException::class,
+        )
+        responses.forEach { (body, expected) ->
+            server.reset()
+            server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
+            assertFailsWith(expected) { client.getHeadRevision(target) }
+            server.verify()
+        }
     }
 
     private fun command(externalId: String) = UpsertGitHubCheckRunCommand(

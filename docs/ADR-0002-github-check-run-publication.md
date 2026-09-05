@@ -19,6 +19,8 @@ PR 댓글은 변경 의도 기록을 리뷰에 노출할 수 있지만 커밋 �
 - GitHub App 인증과 installation token 수명주기는 `ADR-0003`을 따른다.
 - 외부 호출은 연결 5초·응답 10초 제한과 redirect 금지를 적용하고 API 기본 주소는 HTTPS만 허용한다.
 
+- PR 응답의 base 저장소 이름은 게시 대상과 같아야 하며 head·base 저장소 ID와 이름이 모두 같아야 한다. Fork는 `409`, 저장소 응답 누락은 `502`로 외부 쓰기 전에 거부한다.
+
 ## 영향
 
 - GitHub `Pull requests: read`, `Checks: write` 권한이 필요하다.
