@@ -6,13 +6,14 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 
 - 변경 의도 초안 생성과 최초 내용 해시 기반 멱등 처리
 - 초안 수정·확인 취소·폐기와 작성자 전용 목록
+- 내 공개 기록의 판단을 재사용하는 후속 초안과 원본 링크
 - 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
 - 브라우저 로그인 후 기록 열람과 제목·요청·판단 내용 검색
 - `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
 - 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
 - 변경 전후 커밋·파일·줄·콘텐츠 해시 기반 코드 근거와 이름 변경 연결
 - GitHub 전체 트리·blob으로 코드 근거를 확인하는 읽기 API
-- 이전 커밋의 관련 기록과 동일 파일 여부 조회
+- 이전 커밋의 관련 기록·파일 이름 변경·같은 코드 조각의 줄 이동 조회
 - 원문 출력을 저장하지 않는 로컬 검증 실행 도구
 - 실제 검증 명령, 종료 코드, 실행 시간, 출력 해시, 결과 요약
 - 작성자가 명시한 목적과 AI 추론·미확인 목적 구분
@@ -21,6 +22,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - PR HEAD 검증 후 neutral GitHub Check Run 게시와 멱등 갱신
 - GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
 - GitHub 게시 시도 조회·응답 유실 복구와 기존 Check Run 대체 안내
+- PR별 기록 목록·현재 HEAD 일치 여부와 연결·권한·설정 진단
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
@@ -28,6 +30,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - GitHub 호출 제한 대기 시간 안내와 기능별 Micrometer 지표
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
+- Zed Agent용 MCP 중계기·설정 생성·연결 점검·세션 입력 실행 도구
 
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
 
@@ -157,6 +160,7 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·판단·판단 근거에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
 
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
+- `POST /api/v1/change-records/{id}/successor`: 내 공개 기록에서 새 근거의 후속 초안 생성
 - `POST /api/v1/change-records/{id}/revise`: 초안 수정 (`expectedVersion`, 생성 요청 형식의 `content`)
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
 - `POST /api/v1/change-records/{id}/discard`: 비공개 기록 폐기
@@ -172,12 +176,18 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 - `GET /api/v1/change-records/{id}/github-pull-request`: 게시 대상별 결과·시도 이력 조회
 - `POST /api/v1/change-records/{id}/github-pull-request/supersession`: 기존 Check Run에 대체 안내 반영
+- `GET /api/v1/github-pull-request/records?owner=...&repository=...&pullNumber=...`: PR에 게시·시도한 기록과 HEAD 일치 조회
+- `GET /api/v1/connection-diagnostics?repositoryKey=owner/repo`: 연결·권한 진단 (`revision`, `pullNumber` 선택)
 - `GET /api/v1/me/sessions`: 내 세션 조회
 - `DELETE /api/v1/me/sessions/current`: 현재 연결 폐기
 - `DELETE /api/v1/me/sessions/{sessionId}`: 선택한 내 연결 폐기
 - `DELETE /api/v1/me/sessions`: 내 전체 연결 폐기
 
 MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 생성·조회·확인·공개·목록·수정·확인 취소·폐기·대체 도구와 `find_change_intent`, `find_related_change_intent`, `check_change_record_evidence`, `publish_change_record_to_github_pr`를 제공합니다. 게시 상태 조회·대체 안내는 `get_github_publication_status`, `sync_superseded_record_to_github_pr`, 세션 관리는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`를 사용합니다.
+
+후속 초안은 `create_successor_draft`, PR 기록 목록은 `list_pull_request_records`, 연결 진단은 `diagnose_connection`을 사용합니다. 후속 초안은 원본의 판단을 복사하고 새 스냅샷·코드 근거를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다.
+
+0.9.0부터 MCP `find_change_intent` 결과는 `{ "items": [...] }`입니다. 표준 MCP 클라이언트가 전체 도구 목록을 읽도록 최상위 출력 객체 규칙을 적용했습니다. REST `/lookup`의 배열 응답은 유지합니다.
 
 REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
@@ -196,11 +206,21 @@ REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을
 
 플러그인 훅은 원문 프롬프트나 도구 출력을 수집하지 않습니다. Codex에 기록 원칙만 전달합니다.
 
-Zed Agent에서도 같은 MCP 서버를 사용할 수 있습니다. 토큰을 설정 파일에 넣지 않는 환경 변수 연결 예시는 [Zed 사용 안내](docs/clients/zed.md)에 있습니다. Codex 플러그인 파일을 Zed 확장으로 직접 설치하는 방식은 아닙니다.
+Zed Agent에서는 저장소의 공식 MCP SDK 중계기로 연결합니다. Node.js 22 이상에서 설정을 생성하고 Zed 사용자 설정에 추가한 뒤 세션 입력 도구로 실행합니다. 자세한 절차와 연결 점검은 [Zed 사용 안내](docs/clients/zed.md)에 있습니다.
+
+```bash
+npm ci --prefix clients/zed --ignore-scripts
+node clients/zed/intent-trace.mjs config
+python3 scripts/zed-with-intent-trace.py .
+```
+
+마지막 명령은 Zed CLI 설치 후 사용합니다. 실제 token은 숨긴 입력으로 받고 설정 파일·명령 인자에 넣지 않습니다.
 
 ## 검증
 
 ```bash
+npm ci --prefix clients/zed --ignore-scripts
+npm test --prefix clients/zed
 ./gradlew test
 scripts/validate-plugin.sh
 scripts/verify-postgres.sh
@@ -220,7 +240,8 @@ scripts/verify-postgres.sh
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
 - 게시 시도 이력은 저장하지만 전체 감사 로그·자동 보존 정책은 아직 제공하지 않습니다. 폐기한 비공개 기록은 작성자에게 남습니다.
 - 코드 확인은 일부 트리·2 MiB 초과 blob을 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
-- 이전 기록 조회는 같은 경로의 파일 비교를 지원하고 줄 이동 자동 추적은 제공하지 않습니다.
+- 이전 기록 탐색은 동일 blob의 고유한 이름 변경과 원본·현재 파일에서 한 곳에만 있는 전체 줄 조각을 연결합니다. 수정과 이름 변경이 함께 일어나거나 조각이 중복되면 자동으로 연결하지 않습니다. 후보를 페이지로 살피므로 결과가 비어 있어도 다음 커서를 확인해야 합니다.
+- Zed Agent 연결 도구를 제공하며 인라인 IDE 메뉴·자동 기록 수집은 제공하지 않습니다. 실제 Zed 앱과 사용자 GitHub 승인은 별도 설정이 필요합니다.
 - Micrometer 지표의 외부 수집기와 대시보드는 별도 연결이 필요합니다.
 
 ## 문서
@@ -238,6 +259,7 @@ scripts/verify-postgres.sh
 - `docs/ADR-0007-evidence-check-and-history.md`
 - `docs/ADR-0008-publication-recovery.md`
 - `docs/ADR-0009-browser-record-access.md`
+- `docs/ADR-0010-zed-mcp-and-connection-diagnostics.md`
 - `docs/clients/zed.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`

@@ -60,7 +60,7 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 검증 전에 `scripts/run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령>`을 실행하면 실제 실행 결과 JSON을 얻는다. 실행 전후 코드가 달라지면 현재 커밋 검증으로 등록하지 않는다. 반환된 `source`와 실패 종료 코드를 그대로 사용한다.
 - 삭제·이름 변경 이전의 근거는 `side=BASE`로 만들고 `baseRevision`에 전체 커밋을 지정한다. 변경 후는 `TARGET`이다. 이름 변경은 반대쪽 근거의 `relatedPath`로 연결한다.
 - `check_change_record_evidence`는 GitHub 코드와 해시만 확인한다. `codeVerified=true`를 테스트 실행 증명으로 설명하지 않는다.
-- 정확한 줄 조회에 결과가 없으면 `find_related_change_intent`로 같은 파일의 이전 기록을 찾는다. `RELATED_UNVERIFIED`를 현재 코드의 확정 의도로 설명하지 않으며 다른 커밋의 테스트를 현재 테스트로 재사용하지 않는다.
+- 정확한 줄 조회는 `items`에서 읽는다. 결과가 없으면 `find_related_change_intent`로 이름 변경·줄 이동을 포함한 이전 기록을 찾는다. 결과가 비어 있어도 `nextCursor`가 있으면 다음 후보를 살핀다. 원본·현재 줄 범위를 함께 설명한다. `RELATED_UNVERIFIED`를 현재 코드의 확정 의도로 설명하지 않으며 다른 커밋의 테스트를 현재 테스트로 재사용하지 않는다.
 
 ## 게시 복구와 연결 관리
 
@@ -73,3 +73,10 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 저장소 목록의 `q`로 제목·요청·판단·판단 근거를 검색한다. 공개 범위와 작성자 소유권은 기존 규칙을 유지한다.
 - 사람이 읽을 기록 링크는 `/records/{UUID}`를 사용한다. 로그인 후 원래 기록을 열며, 비공개 기록을 익명 공유하지 않는다.
 - 브라우저 `itb_` cookie는 도구 입력이나 설정에 넣지 않는다. MCP에는 기존 환경 변수의 `its_` 세션을 사용한다.
+
+## 후속 초안·PR 목록·진단
+
+- 본인의 공개 기록을 재사용하려면 `create_successor_draft`에 새 요청 ID·스냅샷·코드 근거를 전달한다. 복사한 판단을 다시 검토하고 새로 실행한 검증을 추가한다. 원본의 확인·검증을 새 기록에 승계하지 않는다.
+- PR 전체의 기록과 오래된 커밋을 보려면 `list_pull_request_records`를 사용한다. `matchesCurrentHead`만으로 게시·검증 성공을 판단하지 않고 최신 시도와 공개·대체 상태를 함께 읽는다.
+- 연결 문제는 `diagnose_connection`으로 대상 저장소를 확인한다. 선택 PR 또는 전체 커밋으로 읽기 접근을 점검할 수 있다. `CONFIGURED_UNVERIFIED`를 게시 성공으로 설명하지 않는다.
+- Zed에서도 같은 도구와 기록 원칙을 따른다. 연결 도구 설치·설정·세션 입력은 플러그인 루트의 `docs/clients/zed.md`를 참고한다.

@@ -25,12 +25,13 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - 원문 대화, 숨은 추론, 검증 원문 출력은 영구 저장하거나 팀에 게시하지 않는다.
 - 판단 출처의 `STATED_*`, `CONFIRMED_AI_SUMMARY`, `INFERRED`, `UNKNOWN` 의미를 섞지 않는다.
 - 작성자 확인과 공개는 전체 Git 커밋 ID 및 같은 SHA-256 스냅샷을 요구한다.
-- 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다.
+- 공개 기록 본문은 수정하지 않고 새 공개 기록으로 대체한다. 후속 초안에는 새 근거를 받고 원본 ID를 보존하며 검증·확인·공개 상태를 복사하지 않는다.
 - 본문 수정은 `DRAFT`에서만 허용한다. 확인 취소는 연결한 target revision을 비우고, `DISCARDED`는 작성자에게만 보이는 종료 상태로 유지한다.
 - GitHub 저장소 식별자는 입력 경계에서 소문자 `owner/repository`로 정규화하고 DB에도 같은 값만 저장한다.
 - 코드 근거는 저장소 상대 경로와 필요한 최소 연속 줄 범위로 유지한다.
 - 실행하지 않은 명령은 검증으로 만들지 않고 오래된 스냅샷의 검증은 현재 검증으로 표시하지 않는다.
 - Spring AI MCP callback은 Jakarta Validation을 자동 실행하지 않으므로 생성·수정 도구는 기존 요청 DTO를 `Validator`로 명시적으로 검증한다. 선택 입력은 `McpToolParam(required = false)`로 명시하고 생략한 실제 요청도 확인한다. 전체 Git commit 형식은 REST 어노테이션에만 의존하지 않고 도메인 `GitRevision`에서도 확인한다.
+- MCP 출력 스키마의 최상위 값은 객체로 유지한다. 목록은 `items`로 감싸고 Zed 중계기와 실제 서버를 연결하는 표준 SDK 통합 테스트로 확인한다.
 - `BASE` 코드 근거는 `baseRevision`, `TARGET` 근거는 `targetRevision`을 사용한다. 변경 전 코드 조회에 변경 후 테스트를 현재 검증으로 표시하지 않는다.
 - GitHub 코드 확인은 제출된 해시와 원격 객체를 비교할 뿐 로컬 명령 실행을 증명하지 않는다. 실행 도구로 수집한 결과도 `LOCAL_RUNNER_REPORTED`로 구분한다.
 
@@ -87,3 +88,7 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 - 테스트는 가장 작은 관련 대상을 먼저 실행하고 Flyway·Spring 조립·OAuth callback·외부 어댑터를 바꾸면 통합 테스트로 넓힌다.
 - 동일한 조건을 단위·웹·통합 테스트에 반복하지 않는다. 외부 쓰기는 fake 또는 로컬 stub으로 검증하며 실제 GitHub PR을 테스트에 사용하지 않는다.
 - 최종 회귀 검증은 `./gradlew test`, 플러그인 변경은 `scripts/validate-plugin.sh`, 스킬 변경은 `quick_validate.py`를 실행한다. Flyway·JDBC·backup·restore 계약을 바꾸면 `scripts/verify-postgres.sh`로 PostgreSQL 17에서도 확인한다.
+
+## Zed 연결 도구 검증
+
+`clients/zed` 변경은 `npm ci --prefix clients/zed --ignore-scripts`, `npm test --prefix clients/zed`와 `ZedBridgeIntegrationTest`를 실행한다. `its_`는 환경 변수와 메모리에만 유지하며 설정·명령 인자·로그에 넣지 않는다. MCP 주소의 redirect를 따르지 않고 외부 오류 본문을 출력하지 않는다. 실제 Zed 앱 확인과 표준 연결 테스트의 범위를 구분한다.
