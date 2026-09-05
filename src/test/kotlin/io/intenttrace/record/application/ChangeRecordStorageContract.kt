@@ -10,6 +10,7 @@ import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.JdbcTemplate
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -27,6 +28,9 @@ abstract class ChangeRecordStorageContract {
 
     @Autowired
     private lateinit var storageJdbc: JdbcTemplate
+
+    @Autowired
+    private lateinit var storageRepository: ChangeRecordRepository
 
     @Test
     fun `파일 이력과 내 초안을 페이지로 조회한다`() {
@@ -90,7 +94,7 @@ abstract class ChangeRecordStorageContract {
     }
 
     @Test
-    fun `DB가 반올림해 저장한 검증 시각도 같은 요청으로 재사용한다`() {
+    fun `DB에 저장한 생성 확인 공개 검증 시각이 응답과 일치한다`() {
         val startedAt = Instant.parse("2026-08-30T00:00:00.123456789Z")
         val command = command().copy(
             verifications = listOf(
@@ -98,7 +102,8 @@ abstract class ChangeRecordStorageContract {
             ),
         )
 
-        val first = storageFacade.create(command, actor)
+        val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC))
+        val first = preciseFacade.create(command, actor)
         // 정규화가 없던 이전 저장 방식도 같은 요청으로 인식해야 한다.
         storageJdbc.update(
             "update verification_runs set started_at = ?, finished_at = ? where record_id = ?",
@@ -111,6 +116,11 @@ abstract class ChangeRecordStorageContract {
         assertEquals(first.id, retried.id)
         assertEquals(Instant.parse("2026-08-30T00:00:00.123457Z"), first.verifications.single().startedAt)
         assertEquals(first.verifications, retried.verifications)
+        assertEquals(first, storageFacade.get(first.id))
+        val confirmed = preciseFacade.confirm(ConfirmChangeRecordCommand(first.id, first.version, "b".repeat(40), digest), actor)
+        assertEquals(confirmed, storageFacade.get(first.id))
+        val published = preciseFacade.publish(PublishChangeRecordCommand(first.id, confirmed.version, digest), actor)
+        assertEquals(published, storageFacade.get(first.id))
     }
 
     @Test

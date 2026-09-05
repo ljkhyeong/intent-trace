@@ -39,7 +39,7 @@ class ChangeRecordFacade(
             return reuseExisting(it, repositoryKey, actor, creationDigest)
         }
 
-        val now = Instant.now(clock)
+        val now = recordTime()
         val record = ChangeRecord(
             id = UUID.randomUUID(),
             requestId = command.requestId,
@@ -101,7 +101,7 @@ class ChangeRecordFacade(
             actor = actor,
             immutableRevision = command.immutableRevision,
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
-            now = Instant.now(clock),
+            now = recordTime(),
         )
         return saveChange(current, confirmed, actor, RecordOperation.CONFIRM)
     }
@@ -116,7 +116,7 @@ class ChangeRecordFacade(
         val published = current.publish(
             actor = actor,
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
-            now = Instant.now(clock),
+            now = recordTime(),
         )
         return saveChange(current, published, actor, RecordOperation.PUBLISH)
     }
@@ -153,8 +153,10 @@ class ChangeRecordFacade(
 
     private fun saveChange(previous: ChangeRecord, next: ChangeRecord, actor: ActorIdentity, operation: RecordOperation): ChangeRecord =
         repository.update(next, previous.version, RecordActivity(next.id, operation, actor.subject,
-            previous.version, next.version, previous.status, next.status, Instant.now(clock)))
+            previous.version, next.version, previous.status, next.status, recordTime()))
             .also { measured(operation.name.lowercase()) }
+
+    private fun recordTime(): Instant = Instant.now(clock).plusNanos(500).truncatedTo(ChronoUnit.MICROS)
 
     private fun measured(operation: String) {
         meters.counter("intenttrace.record.operation", "operation", operation).increment()

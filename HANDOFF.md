@@ -391,10 +391,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 서버·MCP·Codex·IntelliJ 버전은 `0.12.3-SNAPSHOT`으로 맞췄다. Zed 연결 도구는 `0.12.2`를 유지한다.
 - REST·MCP는 기존 `MY_DRAFTS`·페이지 번호와 새 `MINE`·커서 조회를 함께 지원한다. 두 방식의 인자를 섞으면 거부한다.
 - 메인의 Flyway V1~V6는 유지하고 개발 브랜치 변경을 V7~V11로 옮겼다. 새 DB와 메인 V6 DB가 대상이며 개발 브랜치 V5~V9 DB는 별도 이관이 필요하다. [DB 통합 절차](docs/operations/team-deployment.md#메인과-개발-브랜치의-db-변경-이력-통합)를 따른다.
-- 전체 서버 테스트 169개 중 165개 통과, PostgreSQL 전용 4개는 기본 실행에서 제외했다. 별도 PostgreSQL 17에서 해당 4개와 백업·복구를 통과했다. 복구 전후 기록 13건·변경 이력 26건이 일치했다.
+- 전체 서버 테스트 169개 중 165개 통과, PostgreSQL 전용 4개는 기본 실행에서 제외했다. 별도 PostgreSQL 17에서 해당 4개와 백업·복구를 통과했다. 복구 전후 기록 13건·변경 이력 28건이 일치했다.
 - IntelliJ 테스트 32개, 설치 ZIP·프로젝트 구성·플러그인 구조 검증 통과. Zed Node 9개·Python 3개, 실제 Spring 서버의 stdio MCP 연결 검증 통과.
 - 릴리스 버전·JAR manifest, 릴리스 준비 테스트 2개, 백업 파일 보존 테스트 2개, Compose 경계, 공식 플러그인·두 스킬 검증 통과.
 - 서버 컨테이너 이미지 빌드와 별도 Compose 프로젝트의 Caddy 설정 검증 통과.
 - 실제 IDE UI·GitHub 사용자 승인·제품의 Check Run 게시는 이번 검증에 포함하지 않았다.
 
 - PR CI의 전체 SHA 고정 정책에 맞춰 `actions/setup-node` v6 참조도 공식 커밋 SHA로 고정했다.
+- Linux CI에서 확인한 DB 시각 정밀도 차이를 나노초 고정 시계로 재현했다. 생성·확인·공개·작업 시각을 DB의 마이크로초 정밀도로 맞추고 저장 전후 전체 기록이 같은지 기존 H2·PostgreSQL 계약 테스트에서 확인했다. 수정 후 전체 서버 테스트와 PostgreSQL 백업·복구가 다시 통과했다.
