@@ -55,3 +55,12 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - Fork PR Check Run
 - line annotation 자동 생성
 - 실제 외부 GitHub 저장소를 사용하는 자동 테스트
+
+## 게시 결과 조회와 대체 안내
+
+- `GET /api/v1/change-records/{id}/github-pull-request?owner=...&repository=...&pullNumber=...`는 마지막 게시 결과와 최근 20회의 시도를 반환한다. MCP는 `get_github_publication_status`다.
+- 시도 상태는 `IN_PROGRESS`, `SUCCEEDED`, `FAILED`, `RESULT_UNKNOWN`이다. 결과 미확인은 기존 게시 요청을 재시도해 원격 실행을 찾아 복구한다. 재시작으로 중단된 시도도 결과 미확인으로 표시한다.
+- 같은 기록의 동시 게시 요청은 단일 app에서 직렬 처리한다.
+- `POST /api/v1/change-records/{id}/github-pull-request/supersession`과 `sync_superseded_record_to_github_pr`는 사용자가 GitHub 반영을 요청했을 때 `SUPERSEDED` 기록의 기존 Check Run에만 대체 안내를 반영한다.
+- 대체 안내는 새로운 Check Run을 만들지 않는다. 기존 Check Run의 원래 커밋과 external ID를 확인하므로 PR HEAD가 진행된 뒤에도 원래 기록의 대체 사실을 표시할 수 있다. 새 기록 게시의 PR HEAD 일치 규칙과 구분한다.
+- 오류 코드에는 HEAD 불일치, Fork, 저장소 불일치, 내용 크기, 자격 증명 설정, 호출 제한, 기록 상태와 원격 결과 미확인을 사용한다. GitHub 오류 원문과 token은 반환하지 않는다.

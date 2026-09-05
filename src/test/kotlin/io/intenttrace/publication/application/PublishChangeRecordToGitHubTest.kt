@@ -18,6 +18,13 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import io.intenttrace.record.application.TeamChangeRecordService
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
@@ -55,17 +62,67 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(null, publicationRepository.saved)
     }
 
+    @Test
+    fun `동시 최초 게시는 한 Check Run으로 모으고 응답 유실도 같은 실행으로 복구한다`() {
+        val records = mock(TeamChangeRecordService::class.java)
+        `when`(records.requireOwnedContributor(record.id)).thenReturn(record)
+        `when`(records.get(record.id)).thenReturn(record)
+        val tracking = MemoryTracking()
+        val team = TeamGitHubPublicationService(records, publisher, tracking, publicationRepository)
+        val command = PublishChangeRecordToGitHubCommand(record.id, target)
+        gateway.failAfterCreate = true
+        assertFailsWith<GitHubApiException> { team.publish(command) }
+        assertEquals(PublicationAttemptStatus.RESULT_UNKNOWN, tracking.statuses.values.single())
+        gateway.failAfterCreate = false
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val calls = (1..2).map { executor.submit<GitHubPublication> { start.await(); team.publish(command) } }
+            start.countDown()
+            assertEquals(setOf(42L), calls.map { it.get(5, TimeUnit.SECONDS).checkRunId }.toSet())
+            assertEquals(1, gateway.creations)
+            assertEquals(2, tracking.statuses.values.count { it == PublicationAttemptStatus.SUCCEEDED })
+        } finally { executor.shutdownNow() }
+    }
+
+    @Test
+    fun `PR HEAD가 진행돼도 기존 커밋의 Check Run에 대체 안내를 붙인다`() {
+        publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
+        val replacement = UUID.randomUUID()
+        gateway.headRevision = "f".repeat(40)
+        val result = publisher.syncSupersession(record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement),
+            PublishChangeRecordToGitHubCommand(record.id, target))
+        assertEquals(42L, result.checkRunId)
+        assertEquals(record.targetRevision, gateway.lastCommand?.headRevision)
+        assertTrue(gateway.lastCommand!!.markdown.contains(replacement.toString()))
+        assertEquals(1, gateway.creations)
+    }
+
+    private class MemoryTracking : GitHubPublicationTracking {
+        val statuses = linkedMapOf<UUID, PublicationAttemptStatus>()
+        override fun start(recordId: UUID, target: GitHubPullRequestTarget, operation: PublicationOperation): UUID =
+            UUID.randomUUID().also { statuses[it] = PublicationAttemptStatus.IN_PROGRESS }
+        override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) { statuses[attemptId] = status }
+        override fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt> = emptyList()
+    }
+
     private class FakeGitHubGateway(
         var headRevision: String,
     ) : GitHubPullRequestGateway {
         var lastCommand: UpsertGitHubCheckRunCommand? = null
+        var failAfterCreate = false
+        var creations = 0
 
         override fun getHeadRevision(target: GitHubPullRequestTarget): String = headRevision
 
         override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
             lastCommand = command
+            if (creations == 0) creations++
+            if (failAfterCreate) throw GitHubApiException("원격 결과를 확인하지 못했습니다.")
             return GitHubCheckRun(42L, "https://github.test/check-runs/42")
         }
+
+        override fun updateExistingCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun = upsertCheckRun(command)
     }
 
     private class InMemoryGitHubPublicationRepository : GitHubPublicationRepository {

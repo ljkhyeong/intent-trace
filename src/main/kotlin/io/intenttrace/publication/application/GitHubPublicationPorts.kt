@@ -9,6 +9,8 @@ interface GitHubPullRequestGateway {
     fun getHeadRevision(target: GitHubPullRequestTarget): String
 
     fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun
+
+    fun updateExistingCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun
 }
 
 data class UpsertGitHubCheckRunCommand(

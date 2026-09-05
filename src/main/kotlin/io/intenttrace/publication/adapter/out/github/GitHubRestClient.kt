@@ -74,6 +74,12 @@ class GitHubRestClient(
         return createCheckRun(command).toDomain()
     }
 
+    override fun updateExistingCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
+        val id = checkNotNull(command.knownCheckRunId) { "대체 안내를 반영할 기존 Check Run이 없습니다." }
+        checkNotNull(getCheckRun(command, id)) { "기존 Check Run의 기록 ID와 커밋을 확인할 수 없습니다." }
+        return checkNotNull(updateCheckRun(command, id, tolerateMissing = false)).toDomain()
+    }
+
     private fun getCheckRun(command: UpsertGitHubCheckRunCommand, checkRunId: Long): CheckRunResponse? {
         try {
             val response = authenticated(command.target) { token ->

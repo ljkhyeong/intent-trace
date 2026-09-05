@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestParam
+import io.intenttrace.publication.application.GitHubPublicationStatus
 import java.time.Instant
 import java.util.UUID
 
@@ -22,6 +25,15 @@ import java.util.UUID
 class GitHubPublicationController(
     private val publisher: TeamGitHubPublicationService,
 ) {
+    @GetMapping
+    fun status(@PathVariable recordId: UUID, @RequestParam owner: String, @RequestParam repository: String,
+               @RequestParam pullNumber: Int): GitHubPublicationStatus =
+        publisher.status(PublishChangeRecordToGitHubCommand(recordId, GitHubPullRequestTarget(owner, repository, pullNumber)))
+
+    @PostMapping("/supersession")
+    fun syncSupersession(@PathVariable recordId: UUID, @Valid @RequestBody request: GitHubPublicationRequest): GitHubPublicationResponse =
+        GitHubPublicationResponse.from(publisher.syncSupersession(request.toCommand(recordId)))
+
     @PostMapping
     fun publish(
         @PathVariable recordId: UUID,

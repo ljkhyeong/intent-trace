@@ -15,6 +15,7 @@ PR 댓글은 변경 의도 기록을 리뷰에 노출할 수 있지만 커밋 �
 - Check Run 결론은 품질 합격을 뜻하지 않는 `neutral`로 사용한다.
 - `intent-trace:<변경 기록 UUID>`를 `external_id`로 보내고, 로컬 Check Run ID가 없거나 오래됐으면 HEAD의 Check Run 목록에서 같은 값을 찾아 갱신한다.
 - 목록 조회는 GitHub의 동일 이름 Check Run 제한에 맞춰 최대 100개씩 10페이지로 제한한다.
+- 게시 시도·결과 미확인 복구와 대체 안내는 `ADR-0008`을 따른다.
 - GitHub 원격 호출이 성공한 뒤 로컬 게시 이력을 저장한다. 원격 호출과 DB 저장을 하나의 트랜잭션으로 묶지 않는다.
 - GitHub App 인증과 installation token 수명주기는 `ADR-0003`을 따른다.
 - 외부 호출은 연결 5초·응답 10초 제한과 redirect 금지를 적용하고 API 기본 주소는 HTTPS만 허용한다.

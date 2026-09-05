@@ -174,6 +174,14 @@ class GitHubRestClientTest {
         }
     }
 
+    @Test
+    fun `대체 안내는 다른 기록의 Check Run에 쓰거나 새로 생성하지 않는다`() {
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andRespond(withSuccess("""{"id":55,"head_sha":"$revision","html_url":"https://github.test/55","external_id":"other"}""", MediaType.APPLICATION_JSON))
+        assertFailsWith<IllegalStateException> { client.updateExistingCheckRun(command("intent-trace:record").copy(knownCheckRunId = 55)) }
+        server.verify()
+    }
+
     private fun command(externalId: String) = UpsertGitHubCheckRunCommand(
         target = target,
         headRevision = revision,
