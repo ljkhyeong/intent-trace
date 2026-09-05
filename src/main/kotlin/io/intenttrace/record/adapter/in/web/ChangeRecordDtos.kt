@@ -8,6 +8,8 @@ import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import io.intenttrace.record.domain.PurposeSource
@@ -86,8 +88,10 @@ data class CodeAnchorRequest(
     val endLine: Int,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val contentHash: String,
+    val side: CodeSide = CodeSide.TARGET,
+    @field:Size(max = 1000) val relatedPath: String? = null,
 ) {
-    fun toDomain(): CodeAnchor = CodeAnchor(relativePath, symbolName, startLine, endLine, contentHash)
+    fun toDomain(): CodeAnchor = CodeAnchor(relativePath, symbolName, startLine, endLine, contentHash, side, relatedPath)
 }
 
 data class VerificationRequest(
@@ -102,6 +106,7 @@ data class VerificationRequest(
     val outputDigest: String,
     @field:NotBlank @field:Size(max = 2000)
     val summary: String,
+    val source: VerificationSource = VerificationSource.CLIENT_REPORTED,
 ) {
     fun toDomain(): VerificationRun = VerificationRun(
         command,
@@ -111,6 +116,7 @@ data class VerificationRequest(
         snapshotDigest,
         outputDigest,
         summary,
+        source,
     )
 }
 
@@ -196,6 +202,7 @@ data class ChangeRecordResponse(
                     outputDigest = it.outputDigest,
                     summary = it.summary,
                     current = it.isCurrentFor(record),
+                    source = it.source,
                 )
             },
             openQuestions = record.openQuestions,
@@ -212,4 +219,6 @@ data class VerificationResponse(
     val outputDigest: String,
     val summary: String,
     val current: Boolean,
+    val source: VerificationSource,
+    val serverExecutionVerified: Boolean = false,
 )

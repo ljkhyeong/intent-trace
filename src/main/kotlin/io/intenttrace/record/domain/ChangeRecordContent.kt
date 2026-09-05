@@ -42,6 +42,12 @@ data class ChangeRecordContent(
             }
             output.writeInt(openQuestions.size)
             openQuestions.forEach(::text)
+            if (codeAnchors.any { it.side != CodeSide.TARGET || it.relatedPath != null } ||
+                verifications.any { it.source != VerificationSource.CLIENT_REPORTED }) {
+                text("evidence-v2")
+                codeAnchors.forEach { text(it.side.name); text(it.relatedPath) }
+                verifications.forEach { text(it.source.name) }
+            }
         }
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()))
     }

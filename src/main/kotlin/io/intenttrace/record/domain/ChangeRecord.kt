@@ -132,9 +132,12 @@ data class CodeAnchor(
     val startLine: Int,
     val endLine: Int,
     val contentHash: String,
+    val side: CodeSide = CodeSide.TARGET,
+    val relatedPath: String? = null,
 ) {
     init {
         requireRepositoryRelativePath(relativePath)
+        relatedPath?.let(::requireRepositoryRelativePath)
         require(startLine > 0 && endLine >= startLine) { "코드 줄 범위가 올바르지 않습니다." }
         require(SHA_256.matches(contentHash)) { "코드 근거에는 SHA-256 해시가 필요합니다." }
     }
@@ -144,6 +147,10 @@ data class CodeAnchor(
     }
 }
 
+enum class CodeSide { BASE, TARGET }
+
+enum class VerificationSource { CLIENT_REPORTED, LOCAL_RUNNER_REPORTED }
+
 data class VerificationRun(
     val command: String,
     val exitCode: Int,
@@ -152,6 +159,7 @@ data class VerificationRun(
     val snapshotDigest: String,
     val outputDigest: String,
     val summary: String,
+    val source: VerificationSource = VerificationSource.CLIENT_REPORTED,
 ) {
     init {
         require(!finishedAt.isBefore(startedAt)) { "검증 종료 시각은 시작 시각보다 빠를 수 없습니다." }

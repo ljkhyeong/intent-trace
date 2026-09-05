@@ -9,7 +9,10 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
 - `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
 - 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
-- 파일·줄·콘텐츠 해시 기반 코드 근거
+- 변경 전후 커밋·파일·줄·콘텐츠 해시 기반 코드 근거와 이름 변경 연결
+- GitHub 전체 트리·blob으로 코드 근거를 확인하는 읽기 API
+- 이전 커밋의 관련 기록과 동일 파일 여부 조회
+- 원문 출력을 저장하지 않는 로컬 검증 실행 도구
 - 실제 검증 명령, 종료 코드, 실행 시간, 출력 해시, 결과 요약
 - 작성자가 명시한 목적과 AI 추론·미확인 목적 구분
 - REST API와 Spring AI Streamable HTTP MCP 도구
@@ -135,6 +138,14 @@ scripts/git-evidence.sh snapshot "$(git rev-parse HEAD)"
 scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/File.kt 10 25
 ```
 
+검증을 실행하며 결과를 수집하려면 다음 도구를 사용합니다. 실행 전후 HEAD가 같고 수정·미추적 파일이 없어야 하며, 표준 출력에는 원문 대신 검증 JSON만 나옵니다. 검증 명령의 실패 종료 코드도 그대로 전달합니다.
+
+```bash
+python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 테스트 결과 수집' -- ./gradlew test
+```
+
+서버 코드 확인과 이전 커밋의 파일 비교에는 GitHub App의 사용자 권한에 `Contents: read`를 추가해야 합니다. 이 권한이 없어도 기존 기록 조회는 사용할 수 있습니다. 서버 코드 확인은 테스트 실행 자체를 증명하지 않습니다.
+
 ## API
 
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
@@ -147,10 +158,12 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 - `POST /api/v1/change-records/{id}/publish`: 스냅샷 재확인 후 공개
 - `POST /api/v1/change-records/{id}/supersede`: 새 공개 기록으로 대체
 - `GET /api/v1/change-records/lookup`: 커밋·파일·줄로 공개 기록 조회
+- `GET /api/v1/change-records/{id}/evidence-check`: GitHub 코드 해시 확인
+- `GET /api/v1/change-records/history`: 현재 커밋·파일·줄의 관련 기록 조회
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 
-MCP는 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`와 같은 애플리케이션 서비스를 사용하는 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 생성·조회·확인·공개·목록·수정·확인 취소·폐기·대체 도구와 `find_change_intent`, `find_related_change_intent`, `check_change_record_evidence`, `publish_change_record_to_github_pr`를 제공합니다.
 
 REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
@@ -203,5 +216,6 @@ scripts/verify-postgres.sh
 - `docs/ADR-0004-github-user-repository-authorization.md`
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
 - `docs/ADR-0006-single-instance-team-deployment.md`
+- `docs/ADR-0007-evidence-check-and-history.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`

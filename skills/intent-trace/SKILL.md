@@ -54,3 +54,10 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 확인한 비공개 기록을 고치려면 `reopen_change_record`로 확인을 취소하고 수정한 뒤 작성자의 확인을 다시 받는다.
 - 사용자가 비공개 기록 폐기를 요청하면 `discard_change_record`를 사용한다.
 - 새 공개 기록으로 교체할 때는 `supersede_change_record`를 사용한다. GitHub의 기존 Check Run 반영 여부는 별도로 확인한다.
+
+## 실행 증거와 이전 코드
+
+- 검증 전에 `scripts/run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령>`을 실행하면 실제 실행 결과 JSON을 얻는다. 실행 전후 코드가 달라지면 현재 커밋 검증으로 등록하지 않는다. 반환된 `source`와 실패 종료 코드를 그대로 사용한다.
+- 삭제·이름 변경 이전의 근거는 `side=BASE`로 만들고 `baseRevision`에 전체 커밋을 지정한다. 변경 후는 `TARGET`이다. 이름 변경은 반대쪽 근거의 `relatedPath`로 연결한다.
+- `check_change_record_evidence`는 GitHub 코드와 해시만 확인한다. `codeVerified=true`를 테스트 실행 증명으로 설명하지 않는다.
+- 정확한 줄 조회에 결과가 없으면 `find_related_change_intent`로 같은 파일의 이전 기록을 찾는다. `RELATED_UNVERIFIED`를 현재 코드의 확정 의도로 설명하지 않으며 다른 커밋의 테스트를 현재 테스트로 재사용하지 않는다.

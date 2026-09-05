@@ -31,7 +31,7 @@ case "$operation" in
             usage >&2
             exit 1
         fi
-        git ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
+        git -c core.quotePath=true ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
         ;;
     anchor)
         if [ "$#" -ne 5 ]; then

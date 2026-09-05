@@ -6,6 +6,7 @@ import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordContent
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.GitRevision
 import io.intenttrace.record.domain.VerificationRun
@@ -161,6 +162,16 @@ class ChangeRecordFacade(
         require(SHA_256.matches(command.snapshotDigest)) { "기록에는 SHA-256 스냅샷 해시가 필요합니다." }
         require(command.decisions.isNotEmpty()) { "최소 한 개의 판단이 필요합니다." }
         require(command.codeAnchors.isNotEmpty()) { "최소 한 개의 코드 근거가 필요합니다." }
+        require(command.baseRevision != null || command.codeAnchors.none { it.side == CodeSide.BASE }) {
+            "변경 전 코드 근거에는 전체 base 커밋이 필요합니다."
+        }
+        command.codeAnchors.forEach { anchor ->
+            anchor.relatedPath?.let { related ->
+                require(command.codeAnchors.any { it.side != anchor.side && it.relativePath == related }) {
+                    "이름 변경의 연결 경로는 반대쪽 코드 근거에 있어야 합니다."
+                }
+            }
+        }
     }
 
     private fun requireExpectedVersion(record: ChangeRecord, expectedVersion: Long) {

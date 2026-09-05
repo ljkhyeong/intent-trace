@@ -19,10 +19,12 @@
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- Streamable HTTP MCP 도구 11개
+- Streamable HTTP MCP 도구 13개
 - 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
 - MCP 기록 대체와 Markdown의 후속 기록 링크
-- Flyway V5 최초 생성 내용 해시와 목록 조회 인덱스
+- Flyway V5 최초 생성 내용 해시와 목록 조회 인덱스, V6 코드 근거 BASE·TARGET과 실행 결과 출처
+- GitHub 코드 해시 확인과 이전 커밋의 동일 파일·관련 기록 조회
+- 로컬 실행 도구의 종료 코드·시각·출력 해시 수집과 변경 파일 감지
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
@@ -66,7 +68,8 @@
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자와 저장소 권한은 요청마다 조회하며 캐시와 webhook 무효화가 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
-- 코드 스냅샷과 줄 해시는 제공 스크립트로 계산하며 서버가 Git 객체를 직접 검증하지 않는다.
+- 서버 코드 확인은 별도 요청에서 GitHub 객체를 읽으며 `Contents: read` 권한이 필요하다. 결과는 저장하지 않고 호출 시 계산한다. 일부 트리·2 MiB 초과 blob은 확인하지 않는다.
+- 이전 기록 탐색은 동일 경로의 파일 blob 비교를 지원하며 줄 이동 자동 추적은 아직 제공하지 않는다.
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
 - Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.

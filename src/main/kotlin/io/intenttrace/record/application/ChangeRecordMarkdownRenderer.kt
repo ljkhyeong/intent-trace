@@ -3,6 +3,9 @@ package io.intenttrace.record.application
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationSource
+import org.springframework.web.util.UriUtils
 import org.springframework.stereotype.Component
 
 @Component
@@ -36,8 +39,16 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         appendLine()
         record.codeAnchors.forEach { anchor ->
             val symbol = anchor.symbolName?.let { " (`$it`)" }.orEmpty()
-            appendLine("- `${anchor.relativePath}:${anchor.startLine}-${anchor.endLine}`$symbol — `${anchor.contentHash}`")
+            val ref = if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision
+            val label = "${anchor.relativePath}:${anchor.startLine}-${anchor.endLine}"
+            val side = if (anchor.side == CodeSide.BASE) "변경 전" else "변경 후"
+            val path = anchor.relativePath.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8) }
+            val link = ref?.let { "[$label](${properties.userAuthorization.webBaseUrl.resolve("/${record.repositoryKey}/blob/$it/$path")}#L${anchor.startLine}-L${anchor.endLine})" } ?: "`$label`"
+            appendLine("- $side $link$symbol — `${anchor.contentHash}`")
+            anchor.relatedPath?.let { appendLine("  - 반대쪽 연결 경로: `$it`") }
         }
+        appendLine()
+        appendLine("코드·검증 해시는 클라이언트 제출값입니다. 서버 코드 확인 결과는 별도 조회하며 테스트 실행을 증명하지 않습니다.")
         appendLine()
         appendLine("## 검증")
         appendLine()
@@ -51,7 +62,8 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
                     else -> "실패"
                 }
                 appendLine("- **$state** `${verification.command}` — ${verification.summary}")
-                appendLine("  - 출력 해시: `${verification.outputDigest}`")
+                val origin = if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구가 수집했다고 보고함" else "클라이언트가 제출함"
+                appendLine("  - 출처: $origin / 출력 해시: `${verification.outputDigest}`")
             }
         }
         appendLine()

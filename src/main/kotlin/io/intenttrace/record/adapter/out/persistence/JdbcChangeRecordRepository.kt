@@ -5,6 +5,8 @@ import io.intenttrace.record.application.ChangeRecordRepository
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.CodeSide
+import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
@@ -53,12 +55,13 @@ class JdbcChangeRecordRepository(
             select records.*
             from change_records records
             where records.repository_key = ?
-              and records.target_revision = ?
               and records.status in ('PUBLISHED', 'SUPERSEDED')
               and exists (
                   select 1
                   from code_anchors anchors
                   where anchors.record_id = records.id
+                    and ((anchors.anchor_side = 'TARGET' and records.target_revision = ?)
+                      or (anchors.anchor_side = 'BASE' and records.base_revision = ?))
                     and anchors.relative_path = ?
                     and anchors.start_line <= ?
                     and anchors.end_line >= ?
@@ -67,6 +70,7 @@ class JdbcChangeRecordRepository(
             """.trimIndent(),
             recordRowMapper,
             repositoryKey,
+            targetRevision,
             targetRevision,
             relativePath,
             line,
@@ -177,8 +181,8 @@ class JdbcChangeRecordRepository(
                 """
                 insert into code_anchors (
                     id, record_id, sequence_number, relative_path, symbol_name,
-                    start_line, end_line, content_hash
-                ) values (?, ?, ?, ?, ?, ?, ?, ?)
+                    start_line, end_line, content_hash, anchor_side, related_path
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 UUID.randomUUID().toString(),
                 record.id.toString(),
@@ -188,6 +192,8 @@ class JdbcChangeRecordRepository(
                 anchor.startLine,
                 anchor.endLine,
                 anchor.contentHash,
+                anchor.side.name,
+                anchor.relatedPath,
             )
         }
     }
@@ -198,8 +204,8 @@ class JdbcChangeRecordRepository(
                 """
                 insert into verification_runs (
                     id, record_id, sequence_number, command_text, exit_code,
-                    started_at, finished_at, snapshot_digest, output_digest, summary
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    started_at, finished_at, snapshot_digest, output_digest, summary, source
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 UUID.randomUUID().toString(),
                 record.id.toString(),
@@ -211,6 +217,7 @@ class JdbcChangeRecordRepository(
                 verification.snapshotDigest,
                 verification.outputDigest,
                 verification.summary,
+                verification.source.name,
             )
         }
     }
@@ -251,6 +258,8 @@ class JdbcChangeRecordRepository(
                 startLine = resultSet.getInt("start_line"),
                 endLine = resultSet.getInt("end_line"),
                 contentHash = resultSet.getString("content_hash"),
+                side = CodeSide.valueOf(resultSet.getString("anchor_side")),
+                relatedPath = resultSet.getString("related_path"),
             )
         },
         recordId.toString(),
@@ -267,6 +276,7 @@ class JdbcChangeRecordRepository(
                 snapshotDigest = resultSet.getString("snapshot_digest"),
                 outputDigest = resultSet.getString("output_digest"),
                 summary = resultSet.getString("summary"),
+                source = VerificationSource.valueOf(resultSet.getString("source")),
             )
         },
         recordId.toString(),
