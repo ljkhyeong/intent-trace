@@ -50,3 +50,7 @@ intent-trace.private-key.pem
 ### 브라우저 확인 결과 ###
 .playwright-cli/
 output/playwright/
+
+### Zed 연결 도구 의존성 ###
+node_modules/
+__pycache__/

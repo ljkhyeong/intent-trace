@@ -16,3 +16,4 @@ hooks
 skills
 *.iml
 HELP.md
+**/node_modules
