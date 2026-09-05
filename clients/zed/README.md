@@ -7,7 +7,7 @@ IntentTrace 서버의 변경 기록을 Zed Agent에서 사용하는 MCP 연결 �
 받은 버전의 `.tgz` 파일을 전용 설치 폴더에 설치한다. 필요한 Node 의존성은 패키지에 포함한다.
 
 ```bash
-npm install --prefix ~/.local/share/intent-trace --ignore-scripts --offline /배포파일/intent-trace-zed-0.12.0.tgz
+npm install --prefix ~/.local/share/intent-trace --ignore-scripts --offline /배포파일/intent-trace-zed-0.12.1.tgz
 ~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed configure
 ~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed configure --apply
 ```
@@ -20,7 +20,7 @@ IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 
 ~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed launch .
 ```
 
-숨긴 입력으로 받은 세션은 Zed 실행 환경에만 전달한다. 환경 변수로 세션을 미리 전달했다면 `check [MCP 주소] [저장소]`로 연결을 확인할 수 있다. `serve`는 MCP 통신에 사용한다.
+숨긴 입력으로 받은 세션은 Zed 실행 환경에만 전달한다. 입력을 숨길 수 없거나 입력을 취소·종료하면 Zed를 실행하지 않는다. 이 경우 터미널에서 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 환경 변수로 세션을 전달했다면 `check [MCP 주소] [저장소]`로 연결을 확인할 수 있다. `serve`는 MCP 통신에 사용한다.
 
 ## 업데이트와 제거
 
