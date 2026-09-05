@@ -56,7 +56,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - `codeVerified`는 스냅샷과 모든 코드 근거가 일치할 때만 true다. 코드 확인 실패는 기존 기록이나 해시를 수정하지 않는다. 결과는 요청 시 계산하며 저장하지 않는다.
 - GitHub 사용자 권한에 `Contents: read`가 필요하다. 일부만 반환한 트리와 2 MiB를 넘는 코드 파일은 확인할 수 없다고 응답한다.
 - `GET /api/v1/change-records/history`와 `find_related_change_intent`는 저장소·조회 커밋·경로·줄과 선택 커서를 받는다. 후보 기록은 기본 5개, 최대 20개씩 탐색한다.
-- 결과의 `EXACT_REVISION`은 근거 커밋·줄 일치, `ANCESTOR_UNCHANGED_FILE`은 조상 커밋과 동일 blob 확인, `RELATED_UNVERIFIED`는 현재 줄과 내용의 일치를 확인하지 않은 관련 후보다. 다른 커밋의 검증은 파일 내용이 같아도 현재 검증으로 승격하지 않는다.
+- 결과의 `EXACT_REVISION`은 근거 커밋·줄 일치, `ANCESTOR_UNCHANGED_FILE`은 조상 커밋과 동일 blob 확인, `RELATED_UNVERIFIED`는 현재 줄과 내용의 일치를 확인하지 않은 관련 후보다. 다른 커밋의 검증 결과는 파일 내용이 같아도 현재 커밋의 검증으로 사용하지 않는다.
 - `scripts/run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령과 인자>`는 실제 명령을 실행하고 검증 JSON을 표준 출력으로 반환한다. 원문 출력은 메모리에서 해시만 계산하고 버린다. 명령과 요약의 비밀값·개인 경로를 제거한다.
 - 실행 전후 HEAD가 같고 Git이 보고하는 수정·미추적 파일이 없어야 한다. 변경되면 저장 가능한 검증 JSON을 반환하지 않는다. Git이 무시하는 파일, 실행 도중 변경 후 복원, 빌드 환경 전체의 동일성까지 증명하지는 않는다.
 

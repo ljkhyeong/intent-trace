@@ -1,17 +1,17 @@
 # IntentTrace
 
-IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고, 어느 코드와 커밋에 연결되며, 무엇으로 검증했는지**를 남기는 Kotlin/Spring 프로젝트입니다. 개인이 코드를 다시 이해하는 일을 먼저 해결하고, 작성자가 확인한 기록을 팀 리뷰와 인수인계에 재사용하는 것이 목표입니다.
+IntentTrace는 AI 코드의 변경 이유, 관련 커밋·코드, 검증 결과를 기록합니다. 작성자가 확인한 기록을 팀 리뷰와 인수인계에 활용합니다.
 
 ## 현재 MVP
 
-- 변경 의도 초안 생성과 최초 내용 해시 기반 멱등 처리
+- 초안 생성과 중복 요청 처리
 - 초안 수정·확인 취소·폐기와 작성자 전용 목록
-- 내 공개 기록의 판단을 재사용하는 후속 초안과 원본 비교
+- 내 공개 기록으로 새 초안 생성과 원본 비교
 - 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
 - 브라우저 로그인 후 기록 열람과 키워드·상태·파일·작성자 검색
 - 웹 파일·줄 조회, 코드 확인 불가 사유, 변경된 항목만 보는 세부 비교
-- `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
-- 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
+- 기록 상태: 초안 → 작성자 확인 → 팀 공개 → 새 기록으로 대체
+- 기록을 커밋 해시와 스냅샷 해시에 연결
 - 변경 전후 커밋·파일·줄·콘텐츠 해시 기반 코드 근거와 이름 변경 연결
 - GitHub 전체 트리·blob으로 코드 근거를 확인하는 읽기 API
 - 이전 커밋의 관련 기록·파일 이름 변경·줄 이동 조회와 제한에 따른 중단·재개
@@ -26,7 +26,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - PR별 기록 목록·현재 HEAD 일치 여부와 연결·권한·설정 진단
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
-- GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
+- GitHub 로그인·세션 발급·사용자 토큰 자동 갱신(메모리 보관)
 - 내 세션 조회·선택 폐기·전체 폐기
 - 웹에서 내 연결 조회·선택 종료·전체 로그아웃
 - 기록 변경 이력과 작성자·팀원별 노출 범위
@@ -160,24 +160,24 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 브라우저에서는 `/records`에서 로그인하고 저장소·검색어·상태·파일·팀 작성자 GitHub 숫자 ID로 기록을 찾습니다. 내 비공개 범위에서 폐기 상태를 선택하면 본인의 폐기 기록도 읽을 수 있습니다. `/records/{UUID}` 링크는 로그인 후 해당 기록으로 돌아옵니다. 브라우저 연결은 8시간 뒤 만료되며 서버 재시작 시 다시 로그인해야 합니다. GitHub에 생성하는 기본·대체 기록 링크도 이 화면을 엽니다.
 
-`/records/pull-requests`에서 PR 기록과 현재 커밋 일치를, `/records/connection`에서 연결 상태를 확인합니다. 후속 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 판단·출처·근거·검증을 나란히 읽습니다.
+`/records/pull-requests`에서 PR 기록과 최신 커밋의 일치 여부를, `/records/connection`에서 연결 상태를 확인합니다. 새 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 구현 결정·출처·관련 코드·검증을 나란히 읽습니다.
 
-`/records/history`에서는 저장소·전체 커밋·파일·줄로 관련 기록을 찾고 확인하지 못한 후보만 재조회할 수 있습니다. 기록 화면의 코드 확인 링크는 `/records/{UUID}/evidence`를 엽니다. 서버의 코드 해시 일치와 테스트 실행 증명은 구분합니다. 용량 제한·일부 트리·지원하지 않는 객체는 HTTP 422와 확인 불가 사유로 안내합니다.
+`/records/history`에서는 저장소·커밋 해시·파일 경로·줄 번호로 관련 기록을 찾고 확인하지 못한 기록만 재조회할 수 있습니다. 기록 화면의 ‘GitHub 코드와 비교’는 `/records/{UUID}/evidence`를 엽니다. 서버의 코드 해시 일치와 테스트 실행 증명은 구분합니다. 용량 제한·일부 트리·지원하지 않는 Git 객체는 HTTP 422와 확인 불가 사유로 안내합니다.
 
 `/records/sessions`에서는 내 연결의 최근 사용·만료를 보고 선택 또는 전체 종료합니다. 현재 연결을 종료하면 로그아웃됩니다. `/records/{UUID}/activities`는 작성자에게 전체 작업, 팀원에게 공개·대체 작업만 보여줍니다. 이전 본문과 수집 시작 전 이력은 복원하지 않습니다.
 
 검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·판단·판단 근거에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
 
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
-- `GET /api/v1/change-records/{id}/comparison`: 원본·후속 기록 내용과 변경 항목 조회
+- `GET /api/v1/change-records/{id}/comparison`: 원본과 새 기록의 내용·변경 항목 조회
 - `GET /api/v1/change-records/{id}/activities`: 기록 변경 이력 (`beforeVersion`으로 이전 50개 조회)
-- `POST /api/v1/change-records/{id}/successor`: 내 공개 기록에서 새 근거의 후속 초안 생성
+- `POST /api/v1/change-records/{id}/successor`: 내 공개 기록과 새 관련 코드로 초안 생성
 - `POST /api/v1/change-records/{id}/revise`: 초안 수정 (`expectedVersion`, 생성 요청 형식의 `content`)
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
 - `POST /api/v1/change-records/{id}/discard`: 비공개 기록 폐기
 - `POST /api/v1/change-records`: 비공개 초안 생성
 - `GET /api/v1/change-records/{id}`: 기록 조회
-- `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 전체 커밋 결박
+- `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 커밋 해시 연결
 - `POST /api/v1/change-records/{id}/publish`: 스냅샷 재확인 후 공개
 - `POST /api/v1/change-records/{id}/supersede`: 새 공개 기록으로 대체
 - `GET /api/v1/change-records/lookup`: 커밋·파일·줄로 공개 기록 조회
@@ -197,7 +197,7 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 생성·조회·확인·공개·목록·수정·확인 취소·폐기·대체 도구와 `find_change_intent`, `find_related_change_intent`, `check_change_record_evidence`, `publish_change_record_to_github_pr`를 제공합니다. 게시 상태 조회·대체 안내는 `get_github_publication_status`, `sync_superseded_record_to_github_pr`, 세션 관리는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`를 사용합니다.
 
-후속 초안은 `create_successor_draft`, PR 기록 목록은 `list_pull_request_records`, 연결 진단은 `diagnose_connection`을 사용합니다. 후속 초안은 원본의 판단을 복사하고 새 스냅샷·코드 근거를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다.
+내 공개 기록으로 새 초안을 만들 때는 `create_successor_draft`를 사용합니다. 원본의 구현 결정을 복사하고 새 스냅샷 해시·관련 코드를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다. PR 기록 목록은 `list_pull_request_records`, 연결 진단은 `diagnose_connection`을 사용합니다.
 
 원본 비교는 `compare_change_record`, 관리자용 게시 사전 점검은 `check_publication_credentials`를 사용합니다. 사전 점검은 메모리에서 설치 token을 발급하고 응답 권한을 확인하며 Check Run을 만들지 않습니다. 고정 token은 `CONFIGURED_UNVERIFIED`로 남깁니다.
 
@@ -235,7 +235,7 @@ node clients/zed/intent-trace.mjs configure --apply
 python3 scripts/zed-with-intent-trace.py .
 ```
 
-마지막 명령은 Zed CLI 설치 후 사용합니다. 실제 token은 숨긴 입력으로 받고 설정 파일·명령 인자에 넣지 않습니다.
+마지막 명령은 Zed CLI 설치 후 사용합니다. 입력한 토큰은 화면에 표시하지 않고 설정 파일·명령 인자에 저장하지 않습니다.
 
 0.12.1부터 입력을 숨길 수 없으면 실행을 중단합니다. 터미널에서 실행하거나 세션을 환경 변수로 미리 전달해 주세요. 배포 파일은 작업 폴더의 설치 상태와 관계없이 잠금 파일로 의존성을 준비하고 생성 기준 해시를 함께 제공합니다.
 

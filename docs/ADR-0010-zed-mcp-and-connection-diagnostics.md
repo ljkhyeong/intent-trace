@@ -34,7 +34,7 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 
 ## 0.12.0 설치 패키지
 
-- `scripts/package-zed.mjs`는 `clients/zed`의 실행 파일·숨긴 세션 입력 도구·사용 안내와 Node 의존성을 묶은 `.tgz` 및 SHA-256 파일을 만든다. 0.12.1부터 의존성은 아래의 잠금 파일 설치 절차로 준비한다. 저장소 전체·테스트·사용자 설정은 포함하지 않는다. 생성은 macOS·Linux에서 지원한다.
+- `scripts/package-zed.mjs`는 `clients/zed`의 실행 파일·세션 토큰 입력 도구·사용 안내와 Node 의존성을 묶은 `.tgz` 및 SHA-256 파일을 만든다. 0.12.1부터 의존성은 아래의 잠금 파일 설치 절차로 준비한다. 저장소 전체·테스트·사용자 설정은 포함하지 않는다. 생성은 macOS·Linux에서 지원한다.
 - 기본 패키지는 로컬 설치용 `private: true`다. `intent-trace-zed` 실행 명령을 제공하며 심볼릭 링크로 설치된 명령도 실제 실행 파일에서 시작한다. 설정 생성은 설치된 경로를 사용한다.
 - `launch`는 패키지의 Python 실행 도구로 Zed에 세션을 전달한다. 저장소에서 실행할 때는 기존 스크립트를 사용한다. `INTENT_TRACE_MCP_URL`은 선택 서버 주소이며 명령 인자의 주소가 우선한다.
 - npm 이름·MCP 이름·GitHub 저장소를 함께 지정하면 별도 배포 패키지에 `mcpName`과 저장소 정보를 넣고 `server.json`을 생성한다. 제출용 token 입력은 비밀값으로 선언하며 실제 값을 포함하지 않는다. 이 생성 작업은 외부 게시를 하지 않는다.
@@ -42,7 +42,7 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 
 ## 0.12.1 입력 보호와 배포 의존성
 
-- Python `GetPassWarning`을 예외로 처리해 숨긴 입력을 제공하지 못할 때 표준 입력 대체 전에 실패 종료한다. EOF·입력 취소도 한국어 안내만 출력하고 실행하지 않는다. 환경 변수에 이미 제공한 `its_`는 비대화형 실행에 그대로 사용한다. [Python getpass 문서](https://docs.python.org/3/library/getpass.html)
+- Python `GetPassWarning`을 예외로 처리해 토큰을 화면에서 숨길 수 없을 때 표준 입력 대체 전에 실패 종료한다. EOF·입력 취소도 한국어 안내만 출력하고 실행하지 않는다. 환경 변수에 이미 제공한 `its_`는 비대화형 실행에 그대로 사용한다. [Python getpass 문서](https://docs.python.org/3/library/getpass.html)
 - 생성기는 `package.json`과 `package-lock.json`을 임시 폴더에 복사하고 `npm ci --ignore-scripts`로 운영 의존성을 설치한다. 개발 폴더의 `node_modules`는 사용하거나 변경하지 않는다. 설치 스크립트·의존성 감사 호출을 끄고, 준비 실패 시 배포 파일 생성을 중단한다. 잠금 파일과 선언이 다르면 임의로 갱신하지 않는다. [npm ci 문서](https://docs.npmjs.com/cli/v11/commands/npm-ci/)
 - 생성에는 npm 레지스트리 또는 필요한 항목이 있는 캐시가 필요하다. 완성된 패키지의 소비자 오프라인 설치는 유지한다. 배포 대상 운영체제에 따라 npm이 선택하는 선택 의존성은 달라질 수 있으므로 플랫폼 간 바이트 동일성을 보장하지 않는다.
 - 패키지 안의 `build-info.json`에 패키지 이름·버전·입력 잠금 파일 SHA-256을 넣는다. 옆의 `.tgz.build.json`에는 같은 정보와 압축 파일 SHA-256을 기록한다. 계정·개인 경로·인증 정보는 넣지 않는다. 이 정보는 생성 기준을 확인하는 용도이며 배포자 서명은 아니다.
