@@ -92,3 +92,11 @@ description: "IntentTrace Kotlin/Spring 서비스와 Codex 플러그인을 변�
 ## Zed 연결 도구 검증
 
 `clients/zed` 변경은 `npm ci --prefix clients/zed --ignore-scripts`, `npm test --prefix clients/zed`와 `ZedBridgeIntegrationTest`를 실행한다. `its_`는 환경 변수와 메모리에만 유지하며 설정·명령 인자·로그에 넣지 않는다. MCP 주소의 redirect를 따르지 않고 외부 오류 본문을 출력하지 않는다. 실제 Zed 앱 확인과 표준 연결 테스트의 범위를 구분한다.
+
+## 조회 개선 검증
+
+- 권한 캐시는 인증 요청 객체의 수명 안에서만 공유한다. `its_` 장기 세션에 저장하거나 새 요청에 이전 권한을 넘기지 않는다.
+- history의 지원 불가 예외만 후보 실패로 반환한다. 인증·권한·호출 제한을 부분 결과로 숨기지 않으며 실패 ID 재조회에도 공개 상태와 저장소 범위를 확인한다.
+- 게시 사전 점검은 MAINTAINER와 실제 발급 응답의 저장소·권한을 확인한다. token·JWT·외부 오류 본문을 진단 결과로 반환하지 않는다.
+- 원본 비교와 새 브라우저 화면은 기존 읽기 서비스의 소유권 검사를 거친다. 비교 때문에 공개 본문이나 검증 상태를 갱신하지 않는다.
+- Zed `configure`는 미리보기와 명시적 적용을 구분하고 JSONC 주석·다른 서버·비밀값 미노출·반복 실행을 확인한다.

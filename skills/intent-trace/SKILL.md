@@ -80,3 +80,10 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - PR 전체의 기록과 오래된 커밋을 보려면 `list_pull_request_records`를 사용한다. `matchesCurrentHead`만으로 게시·검증 성공을 판단하지 않고 최신 시도와 공개·대체 상태를 함께 읽는다.
 - 연결 문제는 `diagnose_connection`으로 대상 저장소를 확인한다. 선택 PR 또는 전체 커밋으로 읽기 접근을 점검할 수 있다. `CONFIGURED_UNVERIFIED`를 게시 성공으로 설명하지 않는다.
 - Zed에서도 같은 도구와 기록 원칙을 따른다. 연결 도구 설치·설정·세션 입력은 플러그인 루트의 `docs/clients/zed.md`를 참고한다.
+
+## 원본 비교와 일부 실패 처리
+
+- 후속 기록 확인 전에 `compare_change_record`로 원본·후속의 버전과 `changedFields`를 읽고 판단 출처·삭제 근거·새 검증 누락을 함께 확인한다.
+- 이전 기록 조회의 `complete=false`는 현재 후보 페이지에 확인하지 못한 기록이 있다는 뜻이다. `failures`의 ID를 같은 조건의 `retryRecordId`에 넣으면 해당 공개 기록만 다시 조회한다. `cursor`는 함께 보내지 않는다. `nextCursor`는 다음 후보 페이지이며 실패 후보 확인을 대신하지 않는다.
+- `check_publication_credentials`는 저장소 관리자가 요청할 때만 실행한다. 설치 token을 메모리에서 발급하므로 일반 읽기 진단과 구분한다. `ready=true`도 Check Run 게시 완료나 이후 HEAD 일치를 뜻하지 않는다.
+- 브라우저 PR 기록은 `/records/pull-requests`, 연결 진단은 `/records/connection`, 후속 비교는 `/records/{UUID}/comparison`으로 안내한다.

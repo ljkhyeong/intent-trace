@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.intenttrace"
-version = "0.9.0-SNAPSHOT"
+version = "0.10.0-SNAPSHOT"
 description = "Intent-aware change provenance for AI-assisted development"
 
 java {
