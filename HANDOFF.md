@@ -396,3 +396,5 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 릴리스 버전·JAR manifest, 릴리스 준비 테스트 2개, 백업 파일 보존 테스트 2개, Compose 경계, 공식 플러그인·두 스킬 검증 통과.
 - 서버 컨테이너 이미지 빌드와 별도 Compose 프로젝트의 Caddy 설정 검증 통과.
 - 실제 IDE UI·GitHub 사용자 승인·제품의 Check Run 게시는 이번 검증에 포함하지 않았다.
+
+- PR CI의 전체 SHA 고정 정책에 맞춰 `actions/setup-node` v6 참조도 공식 커밋 SHA로 고정했다.
