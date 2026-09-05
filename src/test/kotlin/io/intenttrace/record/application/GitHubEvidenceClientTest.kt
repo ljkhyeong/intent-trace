@@ -53,4 +53,46 @@ class GitHubEvidenceClientTest {
         assertEquals("a\n", client.blob(repository, blob).toString(Charsets.UTF_8))
         server.verify()
     }
+    @Test
+    fun `실제 HTTP 조회는 전체 기한과 호출 수를 지키고 취소 뒤에는 호출하지 않는다`() {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        var delayMillis = 0L
+        val http = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        http.createContext("/") { exchange ->
+            calls.incrementAndGet()
+            if (delayMillis > 0) Thread.sleep(delayMillis)
+            val body = if (exchange.requestURI.path.contains("/commits/"))
+                """{"sha":"$revision","tree":{"sha":"$tree"}}"""
+            else """{"sha":"$tree","truncated":false,"tree":[]}"""
+            try {
+                exchange.sendResponseHeaders(200, body.toByteArray().size.toLong())
+                exchange.responseBody.use { it.write(body.toByteArray()) }
+            } catch (_: java.io.IOException) { exchange.close() }
+        }
+        http.start()
+        val remote = GitHubGitEvidenceClient(RestClient.builder().uriBuilderFactory(org.springframework.web.util.DefaultUriBuilderFactory("http://127.0.0.1:${http.address.port}")), GitHubProperties(),
+            object : CurrentGitHubUserSession {
+                override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_local-test")
+            }, jacksonObjectMapper())
+        try {
+            val countBudget = EvidenceReadBudget(java.time.Duration.ofSeconds(5), 1)
+            assertEquals(HistoryStopReason.CALL_LIMIT, assertFailsWith<EvidenceReadStopped> { remote.snapshot(repository, revision, countBudget) }.reason)
+            assertEquals(1, calls.get())
+            delayMillis = 200
+            val started = System.nanoTime()
+            val deadline = EvidenceReadBudget(java.time.Duration.ofMillis(350), 10)
+            assertEquals(HistoryStopReason.TIME_LIMIT, assertFailsWith<EvidenceReadStopped> { remote.snapshot(repository, revision, deadline) }.reason)
+            kotlin.test.assertTrue(java.time.Duration.ofNanos(System.nanoTime() - started) < java.time.Duration.ofSeconds(2))
+            assertEquals(2, deadline.remoteCalls)
+            val before = calls.get()
+            Thread.currentThread().interrupt()
+            try {
+                assertEquals(HistoryStopReason.CANCELLED, assertFailsWith<EvidenceReadStopped> {
+                    remote.snapshot(repository, revision, EvidenceReadBudget(java.time.Duration.ofSeconds(5), 10))
+                }.reason)
+                assertEquals(before, calls.get())
+            } finally { Thread.interrupted() }
+        } finally { http.stop(0) }
+    }
+
 }

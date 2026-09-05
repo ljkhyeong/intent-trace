@@ -4,6 +4,7 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.AnchorCheckStatus
 import io.intenttrace.record.application.ChangeIntentHistory
 import io.intenttrace.record.application.EvidenceUnavailableReason
+import io.intenttrace.record.application.HistoryStopReason
 import io.intenttrace.record.application.IntentMatch
 import io.intenttrace.record.application.RecordEvidenceCheck
 import io.intenttrace.record.domain.CodeSide
@@ -19,9 +20,17 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
         if (result == null) append("<p class=\"empty\">조회할 코드의 저장소·전체 커밋·파일·줄을 입력해 주세요.</p>") else {
             fun query(extra: String, value: String) = html(url("/records/history", "repositoryKey" to repository,
                 "revision" to revision, "path" to path, "line" to line.toString(), extra to value))
-            append("<p>후보 ${result.scannedRecords}건 확인 · 일치 또는 관련 결과 ${result.items.size}건</p>")
+            append("<p>후보 ${result.scannedRecords}건 살펴봄 · 일치 또는 관련 결과 ${result.items.size}건</p>")
             if (result.items.isEmpty()) append("<p class=\"empty\">이번 후보에서 연결된 기록을 찾지 못했습니다.</p>")
-            if (!result.complete) append("<aside class=\"notice\">확인하지 못한 후보가 있습니다. 아래 사유와 재조회를 확인해 주세요.</aside>")
+            if (result.failures.isNotEmpty()) append("<aside class=\"notice\">확인하지 못한 후보가 있습니다. 아래 사유와 재조회를 확인해 주세요.</aside>")
+            result.stopReason?.let {
+                val reason = when (it) {
+                    HistoryStopReason.TIME_LIMIT -> "조회 시간이 길어져 이번 확인을 중단했습니다."
+                    HistoryStopReason.CALL_LIMIT -> "한 번에 확인할 GitHub 호출 수에 도달했습니다."
+                    HistoryStopReason.CANCELLED -> "조회 취소가 전달되어 추가 확인을 중단했습니다."
+                }
+                append("<aside class=\"notice\">$reason 아래에서 중단한 근거부터 이어서 확인할 수 있습니다.</aside>")
+            }
             append("<ul class=\"records\">")
             val labels = mapOf(IntentMatch.EXACT_REVISION to "커밋·줄 일치", IntentMatch.ANCESTOR_UNCHANGED_FILE to "과거의 동일 파일",
                 IntentMatch.ANCESTOR_RENAMED_FILE to "파일 이름 변경 확인", IntentMatch.ANCESTOR_UNCHANGED_LINES to "과거의 동일 코드 조각",
@@ -37,16 +46,12 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
             if (result.failures.isNotEmpty()) {
                 append("<section><h2>확인하지 못한 후보</h2><ul class=\"records\">")
                 result.failures.forEach { failure ->
-                    val reason = when (failure.reason) {
-                        EvidenceUnavailableReason.SIZE_LIMIT -> "파일 또는 응답이 지원 크기를 초과했습니다."
-                        EvidenceUnavailableReason.TRUNCATED_TREE -> "GitHub에서 전체 파일 트리를 받지 못했습니다."
-                        EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
-                    }
+                    val reason = failure.reason.message
                     append("<li><div><a href=\"/records/${failure.recordId}\">기록 읽기</a><p>$reason</p><a class=\"button secondary\" href=\"${query("retryRecordId", failure.recordId.toString())}\">이 후보 다시 확인</a></div></li>")
                 }
                 append("</ul><p class=\"muted\">크기와 객체 형식이 그대로라면 재조회해도 같은 사유가 나올 수 있습니다.</p></section>")
             }
-            result.nextCursor?.let { append("<nav class=\"pagination\"><a class=\"button\" href=\"${query("cursor", it)}\">다음 후보 확인</a><p>결과가 없어도 아직 확인할 후보가 남아 있습니다.</p></nav>") }
+            result.nextCursor?.let { append("<nav class=\"pagination\"><a class=\"button\" href=\"${query("cursor", it)}\">${if (result.stopReason != null) "중단한 근거부터 계속" else "다음 후보 확인"}</a><p>결과가 없어도 아직 확인할 후보가 남아 있습니다.</p></nav>") }
         }
     })
 
@@ -65,3 +70,17 @@ internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvid
         }
         append("</ul>")
     })
+
+internal val EvidenceUnavailableReason.message: String get() = when (this) {
+    EvidenceUnavailableReason.SIZE_LIMIT -> "파일 또는 응답이 지원 크기를 초과했습니다."
+    EvidenceUnavailableReason.TRUNCATED_TREE -> "GitHub에서 전체 파일 트리를 받지 못했습니다."
+    EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
+}
+
+internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason): String =
+    layout("코드 근거 확인 불가", actor, """
+        <a class="back-link" href="/records/$recordId">기록으로 돌아가기</a>
+        <section class="empty"><h1>코드 근거를 확인하지 못했습니다</h1><p>${reason.message}</p>
+        <p>크기와 객체 형식이 그대로라면 다시 확인해도 같은 사유가 나올 수 있습니다.</p>
+        <p class="muted">코드 일치 여부는 미확인입니다. 코드 불일치나 테스트 실패를 뜻하지 않습니다.</p></section>
+    """)

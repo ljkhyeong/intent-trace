@@ -5,6 +5,8 @@ import io.intenttrace.publication.application.PullRequestOverviewService
 import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.application.EvidenceUnavailableException
+import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.application.RecordComparisonService
 import io.intenttrace.record.application.ChangeIntentHistoryService
 import io.intenttrace.record.application.RecordEvidenceService
@@ -65,10 +67,14 @@ class RecordBrowserController(
         @RequestParam(required = false) q: String?,
         @RequestParam(defaultValue = "TEAM") scope: RecordScope,
         @RequestParam(required = false) cursor: String?,
+        @RequestParam(required = false) status: ChangeRecordStatus?,
+        @RequestParam(required = false) path: String?,
+        @RequestParam(required = false) authorId: Long?,
     ): ResponseEntity<String> = read(request) { session ->
         val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
         pages.search(session.actor, repository, q, scope,
-            repository?.let { catalog.list(it, scope, cursor = cursor, q = q) })
+            repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
+            status, path, authorId)
     }
 
     @GetMapping("/{id}")
@@ -99,8 +105,11 @@ class RecordBrowserController(
     }
 
     @GetMapping("/{id}/evidence")
-    fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.evidence(it.actor, evidence.check(id))
+    fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
+        try { browserResponse(pages.evidence(it.actor, evidence.check(id))) }
+        catch (failure: EvidenceUnavailableException) {
+            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason), 422)
+        }
     }
 
     @GetMapping("/{id}/activities")

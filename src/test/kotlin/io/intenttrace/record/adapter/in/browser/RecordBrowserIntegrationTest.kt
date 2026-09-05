@@ -119,6 +119,18 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             status { isOk() }; content { string(containsString("스냅샷과 모든 코드 근거가 일치")) }; content { string(containsString("테스트 실행 자체를 확인한 결과는 아닙니다")) }
         }.andReturn().response.contentAsString
         preview("evidence", evidence)
+        val unavailable = mvc.get("/records/${failed.id}/evidence") { cookie(cookie) }.andExpect {
+            status { isUnprocessableContent() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }
+            content { string(containsString("코드 일치 여부는 미확인")) }
+            content { string(containsString("/records/${failed.id}")) }
+        }.andReturn().response.contentAsString
+        assertFalse(unavailable.contains("잠시 후 다시 시도"))
+        preview("evidence-unavailable", unavailable)
+        val stopped = publish("d".repeat(40), "조회 중단 기록")
+        val paused = mvc.get("/records/history") {
+            cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())
+        }.andExpect { status { isOk() }; content { string(containsString("중단한 근거부터 계속")) }; content { string(containsString("GitHub 호출 수")) } }.andReturn().response.contentAsString
+        preview("history-stopped", paused)
         val activities = mvc.get("/records/${matched.id}/activities") { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("작성자 확인")) }; content { string(containsString("초안 생성")) }
         }.andReturn().response.contentAsString
@@ -175,6 +187,43 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     }
 
     @Test
+    fun `웹 목록은 폐기 상태와 파일 및 팀 작성자를 필터하고 다음 페이지와 로그인에 조건을 유지한다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val repo = "acme/browser-filters"
+        fun draft(owner: ActorIdentity = actor) = records.create(command("필터 기록").copy(repositoryKey = repo), owner)
+        val discarded = draft().let { records.discard(it, it.version, actor) }
+        val other = draft(ActorIdentity.github(99, "other"))
+        val returnTo = "/records?repositoryKey=acme%2Fbrowser-filters&scope=MINE&status=DISCARDED&path=src%2FApp.kt"
+        val cookie = login(returnTo)
+        val mine = mvc.get("/records") {
+            cookie(cookie); param("repositoryKey", repo); param("scope", "MINE"); param("status", "DISCARDED"); param("path", "src/App.kt")
+        }.andExpect { status { isOk() }; content { string(containsString(discarded.id.toString())) } }.andReturn().response.contentAsString
+        assertFalse(mine.contains(other.id.toString()))
+        preview("search-discarded", mine)
+        val defaults = mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("scope", "MINE") }.andReturn().response.contentAsString
+        assertFalse(defaults.contains(discarded.id.toString()))
+        repeat(21) {
+            val d = draft()
+            val c = records.confirm(ConfirmChangeRecordCommand(d.id, d.version, "b".repeat(40), digest), actor)
+            records.publish(PublishChangeRecordCommand(d.id, c.version, digest), actor)
+        }
+        val team = mvc.get("/records") {
+            cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42")
+        }.andExpect { status { isOk() }; content { string(containsString("다음 기록")) } }.andReturn().response.contentAsString
+        val next = Regex("href=\"([^\"]+)\">다음 기록").find(team)!!.groupValues[1].replace("&amp;", "&")
+        assertTrue(next.contains("status=PUBLISHED")); assertTrue(next.contains("authorId=42")); assertTrue(next.contains("path=src%2FApp.kt"))
+        mvc.get(URI(next)) { cookie(cookie) }.andExpect { status { isOk() }; content { string(containsString("이 페이지 1건")) } }
+        mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("authorId", "99"); param("path", "src/App.kt") }
+            .andExpect { content { string(containsString("이 페이지 0건")) } }
+        mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("path", "src/Missing.kt") }
+            .andExpect { content { string(containsString("이 페이지 0건")) } }
+        mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("status", "DISCARDED") }.andExpect { status { isBadRequest() } }
+        // 검색 폼은 이전 커서를 제출하지 않고 범위 전환은 상태와 작성자 조건을 초기화한다.
+        assertFalse(team.contains("name=\"cursor\""))
+        preview("search-filters", team)
+    }
+
+    @Test
     fun `로그인 복귀 주소는 기록 화면만 허용한다`() {
         listOf("https://evil.example/records", "//evil.example/records", "/records/../auth/github/start", "/records%2flogout", "/records/logout", "/records#other").forEach {
             assertFailsWith<IllegalArgumentException> { BrowserReturnPath.validate(it) }
@@ -228,12 +277,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             override fun read(target: GitHubPullRequestTarget) = PullRequestSnapshot("c".repeat(40), false)
         }
         @Bean @Primary fun gitEvidenceGateway() = object : GitEvidenceGateway {
-            override fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot {
+            override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
+                if (revision == "d".repeat(40)) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
                 if (revision == "f".repeat(40)) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
                 return evidenceSnapshot.copy(revision = revision)
             }
-            override fun blob(repository: GitHubRepository, sha: String) = evidenceBytes
-            override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String) = true
+            override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?) = evidenceBytes
+            override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?) = true
         }
     }
 

@@ -31,20 +31,32 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         <p class="muted">접근 권한이 있는 저장소의 기록만 표시합니다.</p></section>
     """)
 
-    fun search(actor: ActorIdentity, repository: String?, q: String?, scope: RecordScope, page: ChangeRecordPage?): String =
+    fun search(actor: ActorIdentity, repository: String?, q: String?, scope: RecordScope, page: ChangeRecordPage?,
+        status: ChangeRecordStatus? = null, path: String? = null, authorId: Long? = null): String =
         layout("기록 찾기", actor, buildString {
             append("<header class=\"page-heading\"><h1>변경 기록 찾기</h1><p>어떤 요청이었고, 왜 이렇게 바꿨는지 찾아보세요.</p></header>")
+            append("<nav class=\"scope-tabs\" aria-label=\"조회 범위\">")
+            RecordScope.entries.forEach { option ->
+                val link = html(url("/records", "repositoryKey" to repository, "q" to q, "path" to path, "scope" to option.name))
+                append("<a href=\"$link\" ${if (option == scope) "aria-current=\"page\"" else ""}>${if (option == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</a>")
+            }
+            append("</nav>")
+            val statuses = if (scope == RecordScope.MINE) listOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
+                else listOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
             append("""
-                <form action="/records" method="get" class="search-form">
+                <form action="/records" method="get" class="search-form record-search">
                 <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required maxlength="255" autocapitalize="none" spellcheck="false"></label>
                 <label class="keyword">검색어<input name="q" value="${html(q.orEmpty())}" placeholder="제목, 요청 또는 판단 내용" maxlength="200"></label>
-                <label>범위<select name="scope"><option value="TEAM" ${if (scope == RecordScope.TEAM) "selected" else ""}>팀 공개 기록</option><option value="MINE" ${if (scope == RecordScope.MINE) "selected" else ""}>내 초안</option></select></label>
+                <input type="hidden" name="scope" value="${scope.name}">
+                <label>상태<select name="status"><option value="">${if (scope == RecordScope.MINE) "초안·작성자 확인" else "공개·대체 전체"}</option>${statuses.joinToString("") { "<option value=\"${it.name}\" ${if (it == status) "selected" else ""}>${it.label}</option>" }}</select></label>
+                <label>파일 경로<input name="path" value="${html(path.orEmpty())}" placeholder="src/App.kt" autocapitalize="none" spellcheck="false"></label>
+                ${if (scope == RecordScope.TEAM) "<label>작성자 GitHub ID<input name=\"authorId\" type=\"number\" min=\"1\" step=\"1\" value=\"${authorId ?: ""}\" placeholder=\"숫자 ID · 선택\"></label>" else ""}
                 <button type="submit">검색</button></form>
             """.trimIndent())
             if (page == null) {
                 append("<div class=\"empty\"><h2>저장소부터 선택해 주세요</h2><p>검색어를 비워두면 최근 기록부터 볼 수 있습니다.</p></div>")
             } else {
-                append("<div class=\"result-heading\"><h2>${if (scope == RecordScope.MINE) "내 초안" else "팀 공개 기록"}</h2><span>이 페이지 ${page.items.size}건</span></div>")
+                append("<div class=\"result-heading\"><h2>${if (scope == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</h2><span>이 페이지 ${page.items.size}건</span></div>")
                 if (page.items.isEmpty()) append("<div class=\"empty\"><h3>일치하는 기록이 없습니다</h3><p>검색어를 줄이거나 저장소와 조회 범위를 확인해 주세요.</p></div>")
                 append("<ul class=\"records\">")
                 page.items.forEach { record ->
@@ -52,13 +64,13 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 }
                 append("</ul>")
                 page.nextCursor?.let { cursor ->
-                    append("<nav class=\"pagination\" aria-label=\"결과 페이지\"><a class=\"button secondary\" href=\"${html(url("/records", "repositoryKey" to repository, "q" to q, "scope" to scope.name, "cursor" to cursor))}\">다음 기록</a></nav>")
+                    append("<nav class=\"pagination\" aria-label=\"결과 페이지\"><a class=\"button secondary\" href=\"${html(url("/records", "repositoryKey" to repository, "q" to q, "scope" to scope.name, "status" to status?.name, "path" to path, "authorId" to authorId?.toString(), "cursor" to cursor))}\">다음 기록</a></nav>")
                 }
             }
         })
 
     fun record(actor: ActorIdentity, record: ChangeRecord): String = layout(record.title, actor, buildString {
-        append("<a class=\"back-link\" href=\"${html(url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM"))}\">${html(record.repositoryKey)} 기록 목록</a>")
+        append("<a class=\"back-link\" href=\"${html(url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null))}\">${html(record.repositoryKey)} 기록 목록</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
         record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a> · <a href=\"/records/${record.id}/comparison\">원본과 비교</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새로운 기록으로 대체됐습니다. <a href=\"/records/$it\">후속 기록 읽기</a></aside>") }

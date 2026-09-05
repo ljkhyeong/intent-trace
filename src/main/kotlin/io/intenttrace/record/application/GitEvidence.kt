@@ -17,9 +17,9 @@ data class GitEvidenceSnapshot(val revision: String, val entries: Map<String, Gi
 }
 
 interface GitEvidenceGateway {
-    fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot
-    fun blob(repository: GitHubRepository, sha: String): ByteArray
-    fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean
+    fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget? = null): GitEvidenceSnapshot
+    fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget? = null): ByteArray
+    fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget? = null): Boolean
 }
 
 object GitEvidenceDigest {

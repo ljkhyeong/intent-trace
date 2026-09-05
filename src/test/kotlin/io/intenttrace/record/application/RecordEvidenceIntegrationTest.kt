@@ -35,6 +35,9 @@ class RecordEvidenceIntegrationTest(
     @Autowired private val evidence: RecordEvidenceService,
     @Autowired private val history: ChangeIntentHistoryService,
     @Autowired private val gateway: FakeEvidence,
+    @Autowired private val catalog: ChangeRecordCatalogService,
+    @Autowired private val facade: ChangeRecordFacade,
+    @Autowired private val access: io.intenttrace.identity.application.RepositoryAccessService,
 ) {
     @Test
     fun `변경 전 삭제 근거를 저장하고 해시 불일치와 이전 커밋 검증을 구분한다`() {
@@ -117,12 +120,47 @@ class RecordEvidenceIntegrationTest(
         } finally { gateway.failure = null }
     }
 
+    @Test
+    fun `조회 중단 후 같은 기록의 미완료 근거부터 재개하고 다음 후보도 빠짐없이 읽는다`() {
+        val repo = "acme/resume-history"
+        fun publish(title: String) = records.create(CreateChangeRecordCommand(
+            UUID.randomUUID().toString(), repo, nextRevision, "a".repeat(64), title, "중단한 근거부터 이어 읽는다.",
+            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
+            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes), CodeSide.BASE),
+                CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
+        )).let {
+            val confirmed = records.confirm(ConfirmChangeRecordCommand(it.id, it.version, targetRevision, it.snapshotDigest))
+            records.publish(PublishChangeRecordCommand(it.id, confirmed.version, it.snapshotDigest))
+        }
+        val older = publish("다음 페이지의 기록")
+        val newer = publish("중단할 기록")
+        gateway.failure = targetRevision to EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
+        val service = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 40))
+        try {
+            val first = service.find(repo, nextRevision, "new.txt", 1, limit = 1)
+            assertFalse(first.complete)
+            assertEquals(HistoryStopReason.TIME_LIMIT, first.stopReason)
+            assertEquals(listOf(newer.id to CodeSide.BASE), first.items.map { it.record.id to it.side })
+            gateway.failure = null
+            val resumed = service.find(repo, nextRevision, "new.txt", 1, cursor = first.nextCursor)
+            assertTrue(resumed.complete)
+            assertEquals(listOf(newer.id to CodeSide.TARGET), resumed.items.map { it.record.id to it.side })
+            val next = service.find(repo, nextRevision, "new.txt", 1, cursor = resumed.nextCursor)
+            assertEquals(setOf(older.id), next.items.map { it.record.id }.toSet())
+            assertEquals(null, next.nextCursor)
+            assertFailsWith<IllegalArgumentException> { service.find(repo, nextRevision, "new.txt", 2, cursor = first.nextCursor) }
+            val badCursor = HistoryResumeCursor(HistoryResumeCursor.queryDigest("acme/another", nextRevision, "new.txt", 1),
+                RecordCursor(newer.createdAt, newer.id), 1, 1, false).encode()
+            assertFailsWith<ChangeRecordNotFoundException> { service.find("acme/another", nextRevision, "new.txt", 1, cursor = badCursor) }
+        } finally { gateway.failure = null }
+    }
+
     class FakeEvidence : GitEvidenceGateway {
         var failure: Pair<String, RuntimeException>? = null
         val snapshotCalls = mutableMapOf<String, Int>()
         var blobCalls = 0
         var ancestryCalls = 0
-        override fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot {
+        override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
             snapshotCalls[revision] = (snapshotCalls[revision] ?: 0) + 1
             failure?.takeIf { it.first == revision }?.let { throw it.second }
             val path = if (revision == baseRevision) "old.txt" else "new.txt"
@@ -131,7 +169,7 @@ class RecordEvidenceIntegrationTest(
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
             return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
         }
-        override fun blob(repository: GitHubRepository, sha: String): ByteArray {
+        override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
             blobCalls++
             return when (sha) {
             "f".repeat(40) -> "바뀐 코드\n".toByteArray()
@@ -139,7 +177,7 @@ class RecordEvidenceIntegrationTest(
             else -> bytes
         }
         }
-        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean { ancestryCalls++; return true }
+        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean { ancestryCalls++; return true }
     }
 
     @TestConfiguration

@@ -6,6 +6,10 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.record.application.EvidenceReadBudget
+import org.springframework.http.client.JdkClientHttpRequestFactory
+import java.net.http.HttpClient
+import java.time.Duration
 import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.GitEvidenceGateway
@@ -30,11 +34,13 @@ class GitHubGitEvidenceClient(
         .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")
         .defaultHeader("X-GitHub-Api-Version", properties.apiVersion).build()
 
-    override fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot {
+    private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
+
+    override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
         val ref = GitRevision.parse(revision).value
-        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java)
+        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
-        val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java)
+        val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
         if (tree.tree.map { it.path }.distinct().size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
@@ -47,8 +53,8 @@ class GitHubGitEvidenceClient(
         return GitEvidenceSnapshot(ref, tree.tree.map { GitTreeEntry(it.path, it.mode, it.type, it.sha) }.associateBy { it.path })
     }
 
-    override fun blob(repository: GitHubRepository, sha: String): ByteArray {
-        val blob = get(repository, "/git/blobs/${GitRevision.parse(sha).value}", BlobResponse::class.java)
+    override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
+        val blob = get(repository, "/git/blobs/${GitRevision.parse(sha).value}", BlobResponse::class.java, budget)
         if (blob.size > MAX_BLOB_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         if (blob.encoding != "base64") throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
         if (blob.sha != sha || blob.size < 0) {
@@ -61,25 +67,31 @@ class GitHubGitEvidenceClient(
         return bytes
     }
 
-    override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean {
+    override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean {
         if (ancestor == descendant) return true
-        val result = get(repository, "/compare/${GitRevision.parse(ancestor).value}...${GitRevision.parse(descendant).value}?per_page=1", CompareResponse::class.java)
+        val result = get(repository, "/compare/${GitRevision.parse(ancestor).value}...${GitRevision.parse(descendant).value}?per_page=1", CompareResponse::class.java, budget)
         return result.status == "ahead" || result.status == "identical"
     }
 
-    private fun <T> get(repository: GitHubRepository, suffix: String, type: Class<T>): T = try {
-        client.get().uri("/repos/${repository.key}$suffix")
+    private fun <T> get(repository: GitHubRepository, suffix: String, type: Class<T>, budget: EvidenceReadBudget?): T = try {
+        val remaining = budget?.beforeRemoteCall()
+        val requestClient = if (remaining == null) client else client.mutate().requestFactory(
+            JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(remaining.coerceAtMost(Duration.ofSeconds(10))) },
+        ).build()
+        requestClient.get().uri("/repos/${repository.key}$suffix")
             .headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 코드 조회 실패. HTTP ${response.statusCode.value()}")
                 val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
                 if (bytes.size > MAX_RESPONSE_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
+                budget?.checkpoint()
                 try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
                     throw GitHubApiException("GitHub 코드 응답을 해석할 수 없습니다.")
                 }
             } ?: throw GitHubApiException("GitHub 코드 응답이 비어 있습니다.")
     } catch (_: RestClientException) {
+        budget?.checkpoint()
         throw GitHubApiException("GitHub 코드 조회를 완료하지 못했습니다.")
     }
 
