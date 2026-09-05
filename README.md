@@ -32,7 +32,7 @@ IntentTrace는 AI 코드의 변경 이유, 관련 커밋·코드, 검증 결과�
 - 기록 변경 이력과 작성자·팀원별 노출 범위
 - GitHub 호출 제한 대기 시간 안내와 기능별 Micrometer 지표
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
-- Codex 스킬과 세션 시작 안내 훅
+- Codex 기록 사용·저장소 개발 스킬
 - Zed Agent용 MCP 중계기·설정·연결 점검과 의존성을 포함한 설치 패키지
 - IntelliJ 현재 줄의 공개 변경 의도 조회 플러그인
 - 저장소·파일·상태별 팀 공개 기록과 내 비공개 기록함, IntelliJ 과거 커밋·코드·대체 기록 탐색
@@ -307,11 +307,11 @@ REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을
 - `.mcp.json`: 플러그인용 로컬 IntentTrace 서버와 Bearer 환경변수 연결
 - `.codex/config.toml`: 프로젝트용 로컬 MCP와 Bearer 환경변수 연결
 - `skills/intent-trace/SKILL.md`: 기록·조회 절차
-- `skills/intent-trace-flows/SKILL.md`: 저장소 개발·GitHub 게시 불변식
-- `hooks/hooks.json`: 세션 시작 시 개인정보·공개 규칙 안내
+- `skills/intent-trace-flows/SKILL.md`: 기능별 개발 문서와 검증 명령
 
-플러그인 훅은 원문 프롬프트나 도구 출력을 수집하지 않습니다. Codex에 기록 원칙만 전달합니다.
-설치하거나 갱신한 뒤에는 Codex의 `/hooks`에서 `hooks/hooks.json` 내용을 확인하고 신뢰해야 세션 시작 훅이 실행됩니다. 훅을 신뢰하지 않아도 REST와 MCP 기능에는 영향이 없습니다.
+[AGENTS.md](AGENTS.md)는 공통 작업 규칙, 개발 스킬은 기능별 설계·검증, 사용 스킬은 요청받은 기록 작업을 안내합니다. 이력 조회와 게시 복구 절차는 사용 스킬의 참고 문서에서 필요할 때 읽습니다.
+
+[GPT-6 Astra 가이드](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)의 지시 충돌·재확인·검증 범위 권고에 따라 중복 규칙과 모든 문서를 매번 읽는 절차를 정리했습니다. 세션 시작 훅을 제거해 일반 코드 작업마다 기록 생성을 제안하지 않습니다.
 
 ## IntelliJ 플러그인
 

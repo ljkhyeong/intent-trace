@@ -73,17 +73,6 @@ def main() -> None:
     for skill_file in skill_files:
         validate_skill(skill_file)
 
-    hooks_path = root / "hooks" / "hooks.json"
-    if hooks_path.exists():
-        hooks = read_json(hooks_path)
-        if not isinstance(hooks.get("hooks"), dict):
-            fail("hooks.json의 hooks 값은 object여야 합니다.")
-        session_start = hooks["hooks"].get("SessionStart")
-        if not isinstance(session_start, list) or not session_start:
-            fail("hooks.json의 SessionStart 설정이 비어 있습니다.")
-        if not any("clear" in str(entry.get("matcher", "")).split("|") for entry in session_start if isinstance(entry, dict)):
-            fail("SessionStart matcher에는 clear source가 필요합니다.")
-
     print(f"Plugin layout validation passed: {root}")
 
 
