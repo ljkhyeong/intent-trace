@@ -7,7 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } fr
 import { sessionToken } from './intent-trace.mjs';
 import { httpFailure, parseFailureLine, safeFailure } from './errors.mjs';
 
-const version = '0.11.0';
+const version = '0.12.0';
 const timeout = 60_000;
 
 export async function serve(url) {
