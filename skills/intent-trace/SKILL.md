@@ -86,7 +86,7 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 후속 기록 확인 전에 `compare_change_record`로 원본·후속의 버전과 `changedFields`를 읽고 판단 출처·삭제 근거·새 검증 누락을 함께 확인한다.
 - 이전 기록 조회의 `complete=false`는 실패 후보 또는 조회 중단이 있다는 뜻이다. `stopReason`이 있으면 같은 조건의 `cursor`에 `nextCursor`를 넣어 중단 위치부터 계속 조회하고 결과를 추가한다. `failures`의 ID를 `retryRecordId`로 다시 조회할 때는 해당 후보의 이전 결과를 교체하며 `cursor`를 함께 보내지 않는다. 기한·호출 수·전달된 취소에 따른 중단을 전체 조회 완료로 설명하지 않는다.
 - `resumeBlocked=true`이거나 재개해도 같은 커서에서 다시 중단되면 자동 반복하지 않는다. 근거 하나를 처리하지 못한 상태로 설명하고 서버 조회 제한·GitHub 응답 지연 확인을 안내한다. 조치한 뒤 같은 커서로 다시 요청할 수 있다. `CANCELLED`도 사용자 재개 요청 없이 반복하지 않는다.
-- `check_publication_credentials`는 저장소 관리자가 요청할 때만 실행한다. 설치 token을 메모리에서 발급하므로 일반 읽기 진단과 구분한다. `ready=true`도 Check Run 게시 완료나 이후 HEAD 일치를 뜻하지 않는다.
+- `check_publication_credentials`는 저장소 관리자가 요청할 때만 실행한다. GitHub에서 설치 토큰을 발급받고 메모리에만 보관하므로 일반 읽기 진단과 구분한다. `ready=true`도 Check Run 게시 완료나 이후 HEAD 일치를 뜻하지 않는다.
 - 브라우저 PR 기록은 `/records/pull-requests`, 연결 진단은 `/records/connection`, 후속 비교는 `/records/{UUID}/comparison`으로 안내한다.
 - 비교의 `details`로 추가·삭제·출처·순서 변경을 확인한다. `AMBIGUOUS`는 중복 항목의 대응을 확정할 수 없다는 뜻이며 전체 원본·후속을 읽는다.
 - 웹 파일·줄 조회는 `/records/history`, 코드 근거 확인은 `/records/{UUID}/evidence`, 본인 연결 관리는 `/records/sessions`를 사용한다.

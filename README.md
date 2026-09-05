@@ -199,7 +199,7 @@ MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 �
 
 내 공개 기록으로 새 초안을 만들 때는 `create_successor_draft`를 사용합니다. 원본의 구현 결정을 복사하고 새 스냅샷 해시·관련 코드를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다. PR 기록 목록은 `list_pull_request_records`, 연결 진단은 `diagnose_connection`을 사용합니다.
 
-원본 비교는 `compare_change_record`, 관리자용 게시 사전 점검은 `check_publication_credentials`를 사용합니다. 사전 점검은 메모리에서 설치 token을 발급하고 응답 권한을 확인하며 Check Run을 만들지 않습니다. 고정 token은 `CONFIGURED_UNVERIFIED`로 남깁니다.
+원본 비교는 `compare_change_record`, 관리자용 게시 사전 점검은 `check_publication_credentials`를 사용합니다. 사전 점검은 GitHub에서 설치 토큰을 발급받고 응답 권한을 확인합니다. 토큰은 메모리에만 보관하며 Check Run을 만들지 않습니다. 고정 토큰은 `CONFIGURED_UNVERIFIED`로 남깁니다.
 
 0.12.0의 MCP 도구는 24개입니다. `list_record_activities`는 작업·처리 시각·버전을 조회하며 `nextBeforeVersion`으로 이전 이력을 읽습니다. 비교 응답의 `details`는 추가·삭제·출처·순서 변경을 보여줍니다. 중복 항목은 대응 불명확으로 남기며 브라우저에서는 `changesOnly=true`로 바뀐 필드만 볼 수 있습니다.
 
