@@ -26,6 +26,21 @@ class SensitiveTextRedactorTest {
     }
 
     @Test
+    fun `서버와 실행 도구가 점으로 구분된 설치 token 전체를 제거하고 문장 끝을 보존한다`() {
+        val samples = listOf("ghs_" + "a".repeat(36) + "." + "b".repeat(36) + "." + "c".repeat(35) + "-", "ghs_classicToken", "its_sessionToken-")
+        val script = java.nio.file.Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        for (sample in samples) {
+            val source = "설명 ($sample). 다음 문장"
+            val expected = "설명 ([REDACTED]). 다음 문장"
+            assertEquals(expected, redactor.redact(source))
+            val process = ProcessBuilder("python3", "-c",
+                "import runpy,sys; print(runpy.run_path(sys.argv[1])['redact'](sys.argv[2]))", script, source).start()
+            assertEquals(expected, process.inputStream.bufferedReader().readText().trim())
+            assertEquals(0, process.waitFor())
+        }
+    }
+
+    @Test
     fun `PEM private key 본문 전체를 제거한다`() {
         val source = """
             -----BEGIN PRIVATE KEY-----

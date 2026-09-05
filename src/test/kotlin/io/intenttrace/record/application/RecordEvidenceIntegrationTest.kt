@@ -17,6 +17,11 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 import java.time.Instant
 import java.util.UUID
+import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
+import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubRateLimitException
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -74,20 +79,67 @@ class RecordEvidenceIntegrationTest(
         assertEquals(AnchorCheckStatus.HASH_MISMATCH, evidence.check(wrong.id).anchors.single().status)
     }
 
+    @Test
+    fun `후보 실패와 재조회를 구분하고 공유 Git 객체는 한 번 읽되 인증 실패는 중단한다`() {
+        val repo = "acme/partial-history"
+        val badRevision = "6".repeat(40)
+        fun create(revision: String) = records.create(CreateChangeRecordCommand(
+            UUID.randomUUID().toString(), repo, null, "a".repeat(64), "과거 기록", "후보를 확인한다.",
+            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
+            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
+        )).let { draft ->
+            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest))
+            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest))
+        }
+        val good = listOf(create(targetRevision), create(targetRevision))
+        val bad = create(badRevision)
+        gateway.snapshotCalls.clear(); gateway.blobCalls = 0; gateway.ancestryCalls = 0
+        gateway.failure = badRevision to EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
+        try {
+            val result = history.find(repo, nextRevision, "new.txt", 1)
+            assertEquals(good.map { it.id }.toSet(), result.items.map { it.record.id }.toSet())
+            assertFalse(result.complete)
+            assertEquals(listOf(HistoryCandidateFailure(bad.id, EvidenceUnavailableReason.SIZE_LIMIT)), result.failures)
+            assertEquals(1, gateway.snapshotCalls[targetRevision])
+            assertEquals(1, gateway.snapshotCalls[nextRevision])
+            assertEquals(1, gateway.blobCalls)
+            assertEquals(1, gateway.ancestryCalls)
+            gateway.failure = null
+            val retried = history.find(repo, nextRevision, "new.txt", 1, retryRecordId = bad.id)
+            assertTrue(retried.complete)
+            assertEquals(listOf(bad.id), retried.items.map { it.record.id })
+            assertEquals(1, retried.scannedRecords)
+            assertFailsWith<ChangeRecordNotFoundException> { history.find("acme/another", nextRevision, "new.txt", 1, retryRecordId = bad.id) }
+            for (failure in listOf(GitHubUserAuthenticationException(), GitHubApiException("HTTP 403"), GitHubRateLimitException(60))) {
+                gateway.failure = badRevision to failure
+                assertSame(failure, assertFailsWith<RuntimeException> { history.find(repo, nextRevision, "new.txt", 1) })
+            }
+        } finally { gateway.failure = null }
+    }
+
     class FakeEvidence : GitEvidenceGateway {
+        var failure: Pair<String, RuntimeException>? = null
+        val snapshotCalls = mutableMapOf<String, Int>()
+        var blobCalls = 0
+        var ancestryCalls = 0
         override fun snapshot(repository: GitHubRepository, revision: String): GitEvidenceSnapshot {
+            snapshotCalls[revision] = (snapshotCalls[revision] ?: 0) + 1
+            failure?.takeIf { it.first == revision }?.let { throw it.second }
             val path = if (revision == baseRevision) "old.txt" else "new.txt"
             val sha = when (revision) { changedRevision -> "f".repeat(40); movedRevision -> "d".repeat(40); else -> "e".repeat(40) }
             val entries = mutableListOf(GitTreeEntry(path, "100644", "blob", sha))
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
             return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
         }
-        override fun blob(repository: GitHubRepository, sha: String): ByteArray = when (sha) {
+        override fun blob(repository: GitHubRepository, sha: String): ByteArray {
+            blobCalls++
+            return when (sha) {
             "f".repeat(40) -> "바뀐 코드\n".toByteArray()
             "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes
             else -> bytes
         }
-        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean = true
+        }
+        override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String): Boolean { ancestryCalls++; return true }
     }
 
     @TestConfiguration

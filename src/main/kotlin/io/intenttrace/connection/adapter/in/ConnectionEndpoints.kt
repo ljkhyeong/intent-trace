@@ -2,6 +2,9 @@ package io.intenttrace.connection.adapter.`in`
 
 import io.intenttrace.connection.application.ConnectionDiagnosis
 import io.intenttrace.connection.application.ConnectionDiagnostics
+import io.intenttrace.publication.application.PublicationPreflight
+import io.intenttrace.publication.application.PublicationPreflightService
+import org.springframework.web.bind.annotation.PostMapping
 import io.intenttrace.publication.application.PullRequestOverview
 import io.intenttrace.publication.application.PullRequestOverviewService
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -13,7 +16,10 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class ConnectionController(private val diagnostics: ConnectionDiagnostics, private val overview: PullRequestOverviewService) {
+class ConnectionController(private val diagnostics: ConnectionDiagnostics, private val overview: PullRequestOverviewService, private val preflight: PublicationPreflightService) {
+    @PostMapping("/api/v1/publication-preflight")
+    fun preflight(@RequestParam repositoryKey: String): PublicationPreflight = preflight.check(repositoryKey)
+
     @GetMapping("/api/v1/connection-diagnostics")
     fun diagnose(@RequestParam repositoryKey: String, @RequestParam(required = false) revision: String?,
                  @RequestParam(required = false) pullNumber: Int?): ConnectionDiagnosis = diagnostics.diagnose(repositoryKey, revision, pullNumber)
@@ -25,7 +31,11 @@ class ConnectionController(private val diagnostics: ConnectionDiagnostics, priva
 }
 
 @Component
-class ConnectionTools(private val diagnostics: ConnectionDiagnostics, private val overview: PullRequestOverviewService) {
+class ConnectionTools(private val diagnostics: ConnectionDiagnostics, private val overview: PullRequestOverviewService, private val preflight: PublicationPreflightService) {
+    @McpTool(name = "check_publication_credentials", description = "저장소 관리자만 App 키·설치·발급 권한을 사전 점검합니다. 메모리에서 token을 발급하며 Check Run은 만들지 않습니다.", generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = true))
+    fun preflight(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String): PublicationPreflight = preflight.check(repositoryKey)
+
     @McpTool(name = "diagnose_connection", description = "사용자·저장소 권한, 선택 PR·코드 읽기와 게시 설정을 진단합니다. 실제 게시나 테스트 실행은 하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
     fun diagnose(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String,

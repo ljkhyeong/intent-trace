@@ -60,7 +60,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     fun record(actor: ActorIdentity, record: ChangeRecord): String = layout(record.title, actor, buildString {
         append("<a class=\"back-link\" href=\"${html(url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM"))}\">${html(record.repositoryKey)} 기록 목록</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
-        record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a></aside>") }
+        record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a> · <a href=\"/records/${record.id}/comparison\">원본과 비교</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새로운 기록으로 대체됐습니다. <a href=\"/records/$it\">후속 기록 읽기</a></aside>") }
         append("<div class=\"reading-layout\"><article>")
         append("<section><h2>요청</h2><p class=\"prose lead\">${html(record.requestSummary)}</p></section>")
@@ -104,11 +104,11 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     fun error(message: String): String = layout("기록을 열 수 없습니다", null,
         "<section class=\"empty\"><h1>기록을 열 수 없습니다</h1><p>${html(message)}</p><a class=\"button\" href=\"/records\">기록 찾기로 이동</a></section>")
 
-    private fun layout(title: String, actor: ActorIdentity?, content: String): String = """
+    internal fun layout(title: String, actor: ActorIdentity?, content: String): String = """
         <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>${html(title)} · IntentTrace</title><link rel="stylesheet" href="/assets/record-browser.css"></head>
         <body><a class="skip-link" href="#content">본문으로 이동</a><header class="site-header"><a class="brand" href="/records"><span aria-hidden="true">↳</span> IntentTrace</a>
-        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a>${actor?.let { "<span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
+        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/pull-requests">PR 기록</a><a href="/records/connection">연결 진단</a>${actor?.let { "<span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
         <main id="content">$content</main><footer>요청과 판단을 코드에 연결합니다. 기록은 저장소 권한에 따라 표시됩니다.</footer></body></html>
     """.trimIndent()
 }
@@ -119,7 +119,7 @@ fun browserResponse(body: String, status: Int = 200): ResponseEntity<String> = R
     .header("Content-Security-Policy", "default-src 'none'; style-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
     .body(body)
 
-private fun html(value: String): String = HtmlUtils.htmlEscape(value, "UTF-8")
+internal fun html(value: String): String = HtmlUtils.htmlEscape(value, "UTF-8")
 internal fun url(path: String, vararg values: Pair<String, String?>): String = UriComponentsBuilder.fromPath(path).apply {
     values.filter { !it.second.isNullOrEmpty() }.forEach { (key, value) -> queryParam(key, "{$key}") }
 }.encode().buildAndExpand(values.filter { !it.second.isNullOrEmpty() }.toMap()).toUriString()
@@ -132,7 +132,7 @@ private val ChangeRecordStatus.label: String get() = when (this) {
     ChangeRecordStatus.SUPERSEDED -> "대체됨"
     ChangeRecordStatus.DISCARDED -> "폐기됨"
 }
-private val PurposeSource.label: String get() = when (this) {
+internal val PurposeSource.label: String get() = when (this) {
     PurposeSource.STATED_BY_USER -> "사용자 요청"
     PurposeSource.STATED_IN_COMMIT -> "커밋에 명시"
     PurposeSource.CONFIRMED_AI_SUMMARY -> "작성자가 확인한 AI 요약"
@@ -141,4 +141,4 @@ private val PurposeSource.label: String get() = when (this) {
 }
 
 private val displayedTime = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm").withZone(ZoneOffset.UTC)
-private fun stamp(value: Instant): String = "<time datetime=\"$value\">${displayedTime.format(value)} UTC</time>"
+internal fun stamp(value: Instant): String = "<time datetime=\"$value\">${displayedTime.format(value)} UTC</time>"

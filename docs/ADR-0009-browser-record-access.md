@@ -12,7 +12,7 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 
 - `/records`는 저장소별 목록·검색, `/records/{UUID}`는 기록 열람 화면으로 제공한다. 기존 애플리케이션 서비스를 사용해 공개·대체 기록의 저장소 읽기 권한과 비공개 기록의 작성자 소유권을 동일하게 확인한다.
 - 미로그인·만료 상태에는 내용을 숨긴 로그인 안내를 표시한다. 사용자가 로그인하면 원래 목록 또는 기록 화면으로 돌아온다.
-- `/auth/github/start?returnTo=...`의 복귀 주소를 검증한 뒤 OAuth state와 함께 서버 메모리에 보관한다. `/records`와 UUID 단건 경로만 허용하고 외부 주소·authority·fragment·경로 이동을 거부한다. callback 입력의 복귀 주소는 신뢰하지 않는다.
+- `/auth/github/start?returnTo=...`의 복귀 주소를 검증한 뒤 OAuth state와 함께 서버 메모리에 보관한다. `/records`, UUID 단건·비교 경로와 `/records/pull-requests`, `/records/connection`만 허용하고 외부 주소·authority·fragment·경로 이동을 거부한다. callback 입력의 복귀 주소는 신뢰하지 않는다.
 - 기존 cookie·일회성 state·TTL·PKCE 검증을 모두 통과한 뒤 브라우저용 `itb_` 세션을 발급한다. `HttpOnly`, `SameSite=Lax`, `Path=/records`를 적용하고 HTTPS 환경에서는 `Secure`도 적용한다.
 - `itb_`는 서버 메모리에 digest로 저장하고 발급 후 8시간에 만료한다. token 갱신으로 브라우저 수명을 연장하지 않는다. GitHub access·refresh token은 계속 서버 메모리에만 둔다.
 - 브라우저 세션은 REST·MCP Bearer나 cookie 인증으로 사용하지 않는다. 기존 `/auth/github/start`의 CLI 연결은 `its_`를 한 번 표시하는 계약을 유지한다.
@@ -31,3 +31,7 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 ## 영향
 
 GitHub 자격 증명과 세션을 DB에 저장하지 않는 단일 인스턴스 계약을 유지한다. 공개 서버 주소와 OAuth callback origin을 일치시켜야 브라우저 링크와 로그아웃이 동작한다. 서버 재시작 후에는 브라우저도 다시 로그인해야 한다.
+
+## 0.10.0 읽기 화면 확장
+
+원본 비교·PR 기록·연결 진단도 기존 읽기 애플리케이션 서비스를 사용한다. 브라우저에서 installation token을 발급하거나 공개 기록을 바꾸지 않는다. PR 읽기 도중 사용자 인증이 거부되면 현재 화면으로 돌아오는 재로그인 안내를 표시한다. 비교는 원본과 후속의 현재 버전을 함께 반환하고 비공개 후속 기록은 작성자만 읽는다.

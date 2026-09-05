@@ -72,3 +72,9 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - 기록 요약, `matchesCurrentHead`, 마지막으로 저장된 게시 결과와 최신 시도를 반환한다. 게시 결과가 없고 시도만 있으면 성공으로 추정하지 않는다. 비공개 기록과 다른 저장소·PR 기록은 제외한다.
 - 선택 `cursor`, `limit`을 받으며 생성 시각·ID 내림차순, 기본 20개·최대 100개다. `checkedAt`은 응답을 만든 시각이며 이후 PR 커밋이 바뀔 수 있다.
 - `matchesCurrentHead`는 기록 커밋 일치만 뜻한다. 대체 상태·실제 게시 결과·테스트 실행은 별도 필드를 읽어야 한다. 아직 한 번도 게시를 시도하지 않은 기록은 PR에 연결되지 않는다.
+
+## 관리자용 게시 사전 점검
+
+`POST /api/v1/publication-preflight`와 `check_publication_credentials`에 `repositoryKey`를 전달한다. 저장소 MAINTAINER 권한이 필요하다. App 키 사용·원격 인증·저장소 설치·대상 한 곳으로 축소한 token 발급·실제 부여 범위와 권한을 단계별로 반환한다. 모든 단계가 확인된 경우만 `ready=true`다. 고정 token은 `CONFIGURED_UNVERIFIED`로 반환한다.
+
+이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 기존 대기 계약을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.

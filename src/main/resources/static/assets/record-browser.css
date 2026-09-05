@@ -520,3 +520,11 @@ footer {
     padding:1.5rem 1rem;
   }
 }
+
+.comparison-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.comparison-section { margin:2rem 0; }
+.comparison-value { padding:1.2rem; background:var(--paper); border:1px solid var(--line); border-radius:8px; min-width:0; }
+.comparison-value h3 { color:var(--muted); font-size:.85rem; }
+.comparison-value p { margin:0; }
+.site-header nav { flex-wrap:wrap; }
+@media(max-width:650px) { .comparison-columns { grid-template-columns:1fr; } .comparison-heading { gap:0; } }

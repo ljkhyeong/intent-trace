@@ -6,6 +6,8 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.record.application.EvidenceUnavailableException
+import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.GitTreeEntry
@@ -33,11 +35,12 @@ class GitHubGitEvidenceClient(
         val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
         val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java)
+        if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
         if (tree.tree.map { it.path }.distinct().size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
         tree.tree.forEach {
             if (it.mode !in setOf("100644", "100755", "120000", "160000", "040000") || it.type !in setOf("blob", "commit", "tree")) {
-                throw GitHubApiException("GitHub 트리 객체 형식을 확인할 수 없습니다.")
+                throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
             }
             GitRevision.parse(it.sha)
         }
@@ -46,7 +49,9 @@ class GitHubGitEvidenceClient(
 
     override fun blob(repository: GitHubRepository, sha: String): ByteArray {
         val blob = get(repository, "/git/blobs/${GitRevision.parse(sha).value}", BlobResponse::class.java)
-        if (blob.sha != sha || blob.encoding != "base64" || blob.size !in 0..MAX_BLOB_SIZE) {
+        if (blob.size > MAX_BLOB_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
+        if (blob.encoding != "base64") throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
+        if (blob.sha != sha || blob.size < 0) {
             throw GitHubApiException("GitHub 코드 파일 형식 또는 크기를 확인할 수 없습니다.")
         }
         val bytes = try { Base64.getMimeDecoder().decode(blob.content) } catch (_: IllegalArgumentException) {
@@ -69,7 +74,7 @@ class GitHubGitEvidenceClient(
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 코드 조회 실패. HTTP ${response.statusCode.value()}")
                 val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
-                if (bytes.size > MAX_RESPONSE_SIZE) throw GitHubApiException("GitHub 코드 응답이 허용 크기를 초과했습니다.")
+                if (bytes.size > MAX_RESPONSE_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
                 try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
                     throw GitHubApiException("GitHub 코드 응답을 해석할 수 없습니다.")
                 }

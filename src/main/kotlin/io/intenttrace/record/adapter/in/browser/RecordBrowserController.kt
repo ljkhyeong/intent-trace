@@ -1,5 +1,11 @@
 package io.intenttrace.record.adapter.`in`.browser
 
+import io.intenttrace.connection.application.ConnectionDiagnostics
+import io.intenttrace.publication.application.PullRequestOverviewService
+import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.application.RecordComparisonService
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
@@ -40,6 +46,9 @@ class RecordBrowserController(
     private val sessions: GitHubUserSessionStore,
     private val pages: RecordBrowserPage,
     private val properties: GitHubProperties,
+    private val comparison: RecordComparisonService,
+    private val diagnostics: ConnectionDiagnostics,
+    private val overview: PullRequestOverviewService,
 ) {
     @GetMapping
     fun search(
@@ -57,6 +66,29 @@ class RecordBrowserController(
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
         pages.record(it.actor, records.get(id))
+    }
+
+    @GetMapping("/{id}/comparison")
+    fun compare(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
+        pages.comparison(it.actor, comparison.compare(id))
+    }
+
+    @GetMapping("/pull-requests")
+    fun pullRequests(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
+        @RequestParam(required = false) pullNumber: Int?, @RequestParam(required = false) cursor: String?): ResponseEntity<String> = read(request) {
+        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)?.let(GitHubRepository::parse)
+        require((repository == null) == (pullNumber == null)) { "저장소와 PR 번호를 함께 입력해 주세요." }
+        pages.pullRequests(it.actor, repository?.key, pullNumber, repository?.let { repo ->
+            overview.overview(GitHubPullRequestTarget(repo.canonicalOwner, repo.canonicalName, requireNotNull(pullNumber)), cursor)
+        })
+    }
+
+    @GetMapping("/connection")
+    fun connection(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
+        @RequestParam(required = false) revision: String?, @RequestParam(required = false) pullNumber: Int?): ResponseEntity<String> = read(request) {
+        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)
+        val ref = revision?.trim()?.takeIf(String::isNotEmpty)
+        pages.connection(it.actor, repository, ref, pullNumber, repository?.let { repo -> diagnostics.diagnose(repo, ref, pullNumber) })
     }
 
     @PostMapping("/logout")
@@ -93,8 +125,13 @@ class RecordBrowserController(
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
     fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)
 
-    @ExceptionHandler(GitHubIdentityApiException::class, GitHubOAuthException::class)
+    @ExceptionHandler(GitHubIdentityApiException::class, GitHubOAuthException::class, GitHubApiException::class)
     fun dependencyFailure(): ResponseEntity<String> = browserResponse(pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."), 502)
+
+    @ExceptionHandler(GitHubUserAuthenticationException::class)
+    fun expired(request: HttpServletRequest): ResponseEntity<String> = browserResponse(pages.login(
+        BrowserReturnPath.validate(request.requestURI + request.queryString?.let { "?$it" }.orEmpty()), true,
+    ))
 
     @ExceptionHandler(GitHubRateLimitException::class)
     fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> {

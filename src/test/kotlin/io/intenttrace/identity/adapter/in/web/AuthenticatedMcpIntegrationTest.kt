@@ -89,6 +89,8 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("create_successor_draft")) }
             content { string(containsString("list_pull_request_records")) }
             content { string(containsString("diagnose_connection")) }
+            content { string(containsString("compare_change_record")) }
+            content { string(containsString("check_publication_credentials")) }
         }
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")

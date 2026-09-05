@@ -12,7 +12,7 @@ class SensitiveTextRedactor {
         option = RegexOption.DOT_MATCHES_ALL,
     )
     private val bearerPattern = Regex("(?i)\\bBearer\\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?")
-    private val knownTokenPattern = Regex("(?i)\\b(?:ghp|gho|ghu|ghs|ghr|github_pat|its|itb)_[A-Za-z0-9_=-]+\\b")
+    private val knownTokenPattern = Regex("(?i)\\b(?:ghs_[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){2}|(?:ghp|gho|ghu|ghs|ghr|github_pat|its|itb)_[A-Za-z0-9_=-]+)")
     private val unixHomePathPattern = Regex("(?i)/(?:Users|home)/[^\\s\"'`,;)\\]}]+")
     private val windowsHomePathPattern = Regex("(?i)[A-Z]:\\\\Users\\\\[^\\s\"'`,;)\\]}]+")
 

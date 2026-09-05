@@ -1,5 +1,10 @@
 package io.intenttrace.record.adapter.`in`.browser
 
+import io.intenttrace.publication.application.*
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthController
@@ -34,14 +39,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @SpringBootTest(
-    classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
+    classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class],
     properties = [
         "spring.datasource.url=jdbc:h2:mem:record-browser;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
         "intent-trace.github.user-authorization.callback-url=http://127.0.0.1:8080/auth/github/callback",
     ],
 )
 @AutoConfigureMockMvc
-class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade) {
+class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade, @Autowired private val tracking: GitHubPublicationTracking) {
     @Test
     fun `기록 링크는 로그인 후 원래 기록으로 돌아오고 브라우저 세션은 API에서 사용할 수 없다`() {
         val actor = ActorIdentity.github(42, "lim")
@@ -94,6 +99,48 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             assertFailsWith<IllegalArgumentException> { BrowserReturnPath.validate(it) }
         }
         mvc.get("/auth/github/start") { param("returnTo", "https://evil.example/records") }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `브라우저에서 PR 게시 미확인과 연결 진단 및 원본 비교를 읽고 다른 작성자의 비교는 숨긴다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val originalDraft = records.create(command("원본 판단"), actor)
+        val confirmed = records.confirm(ConfirmChangeRecordCommand(originalDraft.id, originalDraft.version, "b".repeat(40), digest), actor)
+        val original = records.publish(PublishChangeRecordCommand(originalDraft.id, confirmed.version, digest), actor)
+        val successor = records.create(command("후속 판단").copy(derivedFromRecordId = original.id,
+            decisions = listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.CONFIRMED_AI_SUMMARY)),
+            codeAnchors = listOf(CodeAnchor("src/New.kt", null, 2, 3, "d".repeat(64)))), actor)
+        val target = GitHubPullRequestTarget("acme", "browser", 12)
+        val attempt = tracking.start(original.id, target, PublicationOperation.PUBLISH)
+        tracking.finish(attempt, PublicationAttemptStatus.RESULT_UNKNOWN, "UNKNOWN", null)
+        val cookie = login("/records/pull-requests?repositoryKey=acme%2Fbrowser&pullNumber=12")
+        val overview = mvc.get("/records/pull-requests") { cookie(cookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12") }
+            .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("이전 커밋의 기록")) } }.andReturn().response.contentAsString
+        preview("pull-requests", overview)
+        val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
+        val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
+            .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
+        preview("connection", diagnosis)
+        val comparisonCookie = login("/records/${successor.id}/comparison")
+        val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
+            .andExpect { status { isOk() }; content { string(containsString("후속 기록에 제출된 검증이 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
+        preview("comparison", compared)
+        mvc.get("/api/v1/change-records/${successor.id}/comparison") { header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test") }.andExpect {
+            status { isOk() }
+            jsonPath("$.changedFields[1]") { value("DECISIONS") }
+            jsonPath("$.original.id") { value(original.id.toString()) }
+            jsonPath("$.successor.content.verifications.length()") { value(0) }
+        }
+        val hidden = records.create(command("다른 사람의 후속 초안").copy(derivedFromRecordId = original.id), ActorIdentity.github(99, "other"))
+        mvc.get("/records/${hidden.id}/comparison") { cookie(cookie) }.andExpect { status { isNotFound() } }
+        assertEquals(original, records.get(original.id))
+    }
+
+    @TestConfiguration
+    class Configuration {
+        @Bean @Primary fun pullRequestReader() = object : GitHubPullRequestReader {
+            override fun read(target: GitHubPullRequestTarget) = PullRequestSnapshot("c".repeat(40), false)
+        }
     }
 
     private fun login(returnTo: String): Cookie {

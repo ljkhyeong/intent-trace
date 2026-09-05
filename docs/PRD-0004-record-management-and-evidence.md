@@ -77,3 +77,19 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - `sourcePath`, `sourceStartLine`, `sourceEndLine`과 확인한 `currentStartLine`, `currentEndLine`을 반환한다. 현재 줄 일치를 확인하지 못하면 현재 범위는 null이다.
 - 이전 커밋에서 온 모든 연결의 `verificationAppliesToQuery`는 false다.
 - 0.9.0부터 MCP `find_change_intent`는 최상위 배열 대신 `{ "items": [...] }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 REST `/lookup` 배열 응답은 유지한다.
+
+## 후보별 실패와 요청 안의 조회 재사용
+
+- 0.10.0부터 history는 `failures: [{recordId, reason}]`과 `complete`를 반환한다. `complete`는 현재 후보 페이지의 지원하지 않는 객체 조회 실패 여부이며 저장소 전체 탐색 완료를 뜻하지 않는다.
+- `SIZE_LIMIT`, `TRUNCATED_TREE`, `UNSUPPORTED_OBJECT`는 해당 후보의 결과를 제외하고 다른 후보를 계속 확인한다. 실패한 후보 안의 일부 근거를 확인했더라도 그 후보는 재조회 대상으로 남긴다.
+- 실패 ID를 같은 조건의 `retryRecordId`로 보내면 해당 공개·대체 기록 한 건만 재조회한다. `cursor`와 함께 전달하면 400이며 다른 저장소나 비공개 기록은 404다. 재조회 응답의 `scannedRecords`는 1이고 `nextCursor`는 null이다.
+- 인증 실패·권한 거부·호출 제한·그 밖의 원격 장애는 전체 조회를 중단한다. 호출 제한은 429와 기존 재시도 대기 계약을 따른다.
+- 저장소 권한은 같은 인증 요청 안에서 정규화한 저장소 키로 재사용하고 새 요청에서 다시 확인한다. Git 객체는 조회 한 번의 후보가 공유하는 제한된 메모리 캐시에만 둔다.
+
+## 원본 비교와 브라우저 추가 화면
+
+- `GET /api/v1/change-records/{id}/comparison`, `compare_change_record`는 원본이 연결된 후속 기록 ID를 받는다. 원본이 없으면 400이다. 두 기록 모두 기존 읽기 권한·소유권 검사를 거친다.
+- `original`, `successor`에 각 기록 ID·버전·상태·target 커밋·본문을, `changedFields`에 서로 다른 항목을 반환한다. 판단 출처·순서·코드 해시·검증 시각과 출처도 내용 비교에 포함한다. 기록을 수정하거나 확인하지 않는다.
+- `/records/{id}/comparison`은 원본·후속 내용을 나란히 표시한다. 삭제된 근거와 새 검증이 없는 사실을 숨기지 않는다.
+- `/records/pull-requests`는 저장소와 PR 번호로 현재 HEAD 일치·게시 시도·결과 미확인과 다음 페이지를 표시한다. `/records/connection`은 저장소와 선택 PR·전체 커밋으로 기존 읽기 진단을 실행한다.
+- 새 브라우저 화면은 `itb_` 세션과 기존 로그인 복귀 검사를 사용한다. 기록 변경과 게시 token 발급은 수행하지 않는다.
