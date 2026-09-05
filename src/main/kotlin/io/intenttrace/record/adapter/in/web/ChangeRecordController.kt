@@ -88,7 +88,7 @@ class ChangeRecordController(
         @RequestParam @NotBlank @Size(max = 1000) path: String,
         @RequestParam @Min(1) line: Int,
     ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
-        .map(ChangeRecordResponse::from)
+        .map { ChangeRecordResponse.from(it, revision) }
 
     @GetMapping("/{recordId}/markdown", produces = [MediaType.TEXT_MARKDOWN_VALUE])
     fun markdown(@PathVariable recordId: UUID): String = markdownRenderer.render(records.get(recordId))

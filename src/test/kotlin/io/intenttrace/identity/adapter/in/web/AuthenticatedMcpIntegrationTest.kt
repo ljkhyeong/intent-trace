@@ -80,6 +80,29 @@ class AuthenticatedMcpIntegrationTest(
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":3,"method":"tools/list"}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("sync_superseded_record_to_github_pr")) }
+            content { string(containsString("revoke_all_my_sessions")) }
+            content { string(containsString("check_change_record_evidence")) }
+        }
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_change_records","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("\"isError\":false")) }
+        }
+
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token")
+            header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
             content =
                 """
                 {

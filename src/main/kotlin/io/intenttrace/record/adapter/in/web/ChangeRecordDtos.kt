@@ -174,7 +174,7 @@ data class ChangeRecordResponse(
     val openQuestions: List<String>,
 ) {
     companion object {
-        fun from(record: ChangeRecord): ChangeRecordResponse = ChangeRecordResponse(
+        fun from(record: ChangeRecord, queryRevision: String? = null): ChangeRecordResponse = ChangeRecordResponse(
             id = record.id,
             requestId = record.requestId,
             repositoryKey = record.repositoryKey,
@@ -201,7 +201,7 @@ data class ChangeRecordResponse(
                     snapshotDigest = it.snapshotDigest,
                     outputDigest = it.outputDigest,
                     summary = it.summary,
-                    current = it.isCurrentFor(record),
+                    current = it.isCurrentFor(record) && (queryRevision == null || record.targetRevision == queryRevision.lowercase()),
                     source = it.source,
                 )
             },

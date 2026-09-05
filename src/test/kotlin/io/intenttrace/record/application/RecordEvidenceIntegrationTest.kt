@@ -2,6 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
@@ -49,6 +50,8 @@ class RecordEvidenceIntegrationTest(
         assertEquals(CodeSide.BASE, records.get(draft.id).codeAnchors.first().side)
         assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(draft.id).verifications.first().source)
         assertEquals(listOf(published.id), records.findIntent(repository.key, baseRevision, "old.txt", 1).map { it.id })
+        assertFalse(ChangeRecordResponse.from(published, baseRevision).verifications.single().current)
+        assertTrue(ChangeRecordResponse.from(published, targetRevision).verifications.single().current)
         assertTrue(records.findIntent(repository.key, targetRevision, "old.txt", 1).isEmpty())
         val checked = evidence.check(draft.id)
         assertTrue(checked.codeVerified)

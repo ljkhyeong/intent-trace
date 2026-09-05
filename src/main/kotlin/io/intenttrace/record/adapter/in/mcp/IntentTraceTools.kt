@@ -28,13 +28,13 @@ class IntentTraceTools(
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     fun list(
         @McpToolParam(description = "owner/repository", required = true) repositoryKey: String,
-        @McpToolParam(description = "TEAM은 팀 공개 기록, MINE은 내 초안") scope: RecordScope = RecordScope.TEAM,
-        @McpToolParam(description = "저장소 상대 파일 경로") path: String? = null,
-        @McpToolParam(description = "조회 범위 내의 기록 상태") status: ChangeRecordStatus? = null,
-        @McpToolParam(description = "팀 공개 목록의 작성자 GitHub 숫자 ID 필터") authorId: Long? = null,
-        @McpToolParam(description = "직전 응답의 nextCursor") cursor: String? = null,
-        @McpToolParam(description = "1~100 사이의 목록 크기") limit: Int = 20,
-    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit)
+        @McpToolParam(description = "TEAM은 팀 공개 기록, MINE은 내 초안", required = false) scope: RecordScope? = null,
+        @McpToolParam(description = "저장소 상대 파일 경로", required = false) path: String? = null,
+        @McpToolParam(description = "조회 범위 내의 기록 상태", required = false) status: ChangeRecordStatus? = null,
+        @McpToolParam(description = "팀 공개 목록의 작성자 GitHub 숫자 ID 필터", required = false) authorId: Long? = null,
+        @McpToolParam(description = "직전 응답의 nextCursor", required = false) cursor: String? = null,
+        @McpToolParam(description = "1~100 사이의 목록 크기", required = false) limit: Int? = null,
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit ?: 20)
 
     @McpTool(name = "revise_change_record", description = "작성자의 DRAFT 내용만 수정합니다. 요청 ID와 저장소는 유지합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))
@@ -180,5 +180,5 @@ class IntentTraceTools(
         @McpToolParam(description = "조회할 1부터 시작하는 줄 번호", required = true)
         line: Int,
     ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
-        .map(ChangeRecordResponse::from)
+        .map { ChangeRecordResponse.from(it, revision) }
 }

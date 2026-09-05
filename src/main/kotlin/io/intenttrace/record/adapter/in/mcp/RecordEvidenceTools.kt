@@ -22,7 +22,7 @@ class RecordEvidenceTools(private val evidence: RecordEvidenceService, private v
         @McpToolParam(description = "조회하는 전체 커밋 ID", required = true) revision: String,
         @McpToolParam(description = "상대 파일 경로", required = true) path: String,
         @McpToolParam(description = "현재 줄 번호", required = true) line: Int,
-        @McpToolParam(description = "직전 응답의 nextCursor") cursor: String? = null,
-        @McpToolParam(description = "1~20 사이의 후보 기록 수") limit: Int = 5,
-    ): ChangeIntentHistory = history.find(repositoryKey, revision, path, line, cursor, limit)
+        @McpToolParam(description = "직전 응답의 nextCursor", required = false) cursor: String? = null,
+        @McpToolParam(description = "1~20 사이의 후보 기록 수", required = false) limit: Int? = null,
+    ): ChangeIntentHistory = history.find(repositoryKey, revision, path, line, cursor, limit ?: 5)
 }
