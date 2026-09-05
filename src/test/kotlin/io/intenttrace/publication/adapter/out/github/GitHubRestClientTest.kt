@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -34,11 +35,10 @@ class GitHubRestClientTest {
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val tokenProvider = TestTokenProvider()
     private val client = GitHubRestClient(
-        restClientBuilder = builder,
-        properties = GitHubProperties(
+        client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(
             apiBaseUrl = URI.create("https://api.github.test"),
             apiVersion = "2026-03-10",
-        ),
+        )),
         tokenProvider = tokenProvider,
     )
     private val target = GitHubPullRequestTarget("acme", "intent-trace", 12)

@@ -377,3 +377,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 
 - [검토 결과](docs/reviews/2026-09-05-standard-api-review.md)에 오류 JSON 직접 조립, HTTP 설정 중복, 저장소 빈 값 중복 검사, Duration 표현과 JWT 인코더 도입을 정리했다. 필요한 도메인·권한·동시성 검증은 별도로 구분했다.
 - 제품 코드는 변경하지 않았다. 구현할 때 해당 항목의 조건과 기존 테스트를 확인한다.
+
+## 2026-09-05 표준 API와 중복 검증 정리
+
+- 위 검토의 다섯 항목을 반영했다. 인증 오류 JSON은 Jackson, GitHub API 공통 설정은 `RestClient` Bean, JWT 직렬화·서명은 `NimbusJwtEncoder`를 사용한다. 저장소 빈 값 중복 검사를 제거하고 Duration 양수 검사를 간소화했다.
+- JWT는 키 식별자가 없는 `JWKSet`을 전달해 기존 헤더를 유지한다. PKCS1·PKCS8 입력, `iss`·`iat`·`exp`, RS256 서명과 안전한 오류 응답을 확인했다.
+- `./gradlew focusedTest --tests '*GitHubAppJwtFactoryTest'` 3개, 이후 `./gradlew test` 168개가 통과했다. 부분 테스트는 전체에 포함된다. 요청별 토큰·호출 제한·전체 조회 기한과 REST·MCP·Zed 연결도 전체 검증에 포함됐다.
+- PostgreSQL·IntelliJ 구현은 변경하지 않아 해당 테스트를 다시 실행하지 않았다. 실제 GitHub 게시·배포·IDE 화면은 이번 검증 대상에 포함하지 않았다.

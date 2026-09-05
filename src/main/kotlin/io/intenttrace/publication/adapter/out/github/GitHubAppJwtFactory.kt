@@ -1,14 +1,23 @@
 package io.intenttrace.publication.adapter.out.github
 
+import com.nimbusds.jose.jwk.JWKSet
+import com.nimbusds.jose.jwk.RSAKey
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm
+import org.springframework.security.oauth2.jwt.JwsHeader
+import org.springframework.security.oauth2.jwt.JwtClaimsSet
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import org.springframework.stereotype.Component
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
-import java.security.PrivateKey
-import java.security.Signature
+import java.security.interfaces.RSAPrivateCrtKey
+import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.RSAPublicKeySpec
 import java.time.Clock
 import java.time.Instant
 import java.util.Base64
@@ -34,24 +43,25 @@ class GitHubAppJwtFactory(
 
         return try {
             val now = Instant.now(clock)
-            val header = encodeUrl("""{"alg":"RS256","typ":"JWT"}""".toByteArray(StandardCharsets.UTF_8))
-            val payload = encodeUrl(
-                """{"iat":${now.minusSeconds(60).epochSecond},"exp":${now.plusSeconds(540).epochSecond},"iss":"$clientId"}"""
-                    .toByteArray(StandardCharsets.UTF_8),
-            )
-            val signingInput = "$header.$payload"
-            val signature = Signature.getInstance("SHA256withRSA").run {
-                initSign(readPrivateKey(privateKeyBase64))
-                update(signingInput.toByteArray(StandardCharsets.US_ASCII))
-                sign()
-            }
-            "$signingInput.${encodeUrl(signature)}"
+            val privateKey = readPrivateKey(privateKeyBase64)
+            val publicKey = KeyFactory.getInstance("RSA")
+                .generatePublic(RSAPublicKeySpec(privateKey.modulus, privateKey.publicExponent)) as RSAPublicKey
+            // 키 식별자를 생성하지 않아 기존 App JWT 헤더를 유지한다.
+            val jwk = RSAKey.Builder(publicKey).privateKey(privateKey).build()
+            val encoder = NimbusJwtEncoder(ImmutableJWKSet(JWKSet(jwk)))
+            val header = JwsHeader.with(SignatureAlgorithm.RS256).type("JWT").build()
+            val claims = JwtClaimsSet.builder()
+                .issuer(clientId)
+                .issuedAt(now.minusSeconds(60))
+                .expiresAt(now.plusSeconds(540))
+                .build()
+            encoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue
         } catch (_: Exception) {
             throw GitHubCredentialConfigurationException()
         }
     }
 
-    private fun readPrivateKey(encodedPem: String): PrivateKey {
+    private fun readPrivateKey(encodedPem: String): RSAPrivateCrtKey {
         val pem = String(Base64.getDecoder().decode(encodedPem), StandardCharsets.US_ASCII).trim()
         val keyBytes = when {
             pem.contains(BEGIN_PRIVATE_KEY) -> decodePem(pem, BEGIN_PRIVATE_KEY, END_PRIVATE_KEY)
@@ -60,7 +70,7 @@ class GitHubAppJwtFactory(
             )
             else -> throw IllegalArgumentException("지원하지 않는 private key 형식")
         }
-        return KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyBytes))
+        return KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyBytes)) as RSAPrivateCrtKey
     }
 
     private fun decodePem(pem: String, begin: String, end: String): ByteArray {
@@ -89,8 +99,6 @@ class GitHubAppJwtFactory(
         }
         return byteArrayOf((0x80 or bytes.size).toByte()) + bytes.toByteArray()
     }
-
-    private fun encodeUrl(value: ByteArray): String = Base64.getUrlEncoder().withoutPadding().encodeToString(value)
 
     companion object {
         private const val BEGIN_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----"

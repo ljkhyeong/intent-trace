@@ -18,7 +18,7 @@ class EvidenceReadBudget(
         private set
 
     init {
-        require(!timeLimit.isNegative && !timeLimit.isZero && timeLimit <= Duration.ofSeconds(40))
+        require(timeLimit.isPositive && timeLimit <= Duration.ofSeconds(40))
         require(maxRemoteCalls in 1..200)
     }
 

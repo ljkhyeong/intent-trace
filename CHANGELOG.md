@@ -15,6 +15,9 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- GitHub API 클라이언트 다섯 곳의 주소·기본 헤더 설정을 공통 `RestClient` Bean으로 통합
+- App JWT 조립·서명을 `NimbusJwtEncoder`로 전환하고 기존 PKCS1·PKCS8 개인 키 형식 유지
+- 인증 오류 JSON을 Jackson으로 직렬화하고 저장소 빈 값 중복 검사와 Duration 양수 표현 정리
 - 부분·전체·PostgreSQL 테스트 작업을 분리해 검증 결과 덮어쓰기 방지
 - PostgreSQL 검증용 로컬 포트를 자동 배정해 다른 작업과 고정 포트 충돌 방지
 - Zed 실행 파일·의존성 명세와 Python 검증 스크립트를 Gradle 테스트 입력에 포함

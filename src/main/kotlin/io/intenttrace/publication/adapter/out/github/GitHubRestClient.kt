@@ -1,6 +1,5 @@
 package io.intenttrace.publication.adapter.out.github
 
-import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
@@ -12,7 +11,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.GitRevision
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.springframework.http.HttpHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -22,16 +21,9 @@ import java.net.URI
 
 @Component
 class GitHubRestClient(
-    restClientBuilder: RestClient.Builder,
-    properties: GitHubProperties,
+    @Qualifier("githubApiRestClient") private val client: RestClient,
     private val tokenProvider: GitHubAccessTokenProvider,
 ) : GitHubPullRequestGateway {
-    private val client = restClientBuilder
-        .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
-        .defaultHeader(HttpHeaders.ACCEPT, GITHUB_JSON)
-        .defaultHeader(API_VERSION_HEADER, properties.apiVersion)
-        .build()
-
     override fun getHeadRevision(target: GitHubPullRequestTarget): String = safeCall("Pull Request 조회") {
         val response = authenticated(target) { token ->
             client.get()
@@ -253,8 +245,6 @@ class GitHubRestClient(
     }
 
     companion object {
-        private const val GITHUB_JSON = "application/vnd.github+json"
-        private const val API_VERSION_HEADER = "X-GitHub-Api-Version"
         private const val CHECK_NAME = "IntentTrace / 변경 의도"
         private const val CHECK_RUN_PAGE_SIZE = 100
         private const val MAX_CHECK_RUN_PAGES = 10

@@ -1,6 +1,6 @@
 # Java·Spring API와 중복 검증 검토
 
-검토 기준: `47a3521`. 서버의 HTTP·인증·저장·입력 검증을 중심으로 코드를 확인하고, IntelliJ 클라이언트의 HTTP·JSON 처리도 대조했다. Java 21·Spring Boot 4.1.1 기준이다. 제품 코드는 수정하지 않았다.
+최초 검토 기준: `47a3521`. 서버의 HTTP·인증·저장·입력 검증을 중심으로 코드를 확인하고, IntelliJ 클라이언트의 HTTP·JSON 처리도 대조했다. Java 21·Spring Boot 4.1.1 기준이다. 아래 후보 설명과 행 번호는 검토 당시 상태이며, 후속 구현은 마지막 반영 결과에 정리했다.
 
 ## 정리할 후보
 
@@ -57,6 +57,14 @@
 
 HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HTML 이스케이프는 `HtmlUtils`, 쿠키는 `ResponseCookie`, URI 구성은 `UriComponentsBuilder`를 사용한다. IntelliJ도 SDK `HttpRequests`와 Kotlin Serialization을 사용한다. 이 부분을 다시 감싸는 공통 클래스를 추가할 필요는 없다.
 
-## 이번 확인
+## 최초 검토에서 확인한 내용
 
 호출 경로·기존 테스트 코드·공식 API 문서를 대조했다. 제품 코드와 의존성을 바꾸지 않아 서버·IDE·DB 테스트는 실행하지 않았다. 문서의 로컬 링크 13개와 HANDOFF 연결을 확인했다. 위 테스트 항목은 후속 수정 시 필요한 확인 범위이며, 이번에 실행한 결과가 아니다.
+
+## 반영 결과
+
+- 다섯 항목을 반영했다. 인증 오류는 기존 두 필드의 JSON 형식을 유지하고, GitHub API 클라이언트 다섯 곳은 공통 Bean을 주입받는다. 요청별 토큰·시간 제한·호출 제한·지표는 유지했다.
+- JWT 직렬화·서명은 `NimbusJwtEncoder`에 맡겼다. 키 쌍 Builder는 `kid`를 자동 생성하므로, 기존 헤더를 유지하도록 키 식별자가 없는 `JWKSet`을 전달하는 생성자를 사용했다. 두 PEM 형식의 키 변환은 유지했다.
+- 마지막 부분 검증은 JWT 테스트 3개가 통과했다. 이어서 `./gradlew test`로 서버 전체 168개가 통과했고 건너뛴 테스트는 없다. 부분 검증 3개는 전체에 포함된다.
+- 공통 HTTP 헤더와 서로 다른 요청의 토큰, 401·429·502 JSON, 고정 시계의 JWT 클레임과 실제 RS256 서명을 확인했다. REST·MCP·Zed 중계기와 서버 연결 검증은 전체 서버 테스트에 포함됐다.
+- DB·IDE 구현은 바꾸지 않아 PostgreSQL·IntelliJ 테스트를 다시 실행하지 않았다. 실제 GitHub 게시·배포·IDE 화면 검증은 수행하지 않았다.

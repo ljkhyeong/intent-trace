@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.test.web.client.MockRestServiceServer
+import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.web.client.RestClient
@@ -26,13 +27,20 @@ class GitHubHttpPolicyTest {
         val builder = RestClient.builder()
         GitHubHttpPolicy().githubRequestPolicy(properties, Clock.fixed(now, ZoneOffset.UTC), meters).customize(builder)
         val server = MockRestServiceServer.bindTo(builder).build()
-        val client = GitHubUserRestClient(builder, properties)
-        server.expect(requestTo("https://api.github.test/user"))
-            .andRespond(withStatus(HttpStatus.FORBIDDEN).header("Retry-After", "120").body("ghu_private-response"))
-        val exception = assertFailsWith<GitHubRateLimitException> { client.authenticate("ghu_test") }
-        assertEquals(120L, exception.retryAfterSeconds)
-        assertFalse(exception.message!!.contains("private-response"))
-        assertEquals(1L, meters.get("intenttrace.github.request").tag("outcome", "rate_limited").timer().count())
+        val client = GitHubUserRestClient(GitHubHttpPolicy().githubApiRestClient(builder, properties))
+        for (token in listOf("ghu_first", "ghu_second")) {
+            server.expect(requestTo("https://api.github.test/user"))
+                .andExpect(header("Accept", "application/vnd.github+json"))
+                .andExpect(header("X-GitHub-Api-Version", properties.apiVersion))
+                .andExpect(header("Authorization", "Bearer $token"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN).header("Retry-After", "120").body("ghu_private-response"))
+        }
+        for (token in listOf("ghu_first", "ghu_second")) {
+            val exception = assertFailsWith<GitHubRateLimitException> { client.authenticate(token) }
+            assertEquals(120L, exception.retryAfterSeconds)
+            assertFalse(exception.message!!.contains("private-response"))
+        }
+        assertEquals(2L, meters.get("intenttrace.github.request").tag("outcome", "rate_limited").timer().count())
         server.verify()
         assertNull(GitHubRateLimit.detect(403, HttpHeaders(), now))
         assertEquals(60L, GitHubRateLimit.detect(429, HttpHeaders(), now)?.retryAfterSeconds)

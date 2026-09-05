@@ -43,7 +43,7 @@ data class GitHubAppProperties(
     val refreshBeforeExpiry: Duration = Duration.ofMinutes(5),
 ) {
     init {
-        require(!refreshBeforeExpiry.isNegative && !refreshBeforeExpiry.isZero) {
+        require(refreshBeforeExpiry.isPositive) {
             "GitHub App token 갱신 여유 시간은 0보다 커야 합니다."
         }
         require(refreshBeforeExpiry <= Duration.ofMinutes(30)) {
@@ -78,7 +78,7 @@ data class GitHubUserAuthorizationProperties(
         require(callbackUrl.isSafeCallback()) {
             "GitHub callback URL은 정해진 경로를 사용하는 HTTPS 또는 loopback HTTP 주소여야 합니다."
         }
-        require(!stateTtl.isNegative && !stateTtl.isZero && stateTtl <= Duration.ofMinutes(30)) {
+        require(stateTtl.isPositive && stateTtl <= Duration.ofMinutes(30)) {
             "GitHub OAuth state 유효 시간은 0보다 크고 30분 이하여야 합니다."
         }
         require(maxPendingStates in 1..100_000) {
@@ -88,8 +88,7 @@ data class GitHubUserAuthorizationProperties(
             "GitHub 사용자별 session 상한은 1 이상 100 이하여야 합니다."
         }
         require(
-            !refreshBeforeExpiry.isNegative &&
-                !refreshBeforeExpiry.isZero &&
+            refreshBeforeExpiry.isPositive &&
                 refreshBeforeExpiry <= Duration.ofMinutes(30),
         ) {
             "GitHub 사용자 token 갱신 여유 시간은 0보다 크고 30분 이하여야 합니다."

@@ -1,6 +1,7 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
@@ -22,7 +23,7 @@ import kotlin.test.assertFailsWith
 class GitHubEvidenceClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
-    private val client = GitHubGitEvidenceClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test")),
+    private val client = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))),
         object : CurrentGitHubUserSession {
             override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_test")
         }, jacksonObjectMapper())
@@ -70,7 +71,8 @@ class GitHubEvidenceClientTest {
             } catch (_: java.io.IOException) { exchange.close() }
         }
         http.start()
-        val remote = GitHubGitEvidenceClient(RestClient.builder().uriBuilderFactory(org.springframework.web.util.DefaultUriBuilderFactory("http://127.0.0.1:${http.address.port}")), GitHubProperties(),
+        val remote = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(
+            RestClient.builder().uriBuilderFactory(org.springframework.web.util.DefaultUriBuilderFactory("http://127.0.0.1:${http.address.port}")), GitHubProperties()),
             object : CurrentGitHubUserSession {
                 override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_local-test")
             }, jacksonObjectMapper())

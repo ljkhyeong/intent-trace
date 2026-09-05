@@ -1,7 +1,6 @@
 package io.intenttrace.record.adapter.out.github
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
@@ -16,7 +15,7 @@ import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.GitTreeEntry
 import io.intenttrace.record.domain.GitRevision
-import org.springframework.http.HttpHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
@@ -25,15 +24,10 @@ import java.util.Base64
 
 @Component
 class GitHubGitEvidenceClient(
-    builder: RestClient.Builder,
-    properties: GitHubProperties,
+    @Qualifier("githubApiRestClient") private val client: RestClient,
     private val session: CurrentGitHubUserSession,
     private val mapper: ObjectMapper,
 ) : GitEvidenceGateway {
-    private val client = builder.baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
-        .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")
-        .defaultHeader("X-GitHub-Api-Version", properties.apiVersion).build()
-
     private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
