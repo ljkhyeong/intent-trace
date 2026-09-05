@@ -1,6 +1,12 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.publication.application.GitHubPublicationRepository
+import io.intenttrace.publication.application.GitHubPublicationTracking
+import io.intenttrace.publication.application.PublicationAttemptStatus
+import io.intenttrace.publication.application.PublicationOperation
+import io.intenttrace.publication.domain.GitHubPublication
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
@@ -31,6 +37,46 @@ abstract class ChangeRecordStorageContract {
 
     @Autowired
     private lateinit var storageRepository: ChangeRecordRepository
+
+    @Autowired
+    private lateinit var publications: GitHubPublicationRepository
+
+    @Autowired
+    private lateinit var tracking: GitHubPublicationTracking
+
+    @Test
+    fun `게시 정보 일괄 조회는 요청한 기록과 PR의 최신 시도만 반환한다`() {
+        val target = GitHubPullRequestTarget("ACME", "STORAGE-CONTRACT", 72)
+        val records = listOf(published(), published())
+        val expectedPublications = mutableMapOf<UUID, GitHubPublication>()
+        val expectedAttempts = mutableMapOf<UUID, UUID>()
+        records.forEachIndexed { index, record ->
+            val publication = GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!,
+                100L + index, "https://github.test/check/${100 + index}", digest, Instant.EPOCH)
+            expectedPublications[record.id] = publications.save(publication)
+            publications.save(publication.copy(id = UUID.randomUUID(), target = target.copy(pullNumber = 73), checkRunId = 999))
+            val attempts = List(2) { tracking.start(record.id, target, PublicationOperation.PUBLISH) }
+            storageJdbc.update("update github_publication_attempts set started_at = ? where id in (?, ?)",
+                Instant.EPOCH.atOffset(ZoneOffset.UTC), attempts[0].toString(), attempts[1].toString())
+            val latestId = attempts.maxBy { it.toString() }
+            expectedAttempts[record.id] = latestId
+            tracking.finish(latestId, PublicationAttemptStatus.RESULT_UNKNOWN, "NETWORK_FAILURE", null)
+            // 다른 PR의 더 최근 시도가 현재 PR의 결과를 덮어쓰면 안 된다.
+            tracking.start(record.id, target.copy(pullNumber = 73), PublicationOperation.PUBLISH)
+        }
+        val ids = records.map { it.id }
+
+        assertEquals(expectedPublications, publications.findAll(ids, target))
+        val latest = tracking.latest(ids, target)
+        assertEquals(expectedAttempts, latest.mapValues { it.value.id })
+        assertTrue(latest.values.all { it.status == PublicationAttemptStatus.RESULT_UNKNOWN })
+        assertTrue(publications.findAll(ids, target.copy(repository = "other")).isEmpty())
+        assertTrue(tracking.latest(ids, target.copy(repository = "other")).isEmpty())
+        assertTrue(publications.findAll(listOf(UUID.randomUUID()), target).isEmpty())
+        assertTrue(tracking.latest(listOf(UUID.randomUUID()), target).isEmpty())
+        assertTrue(publications.findAll(emptyList(), target).isEmpty())
+        assertTrue(tracking.latest(emptyList(), target).isEmpty())
+    }
 
     @Test
     fun `파일 이력과 내 초안을 페이지로 조회한다`() {

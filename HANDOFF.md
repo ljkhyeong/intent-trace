@@ -389,3 +389,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 
 - [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md)에 PR 목록의 기록별 반복 조회·최신 한 건을 위한 이력 20건 조회와 검색 SQL의 위치 기반 매개변수 관리를 정리했다. PR 목록의 게시 정보 일괄 조회를 먼저 권장한다.
 - 제품 코드는 수정하지 않았다. 추가 확인 범위에서 바로 제거할 중복 검증은 더 찾지 못했다.
+
+## 2026-09-05 PR 게시 정보 일괄 조회와 검색 SQL 정리
+
+- PR 목록의 게시 정보와 기록별 최신 시도를 일괄 조회하고, 검색 SQL을 `NamedParameterJdbcTemplate`로 변경했다. 저장소·PR 범위, 기존 페이지 정렬과 상세 이력 20건 조회는 유지했다.
+- 기존 H2 PR 통합 테스트에서 기록 20건의 JDBC 조회 3회, 빈 페이지 1회를 확인했다. H2·PostgreSQL 공통 저장 테스트로 같은 시각의 최신 시도와 조회 범위를 확인했다.
+- 관련 `focusedTest` 24개, `scripts/verify-postgres.sh`의 PostgreSQL 5개, 마지막 `./gradlew test` 169개가 통과했다. PostgreSQL 백업·복구 뒤 기록 15건·변경 이력 34건을 확인했다. 부분 테스트는 전체에 포함된다.
+- 검토 문서의 [반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#반영-결과)에 상세 범위를 남겼다. 실제 GitHub 게시·배포·IDE 화면은 확인하지 않았다.

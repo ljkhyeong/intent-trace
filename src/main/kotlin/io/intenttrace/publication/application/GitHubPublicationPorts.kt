@@ -26,5 +26,7 @@ data class UpsertGitHubCheckRunCommand(
 interface GitHubPublicationRepository {
     fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication?
 
+    fun findAll(changeRecordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, GitHubPublication>
+
     fun save(publication: GitHubPublication): GitHubPublication
 }

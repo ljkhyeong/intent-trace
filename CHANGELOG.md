@@ -15,6 +15,8 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- PR 기록 목록의 게시 결과·최신 시도를 일괄 조회해 기록마다 반복하던 SQL 제거
+- 검색 SQL을 이름 기반 매개변수로 바꿔 상태 목록과 반복 검색어·커서 시각의 수동 바인딩 제거
 - GitHub API 클라이언트 다섯 곳의 주소·기본 헤더 설정을 공통 `RestClient` Bean으로 통합
 - App JWT 조립·서명을 `NimbusJwtEncoder`로 전환하고 기존 PKCS1·PKCS8 개인 키 형식 유지
 - 인증 오류 JSON을 Jackson으로 직렬화하고 저장소 빈 값 중복 검사와 Duration 양수 표현 정리
