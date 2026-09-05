@@ -9,6 +9,7 @@ import io.intenttrace.publication.application.PullRequestOverview
 import io.intenttrace.record.application.ChangeRecordComparison
 import io.intenttrace.record.application.ComparisonField
 import io.intenttrace.record.application.RecordComparisonSide
+import io.intenttrace.record.application.ItemChange
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
 
@@ -64,20 +65,48 @@ internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: Stri
         }
     })
 
-internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison): String =
+internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false): String =
     layout("원본과 후속 기록 비교", actor, buildString {
         append("<header class=\"page-heading\"><h1>원본과 후속 기록 비교</h1><p>바뀐 판단과 근거를 확인한 뒤 후속 기록을 검토하세요.</p></header>")
         if (result.successor.content.verifications.isEmpty()) append("<aside class=\"notice\">후속 기록에 제출된 검증이 없습니다. 원본의 검증은 후속 기록의 검증으로 이어지지 않습니다.</aside>")
         append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"/records/${result.original.id}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"/records/${result.successor.id}\">후속 기록</a> · 버전 ${result.successor.version}</p></div>")
+        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"/records/${result.successor.id}/comparison?changesOnly=${!changesOnly}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
         val labels = mapOf(ComparisonField.TITLE to "제목", ComparisonField.REQUEST to "요청", ComparisonField.DECISIONS to "판단과 출처",
             ComparisonField.CODE_ANCHORS to "코드 근거", ComparisonField.VERIFICATIONS to "검증", ComparisonField.OPEN_QUESTIONS to "남은 질문",
             ComparisonField.BASE_REVISION to "변경 전 커밋", ComparisonField.TARGET_REVISION to "변경 후 커밋", ComparisonField.SNAPSHOT to "스냅샷")
-        labels.forEach { (field, label) ->
-            append("<section class=\"comparison-section\"><h2>$label <span class=\"status\">${if (field in result.changedFields) "변경됨" else "같음"}</span></h2><div class=\"comparison-columns\">")
-            listOf("원본" to result.original, "후속" to result.successor).forEach { (side, value) ->
-                append("<div class=\"comparison-value\"><h3>$side</h3><p class=\"prose\">${html(comparisonText(field, value))}</p></div>")
+        labels.filterKeys { !changesOnly || it in result.changedFields }.forEach { (field, label) ->
+            val details = result.details.filter { it.field == field }
+            val before = comparisonItems(field, result.original)
+            val after = comparisonItems(field, result.successor)
+            append("<section class=\"comparison-section\"><h2>$label <span class=\"status\">${if (field in result.changedFields) "변경됨" else "같음"}</span></h2>")
+            details.forEach { detail ->
+                val name = when (detail.change) {
+                    ItemChange.ADDED -> "추가"; ItemChange.REMOVED -> "삭제"; ItemChange.MODIFIED -> "내용 변경"
+                    ItemChange.MOVED -> "순서 변경"; ItemChange.AMBIGUOUS -> "중복 항목 · 대응 불명확"
+                }
+                val propertyLabels = mapOf("source" to "출처", "rationale" to "판단 근거", "summary" to "요약", "contentHash" to "줄 해시",
+                    "symbolName" to "심볼", "relatedPath" to "연결 경로", "exitCode" to "종료 코드", "snapshotDigest" to "스냅샷", "outputDigest" to "출력 해시")
+                append("<div class=\"comparison-detail\"><h3>$name${detail.changedProperties.takeIf { it.isNotEmpty() }?.joinToString(", ", " · ") { propertyLabels[it] ?: it }.orEmpty()}</h3>")
+                if (detail.change == ItemChange.AMBIGUOUS) append("<p>중복 항목을 임의로 합치지 않았습니다. 아래 원본·후속 전체 내용을 확인하세요.</p>")
+                else {
+                    append("<p>${detail.originalIndex?.let { "원본 ${it + 1}번" }.orEmpty()}${if (detail.originalIndex != null && detail.successorIndex != null) " → " else ""}${detail.successorIndex?.let { "후속 ${it + 1}번" }.orEmpty()}${if (detail.moved && detail.change != ItemChange.MOVED) " · 순서도 변경" else ""}</p>")
+                    val left = detail.originalIndex?.let { before[it] }.orEmpty()
+                    val right = detail.successorIndex?.let { after[it] }.orEmpty()
+                    append("<div class=\"comparison-columns\"><div><h4>원본</h4><p class=\"prose\">${highlightChangedLines(left, right, "del")}</p></div><div><h4>후속</h4><p class=\"prose\">${highlightChangedLines(right, left, "ins")}</p></div></div>")
+                }
+                append("</div>")
             }
-            append("</div></section>")
+            if (details.isNotEmpty()) append("<details><summary>이 항목의 전체 원본·후속 내용</summary>")
+            append("<div class=\"comparison-columns\">")
+            listOf("원본" to result.original, "후속" to result.successor).forEach { (side, value) ->
+                val other = if (value === result.original) result.successor else result.original
+                val text = comparisonText(field, value)
+                val displayed = if (details.isEmpty() && field in result.changedFields) highlightChangedLines(text, comparisonText(field, other), if (side == "원본") "del" else "ins") else html(text)
+                append("<div class=\"comparison-value\"><h3>$side</h3><p class=\"prose\">$displayed</p></div>")
+            }
+            append("</div>")
+            if (details.isNotEmpty()) append("</details>")
+            append("</section>")
         }
     })
 
@@ -85,12 +114,28 @@ private fun comparisonText(field: ComparisonField, side: RecordComparisonSide): 
     when (field) {
         ComparisonField.TITLE -> title
         ComparisonField.REQUEST -> requestSummary
-        ComparisonField.DECISIONS -> decisions.joinToString("\n\n") { "${it.source.label}\n${it.summary}\n${it.rationale.orEmpty()}" }
-        ComparisonField.CODE_ANCHORS -> codeAnchors.joinToString("\n\n") { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n연결 경로 $path" }.orEmpty()}" }
-        ComparisonField.VERIFICATIONS -> verifications.joinToString("\n\n") { "${it.command}\n종료 코드 ${it.exitCode} · ${if (it.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구 수집" else "클라이언트 제출"}\n${it.summary}\n${it.startedAt} ~ ${it.finishedAt}\n스냅샷 ${it.snapshotDigest}\n출력 해시 ${it.outputDigest}" }
-        ComparisonField.OPEN_QUESTIONS -> openQuestions.joinToString("\n\n")
+        ComparisonField.DECISIONS, ComparisonField.CODE_ANCHORS, ComparisonField.VERIFICATIONS, ComparisonField.OPEN_QUESTIONS -> comparisonItems(field, side).joinToString("\n\n")
         ComparisonField.BASE_REVISION -> baseRevision.orEmpty()
         ComparisonField.TARGET_REVISION -> side.targetRevision.orEmpty()
         ComparisonField.SNAPSHOT -> snapshotDigest
     }.ifEmpty { "등록된 내용 없음" }
+}
+
+private fun comparisonItems(field: ComparisonField, side: RecordComparisonSide): List<String> = with(side.content) {
+    when (field) {
+        ComparisonField.DECISIONS -> decisions.map { "${it.source.label}\n${it.summary}\n${it.rationale.orEmpty()}" }
+        ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n연결 경로 $path" }.orEmpty()}" }
+        ComparisonField.VERIFICATIONS -> verifications.map { "${it.command}\n종료 코드 ${it.exitCode} · ${if (it.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구 수집" else "클라이언트 제출"}\n${it.summary}\n${it.startedAt} ~ ${it.finishedAt}\n스냅샷 ${it.snapshotDigest}\n출력 해시 ${it.outputDigest}" }
+        ComparisonField.OPEN_QUESTIONS -> openQuestions
+        else -> emptyList()
+    }
+}
+
+private fun highlightChangedLines(value: String, other: String, tag: String): String {
+    if (value.isEmpty()) return "등록된 내용 없음"
+    if (value == other) return html(value)
+    val lines = value.split('\n'); val otherLines = other.split('\n')
+    val prefix = lines.zip(otherLines).takeWhile { it.first == it.second }.size
+    val suffix = lines.drop(prefix).asReversed().zip(otherLines.drop(prefix).asReversed()).takeWhile { it.first == it.second }.size
+    return lines.mapIndexed { index, line -> if (index >= prefix && index < lines.size - suffix) "<$tag>${html(line)}</$tag>" else html(line) }.joinToString("\n")
 }

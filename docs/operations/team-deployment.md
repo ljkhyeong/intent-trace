@@ -102,6 +102,8 @@ GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다
 - `intenttrace.record.operation`: 생성·수정·확인 취소·폐기·확인·공개·대체의 성공 수. 같은 생성 요청의 재시도는 새 생성으로 집계하지 않는다.
 - `intenttrace.publication.attempt`: 게시·대체 안내별 성공·실패·결과 미확인 수.
 
-현재 외부 Actuator 노출은 health·info이며 지표 외부 수집기와 대시보드는 별도로 연결해야 한다. 지표는 영구 감사 로그를 대신하지 않는다. 세션은 `/api/v1/me/sessions`와 MCP에서 본인이 직접 폐기할 수 있으며 DB backup에는 포함되지 않는다.
+현재 외부 Actuator 노출은 health·info이며 지표 외부 수집기와 대시보드는 별도로 연결해야 한다. 지표는 영구 감사 로그를 대신하지 않는다. 세션은 `/records/sessions`, `/api/v1/me/sessions`와 MCP에서 본인이 직접 폐기할 수 있으며 DB backup에는 포함되지 않는다.
+
+0.11.0의 Flyway V9는 기록 변경 이력을 제품 데이터로 추가한다. 기존 backup에 함께 포함되며 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 모두 비교한다. 기존 기록의 수집 이전 이력은 소급 생성하지 않는다. 자격 증명·세션은 계속 메모리에만 둔다.
 
 `RESULT_UNKNOWN` 게시 시도는 실패로 확정된 상태가 아니다. 기록의 게시 상태를 조회하고 원래 게시 도구를 재실행하면 기존 Check Run을 찾아 갱신한다. `SUPERSEDED` 기록의 안내 갱신은 별도 supersession 경로로 재시도한다.

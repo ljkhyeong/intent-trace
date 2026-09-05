@@ -9,6 +9,7 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - 내 공개 기록의 판단을 재사용하는 후속 초안과 원본 비교
 - 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
 - 브라우저 로그인 후 기록 열람과 제목·요청·판단 내용 검색
+- 웹 파일·줄 조회, 코드 근거 확인, 변경된 항목만 보는 세부 비교
 - `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
 - 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
 - 변경 전후 커밋·파일·줄·콘텐츠 해시 기반 코드 근거와 이름 변경 연결
@@ -27,6 +28,8 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 웹 승인과 메모리 전용 `its_` 세션·user token 자동 갱신
 - 내 세션 조회·선택 폐기·전체 폐기
+- 웹에서 내 연결 조회·선택 종료·전체 로그아웃
+- 기록 변경 이력과 작성자·팀원별 노출 범위
 - GitHub 호출 제한 대기 시간 안내와 기능별 Micrometer 지표
 - PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 팀 배포와 backup·restore
 - Codex 스킬과 세션 시작 안내 훅
@@ -159,10 +162,15 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 `/records/pull-requests`에서 PR 기록과 현재 커밋 일치를, `/records/connection`에서 연결 상태를 확인합니다. 후속 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 판단·출처·근거·검증을 나란히 읽습니다.
 
+`/records/history`에서는 저장소·전체 커밋·파일·줄로 관련 기록을 찾고 확인하지 못한 후보만 재조회할 수 있습니다. 기록 화면의 코드 확인 링크는 `/records/{UUID}/evidence`를 엽니다. 서버의 코드 해시 일치와 테스트 실행 증명은 구분합니다.
+
+`/records/sessions`에서는 내 연결의 최근 사용·만료를 보고 선택 또는 전체 종료합니다. 현재 연결을 종료하면 로그아웃됩니다. `/records/{UUID}/activities`는 작성자에게 전체 작업, 팀원에게 공개·대체 작업만 보여줍니다. 이전 본문과 수집 시작 전 이력은 복원하지 않습니다.
+
 검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·판단·판단 근거에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
 
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
 - `GET /api/v1/change-records/{id}/comparison`: 원본·후속 기록 내용과 변경 항목 조회
+- `GET /api/v1/change-records/{id}/activities`: 기록 변경 이력 (`beforeVersion`으로 이전 50개 조회)
 - `POST /api/v1/change-records/{id}/successor`: 내 공개 기록에서 새 근거의 후속 초안 생성
 - `POST /api/v1/change-records/{id}/revise`: 초안 수정 (`expectedVersion`, 생성 요청 형식의 `content`)
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
@@ -192,6 +200,8 @@ MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 �
 후속 초안은 `create_successor_draft`, PR 기록 목록은 `list_pull_request_records`, 연결 진단은 `diagnose_connection`을 사용합니다. 후속 초안은 원본의 판단을 복사하고 새 스냅샷·코드 근거를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다.
 
 원본 비교는 `compare_change_record`, 관리자용 게시 사전 점검은 `check_publication_credentials`를 사용합니다. 사전 점검은 메모리에서 설치 token을 발급하고 응답 권한을 확인하며 Check Run을 만들지 않습니다. 고정 token은 `CONFIGURED_UNVERIFIED`로 남깁니다.
+
+0.11.0의 MCP 도구는 24개입니다. `list_record_activities`는 작업·처리 시각·버전을 조회하며 `nextBeforeVersion`으로 이전 이력을 읽습니다. 비교 응답의 `details`는 추가·삭제·출처·순서 변경을 보여줍니다. 중복 항목은 대응 불명확으로 남기며 브라우저에서는 `changesOnly=true`로 바뀐 필드만 볼 수 있습니다.
 
 이전 기록 조회의 `complete`는 현재 후보 페이지에 확인 실패가 없는지 표시합니다. `failures`의 기록 ID와 사유를 확인하고 같은 조회 조건에 `retryRecordId`를 지정해 해당 기록만 재조회할 수 있습니다. 재조회에는 `cursor`를 함께 넣지 않습니다. 인증·권한·호출 제한 실패는 부분 결과로 숨기지 않습니다.
 
@@ -241,13 +251,13 @@ scripts/verify-postgres.sh
 
 - GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 승인 폐기 webhook과 웹 세션 관리 화면은 제공하지 않습니다. 세션 조회·폐기는 REST·MCP를 사용합니다.
+- GitHub 승인 폐기 webhook은 제공하지 않습니다. 본인 연결 조회·폐기는 웹·REST·MCP에서 사용할 수 있습니다.
 - GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 캐시와 webhook 무효화는 없습니다.
 - V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 라인 조회 플러그인은 다음 단계입니다.
 - 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
-- 게시 시도 이력은 저장하지만 전체 감사 로그·자동 보존 정책은 아직 제공하지 않습니다. 폐기한 비공개 기록은 작성자에게 남습니다.
+- 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 이력 수집 이전 작업과 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.
 - 코드 확인은 일부 트리·2 MiB 초과 blob을 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
 - 이전 기록 탐색은 동일 blob의 고유한 이름 변경과 원본·현재 파일에서 한 곳에만 있는 전체 줄 조각을 연결합니다. 수정과 이름 변경이 함께 일어나거나 조각이 중복되면 자동으로 연결하지 않습니다. 후보를 페이지로 살피므로 결과가 비어 있어도 다음 커서를 확인해야 합니다.
 - Zed Agent 연결 도구를 제공하며 인라인 IDE 메뉴·자동 기록 수집은 제공하지 않습니다. Zed 1.18.1에서 등록·도구 승인·기록 조회·세션 폐기와 재연결을 로컬 테스트 응답으로 확인했습니다. 실제 사용자 GitHub 승인은 별도 설정이 필요합니다.
@@ -269,6 +279,7 @@ scripts/verify-postgres.sh
 - `docs/ADR-0008-publication-recovery.md`
 - `docs/ADR-0009-browser-record-access.md`
 - `docs/ADR-0010-zed-mcp-and-connection-diagnostics.md`
+- `docs/ADR-0011-record-activity-history.md`
 - `docs/clients/zed.md`
 - `docs/operations/team-deployment.md`
 - `HANDOFF.md`

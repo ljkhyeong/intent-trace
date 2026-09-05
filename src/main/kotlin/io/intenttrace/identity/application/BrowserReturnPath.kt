@@ -3,7 +3,7 @@ package io.intenttrace.identity.application
 import java.net.URI
 
 object BrowserReturnPath {
-    private val allowedPath = Regex("^/records(?:/(?:pull-requests|connection)|/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?:/comparison)?)?$")
+    private val allowedPath = Regex("^/records(?:/(?:pull-requests|connection|history|sessions)|/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?:/(?:comparison|evidence|activities))?)?$")
 
     fun validate(value: String): String {
         require(value.length <= 2048 && value.none { it.isISOControl() }) { "기록으로 돌아갈 주소가 올바르지 않습니다." }

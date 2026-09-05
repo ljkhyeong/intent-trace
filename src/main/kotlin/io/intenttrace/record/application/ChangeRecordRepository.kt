@@ -17,5 +17,5 @@ interface ChangeRecordRepository {
 
     fun saveNew(record: ChangeRecord): ChangeRecord
 
-    fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord
+    fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord
 }

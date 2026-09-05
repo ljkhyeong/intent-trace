@@ -2,6 +2,9 @@ package io.intenttrace.record.adapter.out.persistence
 
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordRepository
+import io.intenttrace.record.application.RecordActivity
+import io.intenttrace.record.application.RecordActivityStore
+import io.intenttrace.record.application.RecordOperation
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -24,6 +27,7 @@ import java.util.UUID
 @Repository
 class JdbcChangeRecordRepository(
     private val jdbcTemplate: JdbcTemplate,
+    private val activities: RecordActivityStore,
 ) : ChangeRecordRepository {
     private val recordRowMapper = RowMapper<ChangeRecord> { resultSet, _ -> mapRecord(resultSet) }
 
@@ -110,11 +114,13 @@ class JdbcChangeRecordRepository(
         insertCodeAnchors(record)
         insertVerifications(record)
         insertOpenQuestions(record)
+        activities.append(RecordActivity(record.id, RecordOperation.CREATE, record.createdBy.subject,
+            null, record.version, null, record.status, record.createdAt))
         return record
     }
 
     @Transactional
-    override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord {
+    override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord {
         val updated = jdbcTemplate.update(
             """
             update change_records
@@ -148,6 +154,7 @@ class JdbcChangeRecordRepository(
             insertVerifications(record)
             insertOpenQuestions(record)
         }
+        activities.append(activity)
         return record
     }
 

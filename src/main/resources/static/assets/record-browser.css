@@ -527,4 +527,17 @@ footer {
 .comparison-value h3 { color:var(--muted); font-size:.85rem; }
 .comparison-value p { margin:0; }
 .site-header nav { flex-wrap:wrap; }
+.site-header { flex-wrap:wrap; }
+.search-form label,.records>li>div { min-width:0; }
+.records h2 { overflow-wrap:anywhere; }
+.comparison-filter { display:flex; flex-wrap:wrap; align-items:center; gap:1rem; }
+.comparison-filter p { margin:0; color:var(--muted); }
+.comparison-detail,.session-actions { padding:1.2rem; margin:1rem 0; border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+.comparison-detail h4 { font-size:.85rem; margin:.5rem 0; color:var(--muted); }
+.comparison-detail .comparison-columns>div { min-width:0; }
+.comparison-section summary { padding:.7rem 0; }
+ins { background:#dcf4e5; color:#205638; text-decoration:none; }
+del { background:#fce4e4; color:#842d2d; }
+.evidence-facts { display:grid; grid-template-columns:130px minmax(0,1fr); gap:.5rem 1rem; padding:1.2rem; background:var(--paper); }
+.evidence-facts dt,.evidence-facts dd { margin:0; }
 @media(max-width:650px) { .comparison-columns { grid-template-columns:1fr; } .comparison-heading { gap:0; } }

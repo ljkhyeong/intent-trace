@@ -153,7 +153,7 @@ class TeamChangeRecordServiceTest {
 
         override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { this.record = it }
 
-        override fun update(record: ChangeRecord, expectedVersion: Long): ChangeRecord = record.also { this.record = it }
+        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord = record.also { this.record = it }
     }
 
     companion object {

@@ -45,6 +45,8 @@ INTENT_TRACE_DATABASE_PASSWORD="$smoke_database_password" \
 
 before_count=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \
     'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --command="select count(*) from change_records"')
+before_activities=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \
+    'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --command="select count(*) from record_activities"')
 backup_file="$smoke_directory/postgres-smoke.dump"
 INTENT_TRACE_ENV_FILE="$environment_file" scripts/backup-postgres.sh "$backup_file"
 
@@ -54,9 +56,15 @@ INTENT_TRACE_ENV_FILE="$environment_file" scripts/restore-postgres.sh "$backup_f
 
 after_count=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \
     'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --command="select count(*) from change_records"')
+after_activities=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \
+    'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --command="select count(*) from record_activities"')
 if [ "$before_count" != "$after_count" ] || [ "$after_count" -lt 1 ]; then
     printf '%s\n' "backup 복구 뒤 기록 수가 일치하지 않습니다: $before_count -> $after_count" >&2
     exit 1
 fi
+if [ "$before_activities" != "$after_activities" ] || [ "$after_activities" -lt 1 ]; then
+    printf '%s\n' "backup 복구 뒤 변경 이력 수가 일치하지 않습니다: $before_activities -> $after_activities" >&2
+    exit 1
+fi
 
-printf '%s\n' "PostgreSQL migration·JDBC·backup·restore를 확인했습니다: 기록 $after_count 건"
+printf '%s\n' "PostgreSQL migration·JDBC·backup·restore를 확인했습니다: 기록 $after_count 건, 변경 이력 $after_activities 건"

@@ -82,7 +82,9 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             anchor.relatedPath?.let { append("<p class=\"muted\">연결된 경로: ${html(it)}</p>") }
             append("</li>")
         }
-        append("</ul><p class=\"muted\">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p></section>")
+        append("</ul><p class=\"muted\">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p>")
+        if (record.targetRevision != null) append("<a class=\"button secondary\" href=\"/records/${record.id}/evidence\">GitHub 코드 근거 확인</a>")
+        append("</section>")
         append("<section><h2>실행한 검증</h2>")
         if (record.verifications.isEmpty()) append("<p class=\"muted\">이 기록에 제출된 검증이 없습니다.</p>")
         record.verifications.forEach { verification ->
@@ -98,7 +100,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("</section></article><aside class=\"record-facts\"><h2>기록 정보</h2><dl><dt>작성자</dt><dd>@${html(record.createdBy.login)}</dd><dt>생성</dt><dd>${stamp(record.createdAt)}</dd>")
         record.confirmedAt?.let { append("<dt>작성자 확인</dt><dd>${stamp(it)}</dd>") }
         record.publishedAt?.let { append("<dt>공개</dt><dd>${stamp(it)}</dd>") }
-        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p></aside></div>")
+        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"/records/${record.id}/activities\">기록 변경 이력</a></aside></div>")
     })
 
     fun error(message: String): String = layout("기록을 열 수 없습니다", null,
@@ -108,7 +110,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>${html(title)} · IntentTrace</title><link rel="stylesheet" href="/assets/record-browser.css"></head>
         <body><a class="skip-link" href="#content">본문으로 이동</a><header class="site-header"><a class="brand" href="/records"><span aria-hidden="true">↳</span> IntentTrace</a>
-        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/pull-requests">PR 기록</a><a href="/records/connection">연결 진단</a>${actor?.let { "<span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
+        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/history">파일·줄 조회</a><a href="/records/pull-requests">PR 기록</a><a href="/records/connection">연결 진단</a>${actor?.let { "<a href=\"/records/sessions\">내 연결</a><span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
         <main id="content">$content</main><footer>요청과 판단을 코드에 연결합니다. 기록은 저장소 권한에 따라 표시됩니다.</footer></body></html>
     """.trimIndent()
 }
@@ -125,7 +127,7 @@ internal fun url(path: String, vararg values: Pair<String, String?>): String = U
 }.encode().buildAndExpand(values.filter { !it.second.isNullOrEmpty() }.toMap()).toUriString()
 
 private val ChangeRecord.isPrivate: Boolean get() = status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
-private val ChangeRecordStatus.label: String get() = when (this) {
+internal val ChangeRecordStatus.label: String get() = when (this) {
     ChangeRecordStatus.DRAFT -> "초안"
     ChangeRecordStatus.AUTHOR_CONFIRMED -> "작성자 확인"
     ChangeRecordStatus.PUBLISHED -> "팀 공개"

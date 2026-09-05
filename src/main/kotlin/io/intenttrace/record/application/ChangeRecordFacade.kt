@@ -84,7 +84,7 @@ class ChangeRecordFacade(
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
             now = Instant.now(clock),
         )
-        return repository.update(confirmed, command.expectedVersion).also { measured("confirm") }
+        return saveChange(current, confirmed, actor, RecordOperation.CONFIRM)
     }
 
     fun publish(command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -99,7 +99,7 @@ class ChangeRecordFacade(
             currentSnapshotDigest = command.currentSnapshotDigest.lowercase(),
             now = Instant.now(clock),
         )
-        return repository.update(published, command.expectedVersion).also { measured("publish") }
+        return saveChange(current, published, actor, RecordOperation.PUBLISH)
     }
 
     fun supersede(command: SupersedeChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -116,7 +116,7 @@ class ChangeRecordFacade(
             "대체 명령과 변경 의도 기록이 일치하지 않습니다."
         }
         requireExpectedVersion(current, command.expectedVersion)
-        return repository.update(current.supersede(actor, replacement), command.expectedVersion).also { measured("supersede") }
+        return saveChange(current, current.supersede(actor, replacement), actor, RecordOperation.SUPERSEDE)
     }
 
     fun revise(current: ChangeRecord, expectedVersion: Long, command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
@@ -125,18 +125,23 @@ class ChangeRecordFacade(
         }
         validateCreate(command)
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.revise(actor, normalize(command)), expectedVersion).also { measured("revise") }
+        return saveChange(current, current.revise(actor, normalize(command)), actor, RecordOperation.REVISE)
     }
 
     fun reopen(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.reopen(actor), expectedVersion).also { measured("reopen") }
+        return saveChange(current, current.reopen(actor), actor, RecordOperation.REOPEN)
     }
 
     fun discard(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
         requireExpectedVersion(current, expectedVersion)
-        return repository.update(current.discard(actor), expectedVersion).also { measured("discard") }
+        return saveChange(current, current.discard(actor), actor, RecordOperation.DISCARD)
     }
+
+    private fun saveChange(previous: ChangeRecord, next: ChangeRecord, actor: ActorIdentity, operation: RecordOperation): ChangeRecord =
+        repository.update(next, previous.version, RecordActivity(next.id, operation, actor.subject,
+            previous.version, next.version, previous.status, next.status, Instant.now(clock)))
+            .also { measured(operation.name.lowercase()) }
 
     private fun measured(operation: String) {
         meters.counter("intenttrace.record.operation", "operation", operation).increment()

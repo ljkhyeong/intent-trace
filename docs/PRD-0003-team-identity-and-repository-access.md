@@ -64,7 +64,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - device flow와 MCP OAuth discovery
 - 권한 캐시와 webhook 기반 즉시 무효화
 - 조직 SSO·팀별 추가 정책과 관리자 소유권 강제 이전
-- 감사 로그와 기록 보존 정책
+- 인증·운영 전체 감사 로그와 자동 기록 보존 정책. 기록 수명주기 이력은 ADR-0011을 따른다.
 
 ## 내 로컬 세션 관리
 

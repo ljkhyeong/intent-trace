@@ -87,3 +87,6 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - 이전 기록 조회의 `complete=false`는 현재 후보 페이지에 확인하지 못한 기록이 있다는 뜻이다. `failures`의 ID를 같은 조건의 `retryRecordId`에 넣으면 해당 공개 기록만 다시 조회한다. `cursor`는 함께 보내지 않는다. `nextCursor`는 다음 후보 페이지이며 실패 후보 확인을 대신하지 않는다.
 - `check_publication_credentials`는 저장소 관리자가 요청할 때만 실행한다. 설치 token을 메모리에서 발급하므로 일반 읽기 진단과 구분한다. `ready=true`도 Check Run 게시 완료나 이후 HEAD 일치를 뜻하지 않는다.
 - 브라우저 PR 기록은 `/records/pull-requests`, 연결 진단은 `/records/connection`, 후속 비교는 `/records/{UUID}/comparison`으로 안내한다.
+- 비교의 `details`로 추가·삭제·출처·순서 변경을 확인한다. `AMBIGUOUS`는 중복 항목의 대응을 확정할 수 없다는 뜻이며 전체 원본·후속을 읽는다.
+- 웹 파일·줄 조회는 `/records/history`, 코드 근거 확인은 `/records/{UUID}/evidence`, 본인 연결 관리는 `/records/sessions`를 사용한다.
+- 기록의 처리 이력은 `list_record_activities` 또는 `/records/{UUID}/activities`에서 읽는다. `nextBeforeVersion`으로 이전 작업을 조회하며 작성자는 전체, 팀원은 공개·대체 작업만 볼 수 있다. 수집 이전 작업을 추정하거나 이력을 과거 본문 복원으로 설명하지 않는다.

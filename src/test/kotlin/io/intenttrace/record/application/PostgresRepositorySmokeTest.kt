@@ -28,6 +28,7 @@ class PostgresRepositorySmokeTest(
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking,
     @Autowired private val catalog: ChangeRecordCatalog,
+    @Autowired private val activities: RecordActivityStore,
 ) {
     @Test
     fun `PostgreSQL에서 migration과 변경 기록 조회를 확인한다`() {
@@ -82,6 +83,9 @@ class PostgresRepositorySmokeTest(
             revision, digest, published.title, published.requestSummary, published.decisions, published.codeAnchors,
             emptyList(), emptyList(), published.id), actor)
         assertEquals(published.id, facade.get(successor.id).derivedFromRecordId)
+        assertEquals(listOf(RecordOperation.PUBLISH, RecordOperation.CONFIRM, RecordOperation.CREATE),
+            activities.list(published.id, true, null, 50).map { it.operation })
+        assertEquals(listOf(RecordOperation.PUBLISH), activities.list(published.id, false, null, 50).map { it.operation })
     }
 
     companion object {

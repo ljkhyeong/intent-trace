@@ -37,6 +37,7 @@ import kotlin.test.assertTrue
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val tools: IntentTraceTools,
+    @Autowired private val records: io.intenttrace.record.application.ChangeRecordFacade,
 ) {
     @Test
     fun `MCP는 인증된 사용자만 초기화하고 잘못된 revision을 거부한다`() {
@@ -91,6 +92,21 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("diagnose_connection")) }
             content { string(containsString("compare_change_record")) }
             content { string(containsString("check_publication_credentials")) }
+            content { string(containsString("list_record_activities")) }
+        }
+        val activityRecord = records.create(CreateChangeRecordRequest(
+            requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
+            title = "변경 이력 조회", requestSummary = "선택 버전을 생략하고 이력을 조회한다.",
+            decisions = listOf(DecisionRequest("기록과 이력을 함께 저장한다.", null, PurposeSource.STATED_BY_USER)),
+            codeAnchors = listOf(CodeAnchorRequest("src/App.kt", null, 1, 2, "b".repeat(64))),
+        ).toCommand(), ActorIdentity.github(42, "lim"))
+        mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_record_activities","arguments":{"recordId":"${activityRecord.id}"}}}"""
+        }.andExpect {
+            status { isOk() }; content { string(containsString("\"isError\":false")) }
+            content { string(containsString("CREATE")) }; content { string(containsString("AUTHOR")) }
         }
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")
