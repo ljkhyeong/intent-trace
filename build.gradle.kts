@@ -51,6 +51,7 @@ kotlin {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	inputs.file("scripts/git-evidence.sh")
 }
 
 tasks.bootJar {

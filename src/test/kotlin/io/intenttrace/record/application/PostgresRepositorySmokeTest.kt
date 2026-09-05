@@ -1,6 +1,9 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.publication.application.GitHubPublicationRepository
+import io.intenttrace.publication.domain.GitHubPublication
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationRun
@@ -8,8 +11,6 @@ import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.publication.application.GitHubPublicationTracking
 import io.intenttrace.publication.application.PublicationOperation
 import io.intenttrace.publication.application.PublicationAttemptStatus
-import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.publication.domain.GitHubPublication
 import java.time.Instant
 import java.util.UUID
 import io.intenttrace.record.domain.Decision
@@ -29,7 +30,8 @@ class PostgresRepositorySmokeTest(
     @Autowired private val tracking: GitHubPublicationTracking,
     @Autowired private val catalog: ChangeRecordCatalog,
     @Autowired private val activities: RecordActivityStore,
-) {
+    @Autowired private val publicationRepository: GitHubPublicationRepository,
+) : ChangeRecordStorageContract() {
     @Test
     fun `PostgreSQL에서 migration과 변경 기록 조회를 확인한다`() {
         val draft = facade.create(
@@ -86,6 +88,29 @@ class PostgresRepositorySmokeTest(
         assertEquals(listOf(RecordOperation.PUBLISH, RecordOperation.CONFIRM, RecordOperation.CREATE),
             activities.list(published.id, true, null, 50).map { it.operation })
         assertEquals(listOf(RecordOperation.PUBLISH), activities.list(published.id, false, null, 50).map { it.operation })
+
+        val updateTarget = GitHubPullRequestTarget("ACME", "INTENT-TRACE", 12)
+        val updatePublication = GitHubPublication(
+            id = UUID.randomUUID(),
+            changeRecordId = published.id,
+            target = updateTarget,
+            headRevision = revision,
+            checkRunId = 42,
+            checkRunUrl = "https://github.test/check-runs/42",
+            contentDigest = "e".repeat(64),
+            publishedAt = Instant.parse("2026-08-29T00:00:00Z"),
+        )
+        publicationRepository.save(updatePublication)
+        val updatedPublication = publicationRepository.save(
+            updatePublication.copy(
+                checkRunId = 43,
+                checkRunUrl = "https://github.test/check-runs/43",
+                publishedAt = Instant.parse("2026-08-29T00:01:00Z"),
+            ),
+        )
+
+        assertEquals(updatePublication.id, updatedPublication.id)
+        assertEquals(43L, publicationRepository.find(published.id, updateTarget)?.checkRunId)
     }
 
     companion object {

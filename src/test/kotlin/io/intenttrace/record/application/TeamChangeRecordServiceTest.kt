@@ -14,6 +14,8 @@ import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -82,10 +84,22 @@ class TeamChangeRecordServiceTest {
         assertEquals(1, repository.findByIdCount)
     }
 
+    @Test
+    fun `같은 저장소의 공개 기록 대체는 권한을 한 번만 확인한다`() {
+        val current = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        val replacement = draft(owner).copy(id = UUID.randomUUID(), status = ChangeRecordStatus.PUBLISHED)
+        repository.records[current.id] = current
+        repository.records[replacement.id] = replacement
+
+        service.supersede(SupersedeChangeRecordCommand(current.id, current.version, replacement.id))
+
+        assertEquals(1, gateway.repositoryRoleCount)
+        assertEquals(ChangeRecordStatus.SUPERSEDED, repository.records[current.id]?.status)
+    }
+
     private fun createCommand(requestId: String) = CreateChangeRecordCommand(
         requestId = requestId,
         repositoryKey = repositoryKey,
-        baseRevision = null,
         snapshotDigest = "a".repeat(64),
         title = "팀 인증 기록",
         requestSummary = "인증 사용자를 작성자로 저장한다.",
@@ -99,7 +113,6 @@ class TeamChangeRecordServiceTest {
         id = UUID.randomUUID(),
         requestId = "seeded",
         repositoryKey = repositoryKey,
-        baseRevision = null,
         targetRevision = null,
         snapshotDigest = "a".repeat(64),
         title = "초안",
@@ -122,21 +135,41 @@ class TeamChangeRecordServiceTest {
     }
 
     private class TestGitHubUserAccessGateway(var role: RepositoryRole?) : GitHubUserAccessGateway {
+        var repositoryRoleCount = 0
+
         override fun authenticate(accessToken: String): ActorIdentity = error("사용하지 않는 테스트 경로")
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? = role
+        override fun repositoryRole(
+            accessToken: String,
+            actor: ActorIdentity,
+            repository: GitHubRepository,
+        ): RepositoryRole? {
+            repositoryRoleCount += 1
+            return role
+        }
     }
 
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
+        override fun findSummaries(
+            repositoryKey: String,
+            statuses: Set<ChangeRecordStatus>,
+            authorSubject: String?,
+            relativePath: String?,
+            pageable: Pageable,
+        ): Slice<ChangeRecordSummary> = error("사용하지 않는 테스트 경로")
+
         var record: ChangeRecord? = null
+        val records = mutableMapOf<UUID, ChangeRecord>()
         var findByIdCount: Int = 0
 
         override fun findById(id: UUID): ChangeRecord? {
             findByIdCount += 1
-            return record?.takeIf { it.id == id }
+            return records[id] ?: record?.takeIf { it.id == id }
         }
 
         override fun findByRequestId(requestId: String): ChangeRecord? = record?.takeIf { it.requestId == requestId }
+
+        override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> = ids.mapNotNull(::findById)
 
         override fun findPublishedByAnchor(
             repositoryKey: String,
@@ -153,7 +186,10 @@ class TeamChangeRecordServiceTest {
 
         override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { this.record = it }
 
-        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord = record.also { this.record = it }
+        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord = record.also {
+            this.record = it
+            records[it.id] = it
+        }
     }
 
     companion object {

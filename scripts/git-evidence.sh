@@ -16,6 +16,19 @@ require_full_revision() {
     fi
 }
 
+prepare_workspace() {
+    evidence_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-git-evidence.XXXXXX")
+    trap 'rm -rf -- "$evidence_directory"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+}
+
+sha256_file() {
+    digest_line=$(shasum -a 256 < "$1")
+    printf '%s\n' "${digest_line%% *}"
+}
+
 if [ "$#" -lt 2 ]; then
     usage >&2
     exit 1
@@ -23,6 +36,7 @@ fi
 
 operation=$1
 revision=$2
+max_code_anchor_line=10000000
 require_full_revision "$revision"
 
 case "$operation" in
@@ -31,7 +45,10 @@ case "$operation" in
             usage >&2
             exit 1
         fi
-        git -c core.quotePath=true ls-tree -r --full-tree "$revision" | shasum -a 256 | awk '{print $1}'
+        # 기존 기본 출력의 해시를 유지하고 개인 파일명 표시 설정은 적용하지 않는다.
+        prepare_workspace
+        git -c core.quotePath=true ls-tree -r --full-tree "$revision" > "$evidence_directory/snapshot"
+        sha256_file "$evidence_directory/snapshot"
         ;;
     anchor)
         if [ "$#" -ne 5 ]; then
@@ -59,20 +76,24 @@ case "$operation" in
                 exit 1
                 ;;
         esac
-        if [ "$start_line" -lt 1 ] || [ "$end_line" -lt "$start_line" ]; then
-            printf '%s\n' '줄 범위가 올바르지 않습니다.' >&2
+        if ! { [ "$start_line" -ge 1 ] &&
+            [ "$end_line" -ge "$start_line" ] &&
+            [ "$end_line" -le "$max_code_anchor_line" ]; } 2>/dev/null; then
+            printf '줄 범위는 1~%s 사이여야 하며 시작 줄은 끝 줄 이하여야 합니다.\n' "$max_code_anchor_line" >&2
             exit 1
         fi
-        if ! git cat-file -e "$revision:$path" 2>/dev/null; then
+        prepare_workspace
+        if ! git cat-file blob "$revision:$path" > "$evidence_directory/source" 2>/dev/null; then
             printf '%s\n' "해당 커밋에서 파일을 찾을 수 없습니다: $path" >&2
             exit 1
         fi
-        line_count=$(git show "$revision:$path" | awk 'END { print NR }')
+        line_count=$(awk 'END { print NR }' "$evidence_directory/source")
         if [ "$end_line" -gt "$line_count" ]; then
             printf '%s\n' "요청한 끝 줄이 파일 범위를 벗어났습니다: $end_line > $line_count" >&2
             exit 1
         fi
-        git show "$revision:$path" | sed -n "${start_line},${end_line}p" | shasum -a 256 | awk '{print $1}'
+        sed -n "${start_line},${end_line}p" "$evidence_directory/source" > "$evidence_directory/range"
+        sha256_file "$evidence_directory/range"
         ;;
     *)
         usage >&2

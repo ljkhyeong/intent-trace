@@ -5,6 +5,7 @@ import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
+import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
 import java.net.URI
 import java.time.Clock
@@ -15,6 +16,7 @@ import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
@@ -36,6 +38,36 @@ class InMemoryGitHubUserSessionStoreTest {
 
         assertEquals("ghu_access-1", resolved.accessToken)
         assertEquals(0, oauth.refreshCount.get())
+    }
+
+    @Test
+    fun `session을 폐기하면 해당 token만 다시 사용할 수 없다`() {
+        val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
+        val second = store.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
+
+        store.revoke(store.resolve(first.sessionToken).localSessionId!!)
+
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(first.sessionToken) }
+        assertEquals("ghu_access-2", store.resolve(second.sessionToken).accessToken)
+    }
+
+    @Test
+    fun `사용자별 상한을 넘겨 발급하면 가장 오래된 session을 폐기한다`() {
+        val limitedStore = InMemoryGitHubUserSessionStore(
+            oauth,
+            users,
+            GitHubProperties(userAuthorization = GitHubUserAuthorizationProperties(maxSessionsPerUser = 2)),
+            clock,
+        )
+        val first = limitedStore.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
+        clock.advance(Duration.ofSeconds(1))
+        val second = limitedStore.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
+        clock.advance(Duration.ofSeconds(1))
+        val third = limitedStore.issue(owner, tokens(clock.instant(), "3", Duration.ofHours(8)))
+
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(first.sessionToken) }
+        assertEquals("ghu_access-2", limitedStore.resolve(second.sessionToken).accessToken)
+        assertEquals("ghu_access-3", limitedStore.resolve(third.sessionToken).accessToken)
     }
 
     @Test
@@ -95,7 +127,7 @@ class InMemoryGitHubUserSessionStoreTest {
     @Test
     fun `GitHub가 refresh token을 거부하면 session을 폐기한다`() {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
-        oauth.rejectRefresh = true
+        oauth.refreshFailure = GitHubOAuthRefreshRejectedException()
 
         assertFailsWith<GitHubUserAuthenticationException> {
             store.resolve(issued.sessionToken)
@@ -154,11 +186,73 @@ class InMemoryGitHubUserSessionStoreTest {
         assertEquals(owner, store.resolve(client.sessionToken).actor)
     }
 
+    @Test
+    fun `갱신 응답을 받지 못하면 session을 폐기하고 같은 refresh token을 다시 보내지 않는다`() {
+        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
+        oauth.refreshFailure = GitHubOAuthApiException("GitHub 사용자 token 갱신 요청을 완료하지 못했습니다.")
+
+        repeat(2) {
+            assertFailsWith<GitHubUserAuthenticationException> {
+                store.resolve(issued.sessionToken)
+            }
+        }
+        assertEquals(1, oauth.refreshCount.get())
+    }
+
+    @Test
+    fun `사용자 조회 장애는 갱신한 token 쌍을 폐기하지 않는다`() {
+        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
+        users.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
+
+        assertFailsWith<GitHubIdentityApiException> { store.resolve(issued.sessionToken) }
+        users.authenticationFailure = null
+
+        assertEquals("ghu_access-2", store.resolve(issued.sessionToken).accessToken)
+        assertEquals(1, oauth.refreshCount.get())
+    }
+
+    @Test
+    fun `갱신 거부로 폐기한 session은 잠금을 기다리던 요청도 사용하지 않는다`() {
+        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
+        val entered = CountDownLatch(1)
+        val proceed = CountDownLatch(1)
+        oauth.refreshFailure = GitHubOAuthRefreshRejectedException()
+        oauth.beforeRefresh = {
+            entered.countDown()
+            check(proceed.await(5, TimeUnit.SECONDS))
+        }
+        val first = FutureTask {
+            assertFailsWith<GitHubUserAuthenticationException> { store.resolve(issued.sessionToken) }
+        }
+        val second = FutureTask {
+            assertFailsWith<GitHubUserAuthenticationException> { store.resolve(issued.sessionToken) }
+        }
+        val firstThread = Thread(first)
+        val secondThread = Thread(second)
+        try {
+            firstThread.start()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            secondThread.start()
+            assertTimeoutPreemptively(Duration.ofSeconds(5)) {
+                while (secondThread.state != Thread.State.WAITING) Thread.sleep(1)
+            }
+        } finally {
+            proceed.countDown()
+            firstThread.join(5_000)
+            secondThread.join(5_000)
+        }
+
+        first.get(5, TimeUnit.SECONDS)
+        second.get(5, TimeUnit.SECONDS)
+        assertEquals(1, oauth.refreshCount.get())
+    }
+
     private class FakeGitHubUserOAuthGateway(
         private val clock: Clock,
     ) : GitHubUserOAuthGateway {
         val refreshCount = AtomicInteger()
         var rejectRefresh = false
+        var refreshFailure: GitHubOAuthException? = null
         var beforeRefresh: () -> Unit = {}
 
         override fun authorizationUri(state: String, codeChallenge: String): URI = error("사용하지 않는 테스트 경로")
@@ -170,17 +264,25 @@ class InMemoryGitHubUserSessionStoreTest {
             refreshCount.incrementAndGet()
             beforeRefresh()
             if (rejectRefresh) throw GitHubOAuthRefreshRejectedException()
+            refreshFailure?.let { throw it }
             return tokens(clock.instant(), "2", Duration.ofHours(8))
         }
     }
 
     private class FakeGitHubUserAccessGateway : GitHubUserAccessGateway {
         var refreshedActor: ActorIdentity = owner
+        var authenticationFailure: GitHubIdentityApiException? = null
 
-        override fun authenticate(accessToken: String): ActorIdentity =
-            if (accessToken == "ghu_access-2") refreshedActor else owner
+        override fun authenticate(accessToken: String): ActorIdentity {
+            authenticationFailure?.let { throw it }
+            return if (accessToken == "ghu_access-2") refreshedActor else owner
+        }
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? =
+        override fun repositoryRole(
+            accessToken: String,
+            actor: ActorIdentity,
+            repository: GitHubRepository,
+        ): RepositoryRole? =
             error("사용하지 않는 테스트 경로")
     }
 

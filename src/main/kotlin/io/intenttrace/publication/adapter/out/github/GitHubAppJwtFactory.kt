@@ -46,8 +46,6 @@ class GitHubAppJwtFactory(
                 sign()
             }
             "$signingInput.${encodeUrl(signature)}"
-        } catch (exception: GitHubCredentialMissingException) {
-            throw exception
         } catch (_: Exception) {
             throw GitHubCredentialConfigurationException()
         }

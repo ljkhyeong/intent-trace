@@ -21,7 +21,7 @@ class PublicationPreflightServiceTest {
         val access = RepositoryAccessService(object : CurrentGitHubUserSession { override fun require() = GitHubUserSession(actor, "test") },
             object : GitHubUserAccessGateway {
                 override fun authenticate(accessToken: String) = actor
-                override fun repositoryRole(accessToken: String, repository: GitHubRepository) = role
+                override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository) = role
             })
         var inspections = 0
         val inspector = PublicationCredentialInspector {

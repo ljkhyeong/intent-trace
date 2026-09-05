@@ -13,16 +13,18 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - `ghu_`로 시작하는 GitHub App user access token을 REST·MCP Bearer 자격 증명으로 사용한다.
 - 매 요청에서 GitHub `/user`를 호출해 사용자 숫자 ID와 현재 login을 확인한다.
 - `github:<user-id>`를 안정적인 작성자 subject, login을 표시값으로 저장한다.
-- `GET /user/repos`를 `owner,collaborator,organization_member` affiliation으로 조회해 명시적 접근 저장소만 인정하고, 대상의 `permissions`를 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다.
+- `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 대상 저장소의 최고 유효 권한만 조회하고, `permission`과 `role_name`을 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다. `none`과 404는 권한 없음으로 처리한다.
+- 권한 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자 subject와 일치할 때만 결과를 사용한다. login은 단건 조회 경로와 표시값에만 사용한다.
 - 읽기 작업은 `READER`, 기록 생성·수명주기·GitHub 게시는 `CONTRIBUTOR` 이상을 요구한다.
 - 비공개 상태는 작성자만 조회하며, `PUBLISHED`와 `SUPERSEDED`도 익명 공개하지 않고 저장소 읽기 권한이 있는 팀원에게만 공개한다.
 - user access token은 요청 속성에만 두고 처리 후 제거한다. 설치 token, JWT와 마찬가지로 영구 저장하거나 로그에 쓰지 않는다.
+- 사용자·저장소 권한 조회의 HTTP·응답 파싱 오류와 유효하지 않은 사용자 ID·login은 기존 인증 실패·연동 장애 분류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 전달하지 않는다.
 - 기존 `created_by` 값은 V3에서 `legacy:<lowercase-login>` subject로 보존하며 자동 계정 연결은 하지 않는다.
 
 ## 영향
 
 - 모든 API·MCP 호출에는 GitHub 네트워크 왕복이 최소 한 번, 저장소 작업에는 권한 조회가 한 번 더 필요하다.
-- 저장소가 많은 사용자는 `/user/repos` 페이지를 더 조회한다. 현재 상한은 100페이지이며 초과하면 권한 없음으로 오인하지 않고 의존 서비스 오류로 중단한다.
+- 저장소 수와 관계없이 권한 확인은 대상 저장소에 대한 GitHub 요청 한 번으로 끝난다. 응답이 현재 사용자와 다르거나 알 수 없는 권한 값이면 의존 서비스 오류로 중단한다.
 - GitHub 장애는 보호 작업에 영향을 준다. 현재는 오래된 권한으로 통과시키지 않고 실패를 반환한다.
 - `ghu_` user access token 직접 전달은 호환 경로로 유지한다. 기본 Codex 연결과 token 갱신 책임은 `ADR-0005`의 `its_` 로컬 세션이 맡는다.
 - 서버 주도 Check Run 게시의 installation token과 요청 사용자 token은 목적과 권한 범위가 다르므로 별도로 유지한다.
@@ -35,3 +37,4 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - GitHub login을 소유권 키로 사용: 사용자가 login을 변경할 수 있어 안정적인 귀속을 보장하지 못하므로 제외했다.
 - 공개 상태를 인터넷 전체에 노출: private 저장소의 요청과 판단이 유출될 수 있어 제외했다.
 - installation token으로 사용자 요청 인증: App 설치를 식별할 뿐 실제 행위자를 식별하지 못하므로 제외했다.
+- `/user/repos` 전체 목록 순회: 대상 하나의 권한을 찾기 위해 최대 100페이지를 읽고 수동으로 페이지를 해석해야 하므로 단건 권한 API로 대체했다.

@@ -10,6 +10,7 @@ class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
     val sessionId: UUID? = null,
+    val localSessionId: String? = null,
 ) {
     // 인증할 때마다 새로 만드는 객체이며 장기 세션 저장소에는 보관하지 않는다.
     private val repositoryRoles = mutableMapOf<String, RepositoryRole?>()
@@ -17,7 +18,7 @@ class GitHubUserSession(
     @Synchronized
     internal fun repositoryRole(repository: GitHubRepository, gateway: GitHubUserAccessGateway): RepositoryRole? {
         if (!repositoryRoles.containsKey(repository.key)) {
-            repositoryRoles[repository.key] = gateway.repositoryRole(accessToken, repository)
+            repositoryRoles[repository.key] = gateway.repositoryRole(accessToken, actor, repository)
         }
         return repositoryRoles[repository.key]
     }
@@ -32,7 +33,11 @@ interface CurrentGitHubUserSession {
 interface GitHubUserAccessGateway {
     fun authenticate(accessToken: String): ActorIdentity
 
-    fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole?
+    fun repositoryRole(
+        accessToken: String,
+        actor: ActorIdentity,
+        repository: GitHubRepository,
+    ): RepositoryRole?
 }
 
 @Service
@@ -59,7 +64,10 @@ class RepositoryAccessService(
 
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
 
-class GitHubIdentityApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+class LocalGitHubUserSessionRequiredException :
+    RuntimeException("IntentTrace에서 발급한 its_ session으로 요청해야 합니다.")
+
+class GitHubIdentityApiException(message: String) : RuntimeException(message)
 
 class RepositoryAccessDeniedException(repositoryKey: String, requiredRole: RepositoryRole) :
     RuntimeException("저장소 $repositoryKey 에 ${requiredRole.name} 권한이 필요합니다.")

@@ -1,3 +1,5 @@
+alter table change_records add column base_revision varchar(64);
+
 alter table change_records add column creation_digest varchar(64);
 
 create index idx_change_records_catalog

@@ -9,27 +9,33 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  server:
+    name: 서버 검증
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: 저장소 받기
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Java 21 준비
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Gradle 준비
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           cache-provider: basic
+          validate-wrappers: true
 
       - name: Python 준비
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -47,28 +53,63 @@ jobs:
         run: npm test --prefix clients/zed
 
       - name: 전체 테스트
-        run: ./gradlew --no-daemon test
+        run: ./gradlew --no-daemon test bootJar
+
+      - name: 릴리스 version 확인
+        run: python3 scripts/validate-release-version.py
+
+      - name: 릴리스 파일 준비 코드 테스트
+        run: python3 scripts/test_validate_release_version.py
 
       - name: 플러그인 검증
         env:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
         run: scripts/validate-plugin.sh
 
+      - name: 동시 백업 파일 보존 확인
+        run: python3 scripts/test_backup_postgres.py
+
       - name: PostgreSQL 계약 검증
         run: scripts/verify-postgres.sh
 
-      - name: Compose 설정 검증
-        env:
-          INTENT_TRACE_SITE_ADDRESS: http://localhost
-          INTENT_TRACE_HTTP_PORT: "8080"
-          INTENT_TRACE_HTTPS_PORT: "8443"
-          INTENT_TRACE_DATABASE_NAME: intent_trace
-          INTENT_TRACE_DATABASE_USERNAME: intent_trace
-          INTENT_TRACE_DATABASE_PASSWORD: ci-only-database-password
-          INTENT_TRACE_GITHUB_APP_CLIENT_ID: Iv1.ci
-          INTENT_TRACE_GITHUB_APP_CLIENT_SECRET: ci-only-client-secret
-          INTENT_TRACE_GITHUB_CALLBACK_URL: http://localhost:8080/auth/github/callback
-        run: docker compose config --quiet
+      - name: Compose 경계 검증
+        run: python3 scripts/validate-compose.py .env.team.example
+
+      - name: Caddy 설정 검증
+        run: docker compose --env-file .env.team.example run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
       - name: Container image build
         run: docker build --tag intent-trace:ci .
+
+  intellij-plugin:
+    name: IntelliJ 플러그인 검증
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Java 21 준비
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle 준비
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+        with:
+          cache-provider: basic
+          validate-wrappers: true
+
+      - name: 테스트와 설치 ZIP 검증
+        run: ./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
+
+  verify:
+    name: verify
+    needs:
+      - server
+      - intellij-plugin
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 전체 검증 결과 확인
+        run: echo '서버와 IntelliJ 플러그인 검증이 완료됐습니다.'

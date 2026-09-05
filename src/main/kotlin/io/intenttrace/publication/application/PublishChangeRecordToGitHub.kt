@@ -12,6 +12,8 @@ import java.time.Clock
 import java.time.Instant
 import java.util.HexFormat
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 @Service
 class PublishChangeRecordToGitHub(
@@ -20,6 +22,8 @@ class PublishChangeRecordToGitHub(
     private val publicationRepository: GitHubPublicationRepository,
     private val clock: Clock,
 ) {
+    private val publicationLocks = Array(PUBLICATION_LOCK_STRIPES) { ReentrantLock() }
+
     fun publish(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand): GitHubPublication {
         return send(record, command, supersession = false)
     }
@@ -39,17 +43,28 @@ class PublishChangeRecordToGitHub(
             throw GitHubRepositoryMismatchException(record.repositoryKey, target.repositoryKey)
         }
 
+        val markdown = markdownRenderer.render(record)
+        if (markdown.length > MAX_GITHUB_OUTPUT_LENGTH) {
+            throw GitHubPublicationContentTooLargeException()
+        }
+
+        return publicationLocks[Math.floorMod(record.id.hashCode(), publicationLocks.size)].withLock {
+            publishLocked(record, target, markdown, supersession)
+        }
+    }
+
+    private fun publishLocked(
+        record: ChangeRecord,
+        target: GitHubPullRequestTarget,
+        markdown: String,
+        supersession: Boolean,
+    ): GitHubPublication {
         val recordRevision = checkNotNull(record.targetRevision) { "변경 의도 기록에 Git 커밋 ID가 없습니다." }
         val pullRequestRevision = gitHubGateway.getHeadRevision(target).lowercase()
         if (!supersession && recordRevision != pullRequestRevision) {
             throw PullRequestRevisionMismatchException(recordRevision, pullRequestRevision)
         }
 
-        val markdown = markdownRenderer.render(record)
-        if (markdown.length > MAX_GITHUB_OUTPUT_LENGTH) {
-            throw GitHubPublicationContentTooLargeException()
-        }
-        val contentDigest = sha256(markdown)
         val previous = publicationRepository.find(record.id, target)
         check(!supersession || previous != null) { "대체 안내를 반영할 GitHub 게시 이력이 없습니다." }
         val checkCommand = UpsertGitHubCheckRunCommand(
@@ -71,7 +86,7 @@ class PublishChangeRecordToGitHub(
                 headRevision = recordRevision,
                 checkRunId = checkRun.id,
                 checkRunUrl = checkRun.url,
-                contentDigest = contentDigest,
+                contentDigest = sha256(markdown),
                 publishedAt = Instant.now(clock),
             ),
         )
@@ -83,6 +98,7 @@ class PublishChangeRecordToGitHub(
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535
+        private const val PUBLICATION_LOCK_STRIPES = 256
     }
 }
 

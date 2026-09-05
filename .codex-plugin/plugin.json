@@ -1,6 +1,6 @@
 {
   "name": "intent-trace",
-  "version": "0.12.3",
+  "version": "0.12.3-SNAPSHOT",
   "description": "AI 코드의 요청·구현 결정·관련 코드·검증 결과를 작성자 확인 후 공유하는 플러그인",
   "author": {
     "name": "IntentTrace contributors"
@@ -13,7 +13,9 @@
     "developerName": "IntentTrace contributors",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "현재 변경의 요청·구현 결정·관련 코드·실제로 실행한 검증 결과를 IntentTrace 초안으로 정리해 주세요. 원문 대화나 숨은 추론은 포함하지 마세요."
+    "defaultPrompt": [
+      "현재 변경의 요청·구현 결정·관련 코드·실제로 실행한 검증 결과를 IntentTrace 초안으로 정리해 주세요. 원문 대화나 숨은 추론은 포함하지 마세요."
+    ]
   },
   "mcpServers": "./.mcp.json"
 }

@@ -13,6 +13,7 @@ import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
+import io.intenttrace.record.domain.MAX_CODE_ANCHOR_LINE
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
 import jakarta.validation.Valid
@@ -85,7 +86,7 @@ data class CodeAnchorRequest(
     val symbolName: String? = null,
     @field:Min(1)
     val startLine: Int,
-    @field:Min(1) @field:Max(10_000_000)
+    @field:Min(1) @field:Max(MAX_CODE_ANCHOR_LINE)
     val endLine: Int,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val contentHash: String,

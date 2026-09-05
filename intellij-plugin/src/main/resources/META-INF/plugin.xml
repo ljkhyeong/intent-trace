@@ -1,0 +1,66 @@
+<idea-plugin>
+    <id>io.intenttrace.lineintent</id>
+    <name>IntentTrace</name>
+    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace contributors</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+            parentId="tools"
+            instance="io.intenttrace.intellij.IntentTraceSettingsConfigurable"
+            id="io.intenttrace.intellij.settings"
+            displayName="IntentTrace"/>
+    </extensions>
+
+    <actions>
+        <action
+            id="io.intenttrace.intellij.OpenSettings"
+            class="io.intenttrace.intellij.OpenIntentTraceSettingsAction"
+            text="IntentTrace 서버 설정"
+            description="서버 주소를 변경하고 로그인 정보 없이 서버 연결을 확인합니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.BrowseChangeRecords"
+            class="io.intenttrace.intellij.BrowseChangeRecordsAction"
+            text="IntentTrace 기록함 열기"
+            description="팀 공개 기록과 내 비공개 기록을 찾아 원래 커밋, 코드 근거, 대체 기록을 엽니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.OpenGitHubAuthorization"
+            class="io.intenttrace.intellij.OpenGitHubAuthorizationAction"
+            text="IntentTrace GitHub 승인 시작"
+            description="IntentTrace 서버의 GitHub 사용자 승인 페이지를 시스템 브라우저로 엽니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.FindCurrentLineIntent"
+            class="io.intenttrace.intellij.FindCurrentLineIntentAction"
+            text="현재 줄 변경 의도 조회"
+            description="현재 Git HEAD의 파일과 줄에 연결된 IntentTrace 공개 기록을 조회합니다."
+            icon="AllIcons.Actions.Find">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.SaveSessionToken"
+            class="io.intenttrace.intellij.SaveSessionTokenAction"
+            text="IntentTrace 세션 연결"
+            description="OAuth callback에서 받은 its_ session token을 IntelliJ PasswordSafe에 저장합니다."
+            icon="AllIcons.Actions.Checked">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.DisconnectSession"
+            class="io.intenttrace.intellij.DisconnectSessionAction"
+            text="IntentTrace 저장 세션 삭제"
+            description="IntelliJ PasswordSafe에 저장한 IntentTrace 세션 토큰을 삭제합니다."
+            icon="AllIcons.Actions.Cancel">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

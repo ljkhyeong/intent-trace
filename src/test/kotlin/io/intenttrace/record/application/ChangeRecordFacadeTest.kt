@@ -8,11 +8,15 @@ import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
 import org.springframework.dao.DuplicateKeyException
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 
 class ChangeRecordFacadeTest {
     @Test
@@ -27,12 +31,55 @@ class ChangeRecordFacadeTest {
         assertEquals(2, repository.findByRequestIdCount)
     }
 
+    @Test
+    fun `같은 요청 식별자의 저장 내용이 다르면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        val exception = assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command().copy(title = "다른 변경 의도"), actor)
+        }
+
+        assertFalse(exception.message.orEmpty().contains("concurrent-request"))
+    }
+
+    @Test
+    fun `같은 요청 식별자를 다른 사용자가 재사용하면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command(), ActorIdentity.github(2, "teammate"))
+        }
+    }
+
+    @Test
+    fun `같은 요청 식별자를 다른 저장소가 재사용하면 충돌로 처리한다`() {
+        val repository = DuplicateRequestRepository(record())
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+
+        assertFailsWith<ChangeRecordRequestConflictException> {
+            facade.create(command().copy(repositoryKey = "acme/other"), actor)
+        }
+    }
+
     private class DuplicateRequestRepository(
         private val existing: ChangeRecord,
     ) : ChangeRecordRepository {
         var findByRequestIdCount = 0
 
+        override fun findSummaries(
+            repositoryKey: String,
+            statuses: Set<ChangeRecordStatus>,
+            authorSubject: String?,
+            relativePath: String?,
+            pageable: Pageable,
+        ): Slice<ChangeRecordSummary> = error("사용하지 않는 테스트 경로")
+
         override fun findById(id: UUID): ChangeRecord? = null
+
+        override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> =
+            error("사용하지 않는 테스트 경로")
 
         override fun findByRequestId(requestId: String): ChangeRecord? {
             findByRequestIdCount += 1
@@ -60,7 +107,6 @@ class ChangeRecordFacadeTest {
         private fun command() = CreateChangeRecordCommand(
             requestId = "concurrent-request",
             repositoryKey = "Acme/Intent-Trace",
-            baseRevision = null,
             snapshotDigest = "a".repeat(64),
             title = "동시 요청",
             requestSummary = "같은 요청을 한 번만 저장한다.",
@@ -74,7 +120,6 @@ class ChangeRecordFacadeTest {
             id = UUID.randomUUID(),
             requestId = "concurrent-request",
             repositoryKey = "acme/intent-trace",
-            baseRevision = null,
             targetRevision = null,
             snapshotDigest = "a".repeat(64),
             title = "동시 요청",

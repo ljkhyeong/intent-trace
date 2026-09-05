@@ -5,6 +5,7 @@ import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthCodeException
+import io.intenttrace.identity.application.GitHubOAuthCapacityException
 import io.intenttrace.identity.application.GitHubOAuthConfigurationException
 import io.intenttrace.identity.application.GitHubOAuthDeniedException
 import io.intenttrace.identity.application.GitHubOAuthFlowService
@@ -101,6 +102,11 @@ class GitHubOAuthExceptionHandler {
         secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)).contentType(HTML_UTF8)
             .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
             .body(errorPage(exception.message ?: "GitHub 호출 제한에 도달했습니다."))
+    @ExceptionHandler(GitHubOAuthCapacityException::class)
+    fun tooManyRequests(): ResponseEntity<String> =
+        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS))
+            .contentType(HTML_UTF8)
+            .body(errorPage("GitHub 승인 대기 요청이 많습니다. 잠시 뒤 다시 시도해 주세요."))
 
     @ExceptionHandler(GitHubOAuthStateException::class, GitHubOAuthCodeException::class)
     fun invalidRequest(): ResponseEntity<String> =

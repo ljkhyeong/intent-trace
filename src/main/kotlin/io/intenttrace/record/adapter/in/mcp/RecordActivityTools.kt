@@ -5,7 +5,6 @@ import io.intenttrace.record.application.RecordActivityService
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class RecordActivityTools(private val activities: RecordActivityService) {
@@ -13,5 +12,5 @@ class RecordActivityTools(private val activities: RecordActivityService) {
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
     fun list(@McpToolParam(description = "기록 UUID", required = true) recordId: String,
         @McpToolParam(description = "직전 응답의 nextBeforeVersion", required = false) beforeVersion: Long? = null): RecordActivities =
-        activities.list(UUID.fromString(recordId), beforeVersion)
+        activities.list(parseChangeRecordId(recordId), beforeVersion)
 }

@@ -4,11 +4,10 @@
 .idea
 .intent-trace
 .kotlin
-.env
-.env.*
+.env*
 backups
-intent-trace.private-key.pem
-*.private-key.pem
+*.pem
+*.key
 build
 out
 docs

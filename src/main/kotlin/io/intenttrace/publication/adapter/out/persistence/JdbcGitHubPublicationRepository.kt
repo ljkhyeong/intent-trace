@@ -7,6 +7,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 import java.time.Instant
@@ -38,7 +39,7 @@ class JdbcGitHubPublicationRepository(
         ).firstOrNull()
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     override fun save(publication: GitHubPublication): GitHubPublication {
         val repository = GitHubRepository(publication.target.owner, publication.target.repository)
         val updated = update(publication)

@@ -17,7 +17,7 @@ class RepositoryAccessServiceTest {
         val service = RepositoryAccessService(object : CurrentGitHubUserSession { override fun require() = request },
             object : GitHubUserAccessGateway {
                 override fun authenticate(accessToken: String) = actor
-                override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? { reads++; return role }
+                override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository): RepositoryRole? { reads++; return role }
             })
         service.requireReader("Acme/Repo")
         service.requireContributor("acme/repo")

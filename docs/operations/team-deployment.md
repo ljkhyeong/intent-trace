@@ -21,15 +21,25 @@ INTENT_TRACE_SITE_ADDRESS=intent.example.com
 INTENT_TRACE_HTTP_PORT=80
 INTENT_TRACE_HTTPS_PORT=443
 INTENT_TRACE_GITHUB_CALLBACK_URL=https://intent.example.com/auth/github/callback
+INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER=5
 ```
 
 `INTENT_TRACE_DATABASE_PASSWORD`, GitHub App client secret과 Base64 private key는 실제 값으로 교체한다. `.env.team`을 Git, issue, 채팅이나 backup에 넣지 않는다.
+
+팀 배포에서는 `INTENT_TRACE_IMAGE_TAG`에 배포할 전체 Git commit ID를 기록한다. 로컬 확인에서는 예시의 `local`을 그대로 사용할 수 있다.
+
+```bash
+git rev-parse HEAD
+```
+
+출력값이 `012345...`라면 `.env.team`에 `INTENT_TRACE_IMAGE_TAG=012345...`로 저장한다. 이 값은 build 결과와 rollback 대상을 연결하므로 축약하거나 `latest`를 사용하지 않는다.
 
 ## 기동과 확인
 
 ```bash
 docker compose --env-file .env.team config --quiet
-docker compose --env-file .env.team up -d --build
+docker compose --env-file .env.team build app
+docker compose --env-file .env.team up -d --no-build
 docker compose --env-file .env.team ps
 curl --fail https://intent.example.com/actuator/health
 ```
@@ -65,7 +75,7 @@ docker compose --env-file .env.team logs --tail=200 postgres
 INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh
 ```
 
-기본 출력은 `backups/intent-trace-<UTC 시각>.dump`이며 기존 파일을 덮어쓰지 않는다. backup에는 변경 요청·판단·검증 요약이 포함될 수 있으므로 별도 암호화 저장소로 옮기고 접근 권한을 제한한다. GitHub access·refresh token과 `its_` session은 DB에 없으므로 포함되지 않는다.
+기본 출력은 `backups/intent-trace-<UTC 시각>.dump`이며 기존 파일을 덮어쓰지 않는다. 같은 초에 실행이 겹치거나 같은 출력 경로를 지정해도 먼저 완료된 backup만 남고 다른 실행은 실패한다. 실패하거나 종료 신호를 받은 실행은 성공 경로를 계속 진행하지 않고 자신이 만든 임시 파일만 정리한다. backup에는 변경 요청·판단·검증 요약이 포함될 수 있으므로 별도 암호화 저장소로 옮기고 접근 권한을 제한한다. GitHub access·refresh token과 `its_` session은 DB에 없으므로 포함되지 않는다.
 
 ## Restore
 
@@ -86,7 +96,14 @@ curl --fail https://intent.example.com/actuator/health
 ```bash
 INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh
 git pull --ff-only
-docker compose --env-file .env.team up -d --build
+git rev-parse HEAD
+```
+
+출력한 전체 commit ID를 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`에 저장한 다음 새 image를 만들고 교체한다.
+
+```bash
+docker compose --env-file .env.team build app
+docker compose --env-file .env.team up -d --no-build
 docker compose --env-file .env.team ps
 ```
 
@@ -104,6 +121,45 @@ GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다
 
 현재 외부 Actuator 노출은 health·info이며 지표 외부 수집기와 대시보드는 별도로 연결해야 한다. 지표는 영구 감사 로그를 대신하지 않는다. 세션은 `/records/sessions`, `/api/v1/me/sessions`와 MCP에서 본인이 직접 폐기할 수 있으며 DB backup에는 포함되지 않는다.
 
-0.11.0의 Flyway V9는 기록 변경 이력을 제품 데이터로 추가한다. 기존 backup에 함께 포함되며 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 모두 비교한다. 기존 기록의 수집 이전 이력은 소급 생성하지 않는다. 자격 증명·세션은 계속 메모리에만 둔다.
+기록 변경 이력은 병합 후 Flyway V11에서 추가한다. 개발 브랜치 0.11.0의 V9와 같은 기능이며 메인의 V1~V6 이후 순서로 통합했다. 기존 backup에 함께 포함되며 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 모두 비교한다. 기존 기록의 수집 이전 이력은 소급 생성하지 않는다. 자격 증명·세션은 계속 메모리에만 둔다.
 
 `RESULT_UNKNOWN` 게시 시도는 실패로 확정된 상태가 아니다. 기록의 게시 상태를 조회하고 원래 게시 도구를 재실행하면 기존 Check Run을 찾아 갱신한다. `SUPERSEDED` 기록의 안내 갱신은 별도 supersession 경로로 재시도한다.
+## Rollback
+
+먼저 되돌릴 commit의 `intent-trace:<전체-commit-ID>` image가 host에 남아 있는지 확인하고, 해당 버전이 현재 DB schema와 호환되는지 migration을 확인한다.
+
+```bash
+docker image inspect intent-trace:<전체-commit-ID>
+```
+
+DB schema가 호환되면 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`를 이전 전체 commit ID로 바꾸고 app만 다시 만든다.
+
+```bash
+docker compose --env-file .env.team up -d --no-build app
+docker compose --env-file .env.team ps
+curl --fail https://intent.example.com/actuator/health
+```
+
+이전 image가 없으면 해당 commit을 별도 Git worktree에서 checkout하고 먼저 build한다. 현재 작업 directory를 과거 commit으로 강제 변경하지 않는다.
+
+```bash
+git worktree add ../intent-trace-rollback <전체-commit-ID>
+docker build --tag intent-trace:<전체-commit-ID> ../intent-trace-rollback
+```
+
+열 삭제나 타입 변경처럼 이전 app과 호환되지 않는 migration이 적용됐다면 app image만 되돌리지 않는다. app과 Caddy를 중지하고 업그레이드 직전에 만든 backup을 `Restore` 절차로 복구한 뒤, 이전 commit의 Compose 설정과 image를 함께 실행한다. V6의 `base_revision` 열 제거보다 이전 app으로 돌아갈 때도 이 절차가 필요하다.
+
+
+## 메인과 개발 브랜치의 DB 변경 이력 통합
+
+메인에서 사용한 V1~V6는 파일 내용과 번호를 유지한다. V7에서 변경 전 코드 비교에 필요한 `base_revision`을 다시 추가하며, 기존 기록은 이 값이 없는 상태로 유지한다. 새 초안부터 변경 전 커밋을 지정할 수 있다.
+
+| 개발 브랜치의 기존 번호 | 병합 후 번호 | 변경 |
+| --- | --- | --- |
+| V5 | V7 | 최초 생성 내용 해시·목록 인덱스, 변경 전 커밋 열 복원 |
+| V6 | V8 | 변경 전후 코드·검증 출처 |
+| V7 | V9 | 게시 시도 이력 |
+| V8 | V10 | 원본 공개 기록 연결 |
+| V9 | V11 | 기록 변경 이력 |
+
+이 업그레이드 경로는 새 DB와 메인 V6까지 적용한 DB에 사용한다. 개발 브랜치의 기존 V5~V9를 적용한 DB에는 그대로 실행하지 않는다. 먼저 backup을 보관하고 기존 버전에서 데이터를 내보낸 뒤 별도 DB에 통합 스키마를 적용해 이관해야 한다. Flyway `repair`, 이력 삭제 또는 기존 DB 초기화로 우회하지 않는다. 이번 병합 작업은 사용자 DB를 변경하지 않는다.

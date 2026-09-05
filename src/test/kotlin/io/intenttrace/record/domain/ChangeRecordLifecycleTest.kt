@@ -62,6 +62,17 @@ class ChangeRecordLifecycleTest {
     }
 
     @Test
+    fun `정규화한 경로는 운영체제와 관계없이 슬래시를 사용하고 다시 코드 근거로 만들 수 있다`() {
+        for (path in listOf("src/main/App.kt", "./src//main/./App.kt/")) {
+            val anchor = CodeAnchor(path, null, 1, 1, "a".repeat(64))
+            val normalized = anchor.copy(relativePath = requireRepositoryRelativePath(path))
+
+            assertEquals("src/main/App.kt", normalized.relativePath)
+            assertEquals(normalized.relativePath, requireRepositoryRelativePath(normalized.relativePath))
+        }
+    }
+
+    @Test
     fun `상위 이동과 Windows 절대 경로는 코드 근거로 받지 않는다`() {
         listOf("src/../secret.txt", "C:\\Users\\lim\\secret.txt").forEach { path ->
             assertFailsWith<IllegalArgumentException> {
@@ -70,11 +81,42 @@ class ChangeRecordLifecycleTest {
         }
     }
 
+    @Test
+    fun `코드 근거 줄 범위는 서버 상한을 넘을 수 없다`() {
+        assertFailsWith<IllegalArgumentException> {
+            CodeAnchor("src/App.kt", "App", 1, 10_000_001, "a".repeat(64))
+        }
+    }
+
+    @Test
+    fun `공개 기록은 같은 작성자와 저장소의 공개 기록으로 대체한다`() {
+        val current = draft().copy(status = ChangeRecordStatus.PUBLISHED)
+        val replacement = draft().copy(id = UUID.randomUUID(), status = ChangeRecordStatus.PUBLISHED)
+
+        val superseded = current.supersede(author, replacement)
+
+        assertEquals(ChangeRecordStatus.SUPERSEDED, superseded.status)
+        assertEquals(replacement.id, superseded.supersededBy)
+        assertEquals(current.version + 1, superseded.version)
+    }
+
+    @Test
+    fun `다른 작성자나 저장소 또는 자기 자신으로는 공개 기록을 대체하지 않는다`() {
+        val current = draft().copy(status = ChangeRecordStatus.PUBLISHED)
+        val otherAuthor = current.copy(id = UUID.randomUUID(), createdBy = ActorIdentity.github(2, "teammate"))
+        val otherRepository = current.copy(id = UUID.randomUUID(), repositoryKey = "acme/other")
+
+        listOf(otherAuthor, otherRepository, current).forEach { replacement ->
+            assertFailsWith<IllegalStateException> {
+                current.supersede(author, replacement)
+            }
+        }
+    }
+
     private fun draft(): ChangeRecord = ChangeRecord(
         id = UUID.randomUUID(),
         requestId = "turn-1",
         repositoryKey = "acme/intent-trace",
-        baseRevision = null,
         targetRevision = null,
         snapshotDigest = digest,
         title = "변경 의도 기록",

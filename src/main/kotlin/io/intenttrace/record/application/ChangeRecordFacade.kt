@@ -12,9 +12,13 @@ import io.intenttrace.record.domain.GitRevision
 import io.intenttrace.record.domain.VerificationRun
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.dao.DuplicateKeyException
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Slice
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -32,7 +36,7 @@ class ChangeRecordFacade(
         val content = normalize(command)
         val creationDigest = content.digest()
         repository.findByRequestId(command.requestId)?.let {
-            return reuseExisting(it, repositoryKey, actor, command.requestId, creationDigest)
+            return reuseExisting(it, repositoryKey, actor, creationDigest)
         }
 
         val now = Instant.now(clock)
@@ -64,12 +68,27 @@ class ChangeRecordFacade(
             repository.saveNew(record).also { measured("create") }
         } catch (exception: DuplicateKeyException) {
             val existing = repository.findByRequestId(command.requestId) ?: throw exception
-            reuseExisting(existing, repositoryKey, actor, command.requestId, creationDigest)
+            reuseExisting(existing, repositoryKey, actor, creationDigest)
         }
     }
 
     fun get(id: UUID): ChangeRecord = repository.findById(id)
         ?: throw ChangeRecordNotFoundException(id)
+
+    fun list(query: ListChangeRecordsQuery, actor: ActorIdentity): Slice<ChangeRecordSummary> {
+        require(query.size <= 50) { "목록은 한 번에 50건까지 조회할 수 있습니다." }
+        val pageable = PageRequest.of(query.page, query.size)
+        require(query.status == null || query.status in query.scope.statuses) {
+            "선택한 기록함에서 조회할 수 없는 상태입니다."
+        }
+        return repository.findSummaries(
+            repositoryKey = GitHubRepository.parse(query.repositoryKey).key,
+            statuses = query.status?.let(::setOf) ?: query.scope.statuses,
+            authorSubject = actor.subject.takeIf { query.scope == ChangeRecordListScope.MY_DRAFTS },
+            relativePath = query.path?.let(::requireRepositoryRelativePath),
+            pageable = pageable,
+        )
+    }
 
     fun confirm(command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         return confirm(get(command.recordId), command, actor)
@@ -102,19 +121,13 @@ class ChangeRecordFacade(
         return saveChange(current, published, actor, RecordOperation.PUBLISH)
     }
 
+    @Transactional
     fun supersede(command: SupersedeChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        return supersede(get(command.recordId), get(command.replacementRecordId), command, actor)
-    }
-
-    fun supersede(
-        current: ChangeRecord,
-        replacement: ChangeRecord,
-        command: SupersedeChangeRecordCommand,
-        actor: ActorIdentity,
-    ): ChangeRecord {
-        require(current.id == command.recordId && replacement.id == command.replacementRecordId) {
-            "대체 명령과 변경 의도 기록이 일치하지 않습니다."
-        }
+        val records = repository.findByIdsForUpdate(setOf(command.recordId, command.replacementRecordId))
+            .associateBy(ChangeRecord::id)
+        val current = records[command.recordId] ?: throw ChangeRecordNotFoundException(command.recordId)
+        val replacement = records[command.replacementRecordId]
+            ?: throw ChangeRecordNotFoundException(command.replacementRecordId)
         requireExpectedVersion(current, command.expectedVersion)
         return saveChange(current, current.supersede(actor, replacement), actor, RecordOperation.SUPERSEDE)
     }
@@ -150,26 +163,29 @@ class ChangeRecordFacade(
     private fun normalize(command: CreateChangeRecordCommand): ChangeRecordContent = ChangeRecordContent(
         baseRevision = command.baseRevision?.let { GitRevision.parse(it).value },
         snapshotDigest = command.snapshotDigest.lowercase(),
-        title = redactor.redact(command.title),
-        requestSummary = redactor.redact(command.requestSummary),
+        title = redact(command.title, 200, "제목"),
+        requestSummary = redact(command.requestSummary, 2000, "요청 요약"),
         decisions = command.decisions.map(::redact),
         codeAnchors = command.codeAnchors.map(::normalize),
-        verifications = command.verifications.map(::redact),
-        openQuestions = command.openQuestions.map(redactor::redact),
+        verifications = command.verifications.map(::normalize),
+        openQuestions = command.openQuestions.map { redact(it, 1000, "남은 질문") },
         derivedFromRecordId = command.derivedFromRecordId,
     )
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
         val normalizedRevision = GitRevision.parse(revision).value
-        requireRepositoryRelativePath(path)
+        val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 
-        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, path, line)
+        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, normalizedPath, line)
     }
 
     private fun validateCreate(command: CreateChangeRecordCommand) {
         require(command.requestId.isNotBlank()) { "요청 식별자는 비어 있을 수 없습니다." }
+        require(redactor.redact(command.requestId) == command.requestId) {
+            "요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다."
+        }
         require(command.repositoryKey.isNotBlank()) { "저장소 식별자는 비어 있을 수 없습니다." }
         require(command.title.isNotBlank()) { "제목은 비어 있을 수 없습니다." }
         require(command.requestSummary.isNotBlank()) { "요청 요약은 비어 있을 수 없습니다." }
@@ -198,34 +214,41 @@ class ChangeRecordFacade(
         existing: ChangeRecord,
         repositoryKey: String,
         actor: ActorIdentity,
-        requestId: String,
         creationDigest: String,
     ): ChangeRecord {
         if (GitHubRepository.parse(existing.repositoryKey).key != repositoryKey || existing.createdBy.subject != actor.subject) {
-            throw ChangeRecordRequestConflictException(requestId)
+            throw ChangeRecordRequestConflictException()
         }
         if ((existing.creationDigest ?: existing.content().digest()) != creationDigest) {
-            throw ChangeRecordRequestConflictException(requestId)
+            throw ChangeRecordRequestConflictException()
         }
         return existing
     }
 
     private fun redact(decision: Decision): Decision = decision.copy(
-        summary = redactor.redact(decision.summary),
-        rationale = redactor.redactNullable(decision.rationale),
+        summary = redact(decision.summary, 1000, "판단 요약"),
+        rationale = decision.rationale?.let { redact(it, 2000, "판단 근거") },
     )
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
+        relativePath = requireRepositoryRelativePath(anchor.relativePath),
+        symbolName = anchor.symbolName?.let { redact(it, 500, "코드 심벌 이름") },
         contentHash = anchor.contentHash.lowercase(),
-        symbolName = redactor.redactNullable(anchor.symbolName),
+        relatedPath = anchor.relatedPath?.let(::requireRepositoryRelativePath),
     )
 
-    private fun redact(verification: VerificationRun): VerificationRun = verification.copy(
-        command = redactor.redact(verification.command),
+    private fun normalize(verification: VerificationRun): VerificationRun = verification.copy(
+        command = redact(verification.command, 2000, "검증 명령"),
+        startedAt = verification.startedAt.plusNanos(500).truncatedTo(ChronoUnit.MICROS),
+        finishedAt = verification.finishedAt.plusNanos(500).truncatedTo(ChronoUnit.MICROS),
         snapshotDigest = verification.snapshotDigest.lowercase(),
         outputDigest = verification.outputDigest.lowercase(),
-        summary = redactor.redact(verification.summary),
+        summary = redact(verification.summary, 2000, "검증 요약"),
     )
+
+    private fun redact(value: String, maxLength: Int, field: String): String = redactor.redact(value).also {
+        require(it.length <= maxLength) { "비밀값 제거 후 $field 길이는 ${maxLength}자 이하여야 합니다." }
+    }
 
     companion object {
         private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")

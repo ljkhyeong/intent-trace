@@ -7,6 +7,7 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import java.time.Clock
 import java.time.ZoneOffset
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
@@ -22,7 +23,9 @@ import org.springframework.web.client.RestClient
 import java.net.URI
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GitHubAppInstallationClientTest {
@@ -50,6 +53,34 @@ class GitHubAppInstallationClientTest {
             assertFalse(result.toString().contains("synthetic-jwt"))
             server.verify()
         }
+    }
+
+    @Test
+    fun `잘못된 만료 시각 응답은 token과 원문 없이 실패한다`() {
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        val client = GitHubAppInstallationClient(
+            restClientBuilder = builder,
+            properties = GitHubProperties(apiBaseUrl = URI.create("https://api.github.test")),
+            jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+        )
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
+            .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/app/installations/901/access_tokens"))
+            .andRespond(
+                withSuccess(
+                    """{"token":"test-token-must-stay-private","expires_at":"invalid-date-must-stay-private"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val exception = assertFailsWith<GitHubApiException> {
+            client.issue(GitHubPullRequestTarget("acme", "intent-trace", 12))
+        }
+
+        assertNull(exception.cause)
+        assertFalse(exception.stackTraceToString().contains("must-stay-private"))
+        server.verify()
     }
 
     @Test

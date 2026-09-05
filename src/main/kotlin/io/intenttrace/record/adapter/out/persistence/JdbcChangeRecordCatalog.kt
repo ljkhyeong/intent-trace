@@ -51,7 +51,7 @@ class JdbcChangeRecordCatalog(private val jdbc: JdbcTemplate) : ChangeRecordCata
         return jdbc.query(
             """
             select r.id, r.title, r.request_summary, r.repository_key, r.target_revision, r.status,
-                   r.created_by_subject, r.created_by, r.created_at, r.superseded_by, r.version
+                   r.created_by_subject, r.created_by, r.created_at, r.superseded_by, r.version, r.published_at
             from change_records r where ${conditions.joinToString(" and ")}
             order by r.created_at desc, r.id desc limit ?
             """.trimIndent(),
@@ -63,6 +63,7 @@ class JdbcChangeRecordCatalog(private val jdbc: JdbcTemplate) : ChangeRecordCata
                     ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
                     row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
                     row.getString("superseded_by")?.let(UUID::fromString), row.getLong("version"),
+                    row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
                 )
             },
             *parameters.toTypedArray(),

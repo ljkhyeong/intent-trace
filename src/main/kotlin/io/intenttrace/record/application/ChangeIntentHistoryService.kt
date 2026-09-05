@@ -46,13 +46,13 @@ class ChangeIntentHistoryService(
     fun find(repositoryKey: String, revision: String, path: String, line: Int, cursor: String? = null, limit: Int = 5, retryRecordId: UUID? = null): ChangeIntentHistory {
         val repository = GitHubRepository.parse(repositoryKey)
         val queryRevision = GitRevision.parse(revision).value
-        requireRepositoryRelativePath(path)
+        val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0 && limit in 1..20) { "줄은 양수이고 이전 기록 조회 크기는 1~20이어야 합니다." }
         val budget = readPolicy.start()
         access.requireReader(repository.key)
         require(retryRecordId == null || cursor == null) { "실패 기록 재조회와 다음 페이지 커서를 함께 지정할 수 없습니다." }
         // 이름이 바뀐 기록도 찾도록 저장소 후보를 제한된 페이지 단위로 살핀다.
-        val queryDigest = HistoryResumeCursor.queryDigest(repository.key, queryRevision, path, line)
+        val queryDigest = HistoryResumeCursor.queryDigest(repository.key, queryRevision, normalizedPath, line)
         val resume = cursor?.takeIf { it.startsWith("h1.") }?.let { HistoryResumeCursor.parse(it, queryDigest) }
         fun summary(id: UUID): ChangeRecordSummary {
             val record = facade.get(id)
@@ -72,7 +72,7 @@ class ChangeIntentHistoryService(
         val reads = GitEvidenceReads(repository, gateway, budget)
         val failures = mutableListOf<HistoryCandidateFailure>()
         val target by lazy { reads.snapshot(queryRevision) }
-        val targetEntry by lazy { target.entries[path]?.takeIf { it.type == "blob" } }
+        val targetEntry by lazy { target.entries[normalizedPath]?.takeIf { it.type == "blob" } }
         val targetBytes by lazy { targetEntry?.let { reads.blob(it.sha) } }
         val items = mutableListOf<HistoricalIntent>()
         for ((candidateIndex, summary) in page.items.withIndex()) {
@@ -84,7 +84,7 @@ class ChangeIntentHistoryService(
                     val anchor = record.codeAnchors[anchorIndex]
                     val item = run {
                         val source = (if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision) ?: return@run null
-                        val samePath = anchor.relativePath == path
+                        val samePath = anchor.relativePath == normalizedPath
                         var match = IntentMatch.RELATED_UNVERIFIED
                         var range: IntRange? = null
                         if (source == queryRevision) {
@@ -97,7 +97,7 @@ class ChangeIntentHistoryService(
                             val old = reads.snapshot(source)
                             val entry = old.entries[anchor.relativePath]?.takeIf { it.type == "blob" }
                             val renamed = !samePath && entry != null && entry.sha == targetEntry?.sha &&
-                                path !in old.entries && anchor.relativePath !in target.entries &&
+                                normalizedPath !in old.entries && anchor.relativePath !in target.entries &&
                                 old.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1 &&
                                 target.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1
                             if (!samePath && !renamed) return@run null
@@ -128,12 +128,12 @@ class ChangeIntentHistoryService(
                 } catch (stopped: EvidenceReadStopped) {
                     val next = HistoryResumeCursor(queryDigest, RecordCursor(summary.createdAt, summary.id), anchorIndex,
                         page.items.size - candidateIndex, page.nextCursor != null).encode()
-                    return ChangeIntentHistory(queryRevision, path, items, next, candidateIndex + 1, failures, stopped.reason,
+                    return ChangeIntentHistory(queryRevision, normalizedPath, items, next, candidateIndex + 1, failures, stopped.reason,
                         resumeBlocked = candidateIndex == 0 && anchorIndex == startAnchor && stopped.reason != HistoryStopReason.CANCELLED)
                 }
             }
         }
-        return ChangeIntentHistory(queryRevision, path, items, page.nextCursor, page.items.size, failures)
+        return ChangeIntentHistory(queryRevision, normalizedPath, items, page.nextCursor, page.items.size, failures)
     }
 }
 

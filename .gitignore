@@ -19,6 +19,7 @@ bin/
 
 ### IntelliJ IDEA ###
 .idea
+.intellijPlatform/
 *.iws
 *.iml
 *.ipr
@@ -41,8 +42,9 @@ out/
 
 ### IntentTrace local data ###
 .intent-trace/
-.env
-.env.team
+.env*
+!.env.example
+!.env.team.example
 backups/
 intent-trace.private-key.pem
 *.private-key.pem
@@ -54,3 +56,8 @@ output/playwright/
 ### Zed 연결 도구 의존성 ###
 node_modules/
 __pycache__/
+*.pem
+*.key
+
+# 현재 추적 중인 두 개 외의 새 alignment HTML은 저장소에 추가하지 않는다.
+docs/alignments/*.html

@@ -123,7 +123,7 @@ class DraftManagementIntegrationTest(
         assertEquals(listOf("추가 점검"), records.get(draft.id).openQuestions)
         assertEquals(updated.id, records.create(command).id)
         val conflict = assertFailsWith<ChangeRecordRequestConflictException> { records.create(command.copy(title = "다른 생성 요청")) }
-        assertEquals("요청 ID ${command.requestId}가 기존 요청과 충돌합니다. 작성자·저장소·내용을 확인하세요.", conflict.message)
+        assertEquals("요청 식별자가 다른 작성자, 저장소 또는 저장 내용에 이미 사용됐습니다.", conflict.message)
         assertFailsWith<ConcurrentChangeRecordUpdateException> { records.revise(draft.id, reopened.version, command) }
         val rechecked = records.confirm(ConfirmChangeRecordCommand(draft.id, updated.version, revision, digest))
         val published = records.publish(PublishChangeRecordCommand(draft.id, rechecked.version, digest))
@@ -213,7 +213,7 @@ class DraftManagementIntegrationTest(
         @Bean @Primary fun currentSession() = TestSession()
         @Bean @Primary fun accessGateway() = object : GitHubUserAccessGateway {
             override fun authenticate(accessToken: String) = owner
-            override fun repositoryRole(accessToken: String, repository: GitHubRepository) = RepositoryRole.CONTRIBUTOR
+            override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository) = RepositoryRole.CONTRIBUTOR
         }
     }
 

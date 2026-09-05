@@ -5,11 +5,13 @@ import io.intenttrace.identity.domain.GitHubRepository
 import java.time.Instant
 import java.util.UUID
 
+const val MAX_CODE_ANCHOR_LINE = 10_000_000L
+
 data class ChangeRecord(
     val id: UUID,
     val requestId: String,
     val repositoryKey: String,
-    val baseRevision: String?,
+    val baseRevision: String? = null,
     val targetRevision: String?,
     val snapshotDigest: String,
     val title: String,
@@ -146,7 +148,9 @@ data class CodeAnchor(
     init {
         requireRepositoryRelativePath(relativePath)
         relatedPath?.let(::requireRepositoryRelativePath)
-        require(startLine > 0 && endLine >= startLine) { "코드 줄 범위가 올바르지 않습니다." }
+        require(startLine > 0 && endLine >= startLine && endLine.toLong() <= MAX_CODE_ANCHOR_LINE) {
+            "코드 줄 범위는 1~$MAX_CODE_ANCHOR_LINE 사이여야 하며 시작 줄은 끝 줄 이하여야 합니다."
+        }
         require(SHA_256.matches(contentHash)) { "코드 근거에는 SHA-256 해시가 필요합니다." }
     }
 

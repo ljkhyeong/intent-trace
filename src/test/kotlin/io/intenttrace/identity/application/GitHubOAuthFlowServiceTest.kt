@@ -37,6 +37,31 @@ class GitHubOAuthFlowServiceTest {
         kotlin.test.assertEquals(0, oauth.exchangeCount)
     }
 
+    @Test
+    fun `대기 state 상한에 도달하면 만료 전 새 승인을 거부한다`() {
+        val clock = MutableClock(Instant.parse("2026-08-28T12:00:00Z"))
+        val oauth = FakeOAuthGateway(clock)
+        val flow = GitHubOAuthFlowService(
+            oauthGateway = oauth,
+            userAccessGateway = FakeUserAccessGateway,
+            sessions = FakeSessionStore,
+            properties = GitHubProperties(
+                userAuthorization = GitHubUserAuthorizationProperties(
+                    stateTtl = Duration.ofMinutes(10),
+                    maxPendingStates = 2,
+                ),
+            ),
+            clock = clock,
+        )
+        flow.start()
+        flow.start()
+
+        assertFailsWith<GitHubOAuthCapacityException> { flow.start() }
+
+        clock.advance(Duration.ofMinutes(11))
+        flow.start()
+    }
+
     private class FakeOAuthGateway(private val clock: Clock) : GitHubUserOAuthGateway {
         var exchangeCount = 0
 
@@ -59,7 +84,11 @@ class GitHubOAuthFlowServiceTest {
     private object FakeUserAccessGateway : GitHubUserAccessGateway {
         override fun authenticate(accessToken: String): ActorIdentity = ActorIdentity.github(42, "lim")
 
-        override fun repositoryRole(accessToken: String, repository: GitHubRepository): RepositoryRole? =
+        override fun repositoryRole(
+            accessToken: String,
+            actor: ActorIdentity,
+            repository: GitHubRepository,
+        ): RepositoryRole? =
             error("사용하지 않는 테스트 경로")
     }
 
@@ -69,6 +98,8 @@ class GitHubOAuthFlowServiceTest {
 
         override fun resolve(sessionToken: String): GitHubUserSession = error("사용하지 않는 테스트 경로")
         override fun revokeBrowser(sessionToken: String) = error("사용하지 않는 테스트 경로")
+
+        override fun revoke(localSessionId: String) = error("사용하지 않는 테스트 경로")
     }
 
     private class MutableClock(private var current: Instant) : Clock() {

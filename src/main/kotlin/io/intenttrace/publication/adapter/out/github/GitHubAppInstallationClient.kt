@@ -67,7 +67,7 @@ class GitHubAppInstallationClient(
         if (response.token.isBlank()) {
             throw GitHubApiException("GitHub App token 발급 응답에 token이 없습니다.")
         }
-        GitHubInstallationAccessToken(response.token, Instant.parse(response.expiresAt))
+        GitHubInstallationAccessToken(response.token, response.expiresAt)
     }
 
     override fun inspect(repository: GitHubRepository): PublicationCredentialInspection {
@@ -96,7 +96,7 @@ class GitHubAppInstallationClient(
                 .body(InstallationTokenRequest(listOf(repository.canonicalName), mapOf("pull_requests" to "read", "checks" to "write")))
                 .retrieve().body(InstallationTokenResponse::class.java) ?: throw GitHubApiException("발급 응답이 없습니다.")
             check(token.token.isNotBlank()) { "발급 token이 없습니다." }
-            expiresAt = Instant.parse(token.expiresAt)
+            expiresAt = token.expiresAt
             check(expiresAt.isAfter(Instant.now(clock))) { "발급 token이 만료됐습니다." }
             verified("GitHub App 토큰을 발급받았습니다.")
             stage = "repository_scope"
@@ -122,16 +122,12 @@ class GitHubAppInstallationClient(
     private fun <T> safeCall(call: () -> T): T {
         try {
             return call()
-        } catch (exception: GitHubApiException) {
-            throw exception
         } catch (exception: RestClientResponseException) {
             throw GitHubApiException(
                 "GitHub App installation token 발급 요청이 실패했습니다. HTTP ${exception.statusCode.value()}",
             )
-        } catch (exception: RestClientException) {
-            throw GitHubApiException("GitHub App installation token 발급 요청을 완료하지 못했습니다.", exception)
-        } catch (_: java.time.format.DateTimeParseException) {
-            throw GitHubApiException("GitHub App token 만료 시각 형식이 올바르지 않습니다.")
+        } catch (_: RestClientException) {
+            throw GitHubApiException("GitHub App installation token 발급 요청을 완료하지 못했습니다.")
         }
     }
 
@@ -154,7 +150,7 @@ private data class InstallationTokenRequest(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class InstallationTokenResponse(
     val token: String,
-    @JsonProperty("expires_at") val expiresAt: String,
+    @JsonProperty("expires_at") val expiresAt: Instant,
     val permissions: Map<String, String> = emptyMap(),
     val repositories: List<TokenRepository>? = null,
 ) {

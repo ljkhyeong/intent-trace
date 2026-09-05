@@ -8,7 +8,7 @@ import java.util.UUID
 data class CreateChangeRecordCommand(
     val requestId: String,
     val repositoryKey: String,
-    val baseRevision: String?,
+    val baseRevision: String? = null,
     val snapshotDigest: String,
     val title: String,
     val requestSummary: String,

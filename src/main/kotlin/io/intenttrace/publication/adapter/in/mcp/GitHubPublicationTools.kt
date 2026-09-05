@@ -5,10 +5,10 @@ import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
 import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.application.GitHubPublicationStatus
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.record.adapter.`in`.mcp.parseChangeRecordId
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
-import java.util.UUID
 
 @Component
 class GitHubPublicationTools(
@@ -20,7 +20,7 @@ class GitHubPublicationTools(
                @McpToolParam(description = "저장소 소유자", required = true) owner: String,
                @McpToolParam(description = "저장소 이름", required = true) repository: String,
                @McpToolParam(description = "PR 번호", required = true) pullNumber: Int): GitHubPublicationStatus =
-        publisher.status(PublishChangeRecordToGitHubCommand(UUID.fromString(changeRecordId), GitHubPullRequestTarget(owner, repository, pullNumber)))
+        publisher.status(PublishChangeRecordToGitHubCommand(parseChangeRecordId(changeRecordId), GitHubPullRequestTarget(owner, repository, pullNumber)))
 
     @McpTool(name = "sync_superseded_record_to_github_pr", description = "사용자가 GitHub 반영을 요청하면 기존 Check Run에 대체 안내를 반영합니다. 새 Check Run은 생성하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = true))
@@ -28,7 +28,7 @@ class GitHubPublicationTools(
                         @McpToolParam(description = "저장소 소유자", required = true) owner: String,
                         @McpToolParam(description = "저장소 이름", required = true) repository: String,
                         @McpToolParam(description = "기존 게시 PR 번호", required = true) pullNumber: Int): GitHubPublicationResponse =
-        GitHubPublicationResponse.from(publisher.syncSupersession(PublishChangeRecordToGitHubCommand(UUID.fromString(changeRecordId), GitHubPullRequestTarget(owner, repository, pullNumber))))
+        GitHubPublicationResponse.from(publisher.syncSupersession(PublishChangeRecordToGitHubCommand(parseChangeRecordId(changeRecordId), GitHubPullRequestTarget(owner, repository, pullNumber))))
 
     @McpTool(
         name = "publish_change_record_to_github_pr",
@@ -53,7 +53,7 @@ class GitHubPublicationTools(
     ): GitHubPublicationResponse = GitHubPublicationResponse.from(
         publisher.publish(
             PublishChangeRecordToGitHubCommand(
-                changeRecordId = UUID.fromString(changeRecordId),
+                changeRecordId = parseChangeRecordId(changeRecordId),
                 target = GitHubPullRequestTarget(owner, repository, pullNumber),
             ),
         ),
