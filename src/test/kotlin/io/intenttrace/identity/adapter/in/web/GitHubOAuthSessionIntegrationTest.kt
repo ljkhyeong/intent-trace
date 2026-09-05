@@ -21,6 +21,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.delete
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import java.security.MessageDigest
@@ -101,6 +102,22 @@ class GitHubOAuthSessionIntegrationTest(
             status { isOk() }
             content { string(containsString("\"isError\":false")) }
         }
+
+        val listed = mockMvc.get("/api/v1/me/sessions") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
+        }.andExpect {
+            status { isOk() }
+            header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
+            jsonPath("$.authentication") { value("LOCAL_SESSION") }
+        }.andReturn().response.contentAsString
+        assertFalse(listed.contains(sessionToken))
+        assertFalse(listed.contains("ghu_access"))
+        mockMvc.delete("/api/v1/me/sessions/current") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
+        }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
+        mockMvc.get("/api/v1/me/sessions") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
+        }.andExpect { status { isUnauthorized() } }
     }
 
     @Test

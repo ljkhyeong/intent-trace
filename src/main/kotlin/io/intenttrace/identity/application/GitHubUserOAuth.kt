@@ -11,6 +11,8 @@ import java.time.Clock
 import java.time.Instant
 import java.util.Base64
 import java.util.HexFormat
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -158,7 +160,7 @@ class InMemoryGitHubUserSessionStore(
     private val userAccessGateway: GitHubUserAccessGateway,
     private val properties: GitHubProperties,
     private val clock: Clock,
-) : GitHubUserSessionStore {
+) : GitHubUserSessionStore, UserSessionManagement {
     private val sessions = ConcurrentHashMap<String, StoredSession>()
 
     override fun issue(actor: ActorIdentity, tokens: GitHubUserOAuthTokens): IssuedGitHubUserSession {
@@ -166,7 +168,7 @@ class InMemoryGitHubUserSessionStore(
         require(now.isBefore(tokens.accessExpiresAt)) { "이미 만료된 GitHub token은 session에 넣을 수 없습니다." }
         sessions.entries.removeIf { !now.isBefore(it.value.tokens.refreshExpiresAt) }
         val sessionToken = "its_${SecureTokens.random()}"
-        sessions[TokenDigests.sha256(sessionToken)] = StoredSession(actor, tokens)
+        sessions[TokenDigests.sha256(sessionToken)] = StoredSession(actor, tokens, UUID.randomUUID(), now)
         return IssuedGitHubUserSession(
             actor = actor,
             sessionToken = sessionToken,
@@ -180,7 +182,7 @@ class InMemoryGitHubUserSessionStore(
         val stored = sessions[key] ?: throw GitHubUserAuthenticationException()
         return stored.lock.withLock {
             val now = Instant.now(clock)
-            if (!now.isBefore(stored.tokens.refreshExpiresAt)) {
+            if (!stored.active.get() || sessions[key] !== stored || !now.isBefore(stored.tokens.refreshExpiresAt)) {
                 sessions.remove(key, stored)
                 throw GitHubUserAuthenticationException()
             }
@@ -204,15 +206,40 @@ class InMemoryGitHubUserSessionStore(
                 throw GitHubUserAuthenticationException()
             }
             stored.actor = verifiedActor
-            GitHubUserSession(verifiedActor, stored.tokens.accessToken)
+            if (!stored.active.get() || sessions[key] !== stored) throw GitHubUserAuthenticationException()
+            stored.lastUsedAt = Instant.now(clock)
+            GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id)
         }
     }
 
+    override fun list(subject: String): List<UserSessionInfo> {
+        val now = Instant.now(clock)
+        return sessions.values.filter { it.actor.subject == subject && it.active.get() && now.isBefore(it.tokens.refreshExpiresAt) }
+            .map { stored ->
+                val tokens = stored.tokens
+                UserSessionInfo(stored.id, stored.createdAt, stored.lastUsedAt, tokens.accessExpiresAt, tokens.refreshExpiresAt)
+            }.sortedByDescending { it.createdAt }
+    }
+
+    override fun revoke(subject: String, sessionId: UUID): Boolean {
+        val entry = sessions.entries.firstOrNull { it.value.id == sessionId && it.value.actor.subject == subject } ?: return false
+        val revoked = entry.value.active.compareAndSet(true, false)
+        sessions.remove(entry.key, entry.value)
+        return revoked
+    }
+
+    override fun revokeAll(subject: String): Int =
+        sessions.values.filter { it.actor.subject == subject }.count { revoke(subject, it.id) }
+
     private class StoredSession(
-        var actor: ActorIdentity,
+        @Volatile var actor: ActorIdentity,
         @Volatile var tokens: GitHubUserOAuthTokens,
+        val id: UUID,
+        val createdAt: Instant,
     ) {
         val lock = ReentrantLock()
+        val active = AtomicBoolean(true)
+        @Volatile var lastUsedAt: Instant = createdAt
 
         override fun toString(): String = "StoredSession(actor=$actor, tokens=[보호됨])"
     }

@@ -4,10 +4,12 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.springframework.stereotype.Service
+import java.util.UUID
 
 class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
+    val sessionId: UUID? = null,
 ) {
     override fun toString(): String = "GitHubUserSession(actor=$actor, accessToken=[보호됨])"
 }
