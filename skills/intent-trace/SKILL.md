@@ -46,3 +46,11 @@ description: AI가 작성하거나 수정한 코드에 대해 어떤 사용자 �
 - `INTENT_TRACE_SESSION_TOKEN`이 없거나 GitHub 사용자 인증·저장소 쓰기 권한·전체 커밋 ID를 확정할 수 없으면 생성·확인·공개를 중단한다. 세션이 만료됐으면 `/auth/github/start`에서 다시 승인한다.
 - GitHub PR HEAD가 기록 커밋과 다르거나 Fork PR이면 게시를 중단한다.
 - 비밀값이 의심되면 기록을 만들기 전에 제거하고 사용자에게 알린다.
+
+## 초안 관리와 목록
+
+- UUID를 모르면 `list_change_records`에 저장소와 `scope=MINE`을 지정해 내 초안을 찾는다. 팀 공개 기록은 `scope=TEAM`으로 조회한다. `nextCursor`로 다음 페이지를 요청한다.
+- 작성자 피드백은 `revise_change_record`에 현재 버전과 전체 수정 내용을 전달한다. 최초 요청 ID와 저장소는 유지한다. 생성 도구에 같은 ID와 다른 내용을 보내는 것은 수정이 아니다.
+- 확인한 비공개 기록을 고치려면 `reopen_change_record`로 확인을 취소하고 수정한 뒤 작성자의 확인을 다시 받는다.
+- 사용자가 비공개 기록 폐기를 요청하면 `discard_change_record`를 사용한다.
+- 새 공개 기록으로 교체할 때는 `supersede_change_record`를 사용한다. GitHub의 기존 Check Run 반영 여부는 별도로 확인한다.

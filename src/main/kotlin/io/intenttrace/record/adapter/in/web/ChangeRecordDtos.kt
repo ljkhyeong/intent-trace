@@ -27,7 +27,7 @@ data class CreateChangeRecordRequest(
     val requestId: String,
     @field:NotBlank @field:Size(max = 255)
     val repositoryKey: String,
-    @field:Size(max = 128)
+    @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN)
     val baseRevision: String? = null,
     @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
     val snapshotDigest: String,
@@ -57,6 +57,13 @@ data class CreateChangeRecordRequest(
         openQuestions = openQuestions,
     )
 }
+
+data class ReviseChangeRecordRequest(
+    @field:Min(0) val expectedVersion: Long,
+    @field:Valid val content: CreateChangeRecordRequest,
+)
+
+data class RecordVersionRequest(@field:Min(0) val expectedVersion: Long)
 
 data class DecisionRequest(
     @field:NotBlank @field:Size(max = 1000)

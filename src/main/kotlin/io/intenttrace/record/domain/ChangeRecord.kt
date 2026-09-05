@@ -25,7 +25,38 @@ data class ChangeRecord(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
+    val creationDigest: String? = null,
 ) {
+    fun content(): ChangeRecordContent = ChangeRecordContent(
+        baseRevision, snapshotDigest, title, requestSummary, decisions, codeAnchors, verifications, openQuestions,
+    )
+
+    fun revise(actor: ActorIdentity, content: ChangeRecordContent): ChangeRecord {
+        check(status == ChangeRecordStatus.DRAFT) { "초안만 수정할 수 있습니다. 확인한 기록은 먼저 확인을 취소하세요." }
+        check(actor.subject == createdBy.subject) { "작성자만 초안을 수정할 수 있습니다." }
+        return copy(
+            baseRevision = content.baseRevision, snapshotDigest = content.snapshotDigest,
+            title = content.title, requestSummary = content.requestSummary,
+            decisions = content.decisions, codeAnchors = content.codeAnchors,
+            verifications = content.verifications, openQuestions = content.openQuestions,
+            creationDigest = creationDigest ?: content().digest(), version = version + 1,
+        )
+    }
+
+    fun reopen(actor: ActorIdentity): ChangeRecord {
+        check(status == ChangeRecordStatus.AUTHOR_CONFIRMED) { "작성자가 확인한 비공개 기록만 확인을 취소할 수 있습니다." }
+        check(actor.subject == createdBy.subject) { "작성자만 확인을 취소할 수 있습니다." }
+        return copy(status = ChangeRecordStatus.DRAFT, targetRevision = null, confirmedAt = null, version = version + 1)
+    }
+
+    fun discard(actor: ActorIdentity): ChangeRecord {
+        check(status == ChangeRecordStatus.DRAFT || status == ChangeRecordStatus.AUTHOR_CONFIRMED) {
+            "비공개 초안과 확인 기록만 폐기할 수 있습니다."
+        }
+        check(actor.subject == createdBy.subject) { "작성자만 기록을 폐기할 수 있습니다." }
+        return copy(status = ChangeRecordStatus.DISCARDED, version = version + 1)
+    }
+
     fun confirm(actor: ActorIdentity, immutableRevision: String, currentSnapshotDigest: String, now: Instant): ChangeRecord {
         check(status == ChangeRecordStatus.DRAFT) { "초안 상태의 기록만 작성자가 확인할 수 있습니다." }
         check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 확인할 수 있습니다." }
@@ -78,6 +109,7 @@ enum class ChangeRecordStatus {
     AUTHOR_CONFIRMED,
     PUBLISHED,
     SUPERSEDED,
+    DISCARDED,
 }
 
 data class Decision(

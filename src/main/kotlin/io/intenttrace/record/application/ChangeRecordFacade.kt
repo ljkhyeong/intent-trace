@@ -3,6 +3,7 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.ChangeRecord
+import io.intenttrace.record.domain.ChangeRecordContent
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
@@ -24,8 +25,10 @@ class ChangeRecordFacade(
     fun create(command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         validateCreate(command)
         val repositoryKey = GitHubRepository.parse(command.repositoryKey).key
+        val content = normalize(command)
+        val creationDigest = content.digest()
         repository.findByRequestId(command.requestId)?.let {
-            return reuseExisting(it, repositoryKey, actor, command.requestId)
+            return reuseExisting(it, repositoryKey, actor, command.requestId, creationDigest)
         }
 
         val now = Instant.now(clock)
@@ -33,11 +36,11 @@ class ChangeRecordFacade(
             id = UUID.randomUUID(),
             requestId = command.requestId,
             repositoryKey = repositoryKey,
-            baseRevision = command.baseRevision?.lowercase(),
+            baseRevision = content.baseRevision,
             targetRevision = null,
-            snapshotDigest = command.snapshotDigest.lowercase(),
-            title = redactor.redact(command.title),
-            requestSummary = redactor.redact(command.requestSummary),
+            snapshotDigest = content.snapshotDigest,
+            title = content.title,
+            requestSummary = content.requestSummary,
             status = ChangeRecordStatus.DRAFT,
             createdBy = actor,
             createdAt = now,
@@ -45,17 +48,18 @@ class ChangeRecordFacade(
             publishedAt = null,
             supersededBy = null,
             version = 0,
-            decisions = command.decisions.map(::redact),
-            codeAnchors = command.codeAnchors.map(::normalize),
-            verifications = command.verifications.map(::redact),
-            openQuestions = command.openQuestions.map(redactor::redact),
+            decisions = content.decisions,
+            codeAnchors = content.codeAnchors,
+            verifications = content.verifications,
+            openQuestions = content.openQuestions,
+            creationDigest = creationDigest,
         )
 
         return try {
             repository.saveNew(record)
         } catch (exception: DuplicateKeyException) {
             val existing = repository.findByRequestId(command.requestId) ?: throw exception
-            reuseExisting(existing, repositoryKey, actor, command.requestId)
+            reuseExisting(existing, repositoryKey, actor, command.requestId, creationDigest)
         }
     }
 
@@ -110,6 +114,36 @@ class ChangeRecordFacade(
         return repository.update(current.supersede(actor, replacement), command.expectedVersion)
     }
 
+    fun revise(current: ChangeRecord, expectedVersion: Long, command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
+        require(command.requestId == current.requestId && GitHubRepository.parse(command.repositoryKey).key == current.repositoryKey) {
+            "초안 수정으로 요청 ID나 저장소를 바꿀 수 없습니다."
+        }
+        validateCreate(command)
+        requireExpectedVersion(current, expectedVersion)
+        return repository.update(current.revise(actor, normalize(command)), expectedVersion)
+    }
+
+    fun reopen(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
+        requireExpectedVersion(current, expectedVersion)
+        return repository.update(current.reopen(actor), expectedVersion)
+    }
+
+    fun discard(current: ChangeRecord, expectedVersion: Long, actor: ActorIdentity): ChangeRecord {
+        requireExpectedVersion(current, expectedVersion)
+        return repository.update(current.discard(actor), expectedVersion)
+    }
+
+    private fun normalize(command: CreateChangeRecordCommand): ChangeRecordContent = ChangeRecordContent(
+        baseRevision = command.baseRevision?.let { GitRevision.parse(it).value },
+        snapshotDigest = command.snapshotDigest.lowercase(),
+        title = redactor.redact(command.title),
+        requestSummary = redactor.redact(command.requestSummary),
+        decisions = command.decisions.map(::redact),
+        codeAnchors = command.codeAnchors.map(::normalize),
+        verifications = command.verifications.map(::redact),
+        openQuestions = command.openQuestions.map(redactor::redact),
+    )
+
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
         val normalizedRevision = GitRevision.parse(revision).value
@@ -140,8 +174,12 @@ class ChangeRecordFacade(
         repositoryKey: String,
         actor: ActorIdentity,
         requestId: String,
+        creationDigest: String,
     ): ChangeRecord {
         if (GitHubRepository.parse(existing.repositoryKey).key != repositoryKey || existing.createdBy.subject != actor.subject) {
+            throw ChangeRecordRequestConflictException(requestId)
+        }
+        if ((existing.creationDigest ?: existing.content().digest()) != creationDigest) {
             throw ChangeRecordRequestConflictException(requestId)
         }
         return existing
@@ -154,6 +192,7 @@ class ChangeRecordFacade(
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
         contentHash = anchor.contentHash.lowercase(),
+        symbolName = redactor.redactNullable(anchor.symbolName),
     )
 
     private fun redact(verification: VerificationRun): VerificationRun = verification.copy(

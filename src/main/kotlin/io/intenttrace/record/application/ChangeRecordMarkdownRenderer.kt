@@ -1,15 +1,20 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.config.GitHubProperties
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.PurposeSource
 import org.springframework.stereotype.Component
 
 @Component
-class ChangeRecordMarkdownRenderer {
+class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = GitHubProperties()) {
     fun render(record: ChangeRecord): String = buildString {
         appendLine("# 변경 의도: ${record.title}")
         appendLine()
         appendLine("- 상태: `${record.status}`")
+        record.supersededBy?.let {
+            val url = properties.userAuthorization.callbackUrl.resolve("/api/v1/change-records/$it")
+            appendLine("- 대체 기록: [$it]($url) — 저장소 접근 권한이 필요합니다.")
+        }
         appendLine("- 저장소: `${record.repositoryKey}`")
         appendLine("- 커밋: `${record.targetRevision ?: "작성자 확인 전"}`")
         appendLine("- 스냅샷: `${record.snapshotDigest}`")

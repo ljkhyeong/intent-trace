@@ -19,7 +19,10 @@
 - 비root·읽기 전용 app container와 분리된 data·edge network
 - PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
 - 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- Streamable HTTP MCP 도구 6개
+- Streamable HTTP MCP 도구 11개
+- 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
+- MCP 기록 대체와 Markdown의 후속 기록 링크
+- Flyway V5 최초 생성 내용 해시와 목록 조회 인덱스
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
 - GitHub token·private key·client secret의 안전한 문자열 표현
 - Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅

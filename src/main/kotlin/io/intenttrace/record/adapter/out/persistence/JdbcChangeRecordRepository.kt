@@ -80,8 +80,8 @@ class JdbcChangeRecordRepository(
             insert into change_records (
                 id, request_id, repository_key, base_revision, target_revision,
                 snapshot_digest, title, request_summary, status, created_by, created_by_subject,
-                created_at, confirmed_at, published_at, superseded_by, version
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, confirmed_at, published_at, superseded_by, version, creation_digest
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             record.id.toString(),
             record.requestId,
@@ -99,6 +99,7 @@ class JdbcChangeRecordRepository(
             record.publishedAt?.toDatabaseTime(),
             record.supersededBy?.toString(),
             record.version,
+            record.creationDigest,
         )
         insertDecisions(record)
         insertCodeAnchors(record)
@@ -113,7 +114,7 @@ class JdbcChangeRecordRepository(
             """
             update change_records
             set target_revision = ?, status = ?, confirmed_at = ?, published_at = ?,
-                superseded_by = ?, version = ?
+                superseded_by = ?, version = ?, creation_digest = ?
             where id = ? and version = ?
             """.trimIndent(),
             record.targetRevision,
@@ -122,11 +123,25 @@ class JdbcChangeRecordRepository(
             record.publishedAt?.toDatabaseTime(),
             record.supersededBy?.toString(),
             record.version,
+            record.creationDigest,
             record.id.toString(),
             expectedVersion,
         )
         if (updated != 1) {
             throw ConcurrentChangeRecordUpdateException(record.id)
+        }
+        if (record.status == ChangeRecordStatus.DRAFT) {
+            jdbcTemplate.update(
+                "update change_records set base_revision = ?, snapshot_digest = ?, title = ?, request_summary = ? where id = ?",
+                record.baseRevision, record.snapshotDigest, record.title, record.requestSummary, record.id.toString(),
+            )
+            listOf("change_decisions", "code_anchors", "verification_runs", "open_questions").forEach { table ->
+                jdbcTemplate.update("delete from $table where record_id = ?", record.id.toString())
+            }
+            insertDecisions(record)
+            insertCodeAnchors(record)
+            insertVerifications(record)
+            insertOpenQuestions(record)
         }
         return record
     }
@@ -282,6 +297,7 @@ class JdbcChangeRecordRepository(
         publishedAt = resultSet.getNullableInstant("published_at"),
         supersededBy = resultSet.getString("superseded_by")?.let(UUID::fromString),
         version = resultSet.getLong("version"),
+        creationDigest = resultSet.getString("creation_digest"),
         decisions = emptyList(),
         codeAnchors = emptyList(),
         verifications = emptyList(),

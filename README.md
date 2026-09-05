@@ -4,7 +4,9 @@ IntentTrace는 AI가 만든 코드에 **어떤 요청과 판단이 반영됐고,
 
 ## 현재 MVP
 
-- 변경 의도 초안 생성과 요청 ID 기반 멱등 처리
+- 변경 의도 초안 생성과 최초 내용 해시 기반 멱등 처리
+- 초안 수정·확인 취소·폐기와 작성자 전용 목록
+- 저장소·파일·작성자별 팀 기록 요약과 커서 페이지 조회
 - `DRAFT → AUTHOR_CONFIRMED → PUBLISHED → SUPERSEDED` 수명주기
 - 전체 Git 커밋 ID와 SHA-256 저장소 스냅샷 결박
 - 파일·줄·콘텐츠 해시 기반 코드 근거
@@ -135,6 +137,10 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 
 ## API
 
+- `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
+- `POST /api/v1/change-records/{id}/revise`: 초안 수정 (`expectedVersion`, 생성 요청 형식의 `content`)
+- `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
+- `POST /api/v1/change-records/{id}/discard`: 비공개 기록 폐기
 - `POST /api/v1/change-records`: 비공개 초안 생성
 - `GET /api/v1/change-records/{id}`: 기록 조회
 - `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 전체 커밋 결박
@@ -144,7 +150,7 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
 
-MCP는 같은 애플리케이션 서비스를 사용하며 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
+MCP는 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`와 같은 애플리케이션 서비스를 사용하는 `create_change_record`, `get_change_record`, `confirm_change_record`, `publish_change_record`, `find_change_intent`, `publish_change_record_to_github_pr`를 제공합니다.
 
 REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
@@ -193,6 +199,7 @@ scripts/verify-postgres.sh
 - `docs/ADR-0002-github-check-run-publication.md`
 - `docs/ADR-0003-github-app-installation-auth.md`
 - `docs/PRD-0003-team-identity-and-repository-access.md`
+- `docs/PRD-0004-record-management-and-evidence.md`
 - `docs/ADR-0004-github-user-repository-authorization.md`
 - `docs/ADR-0005-github-web-oauth-memory-session.md`
 - `docs/ADR-0006-single-instance-team-deployment.md`

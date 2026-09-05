@@ -42,6 +42,21 @@ class TeamChangeRecordService(
         return facade.supersede(record, replacement, command, actor)
     }
 
+    fun revise(recordId: UUID, expectedVersion: Long, command: CreateChangeRecordCommand): ChangeRecord {
+        val (record, actor) = ownedContributor(recordId)
+        return facade.revise(record, expectedVersion, command, actor)
+    }
+
+    fun reopen(recordId: UUID, expectedVersion: Long): ChangeRecord {
+        val (record, actor) = ownedContributor(recordId)
+        return facade.reopen(record, expectedVersion, actor)
+    }
+
+    fun discard(recordId: UUID, expectedVersion: Long): ChangeRecord {
+        val (record, actor) = ownedContributor(recordId)
+        return facade.discard(record, expectedVersion, actor)
+    }
+
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         access.requireReader(repositoryKey)
         return facade.findIntent(repositoryKey, revision, path, line)

@@ -2,6 +2,10 @@ package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.application.ChangeRecordCatalogService
+import io.intenttrace.record.application.ChangeRecordPage
+import io.intenttrace.record.application.RecordScope
+import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -25,7 +29,31 @@ import java.util.UUID
 class ChangeRecordController(
     private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
+    private val catalog: ChangeRecordCatalogService,
 ) {
+    @GetMapping
+    fun list(
+        @RequestParam repositoryKey: String,
+        @RequestParam(defaultValue = "TEAM") scope: RecordScope,
+        @RequestParam(required = false) path: String?,
+        @RequestParam(required = false) status: ChangeRecordStatus?,
+        @RequestParam(required = false) authorId: Long?,
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(defaultValue = "20") limit: Int,
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit)
+
+    @PostMapping("/{recordId}/revise")
+    fun revise(@PathVariable recordId: UUID, @Valid @RequestBody request: ReviseChangeRecordRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.revise(recordId, request.expectedVersion, request.content.toCommand()))
+
+    @PostMapping("/{recordId}/reopen")
+    fun reopen(@PathVariable recordId: UUID, @Valid @RequestBody request: RecordVersionRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.reopen(recordId, request.expectedVersion))
+
+    @PostMapping("/{recordId}/discard")
+    fun discard(@PathVariable recordId: UUID, @Valid @RequestBody request: RecordVersionRequest): ChangeRecordResponse =
+        ChangeRecordResponse.from(records.discard(recordId, request.expectedVersion))
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun create(@Valid @RequestBody request: CreateChangeRecordRequest): ChangeRecordResponse =
