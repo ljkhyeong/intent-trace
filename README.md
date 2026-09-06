@@ -24,6 +24,7 @@ IntentTrace는 AI 코드의 변경 이유, 관련 커밋·코드, 검증 결과�
 - GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
 - GitHub 게시 시도 조회·응답 유실 복구와 기존 Check Run 대체 안내
 - PR별 기록 목록·현재 HEAD 일치 여부와 연결·권한·설정 진단
+- GitHub 이슈·PR의 초안 재료와 기존 Actions 실행 결과 조회
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 로그인·세션 발급·사용자 토큰 자동 갱신(메모리 보관)
@@ -92,6 +93,16 @@ java -jar intent-trace-0.6.0.jar
 ```
 
 `v0.7.0`부터는 같은 release에 `intent-trace-intellij-<version>.zip`과 SHA-256 파일도 함께 제공합니다. 정식 version 변경, 실제 IntelliJ 확인, tag 발행 순서는 [`docs/operations/release.md`](docs/operations/release.md)를 따릅니다.
+
+## GitHub 자료 가져오기
+
+로그인 후 기록 화면의 **GitHub 자료**(`/records/github`)에서 저장소와 이슈·PR 번호를 입력하면 제목·본문 발췌·출처 링크를 가져옵니다. 내용을 검토한 뒤 Agent에서 초안 작성에 활용합니다. 전체 커밋 ID로 이미 실행된 Actions 결과도 조회할 수 있습니다.
+
+- Agent: `get_github_request_context(repositoryKey, number)`, `list_github_actions_runs(repositoryKey, revision, page?)`
+- REST: `GET /api/v1/github/request-context?repositoryKey=owner/repository&number=7`, `GET /api/v1/github/actions?repositoryKey=owner/repository&revision=<전체-커밋>`
+- GitHub App 읽기 권한: 이슈는 `Issues: read`, PR은 `Pull requests: read`, CI는 `Actions: read`. 권한 변경 후 App 설치에 반영하고 필요하면 다시 로그인합니다.
+
+추가 서비스 가입이나 유료 API 키 없이 기존 GitHub 연결을 사용합니다. 새 CI 실행·재실행과 로그·아티팩트 저장은 하지 않으며, 기존 워크플로 실행과 서버 비용은 별개입니다. CI 결과는 로컬 검증 기록과 구분해 표시합니다. [응답·권한·출처 규칙](docs/ADR-0012-github-context-read.md)
 
 ## 실행
 

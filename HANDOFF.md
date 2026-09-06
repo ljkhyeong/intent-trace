@@ -433,3 +433,12 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 검증 대상은 `b95ece3`에 미사용 `ChangeRecordListResponse`와 변환 함수, import 10개를 제거한 상태다. 제품 코드는 25줄 줄었고, REST·MCP 목록 응답과 기존 `page`·`size` 처리는 유지했다. 검증 후에는 문서만 정리했다.
 - `./gradlew focusedTest --tests '*AuthenticatedRestIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest'` 13개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 새 테스트는 추가하지 않았다.
 - JDBC·DB 스키마·IDE·Zed 구현은 변경하지 않아 PostgreSQL·IDE·Zed 독립 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-07 추가 비용 없는 GitHub 자료 연동
+
+- 검증 대상은 `a5b98ac`에 이슈·PR 초안 재료와 Actions 결과 조회 서비스, REST·MCP·브라우저, 복귀 경로·스타일 및 관련 테스트를 추가한 상태다. [계약과 권한](docs/ADR-0012-github-context-read.md)을 참고한다. 검증 후에는 문서만 정리했다.
+- 최초 `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest' --tests '*AuthenticatedRestIntegrationTest' --tests '*RecordBrowserIntegrationTest'`는 27개 중 브라우저 1개가 실패했다. 새 화면의 로그인 복귀 허용 경로 누락을 수정하고 `./gradlew focusedTest --tests '*GitHubContextIntegrationTest' --tests '*RecordBrowserIntegrationTest'` 11개가 통과했다.
+- 최종 `./gradlew test` 179개가 통과했다. 실패·건너뜀은 없고 표준 MCP SDK의 실제 서버 호출도 포함한다. 로그는 `/tmp/intent-trace-github-context-server.log`, 결과 시각은 2026-09-07 00:54 KST다.
+- `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`와 전용 스킬 검증 환경의 `quick_validate.py`로 사용·개발 스킬이 통과했다. 문서 링크와 `git diff --check`도 확인했다.
+- 테스트가 생성한 `build/reports/github-context/github.html`을 Playwright·Chrome에서 1280×900, 390×844로 확인했다. 실행 경로는 `node ~/.npm/_npx/31e32ef8478fbf80/node_modules/playwright/cli.js screenshot --channel chrome`이며 스킬 wrapper의 직접 실행 권한이 없어 기존 설치를 사용했다. 외부 본문은 HTML로 실행되지 않고 비밀값은 제거됐다.
+- JDBC·스키마·IDE·Zed 구현은 바뀌지 않아 해당 독립 검증은 생략했다. 실제 GitHub 계정 권한 변경·워크플로 실행·게시·배포는 수행하지 않았다. 이슈·PR·Actions 조회에는 문서에 명시한 GitHub App 읽기 권한이 필요하다.

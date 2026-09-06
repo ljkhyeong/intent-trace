@@ -6,6 +6,8 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
+- GitHub 이슈·PR의 초안 재료와 기존 Actions 실행 결과를 조회하는 REST·MCP·브라우저 화면
+- 외부 요청의 출처·발췌 표시와 CI 재실행 차수·커밋·상태 구분. 새 CI 실행이나 유료 서비스 추가 없이 읽기 API만 사용
 - 현재 `its_` 세션을 폐기하는 `DELETE /api/v1/session`과 IntelliJ PasswordSafe 연결 해제
 - 사용자별 활성 세션 기본 5개 상한과 초과 시 가장 오래된 세션 자동 폐기
 - 저장소·파일·상태별 팀 공개 기록과 내 비공개 기록 목록 REST·MCP (`list_change_records`)

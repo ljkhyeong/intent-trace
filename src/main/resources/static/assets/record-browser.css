@@ -31,7 +31,7 @@ a:hover {
   text-decoration-thickness:2px;
 }
 
-button,input,select {
+button,input,select,textarea {
   font:inherit;
 }
 
@@ -49,12 +49,12 @@ button,.button {
   min-height:44px;
 }
 
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible {
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible {
   outline:3px solid #eaaa30;
   outline-offset:3px;
 }
 
-input,select {
+input,select,textarea {
   display:block;
   width:100%;
   min-height:46px;

@@ -105,7 +105,9 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             append("<p class=\"muted\">${if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구에서 수집한 결과" else "클라이언트가 제출한 결과"} · 종료 코드 ${verification.exitCode}</p>")
             append("<details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd>${stamp(verification.startedAt)}</dd><dt>종료</dt><dd>${stamp(verification.finishedAt)}</dd><dt>출력 해시</dt><dd class=\"hash\">${html(verification.outputDigest)}</dd></dl></details></div>")
         }
-        append("<p class=\"muted\">서버는 테스트 실행 여부를 확인하지 않습니다.</p></section>")
+        append("<p class=\"muted\">서버는 테스트 실행 여부를 확인하지 않습니다.</p>")
+        record.targetRevision?.let { append("<a href=\"${html(url("/records/github", "repositoryKey" to record.repositoryKey, "revision" to it))}\">이 커밋의 GitHub CI 결과 조회</a>") }
+        append("</section>")
         append("<section><h2>남은 질문</h2>")
         if (record.openQuestions.isEmpty()) append("<p class=\"muted\">등록된 질문이 없습니다.</p>")
         else append(record.openQuestions.joinToString("", "<ul>", "</ul>") { "<li class=\"prose\">${html(it)}</li>" })
@@ -122,7 +124,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>${html(title)} · IntentTrace</title><link rel="stylesheet" href="/assets/record-browser.css"></head>
         <body><a class="skip-link" href="#content">본문으로 이동</a><header class="site-header"><a class="brand" href="/records"><span aria-hidden="true">↳</span> IntentTrace</a>
-        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/history">파일·줄 조회</a><a href="/records/pull-requests">PR 기록</a><a href="/records/connection">연결 진단</a>${actor?.let { "<a href=\"/records/sessions\">내 연결</a><span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
+        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/history">파일·줄 조회</a><a href="/records/pull-requests">PR 기록</a><a href="/records/github">GitHub 자료</a><a href="/records/connection">연결 진단</a>${actor?.let { "<a href=\"/records/sessions\">내 연결</a><span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
         <main id="content">$content</main><footer>코드 변경 이유와 검증 결과를 기록합니다. 기록은 저장소 권한에 따라 표시됩니다.</footer></body></html>
     """.trimIndent()
 }

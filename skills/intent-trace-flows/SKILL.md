@@ -19,6 +19,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | OAuth·세션 갱신·폐기 | [메모리 세션](../../docs/ADR-0005-github-web-oauth-memory-session.md) |
 | 브라우저 로그인·기록 화면 | [브라우저 전용 세션](../../docs/ADR-0009-browser-record-access.md) |
 | GitHub Check Run 게시·대체 안내·재시도 | [게시 요구사항](../../docs/PRD-0002-github-pr-publication.md), [Check Run](../../docs/ADR-0002-github-check-run-publication.md), [App 인증](../../docs/ADR-0003-github-app-installation-auth.md), [게시 복구](../../docs/ADR-0008-publication-recovery.md) |
+| 이슈·PR 초안 재료·Actions 결과 조회 | [GitHub 자료 조회](../../docs/ADR-0012-github-context-read.md) |
 | IntelliJ 플러그인 | [현재 줄 조회](../../docs/PRD-0004-intellij-line-intent.md), [클라이언트 보안·통신](../../docs/ADR-0007-intellij-plugin-client-boundary.md) |
 | Zed 연결·설정·패키지 | [MCP 중계와 진단](../../docs/ADR-0010-zed-mcp-and-connection-diagnostics.md), [사용 안내](../../docs/clients/zed.md), [배포 안내](../../docs/clients/zed-distribution.md) |
 | Compose·DB·백업·복구·릴리스 | [배포 구조](../../docs/ADR-0006-single-instance-team-deployment.md), [운영 절차](../../docs/operations/team-deployment.md), [릴리스 절차](../../docs/operations/release.md) |

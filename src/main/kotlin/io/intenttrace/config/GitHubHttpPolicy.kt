@@ -48,6 +48,8 @@ class GitHubHttpPolicy {
                 request.uri.path == "/user/repos" -> "repository_access"
                 request.uri.path.contains("/check-runs") -> "check_run"
                 request.uri.path.contains("/pulls/") -> "pull_request"
+                request.uri.path.contains("/issues/") -> "request_context"
+                request.uri.path.contains("/actions/runs") -> "actions_read"
                 request.uri.path.contains("/git/") || request.uri.path.contains("/compare/") -> "code_evidence"
                 request.uri.path.contains("/login/oauth/") -> "user_token"
                 else -> "installation"
