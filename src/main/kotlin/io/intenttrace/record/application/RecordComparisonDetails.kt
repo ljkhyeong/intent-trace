@@ -28,12 +28,12 @@ private fun <T, K> compareItems(field: ComparisonField, before: List<T>, after: 
     if (before == after) return emptyList()
     val oldKeys = before.map(key)
     val newKeys = after.map(key)
-    // 중복 항목을 임의로 대응시키면 삭제·출처 변경을 잘못 표시할 수 있다.
-    if (oldKeys.distinct().size != oldKeys.size || newKeys.distinct().size != newKeys.size) {
-        return listOf(ComparisonDetail(field, ItemChange.AMBIGUOUS, null, null))
-    }
     val oldIndex = oldKeys.withIndex().associate { it.value to it.index }
     val newIndex = newKeys.withIndex().associate { it.value to it.index }
+    // 중복 항목을 임의로 대응시키면 삭제·출처 변경을 잘못 표시할 수 있다.
+    if (oldIndex.size != oldKeys.size || newIndex.size != newKeys.size) {
+        return listOf(ComparisonDetail(field, ItemChange.AMBIGUOUS, null, null))
+    }
     val oldCommon = oldKeys.filter { it in newIndex }.withIndex().associate { it.value to it.index }
     val newCommon = newKeys.filter { it in oldIndex }.withIndex().associate { it.value to it.index }
     return buildList {

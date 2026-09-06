@@ -101,8 +101,8 @@ class ChangeIntentHistoryService(
                             val entry = old.entries[anchor.relativePath]?.takeIf { it.type == "blob" }
                             val renamed = !samePath && entry != null && entry.sha == targetEntry?.sha &&
                                 normalizedPath !in old.entries && anchor.relativePath !in target.entries &&
-                                old.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1 &&
-                                target.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1
+                                old.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null &&
+                                target.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null
                             if (!samePath && !renamed) return@run null
                             if (entry != null && targetEntry != null && reads.isAncestor(source, queryRevision)) {
                                 val oldBytes = reads.blob(entry.sha)

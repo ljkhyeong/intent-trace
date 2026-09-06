@@ -37,14 +37,15 @@ class GitHubGitEvidenceClient(
         val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
-        if (tree.tree.map { it.path }.distinct().size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
-        tree.tree.forEach {
+        val entries = tree.tree.associateBy({ it.path }, { GitTreeEntry(it.path, it.mode, it.type, it.sha) })
+        if (entries.size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
+        entries.values.forEach {
             if (it.mode !in setOf("100644", "100755", "120000", "160000", "040000") || it.type !in setOf("blob", "commit", "tree")) {
                 throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
             }
             GitRevision.parse(it.sha)
         }
-        return GitEvidenceSnapshot(ref, tree.tree.map { GitTreeEntry(it.path, it.mode, it.type, it.sha) }.associateBy { it.path })
+        return GitEvidenceSnapshot(ref, entries)
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {

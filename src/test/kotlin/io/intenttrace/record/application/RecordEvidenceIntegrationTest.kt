@@ -72,6 +72,13 @@ class RecordEvidenceIntegrationTest(
         assertFalse(checked.serverExecutionVerified)
         val related = history.find(repository.key, nextRevision, "new.txt", 1).items
         assertEquals(IntentMatch.ANCESTOR_RENAMED_FILE, related.single { it.side == CodeSide.BASE }.match)
+        try {
+            for (duplicatedRevision in listOf(baseRevision, nextRevision)) {
+                gateway.duplicateBlobRevision = duplicatedRevision
+                val ambiguous = history.find(repository.key, nextRevision, "new.txt", 1).items
+                assertEquals(listOf(CodeSide.TARGET), ambiguous.map { it.side })
+            }
+        } finally { gateway.duplicateBlobRevision = null }
         val old = related.single { it.side == CodeSide.TARGET }
         assertEquals(IntentMatch.ANCESTOR_UNCHANGED_FILE, old.match)
         assertFalse(old.verificationAppliesToQuery)
@@ -191,6 +198,7 @@ class RecordEvidenceIntegrationTest(
 
     class FakeEvidence : GitEvidenceGateway {
         var failure: Pair<String, RuntimeException>? = null
+        var duplicateBlobRevision: String? = null
         val snapshotCalls = mutableMapOf<String, Int>()
         var blobCalls = 0
         var ancestryCalls = 0
@@ -201,6 +209,7 @@ class RecordEvidenceIntegrationTest(
             val path = if (revision == baseRevision) "old.txt" else "new.txt"
             val sha = when (revision) { changedRevision -> "f".repeat(40); movedRevision -> "d".repeat(40); else -> "e".repeat(40) }
             val entries = mutableListOf(GitTreeEntry(path, "100644", "blob", sha))
+            if (revision == duplicateBlobRevision) entries += GitTreeEntry("copy.txt", "100644", "blob", sha)
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
             return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
         }

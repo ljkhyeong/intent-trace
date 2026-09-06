@@ -55,6 +55,23 @@ class GitHubEvidenceClientTest {
         server.verify()
     }
     @Test
+    fun `중복 경로는 객체 형식 검사보다 먼저 거부한다`() {
+        for (mode in listOf("100644", "invalid")) {
+            server.reset()
+            server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
+                .andRespond(withSuccess("""{"sha":"$revision","tree":{"sha":"$tree"}}""", MediaType.APPLICATION_JSON))
+            server.expect(requestTo("https://api.github.test/repos/acme/repo/git/trees/$tree?recursive=1"))
+                .andRespond(withSuccess("""{"sha":"$tree","truncated":false,"tree":[
+                    {"path":"sample.txt","mode":"$mode","type":"blob","sha":"$blob"},
+                    {"path":"sample.txt","mode":"100644","type":"blob","sha":"$blob"}
+                ]}""", MediaType.APPLICATION_JSON))
+            val failure = assertFailsWith<GitHubApiException> { client.snapshot(repository, revision) }
+            assertEquals("GitHub 트리의 경로가 중복됐습니다.", failure.message)
+            server.verify()
+        }
+    }
+
+    @Test
     fun `실제 HTTP 조회는 전체 기한과 호출 수를 지키고 취소 뒤에는 호출하지 않는다`() {
         val calls = java.util.concurrent.atomic.AtomicInteger()
         var delayMillis = 0L

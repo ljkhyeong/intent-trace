@@ -52,6 +52,8 @@ class DraftManagementIntegrationTest(
         assertEquals(setOf(ItemChange.MODIFIED, ItemChange.MOVED), reordered.map { it.change }.toSet())
         val duplicates = comparisonDetails(original.copy(decisions = listOf(first, first)), original.copy(decisions = listOf(first)))
         assertEquals(ItemChange.AMBIGUOUS, duplicates.single().change)
+        val successorDuplicates = comparisonDetails(original.copy(decisions = listOf(first)), original.copy(decisions = listOf(first, first)))
+        assertEquals(ItemChange.AMBIGUOUS, successorDuplicates.single().change)
     }
 
     @Test

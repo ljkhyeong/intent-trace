@@ -408,5 +408,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 
 ## 2026-09-06 컬렉션 처리 추가 검토
 
-- 기준 `e7f1a8a`, 검토 시작 시 미커밋 변경 없음. [검토 문서](docs/reviews/2026-09-06-collection-simplification-review.md)에 중복 blob 발견 후 순회 중단과 기존 Map을 활용한 중복 검사를 정리했다. 두 항목은 미구현이며 우선순위가 낮다.
+- 기준 `e7f1a8a`, 검토 시작 시 미커밋 변경 없음. [검토 문서](docs/reviews/2026-09-06-collection-simplification-review.md)에 중복 blob 발견 후 순회 중단과 기존 Map을 활용한 중복 검사를 정리했다. 검토 당시 미구현이던 두 항목은 아래 작업에서 반영했다.
 - 제품 코드·테스트·설정·의존성 변경이 없어 테스트는 다시 실행하지 않았다. 이번 검증은 로컬 문서 링크와 `git diff --check`다.
+
+## 2026-09-06 컬렉션 순회와 중복 검사 정리
+
+- 검증 대상은 `3ac68ac`에 이력의 이름 변경 판별, Git 트리 변환, 기록 비교와 관련 테스트 변경을 적용한 상태다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*RecordEvidenceIntegrationTest' --tests '*GitHubEvidenceClientTest' --tests '*DraftManagementIntegrationTest'` 13개와 최종 `./gradlew test` 171개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [반영 결과](docs/reviews/2026-09-06-collection-simplification-review.md#반영-결과)에 확인한 동작을 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
