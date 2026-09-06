@@ -419,5 +419,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 
 ## 2026-09-06 해시 계산 추가 검토
 
-- 기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. [추가 검토](docs/reviews/2026-09-05-standard-api-review.md#2026-09-06-해시-계산-추가-검토)에 기록 내용과 선택한 줄의 바이트 배열 복사를 Java 표준 API로 줄이는 두 항목을 남겼다. 아직 구현하지 않았다.
+- 기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. [추가 검토](docs/reviews/2026-09-05-standard-api-review.md#2026-09-06-해시-계산-추가-검토)에 기록 내용과 선택한 줄의 바이트 배열 복사를 Java 표준 API로 줄이는 두 항목을 남겼다. 두 항목은 아래 작업에서 반영했다.
 - 제품 코드·테스트·설정·의존성 변경이 없어 테스트를 다시 실행하지 않았다. 이번 검증은 로컬 문서 링크와 `git diff --check`다.
+
+## 2026-09-06 해시 계산의 임시 배열 제거
+
+- 검증 대상은 `5d7df51`에 내용·줄 해시 계산과 관련 테스트 변경을 적용한 상태다. 수정 전 구현에서 확보한 네 가지 내용 해시와 Git helper의 줄 해시가 수정 후에도 일치했다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*ChangeRecordContentTest' --tests '*ChangeRecordFacadeTest' --tests '*GitEvidenceScriptTest' --tests '*RecordEvidenceIntegrationTest'` 14개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [반영 결과](docs/reviews/2026-09-05-standard-api-review.md#해시-계산-반영-결과)에 상세 범위를 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포와 성능 측정은 수행하지 않았다.

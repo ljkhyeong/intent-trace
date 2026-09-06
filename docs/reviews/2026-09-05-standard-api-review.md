@@ -71,7 +71,7 @@ HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HT
 
 ## 2026-09-06 해시 계산 추가 검토
 
-기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. 해시 계산에만 사용하는 바이트 배열 복사를 두 곳에서 확인했다. 아래 항목은 아직 구현하지 않았다.
+기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. 해시 계산에만 사용하는 바이트 배열 복사를 두 곳에서 확인했다. 아래는 검토 당시 상태이며 후속 구현·검증은 해시 계산 반영 결과에 정리했다.
 
 - **기록 내용 전체를 임시 배열에 저장:** [ChangeRecordContent.kt:21](../../src/main/kotlin/io/intenttrace/record/domain/ChangeRecordContent.kt#L21)은 `ByteArrayOutputStream`에 전체 내용을 쓰고 `toByteArray()`로 복사한 뒤 해시를 계산한다. `DataOutputStream`의 출력 대상을 `DigestOutputStream(OutputStream.nullOutputStream(), digest)`으로 바꾸면 전체 버퍼와 마지막 복사를 없앨 수 있다. 문자열별 UTF-8 변환과 기존 기록 순서는 유지한다. [Java 21 DigestOutputStream](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/DigestOutputStream.html)
 - **줄 범위를 복사한 뒤 해시 계산:** [GitEvidence.kt:59](../../src/main/kotlin/io/intenttrace/record/application/GitEvidence.kt#L59)는 `copyOfRange()`로 선택한 줄의 배열을 만든다. `MessageDigest.update(bytes, offset, length)`에 원본 배열의 범위를 전달하면 복사가 필요 없다. CRLF·LF·마지막 개행 없음과 범위 밖 줄의 기존 처리는 유지한다. [Java 21 MessageDigest](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/MessageDigest.html)
@@ -82,4 +82,11 @@ HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HT
 
 - 내용 해시의 바이트 형식과 `successor-v1`·`evidence-v2` 표시는 바꾸지 않는다. 저장된 생성 요청 해시와 재시도 비교에 영향을 주므로 수정 전 구현에서 얻은 대표 해시값을 고정해 호환성을 확인한다. 테스트에 기존 직렬화 구현을 복사하지 않는다.
 - 기존 `ChangeRecordFacadeTest`의 같은 요청 재사용·다른 사용자·저장소 충돌 사례를 확인한다. `GitEvidenceScriptTest`의 Git helper 대조와 기존 근거 확인·이력 조회 테스트로 줄 해시와 범위 처리를 확인한다.
-- 이번 작업은 코드와 공식 API 문서 검토만 수행했다. 제품 코드·테스트·설정·의존성을 변경하지 않아 테스트는 다시 실행하지 않았다. 문서의 로컬 링크와 `git diff --check`를 확인했다.
+- 추가 검토 당시에는 코드와 공식 API 문서만 확인했다. 제품 코드·테스트·설정·의존성 변경이 없어 테스트는 다시 실행하지 않았다. 문서의 로컬 링크와 `git diff --check`를 확인했다.
+
+### 해시 계산 반영 결과
+
+- 내용 해시는 `DataOutputStream`의 바이트 기록 형식을 유지하고 출력 대상을 `DigestOutputStream`으로 바꿨다. 줄 해시는 원본 배열의 범위를 `MessageDigest.update`에 전달해 `copyOfRange()`를 제거했다.
+- 수정 전 `5d7df51` 구현에서 기본·후속·확장 근거 조합 네 가지의 해시를 확보하고 [호환성 테스트](../../src/test/kotlin/io/intenttrace/record/domain/ChangeRecordContentTest.kt)에 고정했다. 수정 후 네 값이 일치했다. LF·CRLF·마지막 개행이 없는 줄의 해시는 기존 Git helper와 같았고, 빈 파일과 범위 초과 처리도 유지됐다.
+- 검증 대상은 `5d7df51`에 이번 구현과 테스트 변경을 적용한 상태다. `./gradlew focusedTest --tests '*ChangeRecordContentTest' --tests '*ChangeRecordFacadeTest' --tests '*GitEvidenceScriptTest' --tests '*RecordEvidenceIntegrationTest'` 14개, 이후 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 검증 후 제품 코드·테스트는 변경하지 않았다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 게시·배포와 성능 측정은 수행하지 않았다.
