@@ -1,18 +1,15 @@
 package io.intenttrace.record.adapter.`in`.mcp
 
-import io.intenttrace.record.adapter.`in`.web.ChangeRecordListResponse
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.SuccessorDraftRequest
-import io.intenttrace.record.application.ChangeRecordCatalogService
+import io.intenttrace.record.application.ChangeRecordListingService
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
-import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
 import jakarta.validation.ConstraintViolationException
@@ -25,7 +22,7 @@ import org.springframework.stereotype.Component
 class IntentTraceTools(
     private val records: TeamChangeRecordService,
     private val validator: Validator,
-    private val catalog: io.intenttrace.record.application.ChangeRecordListingService,
+    private val catalog: ChangeRecordListingService,
 ) {
     @McpTool(name = "list_change_records", description = "저장소의 팀 공개 기록 또는 내 비공개 초안을 페이지로 조회합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))

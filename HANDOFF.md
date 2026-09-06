@@ -427,3 +427,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 검증 대상은 `5d7df51`에 내용·줄 해시 계산과 관련 테스트 변경을 적용한 상태다. 수정 전 구현에서 확보한 네 가지 내용 해시와 Git helper의 줄 해시가 수정 후에도 일치했다. 검증 후에는 문서만 정리했다.
 - `./gradlew focusedTest --tests '*ChangeRecordContentTest' --tests '*ChangeRecordFacadeTest' --tests '*GitEvidenceScriptTest' --tests '*RecordEvidenceIntegrationTest'` 14개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [반영 결과](docs/reviews/2026-09-05-standard-api-review.md#해시-계산-반영-결과)에 상세 범위를 남겼다.
 - JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포와 성능 측정은 수행하지 않았다.
+
+## 2026-09-06 미사용 목록 응답 정리
+
+- 검증 대상은 `b95ece3`에 미사용 `ChangeRecordListResponse`와 변환 함수, import 10개를 제거한 상태다. 제품 코드는 25줄 줄었고, REST·MCP 목록 응답과 기존 `page`·`size` 처리는 유지했다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*AuthenticatedRestIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest'` 13개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 새 테스트는 추가하지 않았다.
+- JDBC·DB 스키마·IDE·Zed 구현은 변경하지 않아 PostgreSQL·IDE·Zed 독립 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
