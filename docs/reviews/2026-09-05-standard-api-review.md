@@ -68,3 +68,18 @@ HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HT
 - 마지막 부분 검증은 JWT 테스트 3개가 통과했다. 이어서 `./gradlew test`로 서버 전체 168개가 통과했고 건너뛴 테스트는 없다. 부분 검증 3개는 전체에 포함된다.
 - 공통 HTTP 헤더와 서로 다른 요청의 토큰, 401·429·502 JSON, 고정 시계의 JWT 클레임과 실제 RS256 서명을 확인했다. REST·MCP·Zed 중계기와 서버 연결 검증은 전체 서버 테스트에 포함됐다.
 - DB·IDE 구현은 바꾸지 않아 PostgreSQL·IntelliJ 테스트를 다시 실행하지 않았다. 실제 GitHub 게시·배포·IDE 화면 검증은 수행하지 않았다.
+
+## 2026-09-06 해시 계산 추가 검토
+
+기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. 해시 계산에만 사용하는 바이트 배열 복사를 두 곳에서 확인했다. 아래 항목은 아직 구현하지 않았다.
+
+- **기록 내용 전체를 임시 배열에 저장:** [ChangeRecordContent.kt:21](../../src/main/kotlin/io/intenttrace/record/domain/ChangeRecordContent.kt#L21)은 `ByteArrayOutputStream`에 전체 내용을 쓰고 `toByteArray()`로 복사한 뒤 해시를 계산한다. `DataOutputStream`의 출력 대상을 `DigestOutputStream(OutputStream.nullOutputStream(), digest)`으로 바꾸면 전체 버퍼와 마지막 복사를 없앨 수 있다. 문자열별 UTF-8 변환과 기존 기록 순서는 유지한다. [Java 21 DigestOutputStream](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/DigestOutputStream.html)
+- **줄 범위를 복사한 뒤 해시 계산:** [GitEvidence.kt:59](../../src/main/kotlin/io/intenttrace/record/application/GitEvidence.kt#L59)는 `copyOfRange()`로 선택한 줄의 배열을 만든다. `MessageDigest.update(bytes, offset, length)`에 원본 배열의 범위를 전달하면 복사가 필요 없다. CRLF·LF·마지막 개행 없음과 범위 밖 줄의 기존 처리는 유지한다. [Java 21 MessageDigest](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/MessageDigest.html)
+
+두 변경은 임시 배열 사용을 줄이는 개선이다. 실제 처리 시간이나 메모리 감소량은 측정하지 않았다. 공통 해시 프레임워크, 장기 캐시와 새 의존성은 필요 없다.
+
+### 구현 시 확인할 범위
+
+- 내용 해시의 바이트 형식과 `successor-v1`·`evidence-v2` 표시는 바꾸지 않는다. 저장된 생성 요청 해시와 재시도 비교에 영향을 주므로 수정 전 구현에서 얻은 대표 해시값을 고정해 호환성을 확인한다. 테스트에 기존 직렬화 구현을 복사하지 않는다.
+- 기존 `ChangeRecordFacadeTest`의 같은 요청 재사용·다른 사용자·저장소 충돌 사례를 확인한다. `GitEvidenceScriptTest`의 Git helper 대조와 기존 근거 확인·이력 조회 테스트로 줄 해시와 범위 처리를 확인한다.
+- 이번 작업은 코드와 공식 API 문서 검토만 수행했다. 제품 코드·테스트·설정·의존성을 변경하지 않아 테스트는 다시 실행하지 않았다. 문서의 로컬 링크와 `git diff --check`를 확인했다.
