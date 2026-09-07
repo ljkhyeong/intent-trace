@@ -124,7 +124,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>${html(title)} · IntentTrace</title><link rel="stylesheet" href="/assets/record-browser.css"></head>
         <body><a class="skip-link" href="#content">본문으로 이동</a><header class="site-header"><a class="brand" href="/records"><span aria-hidden="true">↳</span> IntentTrace</a>
-        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/history">파일·줄 조회</a><a href="/records/pull-requests">PR 기록</a><a href="/records/github">GitHub 자료</a><a href="/records/connection">연결 진단</a>${actor?.let { "<a href=\"/records/sessions\">내 연결</a><span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
+        <nav aria-label="주 메뉴"><a href="/records">기록 찾기</a><a href="/records/history">파일·줄 조회</a><a href="/records/pull-requests">PR 기록</a><a href="/records/github">이슈·PR·CI</a><a href="/records/connection">연결 진단</a>${actor?.let { "<a href=\"/records/sessions\">내 연결</a><span>@${html(it.login)}</span><form action=\"/records/logout\" method=\"post\"><button class=\"text-button\">로그아웃</button></form>" }.orEmpty()}</nav></header>
         <main id="content">$content</main><footer>코드 변경 이유와 검증 결과를 기록합니다. 기록은 저장소 권한에 따라 표시됩니다.</footer></body></html>
     """.trimIndent()
 }

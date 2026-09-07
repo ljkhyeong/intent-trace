@@ -12,9 +12,9 @@ class GitHubContextTools(private val context: GitHubContextService) {
     fun request(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String,
                 @McpToolParam(description = "이슈 또는 PR 번호", required = true) number: Int) = context.request(repositoryKey, number)
 
-    @McpTool(name = "list_github_actions_runs", description = "전체 커밋에 연결된 기존 GitHub Actions 실행 결과를 20개씩 조회합니다. 실행·재실행·로그 다운로드는 하지 않습니다. 워크플로 결과이며 로컬 명령의 종료 코드·출력 해시·실행 스냅샷을 증명하지 않습니다.", generateOutputSchema = true,
+    @McpTool(name = "list_github_actions_runs", description = "지정한 커밋의 GitHub Actions 결과를 20개씩 조회합니다. 실행·재실행·로그 다운로드는 하지 않습니다. 워크플로 결과이며 로컬 명령의 종료 코드·출력 해시·실행 스냅샷을 증명하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = true))
     fun actions(@McpToolParam(description = "owner/repository", required = true) repositoryKey: String,
-                @McpToolParam(description = "조회할 전체 커밋 ID", required = true) revision: String,
+                @McpToolParam(description = "조회할 커밋 해시(전체 길이)", required = true) revision: String,
                 @McpToolParam(description = "직전 응답의 nextPage, 기본 1", required = false) page: Int?) = context.actions(repositoryKey, revision, page ?: 1)
 }

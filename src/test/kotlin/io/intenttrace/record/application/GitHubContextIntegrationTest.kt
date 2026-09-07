@@ -34,7 +34,7 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Autowired private val gateway: FakeContextGateway, @LocalServerPort private val port: Int) {
 
     @Test
-    fun `REST는 정제한 초안 재료만 반환하고 권한 없는 요청과 쓰기 요청을 거부한다`() {
+    fun `REST는 정제한 이슈·PR 내용만 반환하고 권한 없는 요청과 쓰기 요청을 거부한다`() {
         val endpoint = "/api/v1/github/request-context?repositoryKey=acme/intent-trace&number=7"
         mvc.get(endpoint).andExpect { status { isUnauthorized() } }
         val token = session()
@@ -77,9 +77,12 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val page = mvc.get("/records/github?repositoryKey=acme/intent-trace&number=7&revision=$revision") { cookie(cookie) }.andExpect {
             status { isOk() }; header { string("Cache-Control", "no-store") }
             content { string(containsString("작성자 확인과 공개는 별도로")) }
-            content { string(containsString("실행 시도 2")) }; content { string(containsString("&lt;script&gt;")) }
+            content { string(containsString("2차 실행 · PR")) }; content { string(containsString("&lt;script&gt;")) }
         }.andReturn().response.contentAsString
         assertFalse(page.contains("<script>")); assertFalse(page.contains("remote-secret"))
+        for (status in listOf("실패", "실행 대기", "실행 중", "결과 미확인", "진행 상태: future_status")) {
+            assertContains(page, "<span class=\"status\">$status</span>")
+        }
         mvc.get("/api/v1/github/request-context?repositoryKey=acme/intent-trace&number=7") { cookie(cookie) }
             .andExpect { status { isUnauthorized() } }
         val directory = Path.of("build/reports/github-context")
@@ -153,8 +156,12 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         override fun actions(repository: GitHubRepository, revision: String, page: Int): GitHubActionsPage {
             calls.incrementAndGet()
             val now = Instant.parse("2026-09-07T00:00:00Z")
-            return GitHubActionsPage(1001, List(20) { index -> GitHubActionsRun(index + 1L, 2, "서버 검증", revision,
-                "pull_request", "completed", "failure", now, now, "https://github.com/${repository.key}/actions/runs/${index + 1}") })
+            return GitHubActionsPage(1001, List(20) { index ->
+                val status = when (index) { 1 -> "queued"; 2 -> "in_progress"; 4 -> "future_status"; else -> "completed" }
+                val conclusion = if (index in 1..4) null else "failure"
+                GitHubActionsRun(index + 1L, 2, "서버 검증", revision, "pull_request", status, conclusion,
+                    now, now, "https://github.com/${repository.key}/actions/runs/${index + 1}")
+            })
         }
     }
 

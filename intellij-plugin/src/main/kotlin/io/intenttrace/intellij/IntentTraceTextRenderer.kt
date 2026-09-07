@@ -25,16 +25,16 @@ internal object IntentTraceTextRenderer {
             appendLine("요청")
             appendLine(record.requestSummary)
 
-            appendLine().appendLine("판단")
+            appendLine().appendLine("구현 결정과 이유")
             record.decisions.forEach { decision ->
                 append("- [${source(decision.source)}] ${decision.summary}")
                 decision.rationale?.takeIf(String::isNotBlank)?.let { append("\n  이유: $it") }
                 appendLine()
             }
 
-            appendLine().appendLine("검증")
+            appendLine().appendLine("등록된 검증 결과")
             if (record.verifications.isEmpty()) {
-                appendLine("- 기록된 검증 없음")
+                appendLine("- 등록된 검증 결과가 없습니다.")
             } else {
                 record.verifications.forEach { verification ->
                     val snapshot = if (verification.current) "기록 스냅샷과 일치" else "기록 스냅샷과 불일치"
@@ -43,12 +43,12 @@ internal object IntentTraceTextRenderer {
                 }
             }
 
-            appendLine().appendLine("코드 근거")
+            appendLine().appendLine("관련 코드")
             record.codeAnchors.forEach { anchor ->
                 appendLine("- ${anchor.relativePath}:${anchor.startLine}-${anchor.endLine}")
             }
 
-            appendLine().appendLine("미확인 항목")
+            appendLine().appendLine("남은 질문")
             if (record.openQuestions.isEmpty()) {
                 appendLine("- 없음")
             } else {

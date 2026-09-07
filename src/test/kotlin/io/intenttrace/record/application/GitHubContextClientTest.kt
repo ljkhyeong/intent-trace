@@ -90,8 +90,8 @@ class GitHubContextClientTest {
             assertFalse(error.message.orEmpty().contains("remote-secret"))
         }
         assertEquals(12L, assertFailsWith<GitHubRateLimitException> { client.request(repository, 7) }.retryAfterSeconds)
-        assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("크기"))
-        assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("해석"))
+        assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("2 MiB"))
+        assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("응답 형식"))
         server.verify()
     }
 

@@ -44,7 +44,7 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(ChangeRecordRequestConflictException::class)
     fun requestConflict(exception: ChangeRecordRequestConflictException): ProblemDetail =
-        problem(HttpStatus.CONFLICT, "요청 식별자 충돌", exception.message)
+        problem(HttpStatus.CONFLICT, "요청 ID 충돌", exception.message)
 
     @ExceptionHandler(GitHubUserAuthenticationException::class)
     fun githubUserAuthentication(exception: GitHubUserAuthenticationException): ProblemDetail =
@@ -80,7 +80,7 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun invalidInput(exception: IllegalArgumentException): ProblemDetail =
-        problem(HttpStatus.BAD_REQUEST, "변경 의도 기록 값 오류", exception.message)
+        problem(HttpStatus.BAD_REQUEST, "입력값 오류", exception.message)
 
     @ExceptionHandler(IllegalStateException::class)
     fun invalidState(exception: IllegalStateException): ProblemDetail =

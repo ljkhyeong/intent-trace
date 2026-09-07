@@ -70,7 +70,7 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
                 appendLine(
                     "- **$state** ${inlineCode(verification.command)} — ${plainText(verification.summary)}",
                 )
-                val origin = if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구가 수집했다고 보고함" else "클라이언트가 제출함"
+                val origin = if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구에서 수집한 결과" else "클라이언트가 제출함"
                 appendLine("  - 출처: $origin / 출력 해시: ${inlineCode(verification.outputDigest)}")
             }
         }
