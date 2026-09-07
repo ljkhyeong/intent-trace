@@ -26,7 +26,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 |---|---|---|
 | `permission=read` | `READER` | 공개·대체 기록 조회 |
 | `permission=write` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
-| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
+| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | `CONTRIBUTOR` 작업과 게시 사전 점검(`check_publication_credentials`) |
 
 권한 판정은 GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`의 최고 유효 권한을 사용합니다. 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자와 일치해야 하며, `permission=none`과 404는 권한 없음으로 처리합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
 

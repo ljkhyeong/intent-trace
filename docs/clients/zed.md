@@ -43,7 +43,7 @@ python3 scripts/zed-with-intent-trace.py .
 
 로그인 화면의 `its_` 세션 토큰을 입력하면 Zed 실행 환경에 전달한다. 입력한 토큰은 화면에 표시하지 않는다. 토큰을 파일이나 명령 인자에 저장하지 않는다. [Zed 환경 변수 문서](https://zed.dev/docs/environment)는 CLI 실행 환경을 상속하는 동작을 설명한다.
 
-입력을 숨길 수 없는 환경에서는 입력 대체 없이 실행을 중단한다. 터미널에서 다시 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 입력 취소·종료도 Zed를 실행하지 않고 끝낸다.
+토큰 입력을 숨길 수 없으면 실행을 중단한다. 터미널에서 다시 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 입력 취소·종료도 Zed를 실행하지 않고 끝낸다.
 
 5. Settings → AI → MCP Servers에서 `intent-trace`가 활성화되는지 확인한다. Agent에 다음처럼 요청한다.
 
@@ -103,5 +103,5 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 ```bash
 npm test --prefix clients/zed
-./gradlew test --tests '*ZedBridgeIntegrationTest'
+./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'
 ```

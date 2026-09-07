@@ -79,7 +79,7 @@ INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh
 
 ## Restore
 
-복구는 현재 DB object를 교체한다. 먼저 새 backup을 만들고 app과 Caddy를 중지한다.
+복구하면 현재 테이블과 데이터를 백업 내용으로 덮어쓴다. 먼저 새 백업을 만들고 app과 Caddy를 중지한다.
 
 ```bash
 INTENT_TRACE_ENV_FILE=.env.team scripts/backup-postgres.sh backups/before-restore.dump
@@ -121,7 +121,7 @@ GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다
 
 현재 외부 Actuator 노출은 health·info이며 지표 외부 수집기와 대시보드는 별도로 연결해야 한다. 지표는 영구 감사 로그를 대신하지 않는다. 세션은 `/records/sessions`, `/api/v1/me/sessions`와 MCP에서 본인이 직접 폐기할 수 있으며 DB backup에는 포함되지 않는다.
 
-기록 변경 이력은 병합 후 Flyway V11에서 추가한다. 개발 브랜치 0.11.0의 V9와 같은 기능이며 메인의 V1~V6 이후 순서로 통합했다. 기존 backup에 함께 포함되며 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 모두 비교한다. 기존 기록의 수집 이전 이력은 소급 생성하지 않는다. 자격 증명·세션은 계속 메모리에만 둔다.
+기록 변경 이력은 Flyway V11의 `record_activities`에 저장하며 백업에 포함한다. 검증 스크립트는 복구 전후 기록 수와 변경 이력 수를 비교한다. 수집 이전 이력은 소급 생성하지 않으며 자격 증명·세션은 메모리에만 둔다.
 
 `RESULT_UNKNOWN` 게시 시도는 실패로 확정된 상태가 아니다. 기록의 게시 상태를 조회하고 원래 게시 도구를 재실행하면 기존 Check Run을 찾아 갱신한다. `SUPERSEDED` 기록의 안내 갱신은 별도 supersession 경로로 재시도한다.
 ## Rollback
@@ -132,7 +132,7 @@ GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다
 docker image inspect intent-trace:<전체-commit-ID>
 ```
 
-DB schema가 호환되면 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`를 이전 전체 commit ID로 바꾸고 app만 다시 만든다.
+DB 스키마가 호환되면 `.env.team`의 `INTENT_TRACE_IMAGE_TAG`를 이전 전체 커밋 ID로 바꾸고 이전 이미지로 app 컨테이너를 교체한다.
 
 ```bash
 docker compose --env-file .env.team up -d --no-build app
@@ -150,16 +150,8 @@ docker build --tag intent-trace:<전체-commit-ID> ../intent-trace-rollback
 열 삭제나 타입 변경처럼 이전 app과 호환되지 않는 migration이 적용됐다면 app image만 되돌리지 않는다. app과 Caddy를 중지하고 업그레이드 직전에 만든 backup을 `Restore` 절차로 복구한 뒤, 이전 commit의 Compose 설정과 image를 함께 실행한다. V6의 `base_revision` 열 제거보다 이전 app으로 돌아갈 때도 이 절차가 필요하다.
 
 
-## 메인과 개발 브랜치의 DB 변경 이력 통합
+## 기존 DB 업그레이드
 
-메인에서 사용한 V1~V6는 파일 내용과 번호를 유지한다. V7에서 변경 전 코드 비교에 필요한 `base_revision`을 다시 추가하며, 기존 기록은 이 값이 없는 상태로 유지한다. 새 초안부터 변경 전 커밋을 지정할 수 있다.
+메인의 V1~V6는 파일 내용과 번호를 유지한다. V7은 변경 전 코드 비교에 필요한 `base_revision`을 다시 추가한다. 기존 기록은 이 값이 없는 상태로 유지하며 새 초안부터 변경 전 커밋을 지정할 수 있다.
 
-| 개발 브랜치의 기존 번호 | 병합 후 번호 | 변경 |
-| --- | --- | --- |
-| V5 | V7 | 최초 생성 내용 해시·목록 인덱스, 변경 전 커밋 열 복원 |
-| V6 | V8 | 변경 전후 코드·검증 출처 |
-| V7 | V9 | 게시 시도 이력 |
-| V8 | V10 | 원본 공개 기록 연결 |
-| V9 | V11 | 기록 변경 이력 |
-
-이 업그레이드 경로는 새 DB와 메인 V6까지 적용한 DB에 사용한다. 개발 브랜치의 기존 V5~V9를 적용한 DB에는 그대로 실행하지 않는다. 먼저 backup을 보관하고 기존 버전에서 데이터를 내보낸 뒤 별도 DB에 통합 스키마를 적용해 이관해야 한다. Flyway `repair`, 이력 삭제 또는 기존 DB 초기화로 우회하지 않는다. 이번 병합 작업은 사용자 DB를 변경하지 않는다.
+현재 마이그레이션은 새 DB와 메인 V6까지 적용한 DB에 사용한다. 개발 브랜치의 기존 V5~V9를 적용한 DB에는 그대로 실행하지 않는다. 먼저 백업을 보관하고 기존 버전에서 데이터를 내보낸 뒤 별도 DB에 통합 스키마를 적용해 이관한다. Flyway `repair`, 이력 삭제 또는 기존 DB 초기화로 우회하지 않는다. 이전 번호와 통합 번호의 대응은 [DB 번호 통합 이력](../../CHANGELOG.md#개발-브랜치-db-번호-통합)을 참고한다.

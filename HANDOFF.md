@@ -350,7 +350,7 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 메인의 IntelliJ·권한 조회·세션 상한·게시 잠금과 작업 브랜치의 Zed·브라우저·기록 관리 기능을 통합했다.
 - 서버·MCP·Codex·IntelliJ 버전은 `0.12.3-SNAPSHOT`으로 맞췄다. Zed 연결 도구는 `0.12.2`를 유지한다.
 - REST·MCP는 기존 `MY_DRAFTS`·페이지 번호와 새 `MINE`·커서 조회를 함께 지원한다. 두 방식의 인자를 섞으면 거부한다.
-- 메인의 Flyway V1~V6는 유지하고 개발 브랜치 변경을 V7~V11로 옮겼다. 새 DB와 메인 V6 DB가 대상이며 개발 브랜치 V5~V9 DB는 별도 이관이 필요하다. [DB 통합 절차](docs/operations/team-deployment.md#메인과-개발-브랜치의-db-변경-이력-통합)를 따른다.
+- 메인의 Flyway V1~V6는 유지하고 개발 브랜치 변경을 V7~V11로 옮겼다. 새 DB와 메인 V6 DB가 대상이며 개발 브랜치 V5~V9 DB는 별도 이관이 필요하다. [기존 DB 업그레이드 절차](docs/operations/team-deployment.md#기존-db-업그레이드)를 따른다.
 - 전체 서버 테스트 169개 중 165개 통과, PostgreSQL 전용 4개는 기본 실행에서 제외했다. 별도 PostgreSQL 17에서 해당 4개와 백업·복구를 통과했다. 복구 전후 기록 13건·변경 이력 28건이 일치했다.
 - IntelliJ 테스트 32개, 설치 ZIP·프로젝트 구성·플러그인 구조 검증 통과. Zed Node 9개·Python 3개, 실제 Spring 서버의 stdio MCP 연결 검증 통과.
 - 릴리스 버전·JAR manifest, 릴리스 준비 테스트 2개, 백업 파일 보존 테스트 2개, Compose 경계, 공식 플러그인·두 스킬 검증 통과.
@@ -450,3 +450,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest' --tests '*ChangeRecordMarkdownRendererTest'` 8개와 최종 `./gradlew test` 179개가 통과했다. 부분 테스트는 전체에 포함하며 표준 MCP SDK의 실제 서버 호출도 통과했다. `./gradlew -p intellij-plugin test` 32개도 통과했다. 실패·건너뜀은 없다.
 - 로그는 `/tmp/intent-trace-wording-focused.log`, `/tmp/intent-trace-wording-server.log`, `/tmp/intent-trace-wording-intellij.log`이며 최종 서버 결과는 2026-09-08 08:00 KST다. `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`, 전용 환경의 두 스킬 `quick_validate.py`, 로컬 문서 링크 41개와 `git diff --check`를 확인했다.
 - JDBC·스키마·Zed 구현·패키징은 변경하지 않아 해당 독립 검증을 생략했다. 실제 IDE 화면·브라우저 배치·GitHub 게시·배포는 이번 검증에 포함하지 않았다.
+
+## 2026-09-08 문서 추가 정리
+
+- 기준 `98a6923`에서 문서만 수정했다. 모호한 표현을 정리하고 관리자 권한·후속 초안의 Flyway V10·Zed의 `focusedTest` 안내를 실제 구현에 맞췄다.
+- README의 첫 기능 목록은 33개에서 8개로 줄이고 MCP 도구를 기능별 표로 정리했다. 해시 호환 명령은 ADR로, DB 번호 통합 경위는 CHANGELOG로 옮겼다. 중복 번호의 문서는 제목과 링크로 구분하고 기존 DB 이관 조건은 유지했다.
+- 전용 Python 환경의 일회성 검사로 변경 문서의 로컬 경로·제목 링크와 README 도구 표를 확인했다. MCP 도구 26개가 소스의 `@McpTool` 이름과 일치했다. 제목 이동에 따른 기존 인계 문서의 링크도 수정하고 `git diff --check`를 확인했다.
+- 제품 코드·테스트·설정·의존성·스킬은 바뀌지 않아 서버·IDE·DB·Zed 테스트와 플러그인·스킬 검증을 반복하지 않았다. 문서에 있는 복구·배포·게시 명령도 실행하지 않았다.

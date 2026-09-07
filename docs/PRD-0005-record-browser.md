@@ -23,9 +23,9 @@
 
 ## 커서 조회와의 호환
 
-웹·Zed는 PRD-0004의 `scope=MINE`, `cursor`, `limit`, `authorId`, `q`를 사용할 수 있다. `MY_DRAFTS` 또는 `page`·`size`를 지정한 요청은 기존 페이지 번호 방식으로 처리한다. 두 방식의 페이지·검색 인자를 함께 전달하면 입력 오류를 반환한다. 선택 인자를 모두 생략하면 20건을 조회하고 기존 페이지 응답 필드를 유지한다.
+웹·Zed는 [기록 관리와 조회](PRD-0004-record-management-and-evidence.md)의 `scope=MINE`, `cursor`, `limit`, `authorId`, `q`를 사용할 수 있다. `MY_DRAFTS` 또는 `page`·`size`를 지정한 요청은 기존 페이지 번호 방식으로 처리한다. 두 방식의 페이지·검색 인자를 함께 전달하면 입력 오류를 반환한다. 선택 인자를 모두 생략하면 20건을 조회하고 기존 페이지 응답 필드를 유지한다.
 
-이 문서의 제외 범위는 IntelliJ 기록함 기준이다. 서버·웹의 초안 수정·폐기와 이름 변경·줄 이동 조회는 PRD-0004를 따른다.
+이 문서의 제외 범위는 IntelliJ 기록함 기준이다. 서버·웹의 초안 수정·폐기와 이름 변경·줄 이동 조회는 [기록 관리와 조회](PRD-0004-record-management-and-evidence.md)를 따른다.
 
 ## IntelliJ 흐름
 
