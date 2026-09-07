@@ -24,7 +24,7 @@ IntentTrace는 AI 코드의 변경 이유, 관련 커밋·코드, 검증 결과�
 - GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
 - GitHub 게시 시도 조회·응답 유실 복구와 기존 Check Run 대체 안내
 - PR별 기록 목록·현재 HEAD 일치 여부와 연결·권한·설정 진단
-- GitHub 이슈·PR의 초안 재료와 기존 Actions 실행 결과 조회
+- 초안에 사용할 이슈·PR 내용과 기존 GitHub Actions 결과 조회
 - 저장소별 GitHub App installation token 자동 발급·만료 전 갱신
 - GitHub 사용자 인증과 저장소 권한 기반 팀 접근 제어
 - GitHub 로그인·세션 발급·사용자 토큰 자동 갱신(메모리 보관)
@@ -94,9 +94,9 @@ java -jar intent-trace-0.6.0.jar
 
 `v0.7.0`부터는 같은 release에 `intent-trace-intellij-<version>.zip`과 SHA-256 파일도 함께 제공합니다. 정식 version 변경, 실제 IntelliJ 확인, tag 발행 순서는 [`docs/operations/release.md`](docs/operations/release.md)를 따릅니다.
 
-## GitHub 자료 가져오기
+## 이슈·PR 내용과 CI 결과 조회
 
-로그인 후 기록 화면의 **GitHub 자료**(`/records/github`)에서 저장소와 이슈·PR 번호를 입력하면 제목·본문 발췌·출처 링크를 가져옵니다. 내용을 검토한 뒤 Agent에서 초안 작성에 활용합니다. 전체 커밋 ID로 이미 실행된 Actions 결과도 조회할 수 있습니다.
+로그인 후 기록 화면의 **이슈·PR·CI**(`/records/github`)에서 저장소와 이슈·PR 번호를 입력하면 제목·본문 발췌·출처 링크를 가져옵니다. 내용을 검토한 뒤 Agent에서 초안 작성에 활용합니다. 커밋 해시(전체 길이)로 이미 실행된 Actions 결과도 조회할 수 있습니다.
 
 - Agent: `get_github_request_context(repositoryKey, number)`, `list_github_actions_runs(repositoryKey, revision, page?)`
 - REST: `GET /api/v1/github/request-context?repositoryKey=owner/repository&number=7`, `GET /api/v1/github/actions?repositoryKey=owner/repository&revision=<전체-커밋>`
@@ -249,7 +249,7 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 `/records/sessions`에서는 내 연결의 최근 사용·만료를 보고 선택 또는 전체 종료합니다. 현재 연결을 종료하면 로그아웃됩니다. `/records/{UUID}/activities`는 작성자에게 전체 작업, 팀원에게 공개·대체 작업만 보여줍니다. 이전 본문과 수집 시작 전 이력은 복원하지 않습니다.
 
-검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·판단·판단 근거에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
+검색어 `q`는 REST·MCP 목록에서도 사용할 수 있습니다. 최대 200자이며 제목·요청·구현 결정·이유에서 대소문자를 구분하지 않고 찾습니다. `%`와 `_`는 입력한 문자 그대로 검색합니다. 기존 파일·작성자·상태 조건과 페이지 조회를 함께 사용할 수 있습니다.
 
 - `GET /api/v1/change-records?repositoryKey=owner/repo&scope=TEAM`: 팀 기록 목록 (`MINE`: 내 초안)
 - `GET /api/v1/change-records/{id}/comparison`: 원본과 새 기록의 내용·변경 항목 조회
@@ -290,7 +290,7 @@ MCP는 REST와 같은 애플리케이션 서비스를 사용합니다. 기록 �
 
 예를 들어 MCP에 `list_change_records(repositoryKey="owner/repository", scope="MY_DRAFTS")`를 요청하면 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 여러 커밋에 남은 공개 이력을 찾습니다. 상세는 기존 `get_change_record`로 조회합니다.
 
-REST와 MCP는 같은 생성 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다. MCP의 잘못된 변경 기록 UUID 오류에는 전달받은 원문을 포함하지 않습니다.
+REST·MCP의 생성·수정 요청에 같은 입력 제한을 적용합니다. 조회와 작성자 확인의 `revision`은 40자 또는 64자 커밋 해시만 받습니다. MCP의 잘못된 변경 기록 UUID 오류에는 입력 원문을 포함하지 않습니다.
 
 기록의 생성·확인·공개 시각과 검증 시작·종료 시각은 DB와 같은 마이크로초 정밀도로 반올림해 저장하고 동일 요청을 비교합니다. 비밀값 제거 후 저장 길이를 초과하면 내용을 자르지 않고 입력 오류로 반환합니다. 서로 반대 방향의 동시 대체 요청은 하나만 성공하도록 두 기록을 같은 DB 트랜잭션에서 잠급니다.
 
@@ -305,8 +305,6 @@ GitHub 게시 전 PR HEAD는 전체 커밋 ID인지 확인하고, Check Run 생�
 이전 기록 조회는 기본 30초·GitHub 코드 HTTP 호출 40회에서 중단합니다. `stopReason`이 있으면 같은 조건과 `nextCursor`로 미완료 근거부터 이어 읽고 반환된 결과에 추가합니다. `failures`의 기록을 `retryRecordId`로 다시 확인할 때는 해당 후보의 기존 결과를 교체합니다. `complete`는 이번 후보 처리 상태이며 전체 저장소 탐색 완료를 뜻하지 않습니다. 인증·권한·호출 제한 실패는 부분 결과로 숨기지 않습니다. [중단·재개 계약](docs/ADR-0007-evidence-check-and-history.md)을 참고하세요.
 
 0.9.0부터 MCP `find_change_intent` 결과는 `{ "items": [...] }`입니다. 표준 MCP 클라이언트가 전체 도구 목록을 읽도록 최상위 출력 객체 규칙을 적용했습니다. REST `/lookup`의 배열 응답은 유지합니다.
-
-REST와 MCP는 같은 생성·수정 입력 길이·목록·중첩 값 제약을 적용합니다. 조회와 작성자 확인에 사용하는 revision은 두 경로 모두 40자 또는 64자 전체 Git 커밋 ID만 받습니다.
 
 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` subject로 저장하고 현재 login은 표시용으로 보존합니다. 팀 목록의 `authorId`는 조회 필터이며 작성자를 지정하는 입력이 아닙니다. `DRAFT`, `AUTHOR_CONFIRMED`, `DISCARDED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 

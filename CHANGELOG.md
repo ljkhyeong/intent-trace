@@ -6,7 +6,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
-- GitHub 이슈·PR의 초안 재료와 기존 Actions 실행 결과를 조회하는 REST·MCP·브라우저 화면
+- 초안에 사용할 이슈·PR 내용과 기존 GitHub Actions 결과를 조회하는 REST·MCP·브라우저 화면
 - 외부 요청의 출처·발췌 표시와 CI 재실행 차수·커밋·상태 구분. 새 CI 실행이나 유료 서비스 추가 없이 읽기 API만 사용
 - 현재 `its_` 세션을 폐기하는 `DELETE /api/v1/session`과 IntelliJ PasswordSafe 연결 해제
 - 사용자별 활성 세션 기본 5개 상한과 초과 시 가장 오래된 세션 자동 폐기
@@ -17,6 +17,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- 화면·IntelliJ·오류·사용 안내의 문구를 간결하게 통일하고 CI의 실행 대기·실행 중·결과 미확인을 구분
 - 내용 해시는 `DigestOutputStream`, 줄 해시는 `MessageDigest.update`로 계산해 임시 바이트 배열 복사 제거
 - 이름 변경 판별에서 중복 blob을 발견하면 남은 순회 중단
 - Git 트리와 기록 비교의 중복 검사에 기존 Map을 활용해 임시 목록 생성 제거

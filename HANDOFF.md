@@ -442,3 +442,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`와 전용 스킬 검증 환경의 `quick_validate.py`로 사용·개발 스킬이 통과했다. 문서 링크와 `git diff --check`도 확인했다.
 - 테스트가 생성한 `build/reports/github-context/github.html`을 Playwright·Chrome에서 1280×900, 390×844로 확인했다. 실행 경로는 `node ~/.npm/_npx/31e32ef8478fbf80/node_modules/playwright/cli.js screenshot --channel chrome`이며 스킬 wrapper의 직접 실행 권한이 없어 기존 설치를 사용했다. 외부 본문은 HTML로 실행되지 않고 비밀값은 제거됐다.
 - JDBC·스키마·IDE·Zed 구현은 바뀌지 않아 해당 독립 검증은 생략했다. 실제 GitHub 계정 권한 변경·워크플로 실행·게시·배포는 수행하지 않았다. 이슈·PR·Actions 조회에는 문서에 명시한 GitHub App 읽기 권한이 필요하다.
+
+## 2026-09-08 화면과 안내 문구 정리
+
+- 검증 대상은 `fda89b2`에 화면·IntelliJ·Markdown·오류·MCP 안내 문구와 관련 테스트를 수정한 상태다. 제안한 22개 항목을 반영하고 README의 입력 제한 설명 중복을 제거했다. 검증 후에는 문서만 정리했다.
+- CI의 실행 대기·실행 중·결과 미확인을 구분하고 알 수 없는 상태는 원래 값을 표시한다. 기존 브라우저 테스트에서 상태 구분·PR 실행 차수·외부 본문 이스케이프를 확인했다. API 이름·데이터 구조·상태 값은 유지했다.
+- `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest' --tests '*ChangeRecordMarkdownRendererTest'` 8개와 최종 `./gradlew test` 179개가 통과했다. 부분 테스트는 전체에 포함하며 표준 MCP SDK의 실제 서버 호출도 통과했다. `./gradlew -p intellij-plugin test` 32개도 통과했다. 실패·건너뜀은 없다.
+- 로그는 `/tmp/intent-trace-wording-focused.log`, `/tmp/intent-trace-wording-server.log`, `/tmp/intent-trace-wording-intellij.log`이며 최종 서버 결과는 2026-09-08 08:00 KST다. `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`, 전용 환경의 두 스킬 `quick_validate.py`, 로컬 문서 링크 41개와 `git diff --check`를 확인했다.
+- JDBC·스키마·Zed 구현·패키징은 변경하지 않아 해당 독립 검증을 생략했다. 실제 IDE 화면·브라우저 배치·GitHub 게시·배포는 이번 검증에 포함하지 않았다.

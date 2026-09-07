@@ -1,10 +1,10 @@
-# ADR-0012: GitHub의 요청 자료와 CI 결과를 읽기 전용으로 연결한다
+# ADR-0012: GitHub 이슈·PR 내용과 CI 결과를 조회한다
 
 ## 목적
 
 이슈·PR의 요청 내용을 초안에 활용하고 이미 실행된 CI 결과를 조회한다. 기존 GitHub 연결을 사용하며 유료 서비스, 새 워크플로 실행, 로그·아티팩트 저장, 자동 폴링과 웹훅 서버를 추가하지 않는다.
 
-## 이슈·PR 자료
+## 이슈·PR 내용
 
 - `GET /api/v1/github/request-context?repositoryKey=owner/repository&number=7`과 MCP `get_github_request_context`는 같은 서비스를 호출한다. GitHub의 이슈 조회 API가 PR도 반환하므로 요청 경로는 하나다.
 - 매 요청 저장소 읽기 권한을 확인하고 현재 사용자의 메모리 토큰을 사용한다. GitHub 응답의 번호·원문 URL이 요청한 저장소·번호와 맞는지 확인한다.
