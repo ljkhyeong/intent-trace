@@ -47,7 +47,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - 단일 인스턴스에서 같은 기록의 동시 게시 요청은 PR 번호가 달라도 직렬화해 최초 Check Run을 한 번만 만든다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지한다.
 - Check Run 검색 한도를 모두 채우고도 기존 실행을 확인하지 못하면 중복 생성하지 않고 실패한다.
 - 게시 내용은 기존 IntentTrace Markdown 렌더러와 동일하다.
-- GitHub 자격 증명이 없거나 API가 실패하면 안전한 오류 분류만 반환한다.
+- GitHub 자격 증명이 없거나 API가 실패하면 외부 응답 원문 없이 오류 종류만 안내한다.
 - 같은 저장소의 유효한 installation token은 재사용하고 만료 5분 전부터 새로 발급한다.
 
 ## 제외
@@ -79,4 +79,4 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 `POST /api/v1/publication-preflight`와 `check_publication_credentials`에 `repositoryKey`를 전달한다. 저장소 MAINTAINER 권한이 필요하다. App 키 사용·원격 인증·저장소 설치·대상 한 곳으로 축소한 token 발급·실제 부여 범위와 권한을 단계별로 반환한다. 모든 단계가 확인된 경우만 `ready=true`다. 고정 token은 `CONFIGURED_UNVERIFIED`로 반환한다.
 
-이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 기존 대기 계약을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.
+이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 응답에 안내된 재시도 대기 시간을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.

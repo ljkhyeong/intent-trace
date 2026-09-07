@@ -42,7 +42,7 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 
 ## 0.12.1 입력 보호와 배포 의존성
 
-- Python `GetPassWarning`을 예외로 처리해 토큰을 화면에서 숨길 수 없을 때 표준 입력 대체 전에 실패 종료한다. EOF·입력 취소도 한국어 안내만 출력하고 실행하지 않는다. 환경 변수에 이미 제공한 `its_`는 비대화형 실행에 그대로 사용한다. [Python getpass 문서](https://docs.python.org/3/library/getpass.html)
+- Python `GetPassWarning`을 예외로 처리해 토큰 입력을 숨길 수 없으면 즉시 종료한다. EOF·입력 취소도 한국어 안내만 출력하고 실행하지 않는다. 환경 변수에 이미 제공한 `its_`는 비대화형 실행에 그대로 사용한다. [Python getpass 문서](https://docs.python.org/3/library/getpass.html)
 - 생성기는 `package.json`과 `package-lock.json`을 임시 폴더에 복사하고 `npm ci --ignore-scripts`로 운영 의존성을 설치한다. 개발 폴더의 `node_modules`는 사용하거나 변경하지 않는다. 설치 스크립트·의존성 감사 호출을 끄고, 준비 실패 시 배포 파일 생성을 중단한다. 잠금 파일과 선언이 다르면 임의로 갱신하지 않는다. [npm ci 문서](https://docs.npmjs.com/cli/v11/commands/npm-ci/)
-- 생성에는 npm 레지스트리 또는 필요한 항목이 있는 캐시가 필요하다. 완성된 패키지의 소비자 오프라인 설치는 유지한다. 배포 대상 운영체제에 따라 npm이 선택하는 선택 의존성은 달라질 수 있으므로 플랫폼 간 바이트 동일성을 보장하지 않는다.
+- 생성에는 npm 레지스트리 또는 필요한 항목이 있는 캐시가 필요하다. 완성된 패키지는 오프라인으로 설치할 수 있다. 운영체제별 선택 의존성이 달라 패키지 내용과 해시가 다를 수 있다.
 - 패키지 안의 `build-info.json`에 패키지 이름·버전·입력 잠금 파일 SHA-256을 넣는다. 옆의 `.tgz.build.json`에는 같은 정보와 압축 파일 SHA-256을 기록한다. 계정·개인 경로·인증 정보는 넣지 않는다. 이 정보는 생성 기준을 확인하는 용도이며 배포자 서명은 아니다.

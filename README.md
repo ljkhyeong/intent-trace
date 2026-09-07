@@ -162,7 +162,7 @@ token 갱신이 거부되거나 갱신 응답 수신·파싱·token 값 변환�
 
 사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 가장 오래된 세션을 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 token 요청은 `401`을 반환합니다. 호환용 `ghu_` token은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
 
-서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고, 기록의 `repositoryKey`에 대한 권한을 GitHub의 사용자별 단건 권한 API로 조회합니다. 권한 응답의 숫자 사용자 ID가 현재 세션 주체와 일치해야 하며, 읽기 권한은 팀 공개 기록 조회, 쓰기 권한은 초안 생성과 작성자 수명주기 처리에 필요합니다. 권한 없음과 404는 접근 거부로 처리하고 public 저장소의 일반 공개 여부만으로 팀 접근을 허용하지 않습니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
+서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고 대상 저장소의 권한을 조회합니다. 권한 응답의 사용자 ID가 현재 사용자와 일치해야 합니다. 팀 공개 기록 조회에는 읽기 권한, 본인 기록 생성·관리에는 쓰기 권한이 필요합니다. 권한 없음과 404는 접근 거부로 처리하며, GitHub 공개 저장소도 같은 권한 검사를 거칩니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
 GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
 
@@ -305,7 +305,7 @@ MCP `find_change_intent`는 `{ "items": [...] }`, REST `/lookup`은 배열을 �
 Java 21에서 플러그인 설치 ZIP을 만듭니다. 기본 빌드는 IntelliJ IDEA 2025.3.2 SDK를 내려받으므로 첫 실행에 시간이 걸릴 수 있습니다.
 
 ```bash
-./gradlew --no-daemon -p intellij-plugin buildPlugin
+./gradlew -p intellij-plugin buildPlugin
 ```
 
 IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plugin/build/distributions/intent-trace-intellij-*.zip`을 선택합니다.
@@ -356,7 +356,7 @@ python3 scripts/zed-with-intent-trace.py .
 npm ci --prefix clients/zed --ignore-scripts
 npm test --prefix clients/zed
 ./gradlew test
-./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
+./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
@@ -366,7 +366,7 @@ python3 scripts/test_backup_postgres.py
 python3 scripts/test_test_summary.py
 ```
 
-기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 별도 PostgreSQL 17 container에서 Flyway·JDBC와 backup/restore 왕복을 확인합니다. `scripts/test_backup_postgres.py`는 같은 경로를 사용하는 백업이 겹쳐도 먼저 완료된 파일을 덮어쓰거나 삭제하지 않는지와 종료 신호를 받은 백업이 완료 처리되지 않는지를 확인합니다. Compose 검증은 service·network·host port·외부 image digest 경계를 확인합니다. GitHub Actions는 pull request와 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
+기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 PostgreSQL 17에서 Flyway·JDBC와 백업·복구를 확인합니다. 백업 검증은 동시 실행과 중단 시 기존 파일이 보존되는지 확인합니다. Compose 검증은 서비스·네트워크 구성, 외부 포트와 이미지 해시를 확인합니다. GitHub Actions는 PR과 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
 
 ## 현재 제한
 

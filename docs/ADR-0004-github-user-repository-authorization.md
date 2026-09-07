@@ -15,7 +15,7 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - `github:<user-id>`를 안정적인 작성자 subject, login을 표시값으로 저장한다.
 - `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 대상 저장소의 최고 유효 권한만 조회하고, `permission`과 `role_name`을 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다. `none`과 404는 권한 없음으로 처리한다.
 - 권한 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자 subject와 일치할 때만 결과를 사용한다. login은 단건 조회 경로와 표시값에만 사용한다.
-- 읽기 작업은 `READER`, 기록 생성·수명주기·GitHub 게시는 `CONTRIBUTOR` 이상을 요구한다.
+- 읽기 작업은 `READER`, 기록 생성·관리·GitHub 게시는 `CONTRIBUTOR` 이상을 요구한다.
 - 비공개 상태는 작성자만 조회하며, `PUBLISHED`와 `SUPERSEDED`도 익명 공개하지 않고 저장소 읽기 권한이 있는 팀원에게만 공개한다.
 - user access token은 요청 속성에만 두고 처리 후 제거한다. 설치 token, JWT와 마찬가지로 영구 저장하거나 로그에 쓰지 않는다.
 - 사용자·저장소 권한 조회의 HTTP·응답 파싱 오류와 유효하지 않은 사용자 ID·login은 기존 인증 실패·연동 장애 분류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 전달하지 않는다.
@@ -25,10 +25,10 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 
 - 모든 API·MCP 호출에는 GitHub 네트워크 왕복이 최소 한 번, 저장소 작업에는 권한 조회가 한 번 더 필요하다.
 - 저장소 수와 관계없이 권한 확인은 대상 저장소에 대한 GitHub 요청 한 번으로 끝난다. 응답이 현재 사용자와 다르거나 알 수 없는 권한 값이면 의존 서비스 오류로 중단한다.
-- GitHub 장애는 보호 작업에 영향을 준다. 현재는 오래된 권한으로 통과시키지 않고 실패를 반환한다.
+- GitHub 장애로 사용자·권한을 확인할 수 없으면 연동 오류를 반환한다. 이전 권한으로 요청을 허용하지 않는다.
 - `ghu_` user access token 직접 전달은 호환 경로로 유지한다. 기본 Codex 연결과 token 갱신 책임은 `ADR-0005`의 `its_` 로컬 세션이 맡는다.
 - 서버 주도 Check Run 게시의 installation token과 요청 사용자 token은 목적과 권한 범위가 다르므로 별도로 유지한다.
-- V3 이전 비공개 기록은 명시적 계정 연결 기능이 생기기 전까지 수명주기를 계속 진행할 수 없다.
+- V3 이전 비공개 기록은 현재 GitHub 계정과 연결되지 않아 수정·확인·공개할 수 없다.
 
 ## 대안
 

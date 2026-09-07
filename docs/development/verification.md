@@ -4,7 +4,7 @@
 
 1. 변경 파일과 실패 가능 지점을 확인하고 개발 스킬의 검증 목록에서 대상을 고른다. 파일 경로는 `rg --files`로 찾고 필요한 부분만 읽는다.
 2. 서버 수정 중에는 `./gradlew focusedTest --tests '*대상테스트명'`을 사용한다. 실패하면 해당 테스트와 원인을 확인하고 수정한 뒤 같은 대상을 실행한다.
-3. 코드·문구·테스트 기대값 수정을 마친 뒤 서버 전체 검증은 `./gradlew test`로 한 번 실행한다. 전체 검증 뒤 코드를 다시 고쳤다면 영향받는 검증을 다시 수행한다.
+3. 서버 코드와 테스트 기대값 수정을 마치면 `./gradlew test`를 한 번 실행한다. 전체 검증 뒤 코드를 다시 고쳤다면 영향받는 검증을 다시 수행한다.
 4. 결과 정리만 남으면 테스트 대신 `python3 scripts/test-summary.py server focused postgres`로 필요한 결과를 읽는다. 범위별 결과는 따로 집계하며 합산하지 않는다. 실행하지 않은 대상은 명령에서 뺀다.
 
 ## 결과와 Gradle 증분 실행
@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | `./gradlew focusedTest --tests '*대상테스트명'` | 지정한 서버 테스트 | `build/test-results/focusedTest` |
 | `./gradlew test` | PostgreSQL 전용을 제외한 서버 전체 | `build/test-results/test` |
-| `scripts/verify-postgres.sh` | 새 PostgreSQL·DB 계약·백업 복구 | `build/test-results/postgresTest` |
+| `scripts/verify-postgres.sh` | 새 PostgreSQL의 스키마·JDBC·백업·복구 | `build/test-results/postgresTest` |
 | `./gradlew -p intellij-plugin test` | IntelliJ 테스트 | `intellij-plugin/build/test-results/test` |
 
 부분 테스트와 PostgreSQL 검증은 전체 테스트 결과를 덮어쓰지 않는다. 일반 테스트는 소스·테스트·클래스 경로와 등록된 입력이 같으면 Gradle의 `UP-TO-DATE` 판단을 따른다. Zed 실행 파일·의존성 명세·SDK 설치 여부와 검증 스크립트도 입력에 포함한다. PostgreSQL은 매번 새 DB를 준비하므로 결과 캐시를 사용하지 않는다. 별도 테스트 작업은 [Gradle의 표준 Test 작업](https://docs.gradle.org/current/userguide/java_testing.html)을 사용한다.
