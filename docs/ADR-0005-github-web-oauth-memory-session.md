@@ -14,7 +14,7 @@
 
 - GitHub Web Application Flow를 사용하며 `GET /auth/github/start`와 `GET /auth/github/callback`을 제공한다.
 - 승인 시작 시 256비트 무작위 `state`와 PKCE code verifier를 발급한다. 서버에는 `state`의 SHA-256 digest·10분 TTL과 verifier를 두고 `state` 원문만 callback 경로에 한정된 HttpOnly·SameSite=Lax cookie로 전달한다.
-- 미완료 승인 상태는 기본 1,000개로 제한한다. 만료 상태를 먼저 제거하고도 상한에 도달하면 새 승인 시작을 `429 Too Many Requests`로 거부한다.
+- 미완료 승인 상태는 기본 1,000개로 제한하며 `INTENT_TRACE_GITHUB_MAX_PENDING_STATES`로 1~100,000개 범위에서 조정한다. 만료 상태를 먼저 제거하고도 상한에 도달하면 새 승인 시작을 `429 Too Many Requests`로 거부한다.
 - authorize 요청에는 PKCE `S256` code challenge를 포함한다. callback은 query와 cookie의 `state`, TTL, 일회성 사용 여부를 모두 확인한 뒤 client ID·client secret·정확한 redirect URI·code verifier로 code를 교환한다.
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
@@ -34,6 +34,7 @@
 - Codex는 GitHub token 수명과 회전을 알 필요 없이 같은 `its_` token을 계속 사용할 수 있다.
 - 서버 재시작 시 GitHub token 쌍과 로컬 세션이 모두 사라져 사용자가 다시 승인해야 한다.
 - 본인의 세션 목록과 선택·전체 폐기는 메모리에서 처리한다. 공개 세션 ID는 인증 자격 증명이 아니며 token digest를 노출하지 않는다.
+- 전체 폐기는 세션 Map을 한 번 순회하며 본인 항목을 처리한다. 선택 폐기와 같은 활성 상태 변경·조건부 삭제를 사용하고 이번 호출에서 비활성화한 세션 수를 반환한다.
 - 폐기는 활성 상태를 먼저 해제하며 갱신 후에도 활성 상태와 store 연결을 재확인한다. 폐기와 겹친 갱신이 세션을 복구할 수 없다.
 - 여러 서버 인스턴스는 세션을 공유하지 못한다. 현재 로컬 단일 인스턴스 범위에서는 sticky session이나 공유 저장소를 추가하지 않는다.
 - `its_` token도 보유자가 사용자를 대신해 IntentTrace를 호출할 수 있는 Bearer 자격 증명이므로 환경 변수로 전달하고 로그·기록·도구 인자에 넣지 않는다.

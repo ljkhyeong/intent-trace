@@ -12,7 +12,7 @@ npm install --prefix ~/.local/share/intent-trace --ignore-scripts --offline /배
 ~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed configure --apply
 ```
 
-팀 서버는 `configure` 뒤에 HTTPS `/mcp` 주소를 넣는다. 설정에는 token을 저장하지 않는다. `INTENT_TRACE_MCP_URL` 환경 변수로 서버 주소를 정할 수도 있다. 명령에 주소를 쓰면 그 값이 우선한다.
+팀 서버는 미리보기와 `--apply` 명령 모두 `configure` 뒤에 같은 HTTPS `/mcp` 주소를 넣는다. 미리보기는 주소를 저장하지 않는다. 두 명령을 실행하기 전에 `INTENT_TRACE_MCP_URL` 환경 변수로 주소를 지정해도 된다. 명령 인자의 주소가 환경 변수보다 우선하며, 둘 다 없으면 로컬 서버를 사용한다. 설정에는 token을 저장하지 않는다.
 
 IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 종료하고 실행한다.
 

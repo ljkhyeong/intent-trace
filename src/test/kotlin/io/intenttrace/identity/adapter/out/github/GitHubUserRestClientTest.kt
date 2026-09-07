@@ -1,6 +1,7 @@
 package io.intenttrace.identity.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.ActorIdentity
@@ -30,11 +31,10 @@ class GitHubUserRestClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val client = GitHubUserRestClient(
-        restClientBuilder = builder,
-        properties = GitHubProperties(
+        client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(
             apiBaseUrl = URI.create("https://api.github.test"),
             apiVersion = "2026-03-10",
-        ),
+        )),
     )
     private val actor = ActorIdentity.github(42, "lim")
 

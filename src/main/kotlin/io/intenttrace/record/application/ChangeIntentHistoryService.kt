@@ -2,6 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import java.util.UUID
 import io.intenttrace.record.domain.CodeSide
@@ -54,8 +55,10 @@ class ChangeIntentHistoryService(
         // 이름이 바뀐 기록도 찾도록 저장소 후보를 제한된 페이지 단위로 살핀다.
         val queryDigest = HistoryResumeCursor.queryDigest(repository.key, queryRevision, normalizedPath, line)
         val resume = cursor?.takeIf { it.startsWith("h1.") }?.let { HistoryResumeCursor.parse(it, queryDigest) }
+        val loadedRecords = mutableMapOf<UUID, ChangeRecord>()
+        fun load(id: UUID): ChangeRecord = loadedRecords.getOrPut(id) { facade.get(id) }
         fun summary(id: UUID): ChangeRecordSummary {
-            val record = facade.get(id)
+            val record = load(id)
             if (record.repositoryKey != repository.key || record.status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)) {
                 throw ChangeRecordNotFoundException(id)
             }
@@ -64,7 +67,7 @@ class ChangeIntentHistoryService(
         }
         val page = if (resume != null) {
             val current = summary(resume.record.id)
-            require(current.createdAt == resume.record.createdAt && resume.anchorIndex < facade.get(current.id).codeAnchors.size) { "재개할 기록과 근거를 확인해 주세요." }
+            require(current.createdAt == resume.record.createdAt && resume.anchorIndex < load(current.id).codeAnchors.size) { "재개할 기록과 근거를 확인해 주세요." }
             val tail = if (resume.remainingCandidates > 1) catalog.list(repository.key, cursor = resume.record.encode(), limit = resume.remainingCandidates - 1).items else emptyList()
             val candidates = listOf(current) + tail
             ChangeRecordPage(candidates, if (resume.hasMore) candidates.last().let { RecordCursor(it.createdAt, it.id).encode() } else null)
@@ -76,7 +79,7 @@ class ChangeIntentHistoryService(
         val targetBytes by lazy { targetEntry?.let { reads.blob(it.sha) } }
         val items = mutableListOf<HistoricalIntent>()
         for ((candidateIndex, summary) in page.items.withIndex()) {
-            val record = facade.get(summary.id)
+            val record = load(summary.id)
             val startAnchor = if (candidateIndex == 0) resume?.anchorIndex ?: 0 else 0
             for (anchorIndex in startAnchor until record.codeAnchors.size) {
                 try {
@@ -98,8 +101,8 @@ class ChangeIntentHistoryService(
                             val entry = old.entries[anchor.relativePath]?.takeIf { it.type == "blob" }
                             val renamed = !samePath && entry != null && entry.sha == targetEntry?.sha &&
                                 normalizedPath !in old.entries && anchor.relativePath !in target.entries &&
-                                old.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1 &&
-                                target.entries.values.count { it.type == "blob" && it.sha == entry.sha } == 1
+                                old.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null &&
+                                target.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null
                             if (!samePath && !renamed) return@run null
                             if (entry != null && targetEntry != null && reads.isAncestor(source, queryRevision)) {
                                 val oldBytes = reads.blob(entry.sha)

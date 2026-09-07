@@ -61,6 +61,9 @@ jobs:
       - name: 릴리스 파일 준비 코드 테스트
         run: python3 scripts/test_validate_release_version.py
 
+      - name: 테스트 결과 집계 코드 확인
+        run: python3 scripts/test_test_summary.py
+
       - name: 플러그인 검증
         env:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py

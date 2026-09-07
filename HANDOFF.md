@@ -56,7 +56,7 @@
 - 로컬 실행 도구의 종료 코드·시각·출력 해시 수집과 변경 파일 감지
 - REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
 - GitHub token·private key·client secret의 안전한 문자열 표현
-- Codex 스킬과 개인정보를 수집하지 않는 세션 시작 훅
+- Codex 기록 사용·저장소 개발 스킬
 - Codex 조회 스킬의 정확한 줄·기록함·파일 이력 분기, 페이지·상세·대체 기록 조회 안내
 - Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
 - IntentTrace 저장소 전용 개발 스킬
@@ -70,49 +70,9 @@
 - Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
 - SECURITY 정책과 0.6.0 변경 이력
 
-## 반드시 지킬 규칙
+## 작업 규칙
 
-- 초안은 만든 작성자만 확인한다.
-- 초안·확인·폐기 기록은 만든 작성자만 조회하고, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 조회한다.
-- 작성자는 요청 본문이 아니라 `/user`에서 확인한 GitHub 숫자 ID로 결정한다.
-- 브라우저에는 기록 화면에서만 쓰는 `itb_` cookie를 발급하며 REST·MCP에서 사용하지 않는다.
-- Codex에는 GitHub token 대신 `its_` session token만 전달하고 GitHub token 쌍은 메모리 밖으로 노출하지 않는다.
-- callback은 같은 브라우저의 cookie와 미사용 `state`가 일치할 때만 code를 교환한다.
-- 미완료 OAuth `state`는 TTL과 전역 개수 상한으로 제한하고 상한 도달 시 새 승인을 거부한다.
-- refresh token은 한 번 사용한 뒤 새 access·refresh token 쌍으로 함께 교체하고, 사용자 subject가 바뀌면 세션을 폐기한다.
-- 갱신 거부 또는 응답 수신·파싱·token 값 변환 실패 시 세션을 폐기하고 `401`로 재승인을 요구한다. 잠금을 기다리던 요청도 폐기된 세션을 사용하지 않는다. 단순 사용자 조회 장애는 `502`로 구분하고 세션을 유지한다.
-- 사용자별 활성 세션은 기본 5개로 제한하고 새 세션 발급 시 가장 오래된 세션을 폐기한다. `DELETE /api/v1/session`은 현재 `its_` 세션만 폐기한다.
-- 생성·확인·공개·대체·GitHub 게시는 저장소 쓰기 권한이 필요하다.
-- 확인 시 전체 Git 커밋 ID가 필요하다.
-- 확인과 공개 시 현재 스냅샷이 기록의 스냅샷과 같아야 한다.
-- 공개된 본문과 근거는 수정하지 않고 새 공개 기록으로 대체한다.
-- 팀 조회에는 공개 또는 대체된 기록만 노출한다.
-- 새 기록을 GitHub에 게시할 때 기록 저장소와 PR 저장소, 기록 커밋과 PR `head.sha`가 각각 일치해야 한다. 기존 Check Run의 대체 안내는 원래 커밋을 확인하고 진행된 PR HEAD를 허용한다.
-- 목록은 저장소 읽기 권한을 먼저 확인하고 SQL에서 공개 상태 또는 현재 작성자의 비공개 상태를 제한한 뒤 페이지로 나눈다.
-- 파일 이력은 정확한 상대 경로로만 조회하며 과거 줄·검증을 현재 편집기 코드의 근거로 자동 해석하지 않는다.
-- Check Run은 `intent-trace:<변경 기록 UUID>` `external_id`로 재사용하고 GitHub 호출을 DB 트랜잭션 안에서 실행하지 않는다.
-- 같은 기록의 게시 요청은 PR 번호가 달라도 단일 app에서 직렬화한다. PR별 HEAD 확인과 게시 이력은 따로 유지하고, Check Run 검색 한도를 다 채우면 중복 생성하지 않는다.
-- GitHub 저장소 식별자는 소문자 `owner/repository`로 정규화해 권한·멱등성·조회·게시에서 같은 값으로 비교한다.
-- 코드 근거 경로는 `./`, 중복 `/`, 끝 `/`을 제거해 저장과 라인 조회에서 같은 값으로 비교한다. 정규화 결과는 서버 운영체제와 관계없이 `/`로 연결한다.
-- 스냅샷 helper는 `core.quotePath=true`의 기존 줄바꿈 출력을 사용해 개인 Git 설정의 영향을 제거한다. 예전 `false` 설정의 해시는 README의 명시적인 호환 명령으로 재현하며 저장값과 비교 규칙은 변경하지 않는다.
-- 코드 근거 helper는 Git `blob`과 실제 파일의 줄 범위만 받으며 디렉터리(`tree`)는 거부한다.
-- 코드 심벌 이름(`symbolName`)도 설명 필드와 같은 비밀값·개인 home 절대 경로 제거를 거쳐 저장한다.
-- 같은 `requestId`는 작성자·저장소와 정규화된 저장 내용이 모두 같은 재시도에만 기존 기록을 반환한다.
-- 검증 시작·종료 시각은 DB와 같은 마이크로초 반올림을 적용해 비교·저장한다. 이전 저장 방식의 재시도도 같은 정밀도로 비교한다.
-- 비밀값 제거 후 문자열 길이가 저장 한도를 넘으면 원문을 포함하지 않은 입력 오류로 거부하고 내용을 자르지 않는다.
-- 기록 대체는 두 기록을 ID 순서로 잠그는 DB 트랜잭션 안에서 최신 상태를 확인한다. GitHub 권한 조회는 트랜잭션 밖에서 수행한다.
-- 팀 배포는 Caddy만 host port를 열고 app·PostgreSQL은 Docker network 안에 둔다.
-- PostgreSQL에는 제품 데이터만 저장하며 GitHub access·refresh token과 `its_` session은 app 메모리에만 둔다.
-- restore는 app 중지와 명시적 `--confirm-replace` 없이는 실행하지 않는다.
-- MCP 생성·수정 도구는 Jakarta Validator를 명시적으로 실행하고 전체 Git commit 형식은 도메인 값 객체에서 검증한다. 선택 입력은 MCP 명세에도 선택값으로 등록한다.
-- GitHub 자격 증명 보유 객체의 `toString()`에는 실제 비밀값을 넣지 않는다.
-- GitHub 연동과 IntelliJ 응답 파싱 오류는 응답 원문을 포함할 수 있는 원인 예외를 전달하지 않는다.
-- IntelliJ 플러그인은 `its_` session만 PasswordSafe에 저장하고 GitHub token을 입력받지 않는다.
-- IntelliJ 현재 줄 조회는 커밋된 파일과 전체 HEAD commit만 사용한다.
-- IntelliJ HTTP 조회는 연결 5초·응답 읽기 10초 제한, redirect 금지와 4MiB(4,194,304바이트) 응답 상한을 유지한다. 서버 입력 상한의 단건 기록은 수용하고, 여러 기록의 합계가 상한을 넘으면 기록함에서 개별 조회한다.
-- IntelliJ 승인 시작은 기존 서버 URL만 열고 callback·state·PKCE는 서버가 처리한다.
-- IntelliJ 서버 주소는 로컬 IDE 설정, 환경 변수, 기본 loopback 주소 순서로 선택하며 설정 동기화에서 제외한다. 연결 확인은 인증 정보 없이 health만 조회하고 설정을 저장하지 않는다.
-- PasswordSafe와 환경 변수 세션은 해당 서버에서만 사용한다. PasswordSafe 세션은 서버 폐기 성공 또는 이미 만료된 `401` 뒤 삭제하고, 서버 장애 때는 다시 시도할 수 있도록 유지한다. 환경 변수 세션이 있으면 연결은 유지된다고 안내한다.
+공통 규칙은 [AGENTS.md](AGENTS.md), 기능별 설계와 검증은 [개발 스킬](skills/intent-trace-flows/SKILL.md)을 따른다. 이 문서는 구현 상태와 이전 검증 결과를 전달한다.
 
 ## IntelliJ 설치와 화면 검증 (2026-08-30)
 
@@ -390,7 +350,7 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 메인의 IntelliJ·권한 조회·세션 상한·게시 잠금과 작업 브랜치의 Zed·브라우저·기록 관리 기능을 통합했다.
 - 서버·MCP·Codex·IntelliJ 버전은 `0.12.3-SNAPSHOT`으로 맞췄다. Zed 연결 도구는 `0.12.2`를 유지한다.
 - REST·MCP는 기존 `MY_DRAFTS`·페이지 번호와 새 `MINE`·커서 조회를 함께 지원한다. 두 방식의 인자를 섞으면 거부한다.
-- 메인의 Flyway V1~V6는 유지하고 개발 브랜치 변경을 V7~V11로 옮겼다. 새 DB와 메인 V6 DB가 대상이며 개발 브랜치 V5~V9 DB는 별도 이관이 필요하다. [DB 통합 절차](docs/operations/team-deployment.md#메인과-개발-브랜치의-db-변경-이력-통합)를 따른다.
+- 메인의 Flyway V1~V6는 유지하고 개발 브랜치 변경을 V7~V11로 옮겼다. 새 DB와 메인 V6 DB가 대상이며 개발 브랜치 V5~V9 DB는 별도 이관이 필요하다. [기존 DB 업그레이드 절차](docs/operations/team-deployment.md#기존-db-업그레이드)를 따른다.
 - 전체 서버 테스트 169개 중 165개 통과, PostgreSQL 전용 4개는 기본 실행에서 제외했다. 별도 PostgreSQL 17에서 해당 4개와 백업·복구를 통과했다. 복구 전후 기록 13건·변경 이력 28건이 일치했다.
 - IntelliJ 테스트 32개, 설치 ZIP·프로젝트 구성·플러그인 구조 검증 통과. Zed Node 9개·Python 3개, 실제 Spring 서버의 stdio MCP 연결 검증 통과.
 - 릴리스 버전·JAR manifest, 릴리스 준비 테스트 2개, 백업 파일 보존 테스트 2개, Compose 경계, 공식 플러그인·두 스킬 검증 통과.
@@ -399,3 +359,122 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 
 - PR CI의 전체 SHA 고정 정책에 맞춰 `actions/setup-node` v6 참조도 공식 커밋 SHA로 고정했다.
 - Linux CI에서 확인한 DB 시각 정밀도 차이를 나노초 고정 시계로 재현했다. 생성·확인·공개·작업 시각을 DB의 마이크로초 정밀도로 맞추고 저장 전후 전체 기록이 같은지 기존 H2·PostgreSQL 계약 테스트에서 확인했다. 수정 후 전체 서버 테스트와 PostgreSQL 백업·복구가 다시 통과했다.
+
+## 2026-09-05 스킬과 작업 지시 정리
+
+- Astra 가이드를 참고해 공통 규칙은 `AGENTS.md`, 기능별 문서·검증은 개발 스킬, 기록 도구 사용은 사용 스킬로 정리했다. 이력 조회·게시 복구는 별도 참고 문서로 옮겼다.
+- 이미 받은 승인 재확인, 모든 문서 필수 읽기, 버전별 중복 규칙과 세션 시작 훅을 제거했다. 작성자 확인·공개 범위·비밀값 보호 규칙은 유지했다.
+- 공식 플러그인 검사, 로컬 구조 검사, 두 스킬의 `quick_validate.py`, 로컬 문서 링크 32개와 `git diff --check`를 통과했다.
+- 도구 이름·페이지 조회 인자를 서버 코드와 대조하고 승인 재사용·본문 변경 후 재확인·조회 중단 처리를 문서로 점검했다. 모델 행동 실험이나 서버·IDE 테스트는 이번 검증에 포함하지 않았다.
+
+## 2026-09-05 검증 반복 개선
+
+- `focusedTest`·`test`·`postgresTest`로 결과 경로를 나누고 Zed·검증 스크립트를 Gradle 입력에 등록했다. PostgreSQL 검증은 빈 로컬 포트를 배정받는다.
+- 서버 165개, 부분 실행 9개, PostgreSQL 4개와 결과 집계 도구 3개가 통과했다. DB 복구 후 기록 13건·이력 28건을 확인했다. 이후 전체 테스트는 `UP-TO-DATE`였고 기존 XML 결과도 유지됐다.
+- 작업 재개 시 [로컬 검증 절차](docs/development/verification.md)에서 실행 범위를 고르고 `scripts/test-summary.py`로 필요한 결과만 확인한다. [이전 작업 점검과 변경 근거](docs/reviews/2026-09-05-agent-verification-loop.md)에 관찰 범위·재시도 원인·검증 결과를 남겼다.
+
+## 2026-09-05 Java·Spring API와 중복 검증 검토
+
+- [검토 결과](docs/reviews/2026-09-05-standard-api-review.md)에 오류 JSON 직접 조립, HTTP 설정 중복, 저장소 빈 값 중복 검사, Duration 표현과 JWT 인코더 도입을 정리했다. 필요한 도메인·권한·동시성 검증은 별도로 구분했다.
+- 제품 코드는 변경하지 않았다. 구현할 때 해당 항목의 조건과 기존 테스트를 확인한다.
+
+## 2026-09-05 표준 API와 중복 검증 정리
+
+- 위 검토의 다섯 항목을 반영했다. 인증 오류 JSON은 Jackson, GitHub API 공통 설정은 `RestClient` Bean, JWT 직렬화·서명은 `NimbusJwtEncoder`를 사용한다. 저장소 빈 값 중복 검사를 제거하고 Duration 양수 검사를 간소화했다.
+- JWT는 키 식별자가 없는 `JWKSet`을 전달해 기존 헤더를 유지한다. PKCS1·PKCS8 입력, `iss`·`iat`·`exp`, RS256 서명과 안전한 오류 응답을 확인했다.
+- `./gradlew focusedTest --tests '*GitHubAppJwtFactoryTest'` 3개, 이후 `./gradlew test` 168개가 통과했다. 부분 테스트는 전체에 포함된다. 요청별 토큰·호출 제한·전체 조회 기한과 REST·MCP·Zed 연결도 전체 검증에 포함됐다.
+- PostgreSQL·IntelliJ 구현은 변경하지 않아 해당 테스트를 다시 실행하지 않았다. 실제 GitHub 게시·배포·IDE 화면은 이번 검증 대상에 포함하지 않았다.
+
+## 2026-09-05 조회 코드 추가 검토
+
+- [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md)에 PR 목록의 기록별 반복 조회·최신 한 건을 위한 이력 20건 조회와 검색 SQL의 위치 기반 매개변수 관리를 정리했다. PR 목록의 게시 정보 일괄 조회를 먼저 권장한다.
+- 제품 코드는 수정하지 않았다. 추가 확인 범위에서 바로 제거할 중복 검증은 더 찾지 못했다.
+
+## 2026-09-05 PR 게시 정보 일괄 조회와 검색 SQL 정리
+
+- PR 목록의 게시 정보와 기록별 최신 시도를 일괄 조회하고, 검색 SQL을 `NamedParameterJdbcTemplate`로 변경했다. 저장소·PR 범위, 기존 페이지 정렬과 상세 이력 20건 조회는 유지했다.
+- 기존 H2 PR 통합 테스트에서 기록 20건의 JDBC 조회 3회, 빈 페이지 1회를 확인했다. H2·PostgreSQL 공통 저장 테스트로 같은 시각의 최신 시도와 조회 범위를 확인했다.
+- 관련 `focusedTest` 24개, `scripts/verify-postgres.sh`의 PostgreSQL 5개, 마지막 `./gradlew test` 169개가 통과했다. PostgreSQL 백업·복구 뒤 기록 15건·변경 이력 34건을 확인했다. 부분 테스트는 전체에 포함된다.
+- 검토 문서의 [반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#반영-결과)에 상세 범위를 남겼다. 실제 GitHub 게시·배포·IDE 화면은 확인하지 않았다.
+
+- 이후 [추가 검토](docs/reviews/2026-09-05-query-simplification-review.md#추가-검토)에서 이력 재개 시 같은 기록의 반복 읽기와 전체 세션 종료 시 Map 재검색을 확인했다. 두 항목은 아래 2026-09-06 작업에서 반영했다.
+
+## 2026-09-06 이력 재개와 전체 세션 종료의 반복 조회 제거
+
+- 이력 재개·실패 재조회는 한 요청 안에서 읽은 기록을 재사용한다. 기존 통합 테스트에서 기록별 조회가 요청당 한 번이고 다음 요청에서는 다시 읽는 것을 확인했다.
+- 전체 세션 종료는 찾은 Map 항목으로 처리한다. 활성 상태 변경·조건부 삭제를 유지하고 여러 연결의 종료 건수, 다른 사용자 세션 유지와 갱신 도중 종료를 기존 테스트로 확인했다.
+- 관련 `focusedTest` 18개와 최종 `./gradlew test` 170개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [추가 반영 결과](docs/reviews/2026-09-05-query-simplification-review.md#추가-반영-결과)에 범위를 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-06 컬렉션 처리 추가 검토
+
+- 기준 `e7f1a8a`, 검토 시작 시 미커밋 변경 없음. [검토 문서](docs/reviews/2026-09-06-collection-simplification-review.md)에 중복 blob 발견 후 순회 중단과 기존 Map을 활용한 중복 검사를 정리했다. 검토 당시 미구현이던 두 항목은 아래 작업에서 반영했다.
+- 제품 코드·테스트·설정·의존성 변경이 없어 테스트는 다시 실행하지 않았다. 이번 검증은 로컬 문서 링크와 `git diff --check`다.
+
+## 2026-09-06 컬렉션 순회와 중복 검사 정리
+
+- 검증 대상은 `3ac68ac`에 이력의 이름 변경 판별, Git 트리 변환, 기록 비교와 관련 테스트 변경을 적용한 상태다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*RecordEvidenceIntegrationTest' --tests '*GitHubEvidenceClientTest' --tests '*DraftManagementIntegrationTest'` 13개와 최종 `./gradlew test` 171개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [반영 결과](docs/reviews/2026-09-06-collection-simplification-review.md#반영-결과)에 확인한 동작을 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-06 해시 계산 추가 검토
+
+- 기준 `5e5b4ab`, 검토 시작 시 미커밋 변경 없음. [추가 검토](docs/reviews/2026-09-05-standard-api-review.md#2026-09-06-해시-계산-추가-검토)에 기록 내용과 선택한 줄의 바이트 배열 복사를 Java 표준 API로 줄이는 두 항목을 남겼다. 두 항목은 아래 작업에서 반영했다.
+- 제품 코드·테스트·설정·의존성 변경이 없어 테스트를 다시 실행하지 않았다. 이번 검증은 로컬 문서 링크와 `git diff --check`다.
+
+## 2026-09-06 해시 계산의 임시 배열 제거
+
+- 검증 대상은 `5d7df51`에 내용·줄 해시 계산과 관련 테스트 변경을 적용한 상태다. 수정 전 구현에서 확보한 네 가지 내용 해시와 Git helper의 줄 해시가 수정 후에도 일치했다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*ChangeRecordContentTest' --tests '*ChangeRecordFacadeTest' --tests '*GitEvidenceScriptTest' --tests '*RecordEvidenceIntegrationTest'` 14개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. [반영 결과](docs/reviews/2026-09-05-standard-api-review.md#해시-계산-반영-결과)에 상세 범위를 남겼다.
+- JDBC·DB 스키마·IDE 구현은 변경하지 않아 PostgreSQL·IDE 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포와 성능 측정은 수행하지 않았다.
+
+## 2026-09-06 미사용 목록 응답 정리
+
+- 검증 대상은 `b95ece3`에 미사용 `ChangeRecordListResponse`와 변환 함수, import 10개를 제거한 상태다. 제품 코드는 25줄 줄었고, REST·MCP 목록 응답과 기존 `page`·`size` 처리는 유지했다. 검증 후에는 문서만 정리했다.
+- `./gradlew focusedTest --tests '*AuthenticatedRestIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest'` 13개와 최종 `./gradlew test` 172개가 통과했다. 실패·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 새 테스트는 추가하지 않았다.
+- JDBC·DB 스키마·IDE·Zed 구현은 변경하지 않아 PostgreSQL·IDE·Zed 독립 검증은 다시 실행하지 않았다. 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-07 추가 비용 없는 GitHub 자료 연동
+
+- 검증 대상은 `a5b98ac`에 이슈·PR 초안 재료와 Actions 결과 조회 서비스, REST·MCP·브라우저, 복귀 경로·스타일 및 관련 테스트를 추가한 상태다. [계약과 권한](docs/ADR-0012-github-context-read.md)을 참고한다. 검증 후에는 문서만 정리했다.
+- 최초 `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest' --tests '*AuthenticatedRestIntegrationTest' --tests '*RecordBrowserIntegrationTest'`는 27개 중 브라우저 1개가 실패했다. 새 화면의 로그인 복귀 허용 경로 누락을 수정하고 `./gradlew focusedTest --tests '*GitHubContextIntegrationTest' --tests '*RecordBrowserIntegrationTest'` 11개가 통과했다.
+- 최종 `./gradlew test` 179개가 통과했다. 실패·건너뜀은 없고 표준 MCP SDK의 실제 서버 호출도 포함한다. 로그는 `/tmp/intent-trace-github-context-server.log`, 결과 시각은 2026-09-07 00:54 KST다.
+- `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`와 전용 스킬 검증 환경의 `quick_validate.py`로 사용·개발 스킬이 통과했다. 문서 링크와 `git diff --check`도 확인했다.
+- 테스트가 생성한 `build/reports/github-context/github.html`을 Playwright·Chrome에서 1280×900, 390×844로 확인했다. 실행 경로는 `node ~/.npm/_npx/31e32ef8478fbf80/node_modules/playwright/cli.js screenshot --channel chrome`이며 스킬 wrapper의 직접 실행 권한이 없어 기존 설치를 사용했다. 외부 본문은 HTML로 실행되지 않고 비밀값은 제거됐다.
+- JDBC·스키마·IDE·Zed 구현은 바뀌지 않아 해당 독립 검증은 생략했다. 실제 GitHub 계정 권한 변경·워크플로 실행·게시·배포는 수행하지 않았다. 이슈·PR·Actions 조회에는 문서에 명시한 GitHub App 읽기 권한이 필요하다.
+
+## 2026-09-08 화면과 안내 문구 정리
+
+- 검증 대상은 `fda89b2`에 화면·IntelliJ·Markdown·오류·MCP 안내 문구와 관련 테스트를 수정한 상태다. 제안한 22개 항목을 반영하고 README의 입력 제한 설명 중복을 제거했다. 검증 후에는 문서만 정리했다.
+- CI의 실행 대기·실행 중·결과 미확인을 구분하고 알 수 없는 상태는 원래 값을 표시한다. 기존 브라우저 테스트에서 상태 구분·PR 실행 차수·외부 본문 이스케이프를 확인했다. API 이름·데이터 구조·상태 값은 유지했다.
+- `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest' --tests '*ChangeRecordMarkdownRendererTest'` 8개와 최종 `./gradlew test` 179개가 통과했다. 부분 테스트는 전체에 포함하며 표준 MCP SDK의 실제 서버 호출도 통과했다. `./gradlew -p intellij-plugin test` 32개도 통과했다. 실패·건너뜀은 없다.
+- 로그는 `/tmp/intent-trace-wording-focused.log`, `/tmp/intent-trace-wording-server.log`, `/tmp/intent-trace-wording-intellij.log`이며 최종 서버 결과는 2026-09-08 08:00 KST다. `CODEX_PLUGIN_VALIDATOR=scripts/validate-plugin-layout.py scripts/validate-plugin.sh`, 전용 환경의 두 스킬 `quick_validate.py`, 로컬 문서 링크 41개와 `git diff --check`를 확인했다.
+- JDBC·스키마·Zed 구현·패키징은 변경하지 않아 해당 독립 검증을 생략했다. 실제 IDE 화면·브라우저 배치·GitHub 게시·배포는 이번 검증에 포함하지 않았다.
+
+## 2026-09-08 문서 추가 정리
+
+- 기준 `98a6923`에서 문서만 수정했다. 모호한 표현을 정리하고 관리자 권한·후속 초안의 Flyway V10·Zed의 `focusedTest` 안내를 실제 구현에 맞췄다.
+- README의 첫 기능 목록은 33개에서 8개로 줄이고 MCP 도구를 기능별 표로 정리했다. 해시 호환 명령은 ADR로, DB 번호 통합 경위는 CHANGELOG로 옮겼다. 중복 번호의 문서는 제목과 링크로 구분하고 기존 DB 이관 조건은 유지했다.
+- 전용 Python 환경의 일회성 검사로 변경 문서의 로컬 경로·제목 링크와 README 도구 표를 확인했다. MCP 도구 26개가 소스의 `@McpTool` 이름과 일치했다. 제목 이동에 따른 기존 인계 문서의 링크도 수정하고 `git diff --check`를 확인했다.
+- 제품 코드·테스트·설정·의존성·스킬은 바뀌지 않아 서버·IDE·DB·Zed 테스트와 플러그인·스킬 검증을 반복하지 않았다. 문서에 있는 복구·배포·게시 명령도 실행하지 않았다.
+
+## 2026-09-08 조회·검증 안내와 남은 문구 정리
+
+- 기준 `1138dd5`에서 문서만 수정했다. `ChangeIntentHistoryService`와 대조해 `complete`에 중단 여부를 포함하고, 지원 불가 시 부분 결과 보존과 재조회·재개의 차이를 설명했다.
+- 기록 관리·인증·오류 안내를 구체화하고 IntelliJ 문서를 현재 화면 용어에 맞췄다. 로컬 빌드 예시의 `--no-daemon`을 제거해 기존 검증 지침에 맞추고 운영 문서 제목을 백업·복구·업그레이드·롤백으로 통일했다.
+- 전용 Python 환경의 일회성 검사로 문서 15개의 로컬 링크 53개·제목 링크 3개를 확인했다. 이동한 제목을 가리키는 이전 링크는 없었으며 `git diff --check`도 통과했다. 이후 변경 이력과 이 인계만 추가했다.
+- 제품 코드·테스트·설정·의존성·스킬은 변경하지 않아 실행 테스트와 플러그인·스킬 검증을 반복하지 않았다. 실제 배포·복구·게시 명령은 실행하지 않았다.
+
+## 2026-09-08 설치 권한과 Zed 연결 안내 정리
+
+- 기준 `af66c69`, 시작 시 미커밋 변경 없음. README의 GitHub App 권한을 기능별 표로 모으고 설치 명령 중복을 제거했다. 세션 대기 요청 제한 설정은 인증 ADR로 옮겼다.
+- 커서 조회와 이전 페이지 번호 조회의 입력·다음 목록 요청을 구분했다. Zed 팀 서버는 미리보기와 적용 시 같은 주소를 전달하도록 두 안내 문서를 수정했다.
+- 전용 Python 환경의 일회성 검사로 변경 문서 4개의 로컬 링크 53개·제목 링크 6개를 확인했다. `node --input-type=module` 일회성 검사에서 실제 Zed `configure` 명령에 임시 `--settings` 경로를 지정해 미리보기 시 파일 미생성과 `--apply` 후 팀 서버 주소 저장을 확인했다. 임시 파일은 삭제했으며 사용자 Zed 설정은 변경하지 않았다.
+- `git diff --check`를 통과했다. 이후 변경 이력과 이 인계만 추가했다. 제품 코드·테스트·설정·의존성·스킬은 변경하지 않아 서버·IDE 테스트와 플러그인·스킬 검증을 반복하지 않았다.
+
+## 2026-09-08 MCP 조회·기록 관리 안내 정리
+
+- 검증 대상은 `828ae33`에 MCP 도구 설명 두 파일과 관련 문서 두 파일을 수정한 상태다. 시작 시 미커밋 변경은 없었다. 커서·페이지 번호 조회의 인자 조합, 기본값, `expectedVersion`의 출처, 폐기 기록 조회와 과거 코드의 줄 번호 기준을 명시했다.
+- 일회성 Python 비교로 Kotlin 두 파일은 `description` 문자열만 변경됐음을 확인했다. 문서 두 개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다.
+- 수정 완료 후 `./gradlew test` 179개가 통과했다. 실패·오류·건너뜀은 없고 표준 MCP SDK의 실제 서버 호출도 포함한다. `python3 scripts/test-summary.py server`로 집계했으며 결과 시각은 2026-09-08 08:45 KST, 로그는 `/tmp/intent-trace-mcp-guidance-server.log`다. 검증 후에는 변경 이력과 이 인계만 추가했다.
+- 동작·테스트·설정·의존성·스킬은 변경하지 않았다. IntelliJ·PostgreSQL·Zed 패키지 독립 검증과 플러그인·스킬 검증은 반복하지 않았으며 실제 GitHub 게시·배포는 수행하지 않았다.

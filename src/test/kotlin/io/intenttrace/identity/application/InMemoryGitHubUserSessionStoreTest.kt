@@ -7,6 +7,8 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.net.URI
 import java.time.Clock
 import java.time.Duration
@@ -141,22 +143,27 @@ class InMemoryGitHubUserSessionStoreTest {
     @Test
     fun `내 연결만 조회하고 폐기하며 다른 사용자의 연결은 유지한다`() {
         val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
-        store.issue(owner, tokens(clock.instant(), "other", Duration.ofHours(8)))
+        val other = store.issue(owner, tokens(clock.instant(), "other", Duration.ofHours(8)))
+        val browser = store.issue(owner, tokens(clock.instant(), "browser", Duration.ofHours(8)), SessionChannel.BROWSER)
         val teammate = ActorIdentity.github(84, "teammate")
         store.issue(teammate, tokens(clock.instant(), "team", Duration.ofHours(8)))
         val id = store.resolve(first.sessionToken).sessionId!!
-        assertEquals(2, store.list(owner.subject).size)
+        assertEquals(3, store.list(owner.subject).size)
         assertFalse(store.list(owner.subject).toString().contains("ghu_"))
         assertFalse(store.revoke(teammate.subject, id))
         assertTrue(store.revoke(owner.subject, id))
         assertFailsWith<GitHubUserAuthenticationException> { store.resolve(first.sessionToken) }
-        assertEquals(1, store.revokeAll(owner.subject))
+        assertEquals(2, store.revokeAll(owner.subject))
+        assertEquals(0, store.revokeAll(owner.subject))
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(other.sessionToken) }
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(browser.sessionToken) }
         assertTrue(store.list(owner.subject).isEmpty())
         assertEquals(1, store.list(teammate.subject).size)
     }
 
-    @Test
-    fun `token 갱신 중 폐기한 session을 다시 활성화하지 않는다`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `token 갱신 중 선택 또는 전체 폐기한 session을 다시 활성화하지 않는다`(revokeAll: Boolean) {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
         val id = store.list(owner.subject).single().id
         val entered = CountDownLatch(1)
@@ -166,7 +173,8 @@ class InMemoryGitHubUserSessionStoreTest {
         try {
             val resolving = executor.submit<GitHubUserSession> { store.resolve(issued.sessionToken) }
             assertTrue(entered.await(5, TimeUnit.SECONDS))
-            assertTrue(store.revoke(owner.subject, id))
+            if (revokeAll) assertEquals(1, store.revokeAll(owner.subject))
+            else assertTrue(store.revoke(owner.subject, id))
             release.countDown()
             val error = assertFailsWith<ExecutionException> { resolving.get(5, TimeUnit.SECONDS) }
             assertTrue(error.cause is GitHubUserAuthenticationException)

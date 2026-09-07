@@ -1,7 +1,8 @@
 package io.intenttrace.record.domain
 
-import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.io.OutputStream
+import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.HexFormat
 import java.util.UUID
@@ -18,8 +19,8 @@ data class ChangeRecordContent(
     val derivedFromRecordId: UUID? = null,
 ) {
     fun digest(): String {
-        val bytes = ByteArrayOutputStream()
-        DataOutputStream(bytes).use { output ->
+        val digest = MessageDigest.getInstance("SHA-256")
+        DataOutputStream(DigestOutputStream(OutputStream.nullOutputStream(), digest)).use { output ->
             fun text(value: String?) {
                 output.writeBoolean(value != null)
                 if (value != null) {
@@ -52,6 +53,6 @@ data class ChangeRecordContent(
                 verifications.forEach { text(it.source.name) }
             }
         }
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()))
+        return HexFormat.of().formatHex(digest.digest())
     }
 }

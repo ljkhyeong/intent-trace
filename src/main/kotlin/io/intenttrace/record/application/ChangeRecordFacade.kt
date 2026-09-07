@@ -188,7 +188,6 @@ class ChangeRecordFacade(
         require(redactor.redact(command.requestId) == command.requestId) {
             "요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다."
         }
-        require(command.repositoryKey.isNotBlank()) { "저장소 식별자는 비어 있을 수 없습니다." }
         require(command.title.isNotBlank()) { "제목은 비어 있을 수 없습니다." }
         require(command.requestSummary.isNotBlank()) { "요청 요약은 비어 있을 수 없습니다." }
         require(SHA_256.matches(command.snapshotDigest)) { "기록에는 SHA-256 스냅샷 해시가 필요합니다." }

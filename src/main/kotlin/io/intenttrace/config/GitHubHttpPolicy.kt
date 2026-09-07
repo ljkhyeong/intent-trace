@@ -5,6 +5,7 @@ import org.springframework.boot.restclient.RestClientCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
+import org.springframework.web.client.RestClient
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -30,6 +31,13 @@ object GitHubRateLimit {
 @Configuration
 class GitHubHttpPolicy {
     @Bean
+    fun githubApiRestClient(builder: RestClient.Builder, properties: GitHubProperties): RestClient = builder
+        .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
+        .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")
+        .defaultHeader("X-GitHub-Api-Version", properties.apiVersion)
+        .build()
+
+    @Bean
     fun githubRequestPolicy(properties: GitHubProperties, clock: Clock, meters: MeterRegistry): RestClientCustomizer = RestClientCustomizer { builder ->
         builder.requestInterceptor { request, body, execution ->
             if (request.uri.host !in setOf(properties.apiBaseUrl.host, properties.userAuthorization.webBaseUrl.host)) {
@@ -40,6 +48,8 @@ class GitHubHttpPolicy {
                 request.uri.path == "/user/repos" -> "repository_access"
                 request.uri.path.contains("/check-runs") -> "check_run"
                 request.uri.path.contains("/pulls/") -> "pull_request"
+                request.uri.path.contains("/issues/") -> "request_context"
+                request.uri.path.contains("/actions/runs") -> "actions_read"
                 request.uri.path.contains("/git/") || request.uri.path.contains("/compare/") -> "code_evidence"
                 request.uri.path.contains("/login/oauth/") -> "user_token"
                 else -> "installation"

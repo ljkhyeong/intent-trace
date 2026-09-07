@@ -28,6 +28,6 @@ class IntentTraceTextRendererTest {
 
         assertContains(output, "[추론] 얇은 IDE client를 둔다.")
         assertContains(output, "[기록 스냅샷과 불일치, exit 0] ./gradlew test")
-        assertContains(output, "미확인 항목\n- 없음")
+        assertContains(output, "남은 질문\n- 없음")
     }
 }

@@ -41,8 +41,11 @@ class PullRequestOverviewService(
         access.requireReader(target.repositoryKey)
         val pr = reader.read(target)
         val page = catalog.list(target.repositoryKey, cursor = cursor, limit = limit, pullNumber = target.pullNumber)
+        val recordIds = page.items.map { it.id }
+        val published = publications.findAll(recordIds, target)
+        val attempts = tracking.latest(recordIds, target)
         return PullRequestOverview(target.repositoryKey, target.pullNumber, pr.headRevision, pr.fork, Instant.now(clock),
             page.items.map { record -> PullRequestRecord(record, record.targetRevision == pr.headRevision,
-                publications.find(record.id, target), tracking.recent(record.id, target).firstOrNull()) }, page.nextCursor)
+                published[record.id], attempts[record.id]) }, page.nextCursor)
     }
 }

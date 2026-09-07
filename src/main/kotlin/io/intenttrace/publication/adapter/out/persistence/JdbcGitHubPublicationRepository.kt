@@ -6,6 +6,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.identity.domain.GitHubRepository
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -18,25 +19,29 @@ import java.util.UUID
 @Repository
 class JdbcGitHubPublicationRepository(
     private val jdbcTemplate: JdbcTemplate,
+    private val namedJdbc: NamedParameterJdbcTemplate,
 ) : GitHubPublicationRepository {
     @Transactional(readOnly = true)
-    override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? {
+    override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? =
+        findAll(listOf(changeRecordId), target)[changeRecordId]
+
+    @Transactional(readOnly = true)
+    override fun findAll(changeRecordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, GitHubPublication> {
+        if (changeRecordIds.isEmpty()) return emptyMap()
         val repository = GitHubRepository(target.owner, target.repository)
-        return jdbcTemplate.query(
+        return namedJdbc.query(
             """
             select *
             from github_publications
-            where change_record_id = ?
-              and repository_owner = ?
-              and repository_name = ?
-              and pull_number = ?
+            where change_record_id in (:recordIds)
+              and repository_owner = :owner
+              and repository_name = :repository
+              and pull_number = :pullNumber
             """.trimIndent(),
+            mapOf("recordIds" to changeRecordIds.map(UUID::toString), "owner" to repository.canonicalOwner,
+                "repository" to repository.canonicalName, "pullNumber" to target.pullNumber),
             { resultSet, _ -> mapPublication(resultSet) },
-            changeRecordId.toString(),
-            repository.canonicalOwner,
-            repository.canonicalName,
-            target.pullNumber,
-        ).firstOrNull()
+        ).associateBy { it.changeRecordId }
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

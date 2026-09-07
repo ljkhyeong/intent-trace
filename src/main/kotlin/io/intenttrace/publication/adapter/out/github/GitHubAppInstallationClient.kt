@@ -1,6 +1,5 @@
 package io.intenttrace.publication.adapter.out.github
 
-import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.application.*
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.domain.GitHubRepository
@@ -8,7 +7,7 @@ import java.time.Clock
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.springframework.http.HttpHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
@@ -28,17 +27,10 @@ fun interface GitHubInstallationTokenIssuer {
 
 @Component
 class GitHubAppInstallationClient(
-    restClientBuilder: RestClient.Builder,
-    private val properties: GitHubProperties,
+    @Qualifier("githubApiRestClient") private val client: RestClient,
     private val jwtProvider: GitHubAppJwtProvider,
     private val clock: Clock = Clock.systemUTC(),
 ) : GitHubInstallationTokenIssuer, PublicationCredentialInspector {
-    private val client = restClientBuilder
-        .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
-        .defaultHeader(HttpHeaders.ACCEPT, GITHUB_JSON)
-        .defaultHeader(API_VERSION_HEADER, properties.apiVersion)
-        .build()
-
     override fun issue(target: GitHubPullRequestTarget): GitHubInstallationAccessToken = safeCall {
         val jwt = jwtProvider.create()
         val installation = client.get()
@@ -129,11 +121,6 @@ class GitHubAppInstallationClient(
         } catch (_: RestClientException) {
             throw GitHubApiException("GitHub App installation token 발급 요청을 완료하지 못했습니다.")
         }
-    }
-
-    companion object {
-        private const val GITHUB_JSON = "application/vnd.github+json"
-        private const val API_VERSION_HEADER = "X-GitHub-Api-Version"
     }
 }
 

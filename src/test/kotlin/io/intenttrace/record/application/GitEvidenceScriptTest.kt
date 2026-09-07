@@ -44,6 +44,10 @@ class GitEvidenceScriptTest {
         assertNotEquals(0, emptyFile.exitCode)
         assertNotEquals(0, directory.exitCode)
         assertNotEquals(0, missingFile.exitCode)
+        val bytes = Files.readAllBytes(repository.resolve("sample.txt"))
+        assertEquals(exactRange.output.trim(), GitEvidenceDigest.lines(bytes, 2, 2))
+        assertEquals(null, GitEvidenceDigest.lines(bytes, 2, 3))
+        assertEquals(null, GitEvidenceDigest.lines(Files.readAllBytes(repository.resolve("empty.txt")), 1, 1))
     }
 
     @Test
@@ -61,8 +65,11 @@ class GitEvidenceScriptTest {
             GitTreeEntry(path, mode, type, sha)
         }
         assertEquals(runEvidence("snapshot", revision).output.trim(), GitEvidenceDigest.snapshot(entries))
-        assertEquals(runEvidence("anchor", revision, "한글 파일.txt", "2", "2").output.trim(),
-            GitEvidenceDigest.lines(Files.readAllBytes(repository.resolve("한글 파일.txt")), 2, 2))
+        val bytes = Files.readAllBytes(repository.resolve("한글 파일.txt"))
+        for (line in 1..2) {
+            assertEquals(runEvidence("anchor", revision, "한글 파일.txt", line.toString(), line.toString()).output.trim(),
+                GitEvidenceDigest.lines(bytes, line, line))
+        }
     }
 
     @Test

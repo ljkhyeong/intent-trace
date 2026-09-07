@@ -29,6 +29,7 @@ import io.intenttrace.record.application.ChangeRecordNotFoundException
 import io.intenttrace.record.application.ChangeRecordOwnershipException
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.application.GitHubContextService
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
@@ -55,6 +56,7 @@ class RecordBrowserController(
     private val comparison: RecordComparisonService,
     private val diagnostics: ConnectionDiagnostics,
     private val overview: PullRequestOverviewService,
+    private val githubContext: GitHubContextService,
     private val history: ChangeIntentHistoryService,
     private val evidence: RecordEvidenceService,
     private val activities: RecordActivityService,
@@ -154,6 +156,18 @@ class RecordBrowserController(
         pages.pullRequests(it.actor, repository?.key, pullNumber, repository?.let { repo ->
             overview.overview(GitHubPullRequestTarget(repo.canonicalOwner, repo.canonicalName, requireNotNull(pullNumber)), cursor)
         })
+    }
+
+    @GetMapping("/github")
+    fun github(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
+        @RequestParam(required = false) number: Int?, @RequestParam(required = false) revision: String?,
+        @RequestParam(defaultValue = "1") page: Int): ResponseEntity<String> = read(request) {
+        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)
+        val ref = revision?.trim()?.takeIf(String::isNotEmpty)
+        require(repository != null || (number == null && ref == null)) { "저장소를 함께 입력해 주세요." }
+        pages.github(it.actor, repository,
+            number?.let { value -> githubContext.request(requireNotNull(repository), value) },
+            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) })
     }
 
     @GetMapping("/connection")

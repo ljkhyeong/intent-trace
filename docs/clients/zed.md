@@ -24,13 +24,22 @@ npm ci --prefix clients/zed --ignore-scripts
 node clients/zed/intent-trace.mjs configure
 ```
 
-팀 서버는 두 번째 명령의 끝에 `https://intent.example.com/mcp`처럼 실제 서버 주소를 넣는다. 설정에는 현재 Node와 연결 도구의 절대 경로가 들어가며 token은 포함하지 않는다. Node 설치 경로나 저장소 위치를 바꾸면 등록 명령을 다시 실행한다.
+설정에는 현재 Node와 연결 도구의 절대 경로가 들어가며 token은 포함하지 않는다. Node 설치 경로나 저장소 위치를 바꾸면 등록 명령을 다시 실행한다.
 
 3. 미리보기를 확인한 뒤 같은 명령에 `--apply`를 붙여 저장한다.
 
 ```bash
 node clients/zed/intent-trace.mjs configure --apply
 ```
+
+팀 서버는 미리보기와 적용 명령에 같은 주소를 넣는다.
+
+```bash
+node clients/zed/intent-trace.mjs configure https://intent.example.com/mcp
+node clients/zed/intent-trace.mjs configure https://intent.example.com/mcp --apply
+```
+
+미리보기는 주소를 저장하지 않는다. 적용할 때 주소와 `INTENT_TRACE_MCP_URL`을 모두 생략하면 기본 로컬 서버를 사용한다.
 
 JSONC 주석·다른 MCP 서버·화면 설정을 보존하고 `context_servers.intent-trace` 항목만 추가하거나 교체한다. 같은 설정을 다시 등록하면 파일을 쓰지 않는다. Node 경로나 서버 주소가 바뀌면 새 실행 값으로 교체한다. 잘못된 JSONC·중복 연결 키·일반 파일이 아닌 설정은 덮어쓰지 않는다. IntentTrace 항목 안의 별도 설정도 교체되므로 필요한 경우 저장 후 다시 조정한다.
 
@@ -43,7 +52,7 @@ python3 scripts/zed-with-intent-trace.py .
 
 로그인 화면의 `its_` 세션 토큰을 입력하면 Zed 실행 환경에 전달한다. 입력한 토큰은 화면에 표시하지 않는다. 토큰을 파일이나 명령 인자에 저장하지 않는다. [Zed 환경 변수 문서](https://zed.dev/docs/environment)는 CLI 실행 환경을 상속하는 동작을 설명한다.
 
-입력을 숨길 수 없는 환경에서는 입력 대체 없이 실행을 중단한다. 터미널에서 다시 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 입력 취소·종료도 Zed를 실행하지 않고 끝낸다.
+토큰 입력을 숨길 수 없으면 실행을 중단한다. 터미널에서 다시 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 입력 취소·종료도 Zed를 실행하지 않고 끝낸다.
 
 5. Settings → AI → MCP Servers에서 `intent-trace`가 활성화되는지 확인한다. Agent에 다음처럼 요청한다.
 
@@ -95,7 +104,7 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 ## 검증 범위
 
-0.11.0은 로컬 오류 응답의 분류·대기 시간 전달, 표준 SDK와 실제 Spring 서버 연결을 검증했다. 아래 실제 Zed 앱 확인은 0.10.0 당시 결과이며 이번 변경에서 앱의 실제 사용자 승인을 다시 수행하지 않았다.
+0.11.0에서는 오류 분류·대기 시간 전달과 표준 SDK의 실제 Spring 서버 연결을 검증했다. 아래 Zed 앱 확인은 0.10.0 당시 결과다.
 
 공식 [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)의 stdio 클라이언트 → 이 중계기 → 실제 Spring 서버에서 메모리 `its_` 인증·도구 목록·진단 호출을 통합 테스트한다. 설정의 token 미노출·원격 HTTP 거부·인증 실패 응답 미노출도 확인한다. 설정의 JSONC 보존·미리보기·반복 등록·경로 및 주소 갱신도 확인한다.
 
@@ -103,5 +112,5 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 ```bash
 npm test --prefix clients/zed
-./gradlew test --tests '*ZedBridgeIntegrationTest'
+./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'
 ```

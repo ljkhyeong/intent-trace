@@ -28,6 +28,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-restclient")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.security:spring-security-oauth2-jose")
 	implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -49,9 +50,46 @@ kotlin {
 	}
 }
 
-tasks.withType<Test> {
+tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
-	inputs.file("scripts/git-evidence.sh")
+}
+
+val postgresTestClass = "**/PostgresRepositorySmokeTest.class"
+
+tasks.test {
+	exclude(postgresTestClass)
+}
+
+tasks.register<Test>("focusedTest") {
+	description = "--tests로 지정한 관련 테스트를 실행하고 전체 테스트 결과를 보존합니다."
+	group = "verification"
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	exclude(postgresTestClass)
+}
+
+tasks.withType<Test>().matching { it.name != "postgresTest" }.configureEach {
+	inputs.files("scripts/git-evidence.sh", "scripts/run-verification.py")
+	inputs.files(fileTree("clients/zed") { include("*.mjs", "package.json", "package-lock.json") })
+	inputs.property("zedSdkInstalled", providers.provider {
+		file("clients/zed/node_modules/@modelcontextprotocol/sdk/package.json").isFile
+	})
+}
+
+tasks.register<Test>("postgresTest") {
+	description = "별도 PostgreSQL에서 DB 계약을 검증합니다. scripts/verify-postgres.sh로 실행하세요."
+	group = "verification"
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	include(postgresTestClass)
+	// 검증 스크립트가 매번 새 DB를 만들므로 이전 실행 결과를 재사용하지 않는다.
+	outputs.upToDateWhen { false }
+	outputs.doNotCacheIf("새 PostgreSQL에 테스트 데이터를 다시 생성해야 합니다.") { true }
+	doFirst {
+		check(System.getenv("INTENT_TRACE_POSTGRES_SMOKE") == "true") {
+			"PostgreSQL 검증은 scripts/verify-postgres.sh로 실행하세요."
+		}
+	}
 }
 
 tasks.bootJar {

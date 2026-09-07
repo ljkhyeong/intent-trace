@@ -1,7 +1,6 @@
 package io.intenttrace.record.adapter.out.github
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
@@ -16,7 +15,7 @@ import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.GitTreeEntry
 import io.intenttrace.record.domain.GitRevision
-import org.springframework.http.HttpHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
@@ -25,15 +24,10 @@ import java.util.Base64
 
 @Component
 class GitHubGitEvidenceClient(
-    builder: RestClient.Builder,
-    properties: GitHubProperties,
+    @Qualifier("githubApiRestClient") private val client: RestClient,
     private val session: CurrentGitHubUserSession,
     private val mapper: ObjectMapper,
 ) : GitEvidenceGateway {
-    private val client = builder.baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
-        .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")
-        .defaultHeader("X-GitHub-Api-Version", properties.apiVersion).build()
-
     private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
@@ -43,14 +37,15 @@ class GitHubGitEvidenceClient(
         val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
-        if (tree.tree.map { it.path }.distinct().size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
-        tree.tree.forEach {
+        val entries = tree.tree.associateBy({ it.path }, { GitTreeEntry(it.path, it.mode, it.type, it.sha) })
+        if (entries.size != tree.tree.size) throw GitHubApiException("GitHub 트리의 경로가 중복됐습니다.")
+        entries.values.forEach {
             if (it.mode !in setOf("100644", "100755", "120000", "160000", "040000") || it.type !in setOf("blob", "commit", "tree")) {
                 throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
             }
             GitRevision.parse(it.sha)
         }
-        return GitEvidenceSnapshot(ref, tree.tree.map { GitTreeEntry(it.path, it.mode, it.type, it.sha) }.associateBy { it.path })
+        return GitEvidenceSnapshot(ref, entries)
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {

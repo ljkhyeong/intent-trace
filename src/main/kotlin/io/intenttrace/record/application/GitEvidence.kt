@@ -23,7 +23,13 @@ interface GitEvidenceGateway {
 }
 
 object GitEvidenceDigest {
-    fun sha256(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
+    fun sha256(bytes: ByteArray): String = sha256(bytes, 0, bytes.size)
+
+    private fun sha256(bytes: ByteArray, offset: Int, length: Int): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(bytes, offset, length)
+        return HexFormat.of().formatHex(digest.digest())
+    }
 
     fun snapshot(entries: List<GitTreeEntry>): String {
         val rows = entries.filter { it.type != "tree" }.sortedWith { left, right ->
@@ -56,13 +62,13 @@ object GitEvidenceDigest {
         var from = if (start == 1) 0 else -1
         bytes.forEachIndexed { index, byte ->
             if (byte == 10.toByte()) {
-                if (line == end && from >= 0) return sha256(bytes.copyOfRange(from, index + 1))
+                if (line == end && from >= 0) return sha256(bytes, from, index + 1 - from)
                 line++
                 if (line == start) from = index + 1
             }
         }
         return if (line == end && from in 0 until bytes.size && bytes.last() != 10.toByte()) {
-            sha256(bytes.copyOfRange(from, bytes.size))
+            sha256(bytes, from, bytes.size - from)
         } else null
     }
 }

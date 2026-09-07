@@ -185,6 +185,7 @@ class PublishChangeRecordToGitHubTest {
             UUID.randomUUID().also { statuses[it] = PublicationAttemptStatus.IN_PROGRESS }
         override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) { statuses[attemptId] = status }
         override fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt> = emptyList()
+        override fun latest(recordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, PublicationAttempt> = emptyMap()
     }
 
     private class FakeGitHubGateway(
@@ -224,6 +225,9 @@ class PublishChangeRecordToGitHubTest {
 
         override fun find(changeRecordId: UUID, target: GitHubPullRequestTarget): GitHubPublication? =
             records[changeRecordId to target]
+
+        override fun findAll(changeRecordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, GitHubPublication> =
+            changeRecordIds.mapNotNull { id -> find(id, target)?.let { id to it } }.toMap()
 
         override fun save(publication: GitHubPublication): GitHubPublication {
             records[publication.changeRecordId to publication.target] = publication

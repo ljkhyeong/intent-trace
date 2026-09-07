@@ -1,18 +1,15 @@
 package io.intenttrace.record.adapter.`in`.mcp
 
-import io.intenttrace.record.adapter.`in`.web.ChangeRecordListResponse
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.SuccessorDraftRequest
-import io.intenttrace.record.application.ChangeRecordCatalogService
+import io.intenttrace.record.application.ChangeRecordListingService
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.application.ChangeRecordListScope
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
-import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.TeamChangeRecordService
 import jakarta.validation.ConstraintViolationException
@@ -25,27 +22,27 @@ import org.springframework.stereotype.Component
 class IntentTraceTools(
     private val records: TeamChangeRecordService,
     private val validator: Validator,
-    private val catalog: io.intenttrace.record.application.ChangeRecordListingService,
+    private val catalog: ChangeRecordListingService,
 ) {
-    @McpTool(name = "list_change_records", description = "저장소의 팀 공개 기록 또는 내 비공개 초안을 페이지로 조회합니다.", generateOutputSchema = true,
+    @McpTool(name = "list_change_records", description = "팀 공개 기록 또는 내 비공개 기록을 조회합니다. 기본은 커서 조회입니다. MY_DRAFTS·page·size를 쓰면 페이지 번호 조회로 전환되며 cursor·limit·authorId·q와 함께 쓸 수 없습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     fun list(
         @McpToolParam(description = "owner/repository", required = true) repositoryKey: String,
-        @McpToolParam(description = "TEAM은 팀 공개 기록, MINE 또는 MY_DRAFTS는 내 초안", required = false) scope: RecordScope? = null,
+        @McpToolParam(description = "TEAM(기본값): 공개·대체 기록, MINE: 내 비공개 기록, MY_DRAFTS: 이전 페이지 번호 조회용 내 비공개 기록", required = false) scope: RecordScope? = null,
         @McpToolParam(description = "저장소 상대 파일 경로", required = false) path: String? = null,
-        @McpToolParam(description = "조회 범위 내의 기록 상태", required = false) status: ChangeRecordStatus? = null,
-        @McpToolParam(description = "팀 공개 목록의 작성자 GitHub 숫자 ID 필터", required = false) authorId: Long? = null,
+        @McpToolParam(description = "조회 범위 내의 기록 상태. MINE에서 DISCARDED를 지정하면 내 폐기 기록 조회", required = false) status: ChangeRecordStatus? = null,
+        @McpToolParam(description = "TEAM 커서 조회의 작성자 GitHub 숫자 ID 필터", required = false) authorId: Long? = null,
         @McpToolParam(description = "직전 응답의 nextCursor", required = false) cursor: String? = null,
-        @McpToolParam(description = "1~100 사이의 목록 크기", required = false) limit: Int? = null,
+        @McpToolParam(description = "커서 조회의 목록 크기(기본 20, 1~100)", required = false) limit: Int? = null,
         @McpToolParam(description = "제목·요청·구현 결정과 이유에서 찾을 검색어, 최대 200자", required = false) q: String? = null,
-        @McpToolParam(description = "기존 클라이언트용 페이지 번호, 0부터 시작", required = false) page: Int? = null,
-        @McpToolParam(description = "기존 클라이언트용 페이지 크기, 1~50", required = false) size: Int? = null,
+        @McpToolParam(description = "페이지 번호 조회용 번호(0부터, 기본 0)", required = false) page: Int? = null,
+        @McpToolParam(description = "페이지 번호 조회의 목록 크기(기본 20, 1~50)", required = false) size: Int? = null,
     ): ChangeRecordPage = catalog.list(repositoryKey, scope ?: RecordScope.TEAM, path, status, authorId, cursor, limit, q, page, size)
 
     @McpTool(name = "create_successor_draft", description = "내 공개 기록의 구현 결정으로 새 초안을 만듭니다. 새 스냅샷 해시와 관련 코드가 필요하며 검증 결과와 확인 상태는 복사하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     fun successor(@McpToolParam(description = "원본 공개 기록 UUID", required = true) recordId: String,
-                  @McpToolParam(description = "새 요청 ID와 관련 코드", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
+                  @McpToolParam(description = "새 requestId·snapshotDigest·codeAnchors와 선택 baseRevision", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
         return ChangeRecordResponse.from(records.createSuccessor(parseChangeRecordId(recordId), request.toCommand()))
@@ -63,13 +60,13 @@ class IntentTraceTools(
     @McpTool(name = "reopen_change_record", description = "작성자의 비공개 기록 확인을 취소해 초안으로 돌립니다. 다시 확인해야 공개할 수 있습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))
     fun reopen(@McpToolParam(description = "기록 UUID", required = true) recordId: String,
-               @McpToolParam(description = "현재 기록 버전", required = true) expectedVersion: Long): ChangeRecordResponse =
+               @McpToolParam(description = "조회 응답의 현재 version 값", required = true) expectedVersion: Long): ChangeRecordResponse =
         ChangeRecordResponse.from(records.reopen(parseChangeRecordId(recordId), expectedVersion))
 
-    @McpTool(name = "discard_change_record", description = "작성자의 비공개 초안을 폐기합니다. 폐기 기록은 더 이상 확인하거나 공개할 수 없습니다.", generateOutputSchema = true,
+    @McpTool(name = "discard_change_record", description = "내 초안·작성자 확인 기록을 폐기합니다. 폐기 후에는 수정·확인·공개할 수 없습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true, idempotentHint = false, openWorldHint = false))
     fun discard(@McpToolParam(description = "기록 UUID", required = true) recordId: String,
-                @McpToolParam(description = "현재 기록 버전", required = true) expectedVersion: Long): ChangeRecordResponse =
+                @McpToolParam(description = "조회 응답의 현재 version 값", required = true) expectedVersion: Long): ChangeRecordResponse =
         ChangeRecordResponse.from(records.discard(parseChangeRecordId(recordId), expectedVersion))
 
     @McpTool(
@@ -122,7 +119,7 @@ class IntentTraceTools(
     fun confirm(
         @McpToolParam(description = "변경 의도 기록 UUID", required = true)
         recordId: String,
-        @McpToolParam(description = "낙관적 잠금용 현재 기록 버전", required = true)
+        @McpToolParam(description = "조회 응답의 현재 version 값", required = true)
         expectedVersion: Long,
         @McpToolParam(description = "커밋 해시(40자 또는 64자)", required = true)
         immutableRevision: String,
@@ -153,7 +150,7 @@ class IntentTraceTools(
     fun publish(
         @McpToolParam(description = "변경 의도 기록 UUID", required = true)
         recordId: String,
-        @McpToolParam(description = "낙관적 잠금용 현재 기록 버전", required = true)
+        @McpToolParam(description = "조회 응답의 현재 version 값", required = true)
         expectedVersion: Long,
         @McpToolParam(description = "공개할 현재 코드의 스냅샷 해시(SHA-256)", required = true)
         currentSnapshotDigest: String,
@@ -197,7 +194,7 @@ class IntentTraceTools(
 
     @McpTool(
         name = "find_change_intent",
-        description = "정확한 저장소, Git 커밋, 파일, 줄에 연결된 공개 변경 의도를 찾습니다.",
+        description = "지정한 저장소·커밋·파일·줄에 연결된 공개 기록을 찾습니다.",
         generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(
             readOnlyHint = true,
@@ -207,9 +204,9 @@ class IntentTraceTools(
         ),
     )
     fun find(
-        @McpToolParam(description = "저장소 식별자", required = true)
+        @McpToolParam(description = "owner/repository", required = true)
         repositoryKey: String,
-        @McpToolParam(description = "전체 Git 커밋 ID", required = true)
+        @McpToolParam(description = "커밋 해시(40자 또는 64자)", required = true)
         revision: String,
         @McpToolParam(description = "저장소 기준 상대 파일 경로", required = true)
         path: String,

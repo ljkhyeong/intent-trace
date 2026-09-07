@@ -11,7 +11,7 @@ IntentTrace는 서버 실행 JAR과 IntelliJ 설치 ZIP을 같은 version과 Git
    - 연결 확인은 설정을 저장하지 않고 인증 정보 없이 서버의 `UP` 상태를 확인한다. 로그인·저장소 권한 확인으로 표시하지 않는다.
    - 서버를 바꿔도 기존 서버의 PasswordSafe·환경 변수 세션이 새 서버로 전송되지 않는다. 기존 주소로 돌아가면 해당 주소의 저장 세션을 사용한다.
    - GitHub 승인 후 받은 `its_` session만 PasswordSafe에 저장된다.
-   - 커밋된 파일의 현재 줄에서 공개 변경 의도를 조회한다.
+   - 커밋된 파일의 현재 줄에서 공개 기록을 조회한다.
    - 커밋되지 않은 파일은 조회하지 않고 이유를 안내한다.
    - 기록함에서 팀 공개 기록과 내 비공개 기록, 상태, 현재 파일 필터가 적용된다.
    - 다음·이전 페이지, 빈 결과, 기록 상세와 대체 기록 이동이 동작한다.
@@ -29,8 +29,8 @@ IntentTrace는 서버 실행 JAR과 IntelliJ 설치 ZIP을 같은 version과 Git
 ## 2. 로컬 검증
 
 ```bash
-./gradlew --no-daemon test bootJar
-./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
+./gradlew test bootJar
+./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 python3 scripts/test_validate_release_version.py
 python3 scripts/validate-release-version.py
 scripts/validate-plugin.sh

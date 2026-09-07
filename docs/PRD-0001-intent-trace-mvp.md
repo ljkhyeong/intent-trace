@@ -2,7 +2,7 @@
 
 ## 상태
 
-초기 MVP 완료. GitHub 게시는 `PRD-0002`, 팀 사용자·저장소 접근과 승인 세션은 `PRD-0003`, 초안 수정·폐기·목록은 `PRD-0004`에서 정의한다.
+초기 MVP 완료. [GitHub 게시](PRD-0002-github-pr-publication.md), [사용자·저장소 권한](PRD-0003-team-identity-and-repository-access.md), [초안 관리와 조회](PRD-0004-record-management-and-evidence.md)는 각 요구사항 문서에서 정의한다.
 
 ## 문제
 
@@ -42,7 +42,7 @@ AI가 코드를 빠르게 만들수록 작성자와 팀원은 결과를 이해�
 ### 포함
 
 - 로컬 서버와 GitHub 인증 사용자 실행
-- REST와 MCP를 통한 기록 생성·수명주기·조회
+- REST와 MCP를 통한 기록 생성·관리·조회
 - 커밋·코드 줄·검증 해시 근거
 - Markdown 공유 문서
 - Codex 플러그인 스킬과 안내 훅
@@ -75,4 +75,4 @@ AI가 코드를 빠르게 만들수록 작성자와 팀원은 결과를 이해�
 
 ## 후속 단계
 
-GitHub PR 게시 계약은 `PRD-0002`, GitHub 사용자·저장소 권한과 웹 승인·token 갱신 계약은 `PRD-0003`으로 확장했습니다. IntelliJ 라인 조회는 `PRD-0004`, 내 기록함과 파일별 이력은 `PRD-0005`에서 정의합니다. 보존 정책과 감사 로그는 후속 후보입니다.
+구현된 후속 기능은 [GitHub PR 게시](PRD-0002-github-pr-publication.md), [GitHub 인증과 권한](PRD-0003-team-identity-and-repository-access.md), [IntelliJ 현재 줄 조회](PRD-0004-intellij-line-intent.md), [기록함과 파일 이력](PRD-0005-record-browser.md)을 참고합니다. 보존 정책과 감사 로그는 후속 후보입니다.

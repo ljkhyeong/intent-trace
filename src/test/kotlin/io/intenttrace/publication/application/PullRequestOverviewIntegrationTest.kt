@@ -10,11 +10,16 @@ import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.clearInvocations
+import org.mockito.Mockito.mockingDetails
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.PreparedStatementCreator
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.*
@@ -30,6 +35,9 @@ class PullRequestOverviewIntegrationTest(
     @Autowired private val overview: PullRequestOverviewService,
     @Autowired private val diagnostics: ConnectionDiagnostics,
 ) {
+    @MockitoSpyBean
+    private lateinit var jdbc: JdbcTemplate
+
     @Test
     fun `PR 목록은 실패한 게시와 이전 커밋을 포함하고 비공개 기록과 다른 PR을 제외한다`() {
         val target = GitHubPullRequestTarget("Acme", "Overview", 12)
@@ -61,6 +69,28 @@ class PullRequestOverviewIntegrationTest(
         assertTrue(results.single { it.record.id == current.id }.matchesCurrentHead)
         assertNull(results.single { it.record.id == current.id }.publication)
         assertEquals(PublicationAttemptStatus.RESULT_UNKNOWN, results.single { it.record.id == current.id }.latestAttempt?.status)
+
+        repeat(18) { index ->
+            val extra = record(head)
+            publications.save(GitHubPublication(UUID.randomUUID(), extra.id, target, head, 100L + index,
+                "https://github.com/acme/overview/runs/${100 + index}", "a".repeat(64), Instant.now()))
+            tracking.start(extra.id, target, PublicationOperation.PUBLISH)
+        }
+        clearInvocations(jdbc)
+        val page = overview.overview(target, limit = 20)
+        assertEquals(20, page.items.size)
+        assertEquals(19, page.items.count { it.publication != null })
+        assertEquals(19, page.items.count { it.latestAttempt != null })
+        assertEquals(3, queryCount())
+
+        clearInvocations(jdbc)
+        assertTrue(overview.overview(target.copy(pullNumber = 99)).items.isEmpty())
+        assertEquals(1, queryCount())
+    }
+
+    private fun queryCount(): Int = mockingDetails(jdbc).invocations.count {
+        it.method.name == "query" && it.method.parameterCount == 3 &&
+            it.method.parameterTypes[0] == PreparedStatementCreator::class.java
     }
 
     @Test

@@ -1,6 +1,5 @@
 package io.intenttrace.identity.adapter.out.github
 
-import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
@@ -9,7 +8,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.springframework.http.HttpHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -18,15 +17,8 @@ import org.springframework.web.client.RestClientResponseException
 
 @Component
 class GitHubUserRestClient(
-    restClientBuilder: RestClient.Builder,
-    properties: GitHubProperties,
+    @Qualifier("githubApiRestClient") private val client: RestClient,
 ) : GitHubUserAccessGateway {
-    private val client = restClientBuilder
-        .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
-        .defaultHeader(HttpHeaders.ACCEPT, GITHUB_JSON)
-        .defaultHeader(API_VERSION_HEADER, properties.apiVersion)
-        .build()
-
     override fun authenticate(accessToken: String): ActorIdentity = safeCall("사용자 조회") {
         val response = client.get()
             .uri("/user")
@@ -104,11 +96,6 @@ class GitHubUserRestClient(
         permission.equals("read", ignoreCase = true) -> RepositoryRole.READER
         permission.equals("none", ignoreCase = true) -> null
         else -> throw GitHubIdentityApiException("GitHub 저장소 권한 응답 값이 올바르지 않습니다.")
-    }
-
-    companion object {
-        private const val GITHUB_JSON = "application/vnd.github+json"
-        private const val API_VERSION_HEADER = "X-GitHub-Api-Version"
     }
 }
 

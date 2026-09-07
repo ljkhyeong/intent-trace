@@ -10,9 +10,10 @@ installation token을 환경 변수로 직접 교체하면 한 시간 만료와 
 
 ## 결정
 
-- 운영 기본 인증은 GitHub App client ID와 RSA private key로 한다. 기존 `INTENT_TRACE_GITHUB_TOKEN`은 로컬 검증과 호환을 위한 우선 fallback으로 유지한다.
+- 운영 기본 인증은 GitHub App client ID와 RSA private key로 한다. 로컬 검증과 호환용 고정 토큰인 `INTENT_TRACE_GITHUB_TOKEN`이 설정돼 있으면 우선 사용한다.
 - private key는 PEM 전체를 Base64로 인코딩해 환경 변수로 주입하며 PKCS#8 `PRIVATE KEY`와 PKCS#1 `RSA PRIVATE KEY`를 지원한다.
 - App JWT는 `RS256`으로 서명하고 `iat`를 현재보다 60초 전, `exp`를 현재보다 9분 후, `iss`를 client ID로 설정한다.
+- JWT 직렬화와 서명은 Spring Security의 `NimbusJwtEncoder`에 맡긴다. 자동 `kid`는 제외해 기존 헤더를 유지하고, PKCS#1·PKCS#8 PEM 입력은 기존 키 변환으로 읽는다.
 - JWT로 `GET /repos/{owner}/{repo}/installation`을 호출해 installation ID를 찾는다.
 - installation token은 대상 저장소 하나와 `pull_requests: read`, `checks: write` 권한으로 축소해 발급한다.
 - token은 저장소별로 메모리에만 캐시하고 만료 5분 전부터 새 token으로 교체한다.

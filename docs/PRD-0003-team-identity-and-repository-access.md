@@ -6,7 +6,7 @@
 
 ## 목표
 
-GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으로 사용자를 확인해 대상 저장소의 실제 GitHub 권한으로 기록 생성·수명주기·팀 조회를 통제합니다. 작성자는 변경 가능한 login이 아니라 GitHub 숫자 ID에 연결합니다.
+GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 생성·관리·팀 조회를 허용합니다. 작성자는 GitHub 숫자 ID로 식별하며 login은 표시용으로 사용합니다.
 
 ## 사용자 흐름
 
@@ -26,7 +26,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 |---|---|---|
 | `permission=read` | `READER` | 공개·대체 기록 조회 |
 | `permission=write` | `CONTRIBUTOR` | `READER` 작업과 초안 생성·자기 기록 변경·PR 게시 요청 |
-| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | 현재는 `CONTRIBUTOR`와 같고 후속 운영 기능 확장점 |
+| `permission=admin` 또는 `role_name=maintain` | `MAINTAINER` | `CONTRIBUTOR` 작업과 게시 사전 점검(`check_publication_credentials`) |
 
 권한 판정은 GitHub `GET /repos/{owner}/{repo}/collaborators/{login}/permission`의 최고 유효 권한을 사용합니다. 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자와 일치해야 하며, `permission=none`과 404는 권한 없음으로 처리합니다. 따라서 public 저장소를 누구나 읽을 수 있다는 사실만으로 팀원이라고 판단하지 않습니다.
 
@@ -53,7 +53,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 
 ## 성공 기준
 
-- 인증이 없거나 GitHub가 token을 거부하면 보호 경로가 `401`을 반환한다.
+- 인증이 없거나 GitHub가 token을 거부하면 인증이 필요한 API는 `401`을 반환한다.
 - GitHub 사용자 조회 장애는 자격 증명 실패와 구분해 `502`로 처리한다.
 - 읽기 전용 사용자는 공개 기록을 볼 수 있지만 초안을 만들 수 없다.
 - 다른 팀원은 작성자의 초안을 볼 수 없고 공개 기록만 볼 수 있다.
@@ -72,7 +72,7 @@ GitHub App 웹 승인으로 로컬 세션을 발급하고, user access token으�
 - device flow와 MCP OAuth discovery
 - 권한 캐시와 webhook 기반 즉시 무효화
 - 조직 SSO·팀별 추가 정책과 관리자 소유권 강제 이전
-- 인증·운영 전체 감사 로그와 자동 기록 보존 정책. 기록 수명주기 이력은 ADR-0011을 따른다.
+- 인증·운영 전체 감사 로그와 자동 기록 보존 정책. 기록의 생성·수정·공개 이력은 [기록 변경 이력](ADR-0011-record-activity-history.md)을 따른다.
 
 ## 내 로컬 세션 관리
 

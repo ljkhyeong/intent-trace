@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class RequestGitHubUserSession(
@@ -30,6 +31,7 @@ class RequestGitHubUserSession(
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 class GitHubUserAuthenticationFilter(
     private val credentials: GitHubUserCredentialProvider,
+    private val mapper: ObjectMapper,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val path = request.requestURI
@@ -87,7 +89,7 @@ class GitHubUserAuthenticationFilter(
         response.status = status
         response.characterEncoding = Charsets.UTF_8.name()
         response.contentType = MediaType.APPLICATION_PROBLEM_JSON_VALUE
-        response.writer.write("""{"status":$status,"title":"$title"}""")
+        response.writer.write(mapper.writeValueAsString(mapOf("status" to status, "title" to title)))
     }
 
     companion object {

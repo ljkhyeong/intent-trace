@@ -1,10 +1,8 @@
 package io.intenttrace.record.adapter.`in`.web
 
-import io.intenttrace.record.application.ChangeRecordListScope
+import io.intenttrace.record.application.ChangeRecordListingService
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
-import io.intenttrace.record.application.ListChangeRecordsQuery
 import io.intenttrace.record.application.TeamChangeRecordService
-import io.intenttrace.record.application.ChangeRecordCatalogService
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -31,7 +29,7 @@ import java.util.UUID
 class ChangeRecordController(
     private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
-    private val catalog: io.intenttrace.record.application.ChangeRecordListingService,
+    private val catalog: ChangeRecordListingService,
 ) {
     @GetMapping
     fun list(

@@ -6,7 +6,6 @@ repository_root=$(dirname -- "$script_dir")
 cd "$repository_root"
 
 environment_file=${INTENT_TRACE_ENV_FILE:-.env.team.example}
-smoke_port=${INTENT_TRACE_POSTGRES_SMOKE_PORT:-55432}
 smoke_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-postgres.XXXXXX")
 smoke_database_name=intent_trace
 smoke_database_username=intent_trace
@@ -39,6 +38,12 @@ trap 'exit 143' TERM
 
 docker compose --env-file "$environment_file" up -d postgres
 
+smoke_binding=$(docker compose --env-file "$environment_file" port postgres 5432)
+case "$smoke_binding" in
+    127.0.0.1:*) smoke_port=${smoke_binding##*:} ;;
+    *) printf '%s\n' 'PostgreSQL 검증용 로컬 포트를 확인하지 못했습니다.' >&2; exit 1 ;;
+esac
+
 attempt=0
 until docker compose --env-file "$environment_file" exec -T postgres sh -c \
     'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; do
@@ -54,7 +59,7 @@ INTENT_TRACE_POSTGRES_SMOKE=true \
 INTENT_TRACE_DATABASE_URL="jdbc:postgresql://127.0.0.1:$smoke_port/$smoke_database_name" \
 INTENT_TRACE_DATABASE_USERNAME="$smoke_database_username" \
 INTENT_TRACE_DATABASE_PASSWORD="$smoke_database_password" \
-    ./gradlew --no-daemon test --tests 'io.intenttrace.record.application.PostgresRepositorySmokeTest'
+    ./gradlew postgresTest
 
 before_count=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \
     'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --tuples-only --no-align --command="select count(*) from change_records"')

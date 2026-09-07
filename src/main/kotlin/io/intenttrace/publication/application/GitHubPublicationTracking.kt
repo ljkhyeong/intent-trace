@@ -25,4 +25,5 @@ interface GitHubPublicationTracking {
     fun start(recordId: UUID, target: GitHubPullRequestTarget, operation: PublicationOperation): UUID
     fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?)
     fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt>
+    fun latest(recordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, PublicationAttempt>
 }

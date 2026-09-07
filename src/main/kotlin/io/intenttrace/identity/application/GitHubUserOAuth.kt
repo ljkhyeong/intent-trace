@@ -300,13 +300,17 @@ class InMemoryGitHubUserSessionStore(
 
     override fun revoke(subject: String, sessionId: UUID): Boolean {
         val entry = sessions.entries.firstOrNull { it.value.id == sessionId && it.value.actor.subject == subject } ?: return false
-        val revoked = entry.value.active.compareAndSet(true, false)
-        sessions.remove(entry.key, entry.value)
-        return revoked
+        return revoke(entry.key, entry.value)
     }
 
     override fun revokeAll(subject: String): Int =
-        sessions.values.filter { it.actor.subject == subject }.count { revoke(subject, it.id) }
+        sessions.entries.count { (key, stored) -> stored.actor.subject == subject && revoke(key, stored) }
+
+    private fun revoke(key: String, stored: StoredSession): Boolean {
+        val revoked = stored.active.compareAndSet(true, false)
+        sessions.remove(key, stored)
+        return revoked
+    }
 
     private class StoredSession(
         @Volatile var actor: ActorIdentity,

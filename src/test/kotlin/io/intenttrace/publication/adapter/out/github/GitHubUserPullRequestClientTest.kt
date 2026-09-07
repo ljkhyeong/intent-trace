@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
@@ -19,7 +20,7 @@ import kotlin.test.*
 class GitHubUserPullRequestClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
-    private val client = GitHubUserPullRequestClient(builder, GitHubProperties(), object : CurrentGitHubUserSession {
+    private val client = GitHubUserPullRequestClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties()), object : CurrentGitHubUserSession {
         override fun require() = GitHubUserSession(ActorIdentity.github(1, "owner"), "ghu_test")
     }, jacksonObjectMapper())
     private val target = GitHubPullRequestTarget("acme", "repo", 1)

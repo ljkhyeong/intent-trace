@@ -15,7 +15,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 3. GitHub API에서 PR `head.sha`를 읽는다.
 4. 기록의 `repositoryKey`와 `targetRevision`이 게시 대상 저장소와 PR HEAD에 모두 일치하는지 확인한다.
 5. 기존 `external_id` Check Run을 찾으면 갱신하고 없으면 새로 만든다.
-6. 외부 성공 결과를 GitHub 게시 이력에 저장하고 Check Run URL을 반환한다.
+6. GitHub 게시 결과를 이력에 저장하고 Check Run URL을 반환한다.
 
 ## 불변식
 
@@ -47,7 +47,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - 단일 인스턴스에서 같은 기록의 동시 게시 요청은 PR 번호가 달라도 직렬화해 최초 Check Run을 한 번만 만든다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지한다.
 - Check Run 검색 한도를 모두 채우고도 기존 실행을 확인하지 못하면 중복 생성하지 않고 실패한다.
 - 게시 내용은 기존 IntentTrace Markdown 렌더러와 동일하다.
-- GitHub 자격 증명이 없거나 API가 실패하면 안전한 오류 분류만 반환한다.
+- GitHub 자격 증명이 없거나 API가 실패하면 외부 응답 원문 없이 오류 종류만 안내한다.
 - 같은 저장소의 유효한 installation token은 재사용하고 만료 5분 전부터 새로 발급한다.
 
 ## 제외
@@ -61,7 +61,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 ## 게시 결과 조회와 대체 안내
 
 - `GET /api/v1/change-records/{id}/github-pull-request?owner=...&repository=...&pullNumber=...`는 마지막 게시 결과와 최근 20회의 시도를 반환한다. MCP는 `get_github_publication_status`다.
-- 시도 상태는 `IN_PROGRESS`, `SUCCEEDED`, `FAILED`, `RESULT_UNKNOWN`이다. 결과 미확인은 기존 게시 요청을 재시도해 원격 실행을 찾아 복구한다. 재시작으로 중단된 시도도 결과 미확인으로 표시한다.
+- 시도 상태는 `IN_PROGRESS`, `SUCCEEDED`, `FAILED`, `RESULT_UNKNOWN`이다. 결과 미확인은 기존 게시 요청을 재시도해 기존 Check Run을 찾아 게시 결과를 복구한다. 재시작으로 중단된 시도도 결과 미확인으로 표시한다.
 - 같은 기록의 동시 게시 요청은 단일 app에서 직렬 처리한다.
 - `POST /api/v1/change-records/{id}/github-pull-request/supersession`과 `sync_superseded_record_to_github_pr`는 사용자가 GitHub 반영을 요청했을 때 `SUPERSEDED` 기록의 기존 Check Run에만 대체 안내를 반영한다.
 - 대체 안내는 새로운 Check Run을 만들지 않는다. 기존 Check Run의 원래 커밋과 external ID를 확인하므로 PR HEAD가 진행된 뒤에도 원래 기록의 대체 사실을 표시할 수 있다. 새 기록 게시의 PR HEAD 일치 규칙과 구분한다.
@@ -79,4 +79,4 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 `POST /api/v1/publication-preflight`와 `check_publication_credentials`에 `repositoryKey`를 전달한다. 저장소 MAINTAINER 권한이 필요하다. App 키 사용·원격 인증·저장소 설치·대상 한 곳으로 축소한 token 발급·실제 부여 범위와 권한을 단계별로 반환한다. 모든 단계가 확인된 경우만 `ready=true`다. 고정 token은 `CONFIGURED_UNVERIFIED`로 반환한다.
 
-이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 기존 대기 계약을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.
+이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 응답에 안내된 재시도 대기 시간을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.

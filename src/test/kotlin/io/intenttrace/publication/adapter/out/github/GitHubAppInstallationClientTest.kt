@@ -7,6 +7,7 @@ import org.springframework.test.web.client.response.MockRestResponseCreators.wit
 import java.time.Clock
 import java.time.ZoneOffset
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
@@ -35,7 +36,7 @@ class GitHubAppInstallationClientTest {
             val builder = RestClient.builder()
             val server = MockRestServiceServer.bindTo(builder).build()
             val clock = Clock.fixed(Instant.parse("2026-09-05T00:00:00Z"), ZoneOffset.UTC)
-            val client = GitHubAppInstallationClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test")), GitHubAppJwtProvider { "synthetic-jwt" }, clock)
+            val client = GitHubAppInstallationClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))), GitHubAppJwtProvider { "synthetic-jwt" }, clock)
             server.expect(requestTo("https://api.github.test/app")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
             server.expect(requestTo("https://api.github.test/repos/acme/repo/installation"))
                 .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
@@ -60,8 +61,7 @@ class GitHubAppInstallationClientTest {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
         val client = GitHubAppInstallationClient(
-            restClientBuilder = builder,
-            properties = GitHubProperties(apiBaseUrl = URI.create("https://api.github.test")),
+            client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
@@ -88,8 +88,7 @@ class GitHubAppInstallationClientTest {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
         val client = GitHubAppInstallationClient(
-            restClientBuilder = builder,
-            properties = GitHubProperties(apiBaseUrl = URI.create("https://api.github.test")),
+            client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
