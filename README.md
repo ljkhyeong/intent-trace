@@ -25,7 +25,7 @@ git clone https://github.com/ljkhyeong/intent-trace.git
 cd intent-trace
 ```
 
-GitHub Developer settings에서 GitHub App을 만들고 사용할 저장소에 설치합니다. 사용자 승인 callback은 `http://127.0.0.1:8080/auth/github/callback`으로 등록하고 `Expiring user authorization tokens`를 활성화합니다. App에는 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한만 부여합니다.
+GitHub Developer settings에서 GitHub App을 만들고 사용할 저장소에 설치합니다. 사용자 승인 callback은 `http://127.0.0.1:8080/auth/github/callback`으로 등록하고 `Expiring user authorization tokens`를 활성화합니다. 사용할 기능에 맞춰 [GitHub App 권한](#github-app-권한)을 부여합니다.
 
 App 설정과 private key를 환경 변수로 전달한 뒤 서버를 실행합니다. private key 파일은 저장소 밖에 둡니다.
 
@@ -50,7 +50,7 @@ codex mcp list
 기록할 Git 저장소에서 Codex를 새로 시작한 뒤 다음처럼 요청합니다.
 
 ```text
-현재 commit의 사용자 요청, 확인 가능한 판단, 최소 코드 근거와 실제 검증을
+현재 커밋의 요청, 구현 결정과 이유, 관련 코드, 실행한 검증 결과를
 IntentTrace 비공개 초안으로 만들어 줘. 원문 대화와 숨은 추론은 포함하지 마.
 ```
 
@@ -75,7 +75,7 @@ java -jar intent-trace-0.6.0.jar
 
 - Agent: `get_github_request_context(repositoryKey, number)`, `list_github_actions_runs(repositoryKey, revision, page?)`
 - REST: `GET /api/v1/github/request-context?repositoryKey=owner/repository&number=7`, `GET /api/v1/github/actions?repositoryKey=owner/repository&revision=<전체-커밋>`
-- GitHub App 읽기 권한: 이슈는 `Issues: read`, PR은 `Pull requests: read`, CI는 `Actions: read`. 권한 변경 후 App 설치에 반영하고 필요하면 다시 로그인합니다.
+- 기능별 읽기 권한은 [GitHub App 권한](#github-app-권한)을 참고하세요.
 
 추가 서비스 가입이나 유료 API 키 없이 기존 GitHub 연결을 사용합니다. 새 CI 실행·재실행과 로그·아티팩트 저장은 하지 않으며, 기존 워크플로 실행과 서버 비용은 별개입니다. CI 결과는 로컬 검증 기록과 구분해 표시합니다. [응답·권한·출처 규칙](docs/ADR-0012-github-context-read.md)
 
@@ -119,24 +119,9 @@ curl http://localhost:8080/actuator/health
 
 PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub access·refresh token과 `its_` session은 계속 애플리케이션 메모리에만 있으므로 app container를 다시 만들면 사용자가 GitHub 승인을 다시 해야 합니다.
 
-REST와 MCP 요청에는 IntentTrace 로컬 세션이 필요합니다. 먼저 GitHub App 설정에서 다음 항목을 준비합니다.
+## 인증과 GitHub 권한
 
-- 사용자 승인 callback URL: `http://127.0.0.1:8080/auth/github/callback`
-- `Expiring user authorization tokens`: 활성화
-- App client ID와 client secret
-
-callback URL은 GitHub App에 등록한 값과 환경 변수 값을 정확히 맞추고 wildcard callback은 사용하지 않습니다. IntentTrace는 `state`와 PKCE `S256`을 함께 검증합니다. 설정한 뒤 서버를 시작하고 브라우저에서 `http://127.0.0.1:8080/auth/github/start`를 엽니다.
-
-미완료 승인 요청은 기본 1,000개로 제한합니다. 단일 팀 환경에서 조정이 필요하면 `INTENT_TRACE_GITHUB_MAX_PENDING_STATES`를 1 이상 100,000 이하로 설정합니다.
-
-```bash
-export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
-export INTENT_TRACE_GITHUB_APP_CLIENT_SECRET='GitHub-App-client-secret'
-export INTENT_TRACE_GITHUB_CALLBACK_URL='http://127.0.0.1:8080/auth/github/callback'
-./gradlew bootRun
-```
-
-승인을 마치면 callback 화면이 `its_`로 시작하는 로컬 세션 token을 한 번 표시합니다. 이 값을 IntentTrace를 호출하는 프로세스에 전달합니다.
+App 등록·환경 변수·로그인은 [빠른 시작](#빠른-시작)을 따릅니다. REST·MCP에는 로그인 후 발급받은 `its_` 세션 토큰을 전달합니다.
 
 ```bash
 export INTENT_TRACE_SESSION_TOKEN='its_로컬-session-token'
@@ -158,19 +143,25 @@ bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
 
 IntentTrace는 GitHub `ghu_` access token과 `ghr_` refresh token을 프로세스 메모리에만 보관합니다. access token 만료가 가까우면 새 token 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` user access token을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
 
-token 갱신이 거부되거나 갱신 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구합니다. 같은 refresh token은 재전송하지 않으며, 대기 중이던 요청도 폐기된 세션을 사용하지 않습니다. 단순한 GitHub 사용자 조회 장애는 `502`로 구분하고 세션을 유지합니다.
+토큰 갱신에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내합니다. GitHub 사용자 조회의 일시 장애는 `502`를 반환하며 세션을 유지합니다. 로그인 검증·갱신·대기 요청 제한은 [세션 관리 규칙](docs/ADR-0005-github-web-oauth-memory-session.md)을 참고하세요.
 
 사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 가장 오래된 세션을 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 token 요청은 `401`을 반환합니다. 호환용 `ghu_` token은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
 
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고 대상 저장소의 권한을 조회합니다. 권한 응답의 사용자 ID가 현재 사용자와 일치해야 합니다. 팀 공개 기록 조회에는 읽기 권한, 본인 기록 생성·관리에는 쓰기 권한이 필요합니다. 권한 없음과 404는 접근 거부로 처리하며, GitHub 공개 저장소도 같은 권한 검사를 거칩니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
-GitHub PR에 게시할 때는 GitHub App의 client ID와 private key를 환경 변수로 전달합니다. App에는 대상 저장소의 `Metadata: read`, `Pull requests: read`, `Checks: write` 권한이 필요합니다. IntentTrace가 저장소 설치를 찾고 한 시간짜리 installation token을 자동으로 발급·갱신합니다.
+### GitHub App 권한
 
-```bash
-export INTENT_TRACE_GITHUB_APP_CLIENT_ID='Iv1.example'
-export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < ~/.config/intent-trace/private-key.pem | tr -d '\n')"
-./gradlew bootRun
-```
+기본 `Metadata: read`에 사용할 기능의 권한을 추가합니다. 권한을 변경하면 GitHub App 설치에 반영하고 필요하면 다시 로그인합니다.
+
+| 기능 | 추가 권한 |
+| --- | --- |
+| PR 조회·내용 가져오기 | `Pull requests: read` |
+| PR에 기록 게시 | `Pull requests: read`, `Checks: write` |
+| GitHub 코드 비교·과거 파일 조회 | `Contents: read` |
+| 이슈 내용 가져오기 | `Issues: read` |
+| CI 결과 조회 | `Actions: read` |
+
+PR 게시에는 GitHub App의 client ID와 private key가 필요합니다. [빠른 시작](#빠른-시작)의 환경 변수를 사용하며, IntentTrace가 게시할 저장소의 installation token을 자동으로 발급·갱신합니다.
 
 기존 방식이 필요한 로컬 환경에서는 `INTENT_TRACE_GITHUB_TOKEN`에 직접 발급한 token을 넣을 수 있습니다. 이 값이 있으면 GitHub App 자동 발급보다 우선합니다.
 
@@ -186,7 +177,7 @@ export INTENT_TRACE_GITHUB_APP_PRIVATE_KEY_BASE64="$(base64 < ~/.config/intent-t
 작성자 확인
     ↓ 현재 스냅샷이 같을 때만 공개
 저장소 권한이 있는 팀 공개 기록
-    ↓ 더 나은 공개 기록으로만 대체
+    ↓ 후속 기록을 공개한 뒤 대체
 대체됨
 ```
 
@@ -205,7 +196,7 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 테스트 결과 수집' -- ./gradlew test
 ```
 
-서버 코드 확인과 이전 커밋의 파일 비교에는 GitHub App의 사용자 권한에 `Contents: read`를 추가해야 합니다. 이 권한이 없어도 기존 기록 조회는 사용할 수 있습니다. 서버 코드 확인은 테스트 실행 자체를 증명하지 않습니다.
+서버 코드 확인에는 [별도 읽기 권한](#github-app-권한)이 필요합니다. 이 권한이 없어도 저장된 기록은 조회할 수 있습니다. 코드 확인은 테스트 실행 자체를 증명하지 않습니다.
 
 ## API
 
@@ -265,12 +256,18 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 내 공개 기록으로 새 초안을 만들 때는 `create_successor_draft`를 사용합니다. 원본의 구현 결정을 복사하고 새 스냅샷 해시·관련 코드를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다.
 공개 기록을 대체할 때는 후속 기록을 먼저 확인·공개한 뒤 `supersede_change_record(recordId, expectedVersion, replacementRecordId)`를 호출합니다. 같은 작성자·저장소의 공개 기록끼리만 연결하며 기존 본문·증거는 유지합니다. `expectedVersion`은 기존 기록을 조회한 값입니다. 결과가 불확실하면 상태를 다시 조회하고, 새 버전으로 무조건 재시도하지 않습니다. 이 작업은 GitHub Check Run을 자동 갱신하지 않습니다.
 
-목록은 `repositoryKey`가 필수이며 `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MY_DRAFTS`는 현재 사용자의 초안·작성자 확인 기록을 반환합니다. 선택 `path`는 코드 근거의 정확한 상대 경로, `status`는 해당 기록함 안의 상태입니다. `page`는 0부터, `size`는 기본 20·최대 50이며 응답에는 `items`, `page`, `size`, `hasNext`, `nextCursor`가 있습니다. 생성 시각·UUID 내림차순으로 조회하고 작성자·공개 상태를 SQL에서 먼저 제한합니다. 동시 생성·공개 시 페이지 구성은 달라질 수 있습니다.
+### 목록 조회
 
+`repositoryKey`는 필수입니다. `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MINE`은 내 초안·작성자 확인 기록을 조회합니다. `path`는 관련 코드의 정확한 상대 경로, `status`는 선택한 범위 안의 상태로 검색합니다.
 
-새 클라이언트는 `scope=MINE`과 `cursor`·`limit`(기본 20, 최대 100)으로 다음 목록을 조회합니다. `authorId`·`q` 검색은 이 방식에서 사용할 수 있습니다. 기존 IntelliJ와 MCP 요청의 `MY_DRAFTS`·`page`·`size`도 지원하며 두 조회 방식의 입력을 섞으면 오류를 반환합니다.
+| 방식 | 입력 | 다음 목록 |
+| --- | --- | --- |
+| 기본 커서 조회 | `cursor`, `limit`(기본 20·최대 100), 선택 `authorId`·`q` | 응답의 `nextCursor`를 다음 요청의 `cursor`에 전달 |
+| 이전 클라이언트의 페이지 번호 조회 | `MY_DRAFTS` 또는 `page`(0부터)·`size`(기본 20·최대 50) | 응답의 `hasNext`를 확인하고 `page`를 1 증가 |
 
-예를 들어 MCP에 `list_change_records(repositoryKey="owner/repository", scope="MY_DRAFTS")`를 요청하면 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 여러 커밋에 남은 공개 이력을 찾습니다. 상세는 기존 `get_change_record`로 조회합니다.
+두 방식의 입력은 섞지 않습니다. 페이지 번호 방식은 `items`, `page`, `size`, `hasNext`, `nextCursor` 응답을 유지합니다. 생성 시각·UUID 내림차순으로 조회하며, 조회 사이에 기록을 생성·공개하면 목록이 달라질 수 있습니다.
+
+MCP의 `list_change_records(repositoryKey="owner/repository", scope="MINE")`은 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 공개 이력을 찾습니다. 상세는 `get_change_record`로 조회합니다.
 
 REST·MCP의 생성·수정 요청에 같은 입력 제한을 적용합니다. 조회와 작성자 확인의 `revision`은 40자 또는 64자 커밋 해시만 받습니다. MCP의 잘못된 변경 기록 UUID 오류에는 입력 원문을 포함하지 않습니다.
 

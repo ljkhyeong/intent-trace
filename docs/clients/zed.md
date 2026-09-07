@@ -24,13 +24,22 @@ npm ci --prefix clients/zed --ignore-scripts
 node clients/zed/intent-trace.mjs configure
 ```
 
-팀 서버는 두 번째 명령의 끝에 `https://intent.example.com/mcp`처럼 실제 서버 주소를 넣는다. 설정에는 현재 Node와 연결 도구의 절대 경로가 들어가며 token은 포함하지 않는다. Node 설치 경로나 저장소 위치를 바꾸면 등록 명령을 다시 실행한다.
+설정에는 현재 Node와 연결 도구의 절대 경로가 들어가며 token은 포함하지 않는다. Node 설치 경로나 저장소 위치를 바꾸면 등록 명령을 다시 실행한다.
 
 3. 미리보기를 확인한 뒤 같은 명령에 `--apply`를 붙여 저장한다.
 
 ```bash
 node clients/zed/intent-trace.mjs configure --apply
 ```
+
+팀 서버는 미리보기와 적용 명령에 같은 주소를 넣는다.
+
+```bash
+node clients/zed/intent-trace.mjs configure https://intent.example.com/mcp
+node clients/zed/intent-trace.mjs configure https://intent.example.com/mcp --apply
+```
+
+미리보기는 주소를 저장하지 않는다. 적용할 때 주소와 `INTENT_TRACE_MCP_URL`을 모두 생략하면 기본 로컬 서버를 사용한다.
 
 JSONC 주석·다른 MCP 서버·화면 설정을 보존하고 `context_servers.intent-trace` 항목만 추가하거나 교체한다. 같은 설정을 다시 등록하면 파일을 쓰지 않는다. Node 경로나 서버 주소가 바뀌면 새 실행 값으로 교체한다. 잘못된 JSONC·중복 연결 키·일반 파일이 아닌 설정은 덮어쓰지 않는다. IntentTrace 항목 안의 별도 설정도 교체되므로 필요한 경우 저장 후 다시 조정한다.
 
