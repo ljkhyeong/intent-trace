@@ -21,6 +21,7 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
             <label>PR 번호<input name="pullNumber" type="number" min="1" value="${number ?: ""}" required></label><button>조회</button></form>""")
         if (result == null) append("<p class=\"empty\">저장소와 PR 번호를 입력해 주세요.</p>") else {
             append("<p>PR #${result.pullNumber} · ${stamp(result.checkedAt)}</p><p class=\"hash\">현재 커밋 ${html(result.headRevision)}</p>")
+            append("<p><a class=\"button secondary\" href=\"${html(url("/records/github", "repositoryKey" to result.repositoryKey, "revision" to result.headRevision))}\">이 커밋의 CI 결과 조회</a></p>")
             if (result.fork) append("<aside class=\"notice\">Fork PR에는 Check Run을 게시할 수 없습니다.</aside>")
             if (result.items.isEmpty()) append("<p class=\"empty\">이 PR에 게시했거나 게시를 시도한 기록이 없습니다.</p>")
             append("<ul class=\"records\">")

@@ -179,6 +179,43 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     }
 
     @Test
+    fun `Markdown 저장은 로그인과 기록 열람 권한을 적용하고 REST와 같은 내용을 내려준다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val draft = records.create(command("저장할 기록 <script>"), actor)
+        val path = "/records/${draft.id}/markdown"
+        val anonymous = mvc.get(path).andExpect {
+            status { isOk() }; header { doesNotExist(HttpHeaders.CONTENT_DISPOSITION) }
+            content { string(containsString("GitHub로 로그인")) }
+        }.andReturn().response.contentAsString
+        assertFalse(anonymous.contains("저장할 기록"))
+        val cookie = login(path)
+        mvc.get("/records/${draft.id}") { cookie(cookie) }.andExpect {
+            content { string(containsString("href=\"$path\">Markdown 저장</a>")) }
+        }
+        val downloaded = mvc.get(path) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { contentType("text/markdown;charset=UTF-8") }
+            header { string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"intent-trace-${draft.id}.md\"") }
+            header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+            header { string("X-Content-Type-Options", "nosniff") }
+            header { string("Content-Security-Policy", containsString("default-src 'none'")) }
+        }.andReturn().response.contentAsString
+        val rest = mvc.get("/api/v1/change-records/${draft.id}/markdown") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test")
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertEquals(rest, downloaded)
+        assertFalse(downloaded.contains("<script>"))
+        assertEquals(draft, records.get(draft.id))
+        val hidden = records.create(command("다른 작성자의 비공개 내용"), ActorIdentity.github(99, "other"))
+        for (id in listOf(hidden.id, UUID.randomUUID())) {
+            val unavailable = mvc.get("/records/$id/markdown") { cookie(cookie) }.andExpect {
+                status { isNotFound() }; header { doesNotExist(HttpHeaders.CONTENT_DISPOSITION) }
+            }.andReturn().response.contentAsString
+            assertFalse(unavailable.contains(hidden.title))
+        }
+        mvc.get("/api/v1/change-records/${draft.id}/markdown") { cookie(cookie) }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
     fun `다른 작성자의 초안은 브라우저 검색과 단건 조회에 노출하지 않는다`() {
         val draft = records.create(command("브라우저 비공개 내용"), ActorIdentity.github(99, "other"))
         val cookie = login("/records?repositoryKey=acme%2Fbrowser&scope=MINE&q=비공개")
@@ -252,6 +289,8 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val overview = mvc.get("/records/pull-requests") { cookie(cookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12") }
             .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("PR 최신 커밋과 다름")) } }.andReturn().response.contentAsString
         preview("pull-requests", overview)
+        val ciLink = Regex("href=\"([^\"]+)\">이 커밋의 CI 결과 조회").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals("/records/github?repositoryKey=acme%2Fbrowser&revision=${"c".repeat(40)}", ciLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString

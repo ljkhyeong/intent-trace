@@ -16,6 +16,8 @@ IntentTrace는 AI 코드의 변경 이유, 관련 커밋·코드, 검증 결과�
 원문 대화와 숨은 추론 과정은 저장하지 않습니다. 검증 원문 출력도 저장하지 않고 해시와 요약만 기록합니다.
 토큰·비밀값·개인 절대 경로는 기록 전에 제거합니다. 필드별 처리는 [기록 저장 규칙](docs/ADR-0001-evidence-bound-change-record.md)을 따릅니다.
 
+웹 기록 상세의 **Markdown 저장**으로 현재 기록을 파일로 내려받을 수 있습니다. 비공개 기록은 작성자만, 공개·대체 기록은 저장소 읽기 권한이 있는 팀원만 저장할 수 있습니다.
+
 ## 빠른 시작
 
 Java 21과 Codex CLI가 필요합니다. 먼저 저장소를 받고 애플리케이션을 준비합니다.
@@ -72,6 +74,8 @@ java -jar intent-trace-0.6.0.jar
 ## 이슈·PR 내용과 CI 결과 조회
 
 로그인 후 기록 화면의 **이슈·PR·CI**(`/records/github`)에서 저장소와 이슈·PR 번호를 입력하면 제목·본문 발췌·출처 링크를 가져옵니다. 내용을 검토한 뒤 Agent에서 초안 작성에 활용합니다. 커밋 해시(전체 길이)로 이미 실행된 Actions 결과도 조회할 수 있습니다.
+
+**PR 기록** 화면에서는 **이 커밋의 CI 결과 조회**로 바로 이동합니다. 링크는 화면에 표시한 PR 커밋을 기준으로 하며, 갱신된 PR의 결과가 필요하면 PR 기록을 다시 조회합니다.
 
 - Agent: `get_github_request_context(repositoryKey, number)`, `list_github_actions_runs(repositoryKey, revision, page?)`
 - REST: `GET /api/v1/github/request-context?repositoryKey=owner/repository&number=7`, `GET /api/v1/github/actions?repositoryKey=owner/repository&revision=<전체-커밋>`

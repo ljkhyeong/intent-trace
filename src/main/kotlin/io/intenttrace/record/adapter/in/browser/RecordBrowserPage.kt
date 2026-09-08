@@ -114,7 +114,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("</section></article><aside class=\"record-facts\"><h2>기록 정보</h2><dl><dt>작성자</dt><dd>@${html(record.createdBy.login)}</dd><dt>생성</dt><dd>${stamp(record.createdAt)}</dd>")
         record.confirmedAt?.let { append("<dt>작성자 확인</dt><dd>${stamp(it)}</dd>") }
         record.publishedAt?.let { append("<dt>공개</dt><dd>${stamp(it)}</dd>") }
-        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"/records/${record.id}/activities\">기록 변경 이력</a></aside></div>")
+        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"/records/${record.id}/activities\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p></aside></div>")
     })
 
     fun error(message: String): String = layout("기록을 열 수 없습니다", null,
@@ -129,11 +129,13 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     """.trimIndent()
 }
 
-fun browserResponse(body: String, status: Int = 200): ResponseEntity<String> = ResponseEntity.status(status)
-    .contentType(MediaType("text", "html", Charsets.UTF_8)).cacheControl(CacheControl.noStore())
+fun browserResponse(body: String, status: Int = 200): ResponseEntity<String> = browserResponseBuilder(status)
+    .contentType(MediaType("text", "html", Charsets.UTF_8)).body(body)
+
+internal fun browserResponseBuilder(status: Int = 200): ResponseEntity.BodyBuilder = ResponseEntity.status(status)
+    .cacheControl(CacheControl.noStore())
     .header("Referrer-Policy", "no-referrer").header("X-Content-Type-Options", "nosniff")
     .header("Content-Security-Policy", "default-src 'none'; style-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
-    .body(body)
 
 internal fun html(value: String): String = HtmlUtils.htmlEscape(value, "UTF-8")
 internal fun url(path: String, vararg values: Pair<String, String?>): String = UriComponentsBuilder.fromPath(path).apply {
