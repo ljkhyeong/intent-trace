@@ -478,3 +478,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 일회성 Python 비교로 Kotlin 두 파일은 `description` 문자열만 변경됐음을 확인했다. 문서 두 개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다.
 - 수정 완료 후 `./gradlew test` 179개가 통과했다. 실패·오류·건너뜀은 없고 표준 MCP SDK의 실제 서버 호출도 포함한다. `python3 scripts/test-summary.py server`로 집계했으며 결과 시각은 2026-09-08 08:45 KST, 로그는 `/tmp/intent-trace-mcp-guidance-server.log`다. 검증 후에는 변경 이력과 이 인계만 추가했다.
 - 동작·테스트·설정·의존성·스킬은 변경하지 않았다. IntelliJ·PostgreSQL·Zed 패키지 독립 검증과 플러그인·스킬 검증은 반복하지 않았으며 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-08 비교 화면과 연결 진단 코드 정리
+
+- 검증 대상은 `b011927`에 비교 화면·연결 진단과 기존 브라우저 통합 테스트 변경을 적용한 상태다. 시작 시 미커밋 변경은 없었다. 최근 GitHub 연동, 기록 비교·조회, 연결 진단·예외 처리를 확인하고 기존 표준 API·컬렉션 검토 결과를 재사용했다.
+- 비교 항목을 한 번 변환해 상세·전체 보기에서 재사용하고 `comparisonText`를 제거했다. 연결 진단의 호출 제한 예외는 다른 `catch` 대상이 아니어서 재전달 구문을 제거했다. `RuntimeException` 전체를 처리하는 App 인증의 재전달은 유지했다. 제품 코드 두 파일은 합계 9줄 줄었다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest'` 11개와 최종 `./gradlew test` 179개가 통과했다. 실패·오류·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 기존 브라우저 테스트에서 제목 이스케이프·변경 강조·빈 값 표시와 연결 진단의 `429`·`Retry-After` 전달을 확인했다.
+- 로그는 `/tmp/intent-trace-simplify-rendering-focused.log`, `/tmp/intent-trace-simplify-rendering-server.log`이며 최종 결과 시각은 2026-09-08 09:56 KST다. `python3 scripts/test-summary.py focused`와 `python3 scripts/test-summary.py server`로 집계하고 `git diff --check`를 확인했다. 검증 후에는 이력·인계 문서만 수정했다.
+- API·DB·인증·공개 규칙·의존성·설정은 유지했다. 변경하지 않은 IntelliJ·PostgreSQL·Zed 패키지 독립 검증은 반복하지 않았으며 실제 화면 배치·GitHub 게시·배포·성능 측정은 수행하지 않았다.

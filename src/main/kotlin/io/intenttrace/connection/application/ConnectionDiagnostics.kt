@@ -1,7 +1,6 @@
 package io.intenttrace.connection.application
 
 import io.intenttrace.config.GitHubProperties
-import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
@@ -37,8 +36,6 @@ class ConnectionDiagnostics(
             action()
             checks += ConnectionCheck(name, DiagnosticStatus.VERIFIED, "GitHub 응답으로 확인했습니다.")
             true
-        } catch (exception: GitHubRateLimitException) {
-            throw exception
         } catch (_: RepositoryAccessDeniedException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 팀 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 접근 권한을 확인하세요.")
             false

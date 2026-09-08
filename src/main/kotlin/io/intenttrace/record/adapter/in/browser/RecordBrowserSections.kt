@@ -98,10 +98,11 @@ internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRe
             }
             if (details.isNotEmpty()) append("<details><summary>원본과 새 기록 전체 보기</summary>")
             append("<div class=\"comparison-columns\">")
-            listOf("원본" to result.original, "새 기록" to result.successor).forEach { (side, value) ->
-                val other = if (value === result.original) result.successor else result.original
-                val text = comparisonText(field, value)
-                val displayed = if (details.isEmpty() && field in result.changedFields) highlightChangedLines(text, comparisonText(field, other), if (side == "원본") "del" else "ins") else html(text)
+            val originalText = before.joinToString("\n\n").ifEmpty { "등록된 내용 없음" }
+            val successorText = after.joinToString("\n\n").ifEmpty { "등록된 내용 없음" }
+            listOf("원본" to originalText, "새 기록" to successorText).forEach { (side, text) ->
+                val other = if (side == "원본") successorText else originalText
+                val displayed = if (details.isEmpty() && field in result.changedFields) highlightChangedLines(text, other, if (side == "원본") "del" else "ins") else html(text)
                 append("<div class=\"comparison-value\"><h3>$side</h3><p class=\"prose\">$displayed</p></div>")
             }
             append("</div>")
@@ -110,24 +111,17 @@ internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRe
         }
     })
 
-private fun comparisonText(field: ComparisonField, side: RecordComparisonSide): String = with(side.content) {
-    when (field) {
-        ComparisonField.TITLE -> title
-        ComparisonField.REQUEST -> requestSummary
-        ComparisonField.DECISIONS, ComparisonField.CODE_ANCHORS, ComparisonField.VERIFICATIONS, ComparisonField.OPEN_QUESTIONS -> comparisonItems(field, side).joinToString("\n\n")
-        ComparisonField.BASE_REVISION -> baseRevision.orEmpty()
-        ComparisonField.TARGET_REVISION -> side.targetRevision.orEmpty()
-        ComparisonField.SNAPSHOT -> snapshotDigest
-    }.ifEmpty { "등록된 내용 없음" }
-}
-
 private fun comparisonItems(field: ComparisonField, side: RecordComparisonSide): List<String> = with(side.content) {
     when (field) {
+        ComparisonField.TITLE -> listOf(title)
+        ComparisonField.REQUEST -> listOf(requestSummary)
         ComparisonField.DECISIONS -> decisions.map { "${it.source.label}\n${it.summary}\n${it.rationale.orEmpty()}" }
         ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n연결 경로 $path" }.orEmpty()}" }
         ComparisonField.VERIFICATIONS -> verifications.map { "${it.command}\n종료 코드 ${it.exitCode} · ${if (it.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구 수집" else "클라이언트 제출"}\n${it.summary}\n${it.startedAt} ~ ${it.finishedAt}\n스냅샷 해시 ${it.snapshotDigest}\n출력 해시 ${it.outputDigest}" }
         ComparisonField.OPEN_QUESTIONS -> openQuestions
-        else -> emptyList()
+        ComparisonField.BASE_REVISION -> listOf(baseRevision.orEmpty())
+        ComparisonField.TARGET_REVISION -> listOf(side.targetRevision.orEmpty())
+        ComparisonField.SNAPSHOT -> listOf(snapshotDigest)
     }
 }
 

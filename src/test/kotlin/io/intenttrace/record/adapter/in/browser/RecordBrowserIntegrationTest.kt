@@ -1,5 +1,6 @@
 package io.intenttrace.record.adapter.`in`.browser
 
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.publication.application.*
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.boot.test.context.TestConfiguration
@@ -238,10 +239,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `브라우저에서 PR 게시 미확인과 연결 진단 및 원본 비교를 읽고 다른 작성자의 비교는 숨긴다`() {
         val actor = ActorIdentity.github(42, "lim")
-        val originalDraft = records.create(command("원본 판단"), actor)
+        val originalDraft = records.create(command("<원본 판단>"), actor)
         val confirmed = records.confirm(ConfirmChangeRecordCommand(originalDraft.id, originalDraft.version, "b".repeat(40), digest), actor)
         val original = records.publish(PublishChangeRecordCommand(originalDraft.id, confirmed.version, digest), actor)
-        val successor = records.create(command("후속 판단").copy(derivedFromRecordId = original.id,
+        val successor = records.create(command("<후속 판단>").copy(derivedFromRecordId = original.id,
             decisions = listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.CONFIRMED_AI_SUMMARY)),
             codeAnchors = listOf(CodeAnchor("src/New.kt", null, 2, 3, "d".repeat(64)))), actor)
         val target = GitHubPullRequestTarget("acme", "browser", 12)
@@ -255,12 +256,18 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
+        mvc.get("/records/connection") {
+            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("revision", "e".repeat(40))
+        }.andExpect { status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") } }
         val comparisonCookie = login("/records/${successor.id}/comparison")
         val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("새 기록에 등록된 검증 결과가 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
         preview("comparison", compared)
         assertTrue(compared.contains("내용 변경 · 출처"))
         assertTrue(compared.contains("<del>사용자 요청</del>"))
+        assertTrue(compared.contains("<del>&lt;원본 판단&gt;</del>"))
+        assertTrue(compared.contains("<ins>&lt;후속 판단&gt;</ins>"))
+        assertTrue(compared.contains("<ins>등록된 내용 없음</ins>"))
         val changesOnly = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie); param("changesOnly", "true") }
             .andExpect { status { isOk() }; content { string(containsString("변경된 항목만 표시 중")) } }.andReturn().response.contentAsString
         assertFalse(changesOnly.contains("<h2>스냅샷"))
@@ -283,6 +290,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         @Bean @Primary fun gitEvidenceGateway() = object : GitEvidenceGateway {
             override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
                 if (revision == "d".repeat(40)) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
+                if (revision == "e".repeat(40)) throw GitHubRateLimitException(12)
                 if (revision == "f".repeat(40)) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
                 return evidenceSnapshot.copy(revision = revision)
             }
