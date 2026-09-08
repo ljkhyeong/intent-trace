@@ -1,5 +1,6 @@
 package io.intenttrace.record.adapter.`in`.browser
 
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.publication.application.*
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.boot.test.context.TestConfiguration
@@ -178,6 +179,43 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     }
 
     @Test
+    fun `Markdown 저장은 로그인과 기록 열람 권한을 적용하고 REST와 같은 내용을 내려준다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val draft = records.create(command("저장할 기록 <script>"), actor)
+        val path = "/records/${draft.id}/markdown"
+        val anonymous = mvc.get(path).andExpect {
+            status { isOk() }; header { doesNotExist(HttpHeaders.CONTENT_DISPOSITION) }
+            content { string(containsString("GitHub로 로그인")) }
+        }.andReturn().response.contentAsString
+        assertFalse(anonymous.contains("저장할 기록"))
+        val cookie = login(path)
+        mvc.get("/records/${draft.id}") { cookie(cookie) }.andExpect {
+            content { string(containsString("href=\"$path\">Markdown 저장</a>")) }
+        }
+        val downloaded = mvc.get(path) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { contentType("text/markdown;charset=UTF-8") }
+            header { string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"intent-trace-${draft.id}.md\"") }
+            header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+            header { string("X-Content-Type-Options", "nosniff") }
+            header { string("Content-Security-Policy", containsString("default-src 'none'")) }
+        }.andReturn().response.contentAsString
+        val rest = mvc.get("/api/v1/change-records/${draft.id}/markdown") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test")
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertEquals(rest, downloaded)
+        assertFalse(downloaded.contains("<script>"))
+        assertEquals(draft, records.get(draft.id))
+        val hidden = records.create(command("다른 작성자의 비공개 내용"), ActorIdentity.github(99, "other"))
+        for (id in listOf(hidden.id, UUID.randomUUID())) {
+            val unavailable = mvc.get("/records/$id/markdown") { cookie(cookie) }.andExpect {
+                status { isNotFound() }; header { doesNotExist(HttpHeaders.CONTENT_DISPOSITION) }
+            }.andReturn().response.contentAsString
+            assertFalse(unavailable.contains(hidden.title))
+        }
+        mvc.get("/api/v1/change-records/${draft.id}/markdown") { cookie(cookie) }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
     fun `다른 작성자의 초안은 브라우저 검색과 단건 조회에 노출하지 않는다`() {
         val draft = records.create(command("브라우저 비공개 내용"), ActorIdentity.github(99, "other"))
         val cookie = login("/records?repositoryKey=acme%2Fbrowser&scope=MINE&q=비공개")
@@ -238,10 +276,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `브라우저에서 PR 게시 미확인과 연결 진단 및 원본 비교를 읽고 다른 작성자의 비교는 숨긴다`() {
         val actor = ActorIdentity.github(42, "lim")
-        val originalDraft = records.create(command("원본 판단"), actor)
+        val originalDraft = records.create(command("<원본 판단>"), actor)
         val confirmed = records.confirm(ConfirmChangeRecordCommand(originalDraft.id, originalDraft.version, "b".repeat(40), digest), actor)
         val original = records.publish(PublishChangeRecordCommand(originalDraft.id, confirmed.version, digest), actor)
-        val successor = records.create(command("후속 판단").copy(derivedFromRecordId = original.id,
+        val successor = records.create(command("<후속 판단>").copy(derivedFromRecordId = original.id,
             decisions = listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.CONFIRMED_AI_SUMMARY)),
             codeAnchors = listOf(CodeAnchor("src/New.kt", null, 2, 3, "d".repeat(64)))), actor)
         val target = GitHubPullRequestTarget("acme", "browser", 12)
@@ -251,16 +289,24 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val overview = mvc.get("/records/pull-requests") { cookie(cookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12") }
             .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("PR 최신 커밋과 다름")) } }.andReturn().response.contentAsString
         preview("pull-requests", overview)
+        val ciLink = Regex("href=\"([^\"]+)\">이 커밋의 CI 결과 조회").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals("/records/github?repositoryKey=acme%2Fbrowser&revision=${"c".repeat(40)}", ciLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
+        mvc.get("/records/connection") {
+            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("revision", "e".repeat(40))
+        }.andExpect { status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") } }
         val comparisonCookie = login("/records/${successor.id}/comparison")
         val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("새 기록에 등록된 검증 결과가 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
         preview("comparison", compared)
         assertTrue(compared.contains("내용 변경 · 출처"))
         assertTrue(compared.contains("<del>사용자 요청</del>"))
+        assertTrue(compared.contains("<del>&lt;원본 판단&gt;</del>"))
+        assertTrue(compared.contains("<ins>&lt;후속 판단&gt;</ins>"))
+        assertTrue(compared.contains("<ins>등록된 내용 없음</ins>"))
         val changesOnly = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie); param("changesOnly", "true") }
             .andExpect { status { isOk() }; content { string(containsString("변경된 항목만 표시 중")) } }.andReturn().response.contentAsString
         assertFalse(changesOnly.contains("<h2>스냅샷"))
@@ -283,6 +329,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         @Bean @Primary fun gitEvidenceGateway() = object : GitEvidenceGateway {
             override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
                 if (revision == "d".repeat(40)) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
+                if (revision == "e".repeat(40)) throw GitHubRateLimitException(12)
                 if (revision == "f".repeat(40)) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
                 return evidenceSnapshot.copy(revision = revision)
             }

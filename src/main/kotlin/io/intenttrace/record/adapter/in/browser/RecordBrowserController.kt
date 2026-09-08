@@ -26,12 +26,15 @@ import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.record.application.ChangeRecordCatalogService
 import io.intenttrace.record.application.ChangeRecordNotFoundException
+import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.ChangeRecordOwnershipException
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.application.GitHubContextService
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpHeaders
+import org.springframework.http.ContentDisposition
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
@@ -52,6 +55,7 @@ class RecordBrowserController(
     private val catalog: ChangeRecordCatalogService,
     private val sessions: GitHubUserSessionStore,
     private val pages: RecordBrowserPage,
+    private val markdown: ChangeRecordMarkdownRenderer,
     private val properties: GitHubProperties,
     private val comparison: RecordComparisonService,
     private val diagnostics: ConnectionDiagnostics,
@@ -82,6 +86,14 @@ class RecordBrowserController(
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
         pages.record(it.actor, records.get(id))
+    }
+
+    @GetMapping("/{id}/markdown")
+    fun markdown(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
+        val record = records.get(id)
+        browserResponseBuilder().contentType(MediaType("text", "markdown", Charsets.UTF_8))
+            .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("intent-trace-${record.id}.md").build().toString())
+            .body(markdown.render(record))
     }
 
     @GetMapping("/{id}/comparison")

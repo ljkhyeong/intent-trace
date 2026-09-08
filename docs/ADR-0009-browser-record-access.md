@@ -12,13 +12,14 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 
 - `/records`는 저장소별 목록·검색, `/records/{UUID}`는 기록 열람 화면으로 제공한다. 기존 애플리케이션 서비스를 사용해 공개·대체 기록의 저장소 읽기 권한과 비공개 기록의 작성자 소유권을 동일하게 확인한다.
 - 미로그인·만료 상태에는 내용을 숨긴 로그인 안내를 표시한다. 사용자가 로그인하면 원래 목록 또는 기록 화면으로 돌아온다.
-- `/auth/github/start?returnTo=...`의 복귀 주소를 검증한 뒤 OAuth state와 함께 서버 메모리에 보관한다. `/records`, UUID 단건·비교·코드 확인·변경 이력 경로와 `/records/pull-requests`, `/records/connection`, `/records/history`, `/records/sessions`, `/records/github`만 허용하고 외부 주소·authority·fragment·경로 이동을 거부한다. callback 입력의 복귀 주소는 신뢰하지 않는다.
+- `/auth/github/start?returnTo=...`의 복귀 주소를 검증한 뒤 OAuth state와 함께 서버 메모리에 보관한다. `/records`, UUID 단건·비교·코드 확인·변경 이력·Markdown 저장 경로와 `/records/pull-requests`, `/records/connection`, `/records/history`, `/records/sessions`, `/records/github`만 허용하고 외부 주소·authority·fragment·경로 이동을 거부한다. callback 입력의 복귀 주소는 신뢰하지 않는다.
 - 기존 cookie·일회성 state·TTL·PKCE 검증을 모두 통과한 뒤 브라우저용 `itb_` 세션을 발급한다. `HttpOnly`, `SameSite=Lax`, `Path=/records`를 적용하고 HTTPS 환경에서는 `Secure`도 적용한다.
 - `itb_`는 서버 메모리에 digest로 저장하고 발급 후 8시간에 만료한다. token 갱신으로 브라우저 수명을 연장하지 않는다. GitHub access·refresh token은 계속 서버 메모리에만 둔다.
 - 브라우저 세션은 REST·MCP Bearer나 cookie 인증으로 사용하지 않는다. 기존 `/auth/github/start`의 CLI 연결은 `its_`를 한 번 표시하는 계약을 유지한다.
 - 화면의 변경 동작은 로그아웃과 본인 연결의 선택·전체 종료로 제한한다. 설정한 공개 origin과 요청의 `Origin`을 비교한다. `POST /records/logout`은 해당 브라우저 세션을 폐기하고 cookie를 지우며 GitHub 장애 중에도 로컬에서 처리한다. 다른 연결의 종료는 인증된 본인 세션 관리 서비스를 거친다.
 - HTML에는 사용자 입력을 이스케이프한다. 기록 Markdown을 그대로 HTML로 해석하지 않는다. 외부 스크립트·폰트·이미지는 불러오지 않고 `no-store`, `no-referrer`, 제한된 CSP를 적용한다.
 - 공유 Markdown의 기본·대체 링크는 브라우저 기록 주소로 생성한다. 이미 게시된 Check Run은 사용자가 다시 게시하거나 대체 안내를 요청할 때 새 링크가 반영된다.
+- `GET /records/{UUID}/markdown`은 로그인과 기존 기록 열람 권한을 확인한 뒤 `text/markdown; charset=UTF-8` 첨부 파일로 응답한다. 파일명은 `intent-trace-{UUID}.md`이며 REST와 같은 생성기를 사용한다. HTML 응답과 캐시 방지·보안 헤더를 공유하고 기록 상태는 변경하지 않는다. 미로그인·권한 거부·조회 실패는 기존 HTML 안내로 응답한다.
 
 ## 검색
 
@@ -35,6 +36,8 @@ GitHub 자격 증명과 세션을 DB에 저장하지 않는 단일 인스턴스 
 ## 0.10.0 읽기 화면 확장
 
 원본 비교·PR 기록·연결 진단도 기존 읽기 애플리케이션 서비스를 사용한다. 브라우저에서 installation token을 발급하거나 공개 기록을 바꾸지 않는다. PR 읽기 도중 사용자 인증이 거부되면 현재 화면으로 돌아오는 재로그인 안내를 표시한다. 비교는 원본과 후속의 현재 버전을 함께 반환하고 비공개 후속 기록은 작성자만 읽는다.
+
+PR 기록 화면의 CI 링크는 이미 조회한 `headRevision`으로 `/records/github`를 연다. 새 GitHub 호출로 HEAD를 다시 정하지 않으며 PR 갱신 후에도 링크의 조회 대상은 유지한다.
 
 ## 0.11.0 조회·연결 관리 확장
 

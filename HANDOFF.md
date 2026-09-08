@@ -478,3 +478,20 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 일회성 Python 비교로 Kotlin 두 파일은 `description` 문자열만 변경됐음을 확인했다. 문서 두 개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다.
 - 수정 완료 후 `./gradlew test` 179개가 통과했다. 실패·오류·건너뜀은 없고 표준 MCP SDK의 실제 서버 호출도 포함한다. `python3 scripts/test-summary.py server`로 집계했으며 결과 시각은 2026-09-08 08:45 KST, 로그는 `/tmp/intent-trace-mcp-guidance-server.log`다. 검증 후에는 변경 이력과 이 인계만 추가했다.
 - 동작·테스트·설정·의존성·스킬은 변경하지 않았다. IntelliJ·PostgreSQL·Zed 패키지 독립 검증과 플러그인·스킬 검증은 반복하지 않았으며 실제 GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-08 비교 화면과 연결 진단 코드 정리
+
+- 검증 대상은 `b011927`에 비교 화면·연결 진단과 기존 브라우저 통합 테스트 변경을 적용한 상태다. 시작 시 미커밋 변경은 없었다. 최근 GitHub 연동, 기록 비교·조회, 연결 진단·예외 처리를 확인하고 기존 표준 API·컬렉션 검토 결과를 재사용했다.
+- 비교 항목을 한 번 변환해 상세·전체 보기에서 재사용하고 `comparisonText`를 제거했다. 연결 진단의 호출 제한 예외는 다른 `catch` 대상이 아니어서 재전달 구문을 제거했다. `RuntimeException` 전체를 처리하는 App 인증의 재전달은 유지했다. 제품 코드 두 파일은 합계 9줄 줄었다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*AuthenticatedMcpIntegrationTest'` 11개와 최종 `./gradlew test` 179개가 통과했다. 실패·오류·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 기존 브라우저 테스트에서 제목 이스케이프·변경 강조·빈 값 표시와 연결 진단의 `429`·`Retry-After` 전달을 확인했다.
+- 로그는 `/tmp/intent-trace-simplify-rendering-focused.log`, `/tmp/intent-trace-simplify-rendering-server.log`이며 최종 결과 시각은 2026-09-08 09:56 KST다. `python3 scripts/test-summary.py focused`와 `python3 scripts/test-summary.py server`로 집계하고 `git diff --check`를 확인했다. 검증 후에는 이력·인계 문서만 수정했다.
+- API·DB·인증·공개 규칙·의존성·설정은 유지했다. 변경하지 않은 IntelliJ·PostgreSQL·Zed 패키지 독립 검증은 반복하지 않았으며 실제 화면 배치·GitHub 게시·배포·성능 측정은 수행하지 않았다.
+
+## 2026-09-08 브라우저 기록 저장과 PR CI 이동
+
+- 기준 `d181e49`, 시작 시 미커밋 변경 없음. 기존 기능 검토와 현재 기록·PR·CI 흐름을 대조해 브라우저 Markdown 저장과 PR 커밋의 CI 이동을 우선 반영했다. 기존 생성기와 조회 결과를 재사용하며 새 의존성·DB 변경은 없다.
+- `GET /records/{UUID}/markdown`은 브라우저 로그인·기록 열람 권한 확인 후 UTF-8 Markdown 첨부 파일을 반환한다. REST와 같은 생성기를 쓰고 기록 상태를 유지한다. HTML과 다운로드는 캐시 방지·보안 헤더 구성을 공유한다.
+- PR 기록의 CI 링크는 조회 응답의 저장소·전체 HEAD를 사용한다. 링크 생성 시 외부 호출을 추가하거나 최신 HEAD로 바꾸지 않는다. 화면을 다시 조회하면 새 PR 커밋을 반영한다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*ChangeRecordMarkdownRendererTest' --tests '*GitHubContextIntegrationTest'` 13개와 최종 `./gradlew test` 180개가 통과했다. 실패·오류·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 로그인 후 다운로드 복귀, 파일 형식·헤더, REST 본문 일치, 다른 작성자의 비공개·없는 기록 거부, 기록 미변경과 CI 링크 커밋을 확인했다.
+- 로그는 `/tmp/intent-trace-browser-export-focused.log`, `/tmp/intent-trace-browser-export-server.log`이며 최종 결과 시각은 2026-09-08 10:17 KST다. `python3 scripts/test-summary.py focused`와 `python3 scripts/test-summary.py server`로 집계했다. 변경 문서 3개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다. 이후 이력·인계 문서만 추가했다.
+- IntelliJ·PostgreSQL·Zed 패키지·스킬은 변경하지 않아 독립 검증을 반복하지 않았다. 실제 브라우저 파일 저장 대화상자·GitHub 게시·배포는 확인하지 않았다.
