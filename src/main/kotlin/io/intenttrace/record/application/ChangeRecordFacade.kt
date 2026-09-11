@@ -199,7 +199,7 @@ class ChangeRecordFacade(
         command.codeAnchors.forEach { anchor ->
             anchor.relatedPath?.let { related ->
                 require(command.codeAnchors.any { it.side != anchor.side && it.relativePath == related }) {
-                    "이름 변경의 연결 경로는 반대쪽 관련 코드에 있어야 합니다."
+                    "relatedPath는 다른 side(BASE/TARGET)에 등록된 코드 근거의 파일 경로여야 합니다."
                 }
             }
         }

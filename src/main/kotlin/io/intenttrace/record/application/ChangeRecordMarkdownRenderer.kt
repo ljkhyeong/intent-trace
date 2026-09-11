@@ -37,7 +37,7 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         appendLine()
         record.decisions.forEach { decision ->
             append("- ${plainText(decision.summary)} — ${decision.source.label}")
-            decision.rationale?.takeIf(String::isNotBlank)?.let { append("\n  - 근거: ${plainText(it)}") }
+            decision.rationale?.takeIf(String::isNotBlank)?.let { append("\n  - 결정 이유: ${plainText(it)}") }
             appendLine()
         }
         appendLine()
@@ -51,10 +51,13 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
             val path = anchor.relativePath.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8).replace("(", "%28").replace(")", "%29") }
             val link = ref?.let { "[${inlineCode(label)}](${properties.userAuthorization.webBaseUrl.resolve("/${record.repositoryKey}/blob/$it/$path")}#L${anchor.startLine}-L${anchor.endLine})" } ?: inlineCode(label)
             appendLine("- $side $link$symbol — ${inlineCode(anchor.contentHash)}")
-            anchor.relatedPath?.let { appendLine("  - 반대쪽 연결 경로: ${inlineCode(it)}") }
+            anchor.relatedPath?.let {
+                val relatedSide = if (anchor.side == CodeSide.BASE) "변경 후" else "변경 전"
+                appendLine("  - $relatedSide 파일 경로: ${inlineCode(it)}")
+            }
         }
         appendLine()
-        appendLine("코드·검증 해시는 클라이언트 제출값입니다. 서버 코드 확인 결과는 별도 조회하며 테스트 실행을 증명하지 않습니다.")
+        appendLine("코드·검증 해시는 클라이언트 제출값입니다. GitHub 코드 비교는 별도 조회하며 서버는 테스트 실행 여부를 확인하지 않습니다.")
         appendLine()
         appendLine("## 검증")
         appendLine()

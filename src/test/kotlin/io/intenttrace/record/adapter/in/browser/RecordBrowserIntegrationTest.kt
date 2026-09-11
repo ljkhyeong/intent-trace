@@ -133,7 +133,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())
-        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 수")) }; content { string(containsString("반복 조회 전에 관리자에게")) } }.andReturn().response.contentAsString
+        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 한도")) }; content { string(containsString("반복 조회 전에 관리자에게")) } }.andReturn().response.contentAsString
         assertFalse(paused.contains("중단 위치부터 계속 조회"))
         preview("history-stopped", paused)
         val activities = mvc.get("/records/${matched.id}/activities") { cookie(cookie) }.andExpect {
