@@ -581,3 +581,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin` 테스트 40개와 설치 ZIP 빌드 통과. 순서·상태 변경 후 선택 복원, 적용 전 필터 제외, 선택한 기록 제거·빈 페이지와 조회 실패 시 화면 유지를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-intellij-refresh.log`, 결과 시각은 2026-09-12 08:06 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 웹 상세 탐색의 검색 조건 유지
+
+- 시작 리비전 `6ee3ba5`, 미커밋 변경 없음. 코드 검증 대상은 `464eb49`와 같다. 기록 상세에서 변경 이력·원본 비교·코드 확인과 원본·대체 기록으로 이동해도 검색 조건과 커서를 유지한다. 복귀 링크에서는 `beforeVersion`·`changesOnly` 등 검색과 무관한 인자를 제외한다. 코드 확인 불가 응답도 같은 복귀 링크를 제공한다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*RecordBrowserNavigationTest'` 13개와 최종 `./gradlew test` 186개 통과. 검색 두 번째 페이지의 상세 왕복, 이력 페이지 이동, 비교 필터 전환과 원본·후속 링크, 코드 확인 불가, 한글·특수문자 쿼리 보존과 기존 접근 제한을 확인했다. 부분 테스트는 전체에 포함된다.
+- `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다. 로그는 `/tmp/intent-trace-browser-detail-return-focused.log`, `/tmp/intent-trace-browser-detail-return-server.log`, 최종 시각은 2026-09-12 08:12 KST다.
+- REST·MCP 계약, DB·IDE·Zed·의존성은 변경하지 않아 관련 독립 검증은 반복하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
