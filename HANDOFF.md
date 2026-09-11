@@ -517,3 +517,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 최초 부분 검증에서 이전 문구를 기대한 테스트 1곳이 실패해 기대값을 수정했다. `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest'` 8개와 최종 `./gradlew test` 180개 통과. `python3 scripts/test-summary.py server focused`로 실패·오류·건너뜀 0개를 확인했다. 로그는 `/tmp/intent-trace-evidence-wording-focused.log`, `/tmp/intent-trace-evidence-wording-browser.log`, `/tmp/intent-trace-evidence-wording-server.log`이며 최종 결과 시각은 2026-09-12 06:47 KST다.
 - 릴리스 문서의 수정 파일 제한을 현재 줄 조회로 명시했다. 일회성 Python 검사로 변경 문서 3개의 로컬 링크 2개와 `git diff --check`를 확인했다. 이후 변경 이력과 이 인계만 추가했다.
 - IntelliJ는 `bb06a1f`와 파일이 같아 앞선 테스트 32개와 패키지 검사 결과를 재사용했다. DB·Zed·스킬 독립 검증은 변경이 없어 생략했다. 실제 브라우저 화면·GitHub 게시·릴리스 발행은 수행하지 않았다.
+
+## 2026-09-12 검색 복귀와 과거 코드 바로가기
+
+- 시작 리비전 `0db48e5`, 미커밋 변경 없음. 코드 검증 대상은 `9e522f8`과 같다. 기능 검토에서 검색 목록 복귀 시 조건을 잃는 문제와 과거 코드 위치로 바로 이동할 수 없는 불편을 우선 개선했다.
+- 목록의 검색 쿼리를 기록 링크에 전달하고 상세에서 `/records`의 같은 조건·커서로 돌아간다. 로그인 복귀와 단건 권한 확인은 기존 처리를 사용한다. 과거 코드 링크는 조회 결과의 전체 커밋·경로·줄을 사용하며 현재 위치가 미확인이면 현재 코드 링크를 표시하지 않는다. 상세 화면의 코드 URL 생성도 같은 함수를 사용한다.
+- `./gradlew focusedTest --tests '*RecordBrowserNavigationTest' --tests '*RecordBrowserIntegrationTest'` 10개와 최종 `./gradlew test` 182개 통과. 검색의 두 번째 페이지·상세·목록 왕복, 로그인 후 조건 유지, 이름 변경·줄 이동·한글과 특수문자 경로·별도 GitHub 호스트·현재 위치 미확인을 확인했다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-browser-navigation-focused.log`, `/tmp/intent-trace-browser-navigation-server.log`이며 최종 결과 시각은 2026-09-12 06:57 KST다. 변경 문서 3개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다. 이후 이력·인계 문서만 추가했다.
+- 새 의존성·DB 변경·외부 API 호출은 없다. IntelliJ는 `bb06a1f`와 같아 기존 검증을 재사용했고 DB·Zed·스킬 독립 검증은 생략했다. 실제 브라우저 조작·GitHub 코드 링크 접속·게시·배포는 수행하지 않았다.
