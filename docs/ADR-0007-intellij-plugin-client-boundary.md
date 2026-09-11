@@ -32,7 +32,7 @@
 ## 영향
 
 - 현재 줄 조회는 기존 REST 계약을 사용한다. 기록함의 새 목록 계약은 REST·MCP가 함께 사용하며 IntelliJ 전용 API를 만들지 않는다.
-- IDE가 시작된 뒤 server session이 사라지면 사용자는 OAuth를 다시 수행하고 새 `its_` token을 저장해야 한다.
+- 서버 세션이 만료되거나 폐기되면 다시 로그인하고 새 `its_` 토큰을 IntelliJ에 연결해야 한다.
 - GitHub가 아닌 remote와 remote가 없는 저장소는 자동 조회할 수 없다. 커밋되지 않은 파일은 현재 줄 조회만 제한한다.
 - IntelliJ Platform SDK는 서버 빌드와 별도로 내려받고 검증한다.
 

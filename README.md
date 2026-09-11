@@ -316,8 +316,8 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 주소를 비우면 IDE를 시작할 때 전달한 `INTENT_TRACE_URL` 환경 변수를 사용하고, 그것도 없으면 `http://127.0.0.1:8080`에 연결합니다. `연결 확인`은 입력 중인 주소의 `/actuator/health`를 인증 정보 없이 호출해 `UP` 상태만 확인합니다. 주소를 저장하거나 로그인·저장소 권한·서버의 신원을 확인하는 기능은 아닙니다.
 
 1. IntelliJ의 `Tools > IntentTrace GitHub 승인 시작`을 실행합니다. 또는 브라우저에서 서버의 `/auth/github/start`를 직접 엽니다.
-2. GitHub 승인을 마치고 callback에 한 번 표시된 `its_` session token을 복사합니다.
-3. IntelliJ의 `Tools > IntentTrace 세션 연결`에서 token을 저장합니다. token은 IntelliJ PasswordSafe에 보관합니다.
+2. GitHub 로그인 완료 화면에 한 번 표시되는 `its_` 세션 토큰을 복사합니다.
+3. IntelliJ의 `Tools > IntentTrace 세션 연결`에 토큰을 입력합니다. 토큰은 IntelliJ PasswordSafe에 보관합니다.
 4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄 변경 의도 조회`를 실행합니다.
 5. 저장소 파일을 선택하고 `Tools > IntentTrace 기록함 열기`에서 팀 공개 기록·내 비공개 기록·상태·현재 파일 필터를 고른 뒤 `조회`합니다. 기록을 선택하면 원래 커밋·당시 코드·대체 기록을 열 수 있습니다.
 
@@ -371,14 +371,14 @@ python3 scripts/test_test_summary.py
 
 ## 현재 제한
 
-- GitHub App 등록·저장소 설치와 private key 회전은 아직 운영자가 수행해야 합니다.
+- GitHub App 등록·저장소 설치와 private key 교체는 운영자가 해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
 - GitHub 승인 폐기 webhook은 제공하지 않습니다. 본인 연결 조회·폐기는 웹·REST·MCP에서 사용할 수 있습니다.
 - GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 캐시와 webhook 무효화는 없습니다.
-- V3 이전 초안은 `legacy:<login>` 작성자로 보존되어 자동으로 현재 GitHub 계정에 귀속되지 않습니다.
+- V3 이전 초안의 작성자는 `legacy:<login>`으로 남으며 현재 GitHub 계정과 자동으로 연결되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
-- IntelliJ 플러그인은 현재 줄 조회와 기록함·파일 이력을 지원하지만 callback token 자동 가져오기, 기록 생성·수정과 파일 rename 추적은 지원하지 않습니다.
-- 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 rolling 배포와 공유 session은 제공하지 않습니다.
+- IntelliJ 플러그인은 현재 줄 조회와 기록함·파일 이력을 지원하지만 로그인 토큰 자동 가져오기, 기록 생성·수정과 파일 이름 변경 추적은 지원하지 않습니다.
+- 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 롤링 배포와 서버 간 세션 공유는 제공하지 않습니다.
 - 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 이력 수집 이전 작업과 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.
 - 코드 확인은 일부 트리·2 MiB 초과 blob을 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
 - 이전 기록 탐색은 동일 blob의 고유한 이름 변경과 원본·현재 파일에서 한 곳에만 있는 전체 줄 조각을 연결합니다. 수정과 이름 변경이 함께 일어나거나 조각이 중복되면 자동으로 연결하지 않습니다. 후보를 페이지로 살피므로 결과가 비어 있어도 다음 커서를 확인해야 합니다.

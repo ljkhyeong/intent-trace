@@ -503,3 +503,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트는 32개이며 로그는 `/tmp/intent-trace-clear-wording-intellij.log`다. `python3 scripts/test-summary.py server focused intellij`로 모두 실패·오류·건너뜀 0개를 확인했다.
 - README·설계 문서 10개의 로컬 링크 61개·제목 링크 6개와 `git diff --check` 통과. 일회성 Python 검사 결과는 `/tmp/intent-trace-clear-wording-docs.log`에 보관했다. 이후 변경 이력과 이 인계만 추가했다.
 - 실제 IDE 화면은 확인하지 않았다. DB·Zed 실행 코드·스킬을 변경하지 않아 해당 독립 검증은 생략했다. 원격 게시·배포는 수행하지 않았다.
+
+## 2026-09-11 로그인·게시 점검 안내 추가 정리
+
+- 시작 리비전 `9ea5e64`, 미커밋 변경 없음. 코드 검증 대상은 `83729c3`과 같다. 로그인 오류의 조치 담당자, 세션 연결 방법, 게시 대상·권한 점검 메시지를 구체화했다. 인증·게시 동작과 API 필드·상태 코드는 유지했다.
+- `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubAppInstallationClientTest' --tests '*PublicationPreflightServiceTest' --tests '*AuthenticatedMcpIntegrationTest'` 13개와 최종 `./gradlew test` 180개 통과. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused`로 실패·오류·건너뜀 0개를 확인했다. 로그는 `/tmp/intent-trace-login-wording-focused.log`, `/tmp/intent-trace-login-wording-server.log`이며 최종 결과 시각은 2026-09-11 23:19 KST다.
+- README·IntelliJ·Zed·운영·설계 문서 8개의 로컬 링크 61개·제목 링크 8개와 `git diff --check` 통과. 일회성 Python 검사 결과는 `/tmp/intent-trace-login-wording-docs.log`에 보관했다. 이후 변경 이력과 이 인계만 추가했다.
+- IntelliJ는 `bb06a1f`와 파일이 같아 앞선 테스트 32개와 패키지 검사 결과를 재사용했다. DB·Zed 실행 코드·스킬을 변경하지 않아 해당 독립 검증은 생략했다. 실제 브라우저 로그인·GitHub 게시·배포는 수행하지 않았다.

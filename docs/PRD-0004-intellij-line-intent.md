@@ -12,14 +12,14 @@ IntelliJ 편집기에서 현재 줄의 공개 기록을 조회합니다. 플러�
 
 1. 사용자가 `Settings > Tools > IntentTrace`에서 서버 주소를 지정하고 적용한다. 필요하면 저장 전에 `연결 확인`으로 서버 상태를 확인한다.
 2. 사용자가 IntelliJ에서 `IntentTrace GitHub 승인 시작`을 실행해 기존 서버 승인 페이지를 시스템 브라우저로 연다.
-3. 사용자가 IntentTrace OAuth callback에 한 번 표시된 `its_` session token을 IntelliJ PasswordSafe에 저장한다.
+3. 로그인 완료 화면의 `its_` 세션 토큰을 `IntentTrace 세션 연결`에 입력한다. 토큰은 IntelliJ PasswordSafe에 저장된다.
 4. 변경 기록을 확인할 파일에 커서를 둔다.
 5. `현재 줄 변경 의도 조회` 액션을 실행한다.
 6. 플러그인이 GitHub `origin`, 전체 HEAD commit, 저장소 상대 경로와 1부터 시작하는 줄 번호를 계산한다.
-7. 플러그인이 기존 `GET /api/v1/change-records/lookup`을 Bearer session으로 호출한다.
+7. 플러그인이 `its_` 세션 토큰으로 인증해 기존 `GET /api/v1/change-records/lookup`을 호출한다.
 8. 요청·구현 결정과 이유·등록된 검증 결과·관련 코드·남은 질문을 읽기 전용 창으로 보여준다. 구현 결정에는 출처를 함께 표시한다.
    결과가 없으면 사용자가 선택해 PRD-0005의 파일 이력을 연다. 과거 기록을 현재 줄의 근거로 자동 연결하지 않는다.
-9. 연결을 끝낼 때는 PasswordSafe에 저장한 session을 서버에서 폐기한 뒤 로컬 자격 증명을 삭제한다.
+9. 연결을 끝낼 때는 서버의 세션을 폐기한 뒤 PasswordSafe에서 해당 토큰을 삭제한다.
 
 ## 범위
 

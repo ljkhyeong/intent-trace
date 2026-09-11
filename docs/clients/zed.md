@@ -74,10 +74,12 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 - 원문 대화·숨은 추론·비밀값을 기록하지 않는다. 토큰은 도구 인자나 코드 근거에 넣지 않는다.
 - 확인·공개·GitHub 게시는 사용자가 요청한 범위에서 수행한다. 실행한 검증만 기록한다.
-- `create_successor_draft`는 새 근거로 초안을 만들고 검증·확인 상태를 비운다. 공개 후 기존 기록 대체는 별도 요청이다.
+- `create_successor_draft`는 새 스냅샷·코드 근거로 초안을 만들고 검증·확인 상태를 비운다. 공개 후 기존 기록 대체는 별도 요청이다.
 - `compare_change_record`로 원본과 후속 내용을 확인한다. `check_publication_credentials`는 저장소 관리자만 실행하며 실제 게시를 하지 않는다.
 - `compare_change_record`의 `details`로 출처·순서·추가·삭제를 확인하고, `list_record_activities`로 작업 시각과 버전을 조회한다. 작성자에게는 전체, 팀원에게는 공개·대체 작업만 표시된다.
-- 이전 기록 조회의 `stopReason`이 있으면 같은 조건의 `cursor`에 `nextCursor`를 넣어 중단 위치부터 계속 조회하고 결과를 추가한다. 단, `resumeBlocked=true`이거나 같은 커서에서 다시 중단되면 자동 반복하지 않고 서버 조회 제한·GitHub 응답 지연 확인을 안내한다. 원인 조치 후 같은 커서를 수동으로 다시 요청한다. `CANCELLED`는 사용자가 재개를 요청한 뒤 조회한다. `failures`의 `retryRecordId` 재조회는 해당 후보 결과를 교체한다. `complete=false`의 사유를 구분하고 호출 제한은 안내된 대기 시간을 지킨다.
+- 이전 기록 조회에 `stopReason`이 있으면 같은 조건의 `cursor`에 `nextCursor`를 넣어 중단 위치부터 조회하고 결과를 합친다. `CANCELLED`는 사용자가 재개를 요청한 뒤 조회한다.
+- `resumeBlocked=true`이거나 같은 커서에서 다시 중단되면 자동 재시도를 멈춘다. 서버 조회 제한·GitHub 응답 지연을 해결한 뒤 같은 커서를 수동으로 요청한다. 호출 제한은 안내한 대기 시간을 지킨다.
+- `complete=false`이면 중단·오류 사유를 확인한다. `failures`의 `retryRecordId`로 재조회한 결과는 해당 기록의 이전 조회 결과를 교체한다.
 - `find_change_intent`의 목록은 `items`에서 읽는다. 이전 기록 탐색의 다음 커서와 원본·현재 줄 범위를 확인하고 과거 테스트를 현재 검증으로 설명하지 않는다.
 - 필요한 상세 절차는 [IntentTrace 사용 스킬](../../skills/intent-trace/SKILL.md)을 Zed의 지침에서 참고한다.
 
@@ -98,7 +100,7 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 - `its_` 세션이 없거나 만료됐으면 `/auth/github/start`에서 로그인하고 실행 도구로 다시 연결한다. 서버 재시작 시 기존 세션은 사라진다.
 - `ghu_`, `ghr_`, `itb_`는 연결 도구가 받지 않는다.
-- `NOT_CONFIGURED`는 서버 게시 자격 증명이 없다는 뜻이다. `CONFIGURED_UNVERIFIED`도 실제 게시 성공을 보장하지 않는다.
+- `NOT_CONFIGURED`는 서버 게시 인증이 없고, `CONFIGURED_UNVERIFIED`는 설정값만 있고 유효성은 확인하지 않았다는 뜻이다.
 - IntentTrace의 GitHub 로그인은 MCP 표준 OAuth discovery와 다르므로 Zed에 원격 URL만 넣어서 자동 로그인하는 방식은 지원하지 않는다.
 - 중계기는 HTTPS 또는 로컬 HTTP `/mcp`만 연결하며 redirect를 따르지 않는다. 프록시가 주소를 바꾸면 최종 `/mcp` 주소를 설정한다.
 

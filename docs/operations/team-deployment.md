@@ -5,7 +5,7 @@
 - Docker Engine과 Docker Compose plugin이 설치돼 있어야 한다.
 - 실제 HTTPS 배포는 domain의 DNS가 host를 가리키고 외부 80·443이 Caddy에 도달해야 한다.
 - GitHub App callback URL은 배포할 `https://domain/auth/github/callback`과 정확히 같아야 한다.
-- 이 구성은 app 한 개만 지원한다. app이 재시작되면 모든 사용자가 GitHub 승인을 다시 해야 한다.
+- 이 구성은 app 컨테이너 한 개만 지원한다. app이 재시작되면 모든 사용자가 다시 로그인해야 한다.
 
 ## 환경 파일
 
@@ -46,7 +46,7 @@ curl --fail https://intent.example.com/actuator/health
 
 로컬에서는 `.env.team.example`의 기본값을 사용하고 `http://localhost:8080/actuator/health`로 확인한다. app과 PostgreSQL은 host port가 없으므로 Caddy를 통해서만 접근한다.
 
-GitHub 승인은 `https://intent.example.com/auth/github/start`에서 시작한다. callback 화면의 `its_` token을 Codex가 시작되는 환경의 `INTENT_TRACE_SESSION_TOKEN`에 넣는다.
+GitHub 로그인은 `https://intent.example.com/auth/github/start`에서 시작한다. 로그인 완료 화면의 `its_` 세션 토큰을 Codex 실행 환경의 `INTENT_TRACE_SESSION_TOKEN`에 넣는다.
 
 팀 Codex 프로젝트의 `.codex/config.toml`에는 로컬 플러그인 서버와 구분되는 이름으로 팀 MCP를 등록한다.
 
@@ -89,7 +89,7 @@ docker compose --env-file .env.team up -d app caddy
 curl --fail https://intent.example.com/actuator/health
 ```
 
-복구 뒤 Flyway version과 주요 변경 기록을 확인한다. app을 다시 시작했으므로 사용자는 GitHub 승인을 다시 해야 한다.
+복구 뒤 Flyway 버전과 주요 변경 기록을 확인한다. app을 다시 시작했으므로 사용자는 다시 로그인해야 한다.
 
 ## 업그레이드
 
