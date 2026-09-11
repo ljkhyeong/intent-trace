@@ -37,10 +37,10 @@ class ConnectionDiagnostics(
             checks += ConnectionCheck(name, DiagnosticStatus.VERIFIED, "GitHub 응답으로 확인했습니다.")
             true
         } catch (_: RepositoryAccessDeniedException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 팀 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 접근 권한을 확인하세요.")
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요.")
             false
         } catch (_: GitHubApiException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 조회를 완료하지 못했습니다. 대상 번호·커밋과 App 읽기 권한을 확인하세요.")
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요.")
             false
         } catch (_: GitHubIdentityApiException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 권한 조회를 완료하지 못했습니다. 연결 상태를 확인하세요.")
@@ -53,7 +53,7 @@ class ConnectionDiagnostics(
             check("pull_request_read") { pr = pullRequests.read(GitHubPullRequestTarget(repository.canonicalOwner, repository.canonicalName, pullNumber)) }
             pr?.let {
                 checks += ConnectionCheck("pull_request_publication", if (it.fork) DiagnosticStatus.FAILED else DiagnosticStatus.VERIFIED,
-                    if (it.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR head와 base 저장소가 일치합니다.")
+                    if (it.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR 원본 저장소와 병합 대상 저장소가 같습니다.")
             }
         } else checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
         val evidenceRevision = ref ?: pr?.headRevision

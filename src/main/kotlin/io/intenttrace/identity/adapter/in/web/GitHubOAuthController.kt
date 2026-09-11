@@ -106,31 +106,31 @@ class GitHubOAuthExceptionHandler {
     fun tooManyRequests(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS))
             .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 승인 대기 요청이 많습니다. 잠시 뒤 다시 시도해 주세요."))
+            .body(errorPage("GitHub 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요."))
 
     @ExceptionHandler(GitHubOAuthStateException::class, GitHubOAuthCodeException::class)
     fun invalidRequest(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.BAD_REQUEST))
             .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 승인을 확인할 수 없습니다."))
+            .body(errorPage("로그인 요청을 확인할 수 없습니다. 아래 링크에서 다시 로그인해 주세요."))
 
     @ExceptionHandler(GitHubOAuthDeniedException::class, GitHubUserAuthenticationException::class)
     fun denied(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.UNAUTHORIZED))
             .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 승인이 완료되지 않았습니다."))
+            .body(errorPage("GitHub 로그인을 완료하지 못했습니다."))
 
     @ExceptionHandler(GitHubOAuthConfigurationException::class)
     fun unavailable(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE))
             .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 승인 설정을 확인해 주세요."))
+            .body(errorPage("서버의 GitHub 로그인 설정이 올바르지 않습니다. 운영자에게 문의해 주세요."))
 
     @ExceptionHandler(GitHubOAuthApiException::class, GitHubIdentityApiException::class)
     fun dependencyFailure(): ResponseEntity<String> =
         secure(ResponseEntity.status(HttpStatus.BAD_GATEWAY))
             .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 승인 요청을 완료하지 못했습니다."))
+            .body(errorPage("GitHub 인증 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."))
 }
 
 const val BROWSER_SESSION_COOKIE = "intent_trace_browser"
@@ -145,7 +145,7 @@ private fun successPage(session: IssuedGitHubUserSession): String =
         content =
             """
             <p><strong>@${escapeHtml(session.actor.login)}</strong> 계정이 IntentTrace에 연결됐습니다.</p>
-            <p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수에 저장하세요.</p>
+            <p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. 도구의 세션 입력창에 입력하거나 <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수로 전달하세요.</p>
             <pre><code>${session.sessionToken}</code></pre>
             <p>IntentTrace 서버를 재시작하면 다시 로그인해야 합니다.</p>
             """.trimIndent(),
@@ -153,7 +153,7 @@ private fun successPage(session: IssuedGitHubUserSession): String =
 
 private fun errorPage(message: String): String = page(
     title = "GitHub 연결 실패",
-    content = "<p>${escapeHtml(message)}</p><p><a href=\"/auth/github/start\">다시 연결하기</a></p>",
+    content = "<p>${escapeHtml(message)}</p><p><a href=\"/auth/github/start\">다시 로그인</a></p>",
 )
 
 private val HTML_UTF8 = MediaType("text", "html", Charsets.UTF_8)

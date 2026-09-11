@@ -65,7 +65,7 @@ class RepositoryAccessService(
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
 
 class LocalGitHubUserSessionRequiredException :
-    RuntimeException("IntentTrace에서 발급한 its_ session으로 요청해야 합니다.")
+    RuntimeException("IntentTrace 로그인 화면에서 받은 its_ 세션 토큰으로 요청하세요.")
 
 class GitHubIdentityApiException(message: String) : RuntimeException(message)
 

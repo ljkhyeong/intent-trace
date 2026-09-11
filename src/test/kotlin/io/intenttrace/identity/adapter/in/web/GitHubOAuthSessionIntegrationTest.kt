@@ -215,7 +215,7 @@ class GitHubOAuthSessionIntegrationTest(
                 header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
                 header { string("Referrer-Policy", "no-referrer") }
                 content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
-                content { string(containsString("GitHub 승인 요청을 완료하지 못했습니다.")) }
+                content { string(containsString("GitHub 인증 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")) }
             }
         } finally {
             userAccess.failAuthentication = false
