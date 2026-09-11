@@ -119,6 +119,9 @@ internal open class RecordBrowserDialog(
             add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
                 add(previous)
                 add(next)
+                add(JButton("새로고침").apply {
+                    addActionListener { reload(query, list.selectedValue?.id) }
+                })
                 add(open)
             }, BorderLayout.SOUTH)
         }, BorderLayout.SOUTH)
@@ -127,11 +130,11 @@ internal open class RecordBrowserDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun reload(nextQuery: RecordListQuery) {
+    private fun reload(nextQuery: RecordListQuery, selectedRecordId: String? = null) {
         val loaded = loadPage(nextQuery) ?: return restoreFilters()
         query = nextQuery
         page = loaded
-        displayPage()
+        displayPage(selectedRecordId)
     }
 
     private fun restoreFilters() {
@@ -139,13 +142,14 @@ internal open class RecordBrowserDialog(
         fileOnly.isSelected = query.path != null
     }
 
-    private fun displayPage() {
+    private fun displayPage(selectedRecordId: String? = null) {
         restoreFilters()
         rows.clear()
         rows.addAll(page.items)
+        list.selectedIndex = page.items.indexOfFirst { it.id == selectedRecordId }
         previous.isEnabled = page.page > 0
         next.isEnabled = page.hasNext
-        open.isEnabled = false
+        open.isEnabled = list.selectedValue != null
         pageLabel.text = "${query.scope} · ${query.path ?: "저장소 전체"} · ${query.status?.let(IntentTraceTextRenderer::status) ?: "모든 상태"} · " +
             "${page.page + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)

@@ -102,6 +102,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             val search = buttons.single { it.text == "조회" }
             val previous = buttons.single { it.text == "이전 페이지" }
             val next = buttons.single { it.text == "다음 페이지" }
+            val refresh = buttons.single { it.text == "새로고침" }
             val open = buttons.single { it.text == "선택 기록 열기" }
             val pageLabel = UIUtil.findComponentsOfType(panel, JLabel::class.java).single { it.text?.contains("페이지") == true }
             val originalLabel = pageLabel.text
@@ -128,6 +129,12 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             assertEquals(originalLabel, pageLabel.text)
             assertSame(record, list.selectedValue)
 
+            refresh.doClick()
+            assertEquals(query, requests.last())
+            assertEquals(originalLabel, pageLabel.text)
+            assertSame(record, list.selectedValue)
+            assertTrue(open.isEnabled)
+
             response = ChangeRecordPage(emptyList(), 0, 20, false)
             filter.selectedIndex = draftFilter
             fileOnly.isSelected = false
@@ -141,6 +148,74 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             assertFalse(previous.isEnabled)
             assertFalse(next.isEnabled)
             assertFalse(open.isEnabled)
+        } finally {
+            dialog.close(0)
+        }
+    }
+
+    fun testRefreshKeepsCurrentQueryAndSelectionByIdUntilRecordLeavesPage() {
+        val context = RepositoryFileContext("team/repository", "src/App.kt")
+        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, page = 2)
+        val record = ChangeRecordSummary(
+            "record-id", "공개 기록", "PUBLISHED", "a".repeat(40), CreatedByResponse("developer"), "2026-08-30T00:00:00Z",
+        )
+        val other = record.copy(id = "other-id", title = "다른 기록")
+        val updated = record.copy(status = "SUPERSEDED")
+        val initialPage = ChangeRecordPage(listOf(other, record), 2, 20, true)
+        val requests = mutableListOf<RecordListQuery>()
+        var response = initialPage.copy(items = listOf(updated, other), hasNext = false)
+        var centerPanel: JComponent? = null
+        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
+            requests.add(requested)
+            response
+        }) {
+            override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+        }
+        try {
+            val panel = requireNotNull(centerPanel)
+            val filter = requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java))
+            val fileOnly = requireNotNull(UIUtil.findComponentOfType(panel, JBCheckBox::class.java))
+            val list = requireNotNull(UIUtil.findComponentOfType(panel, JList::class.java))
+            val buttons = UIUtil.findComponentsOfType(panel, JButton::class.java)
+            val refresh = buttons.single { it.text == "새로고침" }
+            val previous = buttons.single { it.text == "이전 페이지" }
+            val next = buttons.single { it.text == "다음 페이지" }
+            val open = buttons.single { it.text == "선택 기록 열기" }
+            val pageLabel = UIUtil.findComponentsOfType(panel, JLabel::class.java).single { it.text?.contains("페이지") == true }
+            val originalFilter = filter.selectedItem
+            list.selectedIndex = 1
+            filter.selectedIndex = (0 until filter.itemCount).first { filter.getItemAt(it).toString() == "내 비공개 기록 · 초안" }
+            fileOnly.isSelected = false
+
+            refresh.doClick()
+
+            assertEquals(listOf(query), requests)
+            assertEquals(originalFilter, filter.selectedItem)
+            assertTrue(fileOnly.isSelected)
+            assertSame(updated, list.selectedValue)
+            assertEquals(0, list.selectedIndex)
+            assertTrue(pageLabel.text.contains("3페이지 · 2건"))
+            assertTrue(previous.isEnabled)
+            assertFalse(next.isEnabled)
+            assertTrue(open.isEnabled)
+
+            response = response.copy(items = listOf(other))
+            refresh.doClick()
+
+            assertNull(list.selectedValue)
+            assertEquals(1, list.model.size)
+            assertFalse(open.isEnabled)
+
+            response = response.copy(items = emptyList())
+            refresh.doClick()
+
+            assertEquals(listOf(query, query, query), requests)
+            assertEquals(0, list.model.size)
+            assertTrue(pageLabel.text.contains("3페이지 · 0건"))
+            assertTrue(previous.isEnabled)
+            assertFalse(next.isEnabled)
+            assertFalse(open.isEnabled)
+            assertTrue(refresh.isEnabled)
         } finally {
             dialog.close(0)
         }
