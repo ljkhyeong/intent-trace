@@ -54,6 +54,8 @@ class RecordBrowsingTest {
     fun `과거 기록은 전체 커밋과 당시 스냅샷을 표시하고 코드 링크를 인코딩한다`() {
         val record = IntentTraceResponseParser.parseRecord(recordJson)
         val output = IntentTraceTextRenderer.renderHistory(record)
+        assertNull(record.verifications.single().source)
+        assertContains(output, "출처: 미확인")
         assertContains(output, revision)
         assertContains(output, "변경 전 커밋: $baseRevision")
         assertContains(output, "[변경 전] src/이전 #?.kt:3-5")

@@ -85,4 +85,5 @@ internal data class ChangeVerification(
     val exitCode: Int,
     val summary: String,
     val current: Boolean,
+    val source: String? = null,
 )

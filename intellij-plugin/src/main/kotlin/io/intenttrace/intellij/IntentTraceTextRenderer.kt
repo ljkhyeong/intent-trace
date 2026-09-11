@@ -4,7 +4,7 @@ internal object IntentTraceTextRenderer {
     fun render(lookup: LineLookup, records: List<ChangeIntentRecord>): String = buildString {
         appendLine("${lookup.repositoryKey} · ${lookup.revision.take(12)}")
         appendLine("${lookup.relativePath}:${lookup.line}")
-        append(renderRecords(records))
+        append(renderRecords(records, lookup.revision))
     }.trimEnd()
 
     fun renderHistory(record: ChangeIntentRecord): String = buildString {
@@ -15,7 +15,7 @@ internal object IntentTraceTextRenderer {
         append(renderRecords(listOf(record)))
     }.trimEnd()
 
-    private fun renderRecords(records: List<ChangeIntentRecord>): String = buildString {
+    private fun renderRecords(records: List<ChangeIntentRecord>, queryRevision: String? = null): String = buildString {
         records.forEachIndexed { index, record ->
             if (index > 0) appendLine().appendLine("────────────────────────────────────────")
             appendLine()
@@ -38,10 +38,21 @@ internal object IntentTraceTextRenderer {
                 appendLine("- 등록된 검증 결과가 없습니다.")
             } else {
                 record.verifications.forEach { verification ->
-                    val snapshot = if (verification.current) "기록 스냅샷과 일치" else "기록 스냅샷과 불일치"
+                    val snapshot = when {
+                        queryRevision != null && !queryRevision.equals(record.targetRevision, ignoreCase = true) -> "다른 커밋의 결과"
+                        verification.current -> "기록 스냅샷과 일치"
+                        else -> "기록 스냅샷과 불일치"
+                    }
                     appendLine("- [$snapshot, 종료 코드 ${verification.exitCode}] ${verification.command}")
                     appendLine("  ${verification.summary}")
+                    val origin = when (verification.source) {
+                        "LOCAL_RUNNER_REPORTED" -> "로컬 실행 도구에서 수집한 결과"
+                        "CLIENT_REPORTED" -> "클라이언트가 제출한 결과"
+                        else -> "미확인"
+                    }
+                    appendLine("  출처: $origin")
                 }
+                appendLine("서버는 테스트 실행 여부를 확인하지 않습니다.")
             }
 
             appendLine().appendLine("관련 코드")
