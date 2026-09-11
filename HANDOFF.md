@@ -574,3 +574,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 팀 기록 목록에 `내 공개 기록만 보기`와 `작성자 필터 해제`를 추가했다. 로그인 사용자의 숫자 ID를 기존 작성자 필터로 전달한다. 검색어·파일·상태를 유지하고 조건 변경 시 커서를 초기화한다.
 - `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*AuthenticatedRestIntegrationTest'` 18개와 최종 `./gradlew test` 185개 통과. 필터 적용·해제와 비공개 기록 제외, 탭 중복 제거·상태 필터, 검색 조건 유지·커서 초기화, 이전 REST 조회 계약을 확인했다. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-browser-scopes-focused.log`, `/tmp/intent-trace-browser-scopes-server.log`, 최종 시각은 2026-09-12 07:49 KST다. API·DB·IDE·의존성은 변경하지 않아 관련 독립 검증은 반복하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 기록함 새로고침
+
+- 시작 리비전 `8d533e4`, 미커밋 변경 없음. 코드 검증 대상은 `30933db`와 같다. 마지막 성공 조건과 현재 페이지 번호로 새로고침하고, 같은 기록이 남아 있으면 ID로 선택을 복원한다. 선택한 항목은 새 응답으로 교체하며 목록에서 빠지면 선택을 해제한다. 수정 중인 필터는 `조회`로 적용한다.
+- `./gradlew -p intellij-plugin test buildPlugin` 테스트 40개와 설치 ZIP 빌드 통과. 순서·상태 변경 후 선택 복원, 적용 전 필터 제외, 선택한 기록 제거·빈 페이지와 조회 실패 시 화면 유지를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-intellij-refresh.log`, 결과 시각은 2026-09-12 08:06 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
