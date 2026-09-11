@@ -5,6 +5,7 @@ import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeIntentHistory
 import io.intenttrace.record.application.ChangeRecordSummary
+import io.intenttrace.record.application.GitHubActionsResults
 import io.intenttrace.record.application.HistoricalIntent
 import io.intenttrace.record.application.IntentMatch
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -15,6 +16,7 @@ import java.net.URI
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
@@ -61,6 +63,18 @@ class RecordBrowserNavigationTest {
         val body = pages.history(actor, summary.repositoryKey, queryRevision, sourcePath, 1, result)
         assertEquals("/acme/project/blob/$sourceRevision/$sourcePath", link(body, "당시 코드 열기").path)
         assertFalse(body.contains("조회한 커밋의 코드 열기"))
+    }
+
+    @Test
+    fun `CI 실행이 없는 페이지에서도 이전 결과로 돌아가거나 새로고침할 수 있다`() {
+        val result = GitHubActionsResults(summary.repositoryKey, queryRevision, emptyList(), null, false, Instant.EPOCH)
+        val body = pages.github(actor, summary.repositoryKey, null, result, actionsPage = 2)
+        val base = "/records/github?repositoryKey=acme%2Fproject&revision=$queryRevision"
+        assertContains(body, "2페이지 · 0건")
+        assertContains(body, "이 페이지에 CI 실행이 없습니다. 이전 페이지에서 확인하세요.")
+        assertEquals("$base&page=1", link(body, "이전 실행 결과").toString())
+        assertEquals("$base&page=2", link(body, "결과 새로고침").toString())
+        assertFalse(body.contains("다음 실행 결과"))
     }
 
     private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(

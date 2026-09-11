@@ -179,7 +179,7 @@ class RecordBrowserController(
         require(repository != null || (number == null && ref == null)) { "저장소를 함께 입력해 주세요." }
         pages.github(it.actor, repository,
             number?.let { value -> githubContext.request(requireNotNull(repository), value) },
-            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) })
+            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) }, page)
     }
 
     @GetMapping("/connection")

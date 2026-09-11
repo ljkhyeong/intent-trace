@@ -307,6 +307,8 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         preview("pull-requests", overview)
         val ciLink = Regex("href=\"([^\"]+)\">이 커밋의 CI 결과 조회").find(overview)!!.groupValues[1].replace("&amp;", "&")
         assertEquals("/records/github?repositoryKey=acme%2Fbrowser&revision=${"c".repeat(40)}", ciLink)
+        val requestLink = Regex("href=\"([^\"]+)\">PR 내용 가져오기").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals("/records/github?repositoryKey=acme%2Fbrowser&number=12", requestLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString

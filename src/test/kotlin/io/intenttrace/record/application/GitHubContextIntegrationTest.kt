@@ -19,6 +19,8 @@ import org.springframework.context.annotation.Primary
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.web.util.HtmlUtils
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
@@ -83,12 +85,52 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         for (status in listOf("실패", "실행 대기", "실행 중", "결과 미확인", "진행 상태: future_status")) {
             assertContains(page, "<span class=\"status\">$status</span>")
         }
+        assertEquals("/records/pull-requests?repositoryKey=acme%2Fintent-trace&pullNumber=7",
+            link(page, "이 PR의 변경 기록 보기"))
+        val issue = mvc.get("/records/github?repositoryKey=acme/intent-trace&number=8") { cookie(cookie) }
+            .andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertContains(issue, "이슈 #8")
+        assertFalse(issue.contains("이 PR의 변경 기록 보기"))
         mvc.get("/api/v1/github/request-context?repositoryKey=acme/intent-trace&number=7") { cookie(cookie) }
             .andExpect { status { isUnauthorized() } }
         val directory = Path.of("build/reports/github-context")
         Files.createDirectories(directory)
         Files.writeString(directory.resolve("github.html"), page.replace("/assets/record-browser.css", "record-browser.css"))
         Files.copy(Path.of("src/main/resources/static/assets/record-browser.css"), directory.resolve("record-browser.css"), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    @Test
+    fun `브라우저 CI 결과는 같은 커밋으로 페이지를 왕복하고 현재 페이지를 다시 조회한다`() {
+        val cookie = Cookie(BROWSER_SESSION_COOKIE, session(SessionChannel.BROWSER))
+        val endpoint = "/records/github?repositoryKey=acme%2Fintent-trace&revision=$revision"
+        fun get(url: String): String = mvc.get(URI(url)) { cookie(cookie) }
+            .andExpect { status { isOk() }; header { string("Cache-Control", "no-store") } }
+            .andReturn().response.contentAsString
+
+        val first = get(endpoint)
+        assertContains(first, "1페이지 · 20건")
+        assertFalse(first.contains("이전 실행 결과"))
+        val next = link(first, "다음 실행 결과")
+        assertEquals("$endpoint&page=2", next)
+        val second = get(next)
+        assertContains(second, "2페이지 · 20건")
+        assertContains(second, "https://github.com/acme/intent-trace/actions/runs/21")
+
+        val refresh = link(second, "결과 새로고침")
+        assertEquals(next, refresh)
+        val calls = gateway.calls.get()
+        assertContains(get(refresh), "2페이지 · 20건")
+        assertEquals(calls + 1, gateway.calls.get())
+
+        val previous = link(second, "이전 실행 결과")
+        assertEquals("$endpoint&page=1", previous)
+        assertContains(get(previous), "1페이지 · 20건")
+
+        val last = get("$endpoint&page=50")
+        assertContains(last, "50페이지 · 20건")
+        assertFalse(last.contains("다음 실행 결과"))
+        assertEquals("$endpoint&page=49", link(last, "이전 실행 결과"))
+        assertEquals("$endpoint&page=50", link(last, "결과 새로고침"))
     }
 
     @Test
@@ -135,6 +177,10 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             "ghr_context", now.plusSeconds(7200)), channel).sessionToken
     }
 
+    private fun link(body: String, label: String): String = HtmlUtils.htmlUnescape(
+        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
+    )
+
     @TestConfiguration
     class Configuration {
         @Bean @Primary fun contextGateway() = FakeContextGateway()
@@ -149,18 +195,20 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val calls = AtomicInteger()
         override fun request(repository: GitHubRepository, number: Int): GitHubRequestContent {
             calls.incrementAndGet()
-            return GitHubRequestContent(GitHubRequestKind.PULL_REQUEST, "<script>자료 확인</script>",
+            val issue = number == 8
+            return GitHubRequestContent(if (issue) GitHubRequestKind.ISSUE else GitHubRequestKind.PULL_REQUEST, "<script>자료 확인</script>",
                 "secret=remote-secret\n/Users/owner/project\n" + "검토할 내용 ".repeat(400),
-                "https://github.com/${repository.key}/pull/$number", Instant.parse("2026-09-07T00:00:00Z"))
+                "https://github.com/${repository.key}/${if (issue) "issues" else "pull"}/$number", Instant.parse("2026-09-07T00:00:00Z"))
         }
         override fun actions(repository: GitHubRepository, revision: String, page: Int): GitHubActionsPage {
             calls.incrementAndGet()
             val now = Instant.parse("2026-09-07T00:00:00Z")
             return GitHubActionsPage(1001, List(20) { index ->
+                val id = (page - 1) * 20 + index + 1L
                 val status = when (index) { 1 -> "queued"; 2 -> "in_progress"; 4 -> "future_status"; else -> "completed" }
                 val conclusion = if (index in 1..4) null else "failure"
-                GitHubActionsRun(index + 1L, 2, "서버 검증", revision, "pull_request", status, conclusion,
-                    now, now, "https://github.com/${repository.key}/actions/runs/${index + 1}")
+                GitHubActionsRun(id, 2, "서버 검증", revision, "pull_request", status, conclusion,
+                    now, now, "https://github.com/${repository.key}/actions/runs/$id")
             })
         }
     }
