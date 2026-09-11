@@ -219,6 +219,8 @@ class RecordBrowserController(
     private fun returnTo(request: HttpServletRequest): String = if (request.method == "GET")
         BrowserReturnPath.validate(request.requestURI + request.queryString?.let { "?$it" }.orEmpty()) else "/records/sessions"
 
+    private fun retryUrl(request: HttpServletRequest): String? = request.takeIf { it.method == "GET" }?.let(::returnTo)
+
     private fun read(request: HttpServletRequest, render: (GitHubUserSession) -> String): ResponseEntity<String> =
         authenticated(request, returnTo(request)) { browserResponse(render(it)) }
 
@@ -247,7 +249,8 @@ class RecordBrowserController(
     fun stateConflict(): ResponseEntity<String> = browserResponse(pages.error("기록의 현재 상태에서는 확인할 수 없습니다. 먼저 작성자 확인을 완료해 주세요."), 409)
 
     @ExceptionHandler(GitHubIdentityApiException::class, GitHubOAuthException::class, GitHubApiException::class)
-    fun dependencyFailure(): ResponseEntity<String> = browserResponse(pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."), 502)
+    fun dependencyFailure(request: HttpServletRequest): ResponseEntity<String> = browserResponse(
+        pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", retryUrl(request)), 502)
 
     @ExceptionHandler(GitHubUserAuthenticationException::class)
     fun expired(request: HttpServletRequest): ResponseEntity<String> = browserResponse(pages.login(
@@ -255,8 +258,9 @@ class RecordBrowserController(
     ))
 
     @ExceptionHandler(GitHubRateLimitException::class)
-    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> {
-        val response = browserResponse(pages.error("GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요."), 429)
+    fun rateLimited(exception: GitHubRateLimitException, request: HttpServletRequest): ResponseEntity<String> {
+        val response = browserResponse(pages.error(
+            "GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요.", retryUrl(request)), 429)
         return ResponseEntity.status(response.statusCode).headers(response.headers)
             .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString()).body(response.body)
     }

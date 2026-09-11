@@ -56,7 +56,53 @@ import kotlin.test.assertTrue
 @AutoConfigureMockMvc
 class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,
-    @Autowired private val sessionManagement: UserSessionManagement) {
+    @Autowired private val sessionManagement: UserSessionManagement,
+    @Autowired private val userAccess: GitHubOAuthSessionIntegrationTest.TestGitHubUserAccessGateway) {
+    @Test
+    fun `일시 장애 후 같은 세션과 검색 조건으로 목록과 기록을 다시 조회한다`() {
+        val record = records.create(command("조회 복구"), ActorIdentity.github(42, "lim"))
+        val searchUrl = URI(url("/records", "repositoryKey" to "acme/browser", "scope" to "MINE",
+            "q" to "요청 & + % \"<입력>\"", "status" to "DRAFT", "path" to "src/App.kt"))
+        val cookie = login(searchUrl.toString())
+        for (target in listOf(searchUrl, URI("/records/${record.id}?${searchUrl.rawQuery}"))) {
+            userAccess.failAuthentication = true
+            val failed = try {
+                mvc.get(target) { cookie(cookie) }.andExpect {
+                    status { isBadGateway() }
+                    header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+                    header { string("Referrer-Policy", "no-referrer") }
+                }.andReturn().response.contentAsString
+            } finally {
+                userAccess.failAuthentication = false
+            }
+            assertEquals(target, link(failed, "다시 조회"))
+            assertFalse(failed.contains(cookie.value))
+            assertFalse(failed.contains("테스트 사용자 조회 장애"))
+            mvc.get(link(failed, "다시 조회")) { cookie(cookie) }.andExpect {
+                status { isOk() }; content { string(containsString("로그아웃</button>")) }
+            }
+            preview("retry-query", failed)
+        }
+    }
+
+    @Test
+    fun `연결 종료 중 장애가 나면 종료 요청의 재조회 링크를 만들지 않는다`() {
+        val cookie = login("/records/sessions")
+        val sessionId = sessionStore.resolve(cookie.value).sessionId!!
+        userAccess.failAuthentication = true
+        try {
+            for (target in listOf("/records/sessions/$sessionId/revoke", "/records/sessions/revoke-all")) {
+                val failed = mvc.post(target) { cookie(cookie); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }
+                    .andExpect { status { isBadGateway() } }.andReturn().response.contentAsString
+                assertFalse(failed.contains("다시 조회"))
+                assertEquals(URI("/records"), link(failed, "기록 찾기로 이동"))
+            }
+        } finally {
+            userAccess.failAuthentication = false
+        }
+        assertEquals(sessionId, sessionStore.resolve(cookie.value).sessionId)
+    }
+
     @Test
     fun `웹 연결 목록은 본인 연결만 보이고 동일 출처에서 선택 및 전체 종료한다`() {
         val actor = ActorIdentity.github(42, "lim")
@@ -381,9 +427,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
-        mvc.get("/records/connection") {
-            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("revision", "e".repeat(40))
-        }.andExpect { status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") } }
+        val limitedUrl = URI(url("/records/connection", "repositoryKey" to "acme/browser", "revision" to "e".repeat(40)))
+        val limited = mvc.get(limitedUrl) { cookie(connectionCookie) }.andExpect {
+            status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") }
+            content { string(containsString("12초 후 다시 시도해 주세요.")) }
+        }.andReturn().response.contentAsString
+        assertEquals(limitedUrl, link(limited, "다시 조회"))
+        preview("rate-limited", limited)
         val comparisonCookie = login("/records/${successor.id}/comparison")
         val searchUrl = url("/records", "repositoryKey" to "acme/browser", "scope" to "MINE", "q" to "<후속 판단> & + %")
         val successorUrl = URI("/records/${successor.id}?${URI(searchUrl).rawQuery}")

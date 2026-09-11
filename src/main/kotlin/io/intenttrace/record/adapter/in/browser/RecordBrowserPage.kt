@@ -126,8 +126,11 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"${html(recordUrl(record.id, searchUrl, "activities"))}\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p></aside></div>")
     })
 
-    fun error(message: String): String = layout("기록을 열 수 없습니다", null,
-        "<section class=\"empty\"><h1>기록을 열 수 없습니다</h1><p>${html(message)}</p><a class=\"button\" href=\"/records\">기록 찾기로 이동</a></section>")
+    fun error(message: String, retryUrl: String? = null): String = layout("기록을 열 수 없습니다", null, """
+        <section class="empty"><h1>기록을 열 수 없습니다</h1><p>${html(message)}</p>
+        ${retryUrl?.let { "<p><a class=\"button\" href=\"${html(it)}\">다시 조회</a></p>" }.orEmpty()}
+        <a class="button secondary" href="/records">기록 찾기로 이동</a></section>
+    """.trimIndent())
 
     internal fun codeUrl(repository: String, revision: String, path: String, startLine: Int, endLine: Int): String {
         val encodedPath = path.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8) }
