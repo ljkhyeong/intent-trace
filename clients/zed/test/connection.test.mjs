@@ -11,6 +11,28 @@ import { retryAfterSeconds, safeFailure } from '../errors.mjs';
 const script = fileURLToPath(new URL('../intent-trace.mjs', import.meta.url));
 const token = `its_${'x'.repeat(43)}`;
 
+test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 연결 없이 성공한다', () => {
+  const env = { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' };
+  for (const mode of ['chek', 'constructor', token]) {
+    const result = spawnSync(process.execPath, [script, mode], { env, encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /알 수 없는 명령/);
+    assert.ok(!result.stderr.includes(token));
+    assert.equal(result.stdout, '');
+  }
+  for (const args of [[], ['--help'], ['-h'], ['check', '--help'], ['serve', '-h'],
+    ['config', '--help'], ['configure', '--help'], ['check', 'http://127.0.0.1:1/mcp', 'acme/project', '--help']]) {
+    const result = spawnSync(process.execPath, [script, ...args], { env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /사용법: intent-trace-zed/);
+    assert.equal(result.stderr, '');
+    if (args[0] === 'check') {
+      assert.match(result.stdout, /--revision 커밋/);
+      assert.match(result.stdout, /--pr 번호/);
+    }
+  }
+});
+
 test('설정에 토큰을 넣지 않고 절대 실행 경로를 생성한다', () => {
   const result = spawnSync(process.execPath, [script, 'config'], {
     env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: token }, encoding: 'utf8',

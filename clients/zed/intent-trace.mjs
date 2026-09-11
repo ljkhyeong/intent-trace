@@ -8,6 +8,20 @@ import { BridgeFailure } from './errors.mjs';
 
 const script = fileURLToPath(import.meta.url);
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
+const commandUsage = {
+  config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
+  configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
+  check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. PR·커밋을 지정하려면 저장소도 필요합니다.',
+  serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
+  launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
+};
+
+function printHelp(mode) {
+  console.log(mode ? `사용법: intent-trace-zed ${commandUsage[mode]}`
+    : `사용법: intent-trace-zed <명령> [옵션]\n\n${Object.values(commandUsage).join('\n\n')}`);
+  console.log('\nMCP 주소는 INTENT_TRACE_MCP_URL 환경 변수, 없으면 http://127.0.0.1:8080/mcp를 사용합니다.');
+  console.log('check·serve에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
+}
 
 export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl) {
   let url;
@@ -50,6 +64,13 @@ function checkOptions(args) {
 
 async function main() {
   const [mode, ...arguments_] = process.argv.slice(2);
+  if (!mode || ['--help', '-h'].includes(mode)) return printHelp();
+  if (!Object.hasOwn(commandUsage, mode)) {
+    console.error('알 수 없는 명령입니다. intent-trace-zed --help로 사용법을 확인하세요.');
+    process.exitCode = 1;
+    return;
+  }
+  if (mode !== 'launch' && arguments_.some(value => ['--help', '-h'].includes(value))) return printHelp(mode);
   if (mode === 'launch') {
     const bundled = new URL('./zed-with-intent-trace.py', import.meta.url);
     const launcher = existsSync(bundled) ? bundled : new URL('../../scripts/zed-with-intent-trace.py', import.meta.url);
@@ -77,10 +98,6 @@ async function main() {
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
   if (positionals.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
-  if (!['config', 'serve', 'check'].includes(mode)) {
-    console.log('사용법: intent-trace-zed config|serve [MCP 주소], check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호], configure [MCP 주소] [--settings 설정파일] [--apply], launch [Zed 인자]');
-    return;
-  }
   const url = endpoint(address);
   if (mode === 'config') {
     console.log(JSON.stringify({ context_servers: { 'intent-trace': {
