@@ -567,3 +567,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin` 테스트 39개와 설치 ZIP 빌드 통과. 원본·대체 ID 전달, 명시적 클릭 시 조회, 커밋 없는 후속 초안, 연결 정보 없는 응답과 원본 표시를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-intellij-original-record.log`, 결과 시각은 2026-09-12 07:45 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 웹 조회 범위와 내 공개 기록 필터
+
+- 시작 리비전 `a17413f`, 미커밋 변경 없음. 코드 검증 대상은 `30010fd`와 같다. API 호환 값이 웹 선택지에 섞여 팀 공개 탭이 중복되고 `MY_DRAFTS` 주소에 공개 상태 필터가 나오던 오류를 수정했다. 웹에서는 `MINE`·`TEAM`만 표시하고 이전 웹 주소는 `MINE`으로 처리한다.
+- 팀 기록 목록에 `내 공개 기록만 보기`와 `작성자 필터 해제`를 추가했다. 로그인 사용자의 숫자 ID를 기존 작성자 필터로 전달한다. 검색어·파일·상태를 유지하고 조건 변경 시 커서를 초기화한다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*AuthenticatedRestIntegrationTest'` 18개와 최종 `./gradlew test` 185개 통과. 필터 적용·해제와 비공개 기록 제외, 탭 중복 제거·상태 필터, 검색 조건 유지·커서 초기화, 이전 REST 조회 계약을 확인했다. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-browser-scopes-focused.log`, `/tmp/intent-trace-browser-scopes-server.log`, 최종 시각은 2026-09-12 07:49 KST다. API·DB·IDE·의존성은 변경하지 않아 관련 독립 검증은 반복하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
