@@ -553,3 +553,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 기존 `source` 응답을 읽어 로컬 실행 도구 수집·클라이언트 제출·미확인을 구분한다. 필드가 없거나 알 수 없는 값이면 출처를 추정하지 않는다. 서버의 테스트 실행 확인과 구분하는 안내를 추가했다.
 - `./gradlew -p intellij-plugin test buildPlugin` 테스트 37개와 설치 ZIP 빌드 통과. 조회 커밋 차이·단건 상세 구분, 출처와 구버전 응답 처리를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:25 KST다. 로그는 `/tmp/intent-trace-intellij-verification-context.log`다.
 - ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다. 서버·API·DB·Zed·설정·의존성은 바꾸지 않아 해당 검증은 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 호출 제한 복구 안내
+
+- 시작 리비전 `a01dc8e`, 미커밋 변경 없음. 코드 검증 대상은 `96c0214`와 같다. 조회·상태 확인·세션 해제에서 `429`를 일반 오류로 처리하던 부분을 개선했다. 서버가 `Retry-After`에 반환한 초 단위 대기 시간을 표시하고, 읽을 수 없는 값은 대기 시간 미확인으로 안내한다. 세션 해제 실패는 예외로 전달해 기존 PasswordSafe 삭제 전에 중단한다.
+- `./gradlew -p intellij-plugin test buildPlugin` 테스트 38개와 설치 ZIP 빌드 통과. 로컬 HTTP stub으로 120초·0초·누락·음수·숫자 범위 초과·잘못된 헤더를 세 작업에 확인했다. 오류 본문·토큰을 예외에 포함하지 않고 작업당 한 번만 요청하는지 검증했다.
+- `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:38 KST다. 로그는 `/tmp/intent-trace-intellij-rate-limit.log`, ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 서버·REST·MCP·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·세션 삭제·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
