@@ -77,6 +77,8 @@ java -jar intent-trace-0.6.0.jar
 
 로그인 후 기록 화면의 **이슈·PR·CI**(`/records/github`)에서 저장소와 이슈·PR 번호를 입력하면 제목·본문 발췌·출처 링크를 가져옵니다. 내용을 검토한 뒤 Agent에서 초안 작성에 활용합니다. 커밋 해시(전체 길이)로 이미 실행된 Actions 결과도 조회할 수 있습니다.
 
+PR 내용에서 `이 PR의 변경 기록 보기`로 게시 기록을 열고, PR 기록 화면에서는 `PR 내용 가져오기`로 돌아갈 수 있습니다. CI 결과의 이전·다음 페이지와 `결과 새로고침`은 같은 저장소·커밋을 조회합니다. 새로고침은 현재 페이지를 다시 읽으며 CI를 실행하지 않습니다.
+
 **PR 기록** 화면에서는 **이 커밋의 CI 결과 조회**로 바로 이동합니다. 링크는 화면에 표시한 PR 커밋을 기준으로 하며, 갱신된 PR의 결과가 필요하면 PR 기록을 다시 조회합니다.
 
 - Agent: `get_github_request_context(repositoryKey, number)`, `list_github_actions_runs(repositoryKey, revision, page?)`

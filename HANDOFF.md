@@ -532,3 +532,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test` 33개 통과. 같은 제목의 기록 선택, 선택한 ID 전달, 파일 경로 유지, 읽기 전용 표시와 명시적 실행을 SDK 테스트로 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:06 KST다. 로그는 `/tmp/intent-trace-intellij-result-navigation.log`다.
 - `./gradlew -p intellij-plugin buildPlugin` 통과. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`, 로그는 `/tmp/intent-trace-intellij-result-package.log`다.
 - 서버·DB·Zed·플러그인 설정·의존성을 변경하지 않아 해당 검증은 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 CI 결과 탐색과 PR 기록 연결
+
+- 시작 리비전 `f31fd33`, 미커밋 변경 없음. 코드 검증 대상은 `4f9fcbf`와 같다. CI 결과에 이전 페이지·현재 페이지 새로고침·페이지 번호와 건수를 추가했다. PR 내용과 PR 변경 기록 화면을 저장소·번호로 연결하며 일반 이슈에는 PR 링크를 표시하지 않는다.
+- `./gradlew focusedTest --tests '*GitHubContextIntegrationTest' --tests '*RecordBrowserNavigationTest' --tests '*RecordBrowserIntegrationTest'` 16개와 최종 `./gradlew test` 184개 통과. 첫·마지막·빈 페이지, 같은 저장소·커밋으로 페이지 왕복과 새로고침, PR·이슈 링크 구분을 확인했다. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-github-navigation-focused.log`, `/tmp/intent-trace-github-navigation-server.log`, 최종 결과 시각은 2026-09-12 07:14 KST다. README·ADR·변경 이력을 현재 동작에 맞췄다.
+- REST·MCP 응답·DB·의존성·IDE 코드는 유지했다. 새 CI 실행·자동 반복 조회·유료 연동은 추가하지 않았다. IntelliJ·PostgreSQL·Zed 패키지 독립 검증은 변경이 없어 생략했다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
