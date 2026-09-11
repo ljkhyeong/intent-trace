@@ -351,6 +351,8 @@ Zed Agent에서는 공식 MCP SDK 중계기로 연결합니다. 0.12.0부터 의
 
 Zed 연결 점검의 `check <MCP 주소> <owner/repo>`에 `--pr <번호>`와 `--revision <전체 커밋 해시>`를 추가하면 PR·코드 읽기 권한도 확인할 수 있습니다. PR만 지정하면 해당 PR의 현재 커밋으로 확인합니다.
 
+`node clients/zed/intent-trace.mjs --help`로 전체 사용법을, `check --help`로 점검 옵션을 확인하세요. 도움말에는 서버 연결이나 세션이 필요 없습니다.
+
 저장소에서 직접 실행하려면 다음 절차를 사용합니다. Node.js 22 이상에서 설정을 생성하고 Zed 사용자 설정에 추가한 뒤 세션 입력 도구로 실행합니다. 자세한 절차와 연결 점검은 [Zed 사용 안내](docs/clients/zed.md)에 있습니다.
 
 ```bash

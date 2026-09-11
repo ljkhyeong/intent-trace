@@ -62,6 +62,8 @@ python3 scripts/zed-with-intent-trace.py .
 
 ## 연결만 먼저 점검하기
 
+전체 사용법은 `node clients/zed/intent-trace.mjs --help`, 점검 옵션은 `node clients/zed/intent-trace.mjs check --help`로 확인한다. 도움말에는 로그인이나 서버 연결이 필요 없다. 알 수 없는 명령은 종료 코드 1로 실패한다.
+
 환경 변수로 `INTENT_TRACE_SESSION_TOKEN`이 전달된 터미널에서 실행한다. 실제 token을 명령에 적지 않는다.
 
 ```bash

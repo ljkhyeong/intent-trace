@@ -595,3 +595,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `npm test --prefix clients/zed`: Node 테스트 10개와 Python 실행 도구 테스트 3개 통과. 잘못된 옵션·PR 번호·저장소 누락 안내에서 입력 원문이 나오지 않는지와 기존 연결·JSONC 설정·배포 패키지의 오프라인 설치를 확인했다. 로그는 `/tmp/intent-trace-zed-diagnostic-options-node.log`다.
 - 최종 `./gradlew test` 187개 통과. 포함된 `ZedBridgeIntegrationTest` 2개가 실제 stdio → HTTP MCP → Spring 진단 경로로 기본 점검, PR HEAD 사용, 명시한 40·64자 커밋 전달을 확인했다. GitHub 응답은 mock이며 실제 GitHub 접근 성공을 뜻하지 않는다. 별도 Zed 부분 테스트는 반복하지 않았다.
 - `python3 scripts/test-summary.py server` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 08:21 KST다. 로그는 `/tmp/intent-trace-zed-diagnostic-options-server.log`다. 서버 API·DB·IntelliJ·의존성은 변경하지 않았다. 실제 Zed 앱 조작·사용자 설정 적용·패키지 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 Zed 명령 오류와 도움말
+
+- 시작 리비전 `c926e0a`, 미커밋 변경 없음. 코드 검증 대상은 `1090459`와 같다. 수정 전 `chek`가 종료 코드 0을 반환하고 `check --help`는 실패하는 것을 재현했다. 알 수 없는 명령은 입력 원문 없이 종료 코드 1로 안내하고 전체·명령별 도움말은 주소·세션 검사 전에 처리한다. `launch`의 Zed 인자 전달은 유지한다.
+- `npm test --prefix clients/zed`: Node 테스트 11개와 Python 실행 도구 테스트 3개 통과. 잘못된 주소·빈 세션에서도 도움말을 읽을 수 있고, 명령 오입력에 비밀값이 섞여도 안내에 노출되지 않는지 확인했다. 기존 설정·연결·배포 패키지의 오프라인 설치도 통과했다. 로그는 `/tmp/intent-trace-zed-cli-help-node.log`다.
+- `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'` 2개 통과. 실제 stdio → HTTP MCP → Spring 연결에서 기존 기본 점검과 PR·커밋 전달을 확인했다. `python3 scripts/test-summary.py focused` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 08:29 KST다. 로그는 `/tmp/intent-trace-zed-cli-help-mcp.log`다.
+- 서버 코드·API·DB·IntelliJ·의존성은 변경하지 않아 서버 전체·IDE 검증은 반복하지 않았다. 실제 Zed 앱 조작·사용자 설정 적용·게시·배포는 수행하지 않았다.
