@@ -175,6 +175,43 @@ class IntentTraceApiClientTest {
     }
 
     @Test
+    fun `호출 제한은 대기 시간을 안내하고 오류 본문 노출이나 자동 재시도를 하지 않는다`() {
+        val unknown = "대기 시간을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        for ((retryAfter, guidance) in listOf(
+            "120" to "120초 후 다시 시도해 주세요.",
+            "0" to "0초 후 다시 시도해 주세요.",
+            null to unknown,
+            "-1" to unknown,
+            "999999999999999999999" to unknown,
+            token to unknown,
+        )) {
+            val calls = AtomicInteger()
+            withServer(path = "/", handler = { exchange ->
+                calls.incrementAndGet()
+                retryAfter?.let { exchange.responseHeaders.add("Retry-After", it) }
+                val body = "test-private-response-marker $token".toByteArray()
+                exchange.sendResponseHeaders(429, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }) { server ->
+                val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+                val api = IntentTraceApiClient()
+                val operations = listOf<() -> Unit>(
+                    { lookup(server) },
+                    { api.checkConnection(endpoint) },
+                    { api.revokeSession(endpoint, token) },
+                )
+                operations.forEachIndexed { index, operation ->
+                    val error = assertFailsWith<IntentTraceClientException> { operation() }
+                    assertEquals("호출 제한에 도달했습니다. $guidance", error.message)
+                    assertFalse(error.stackTraceToString().contains(token))
+                    assertFalse(error.stackTraceToString().contains("test-private-response-marker"))
+                    assertEquals(index + 1, calls.get())
+                }
+            }
+        }
+    }
+
+    @Test
     fun `1MB를 넘는 한글 기록도 단건과 현재 줄 조회에서 끝까지 읽는다`() {
         val id = "3efecb93-18c5-4af7-84a7-f830d0b63281"
         val revision = "a".repeat(40)

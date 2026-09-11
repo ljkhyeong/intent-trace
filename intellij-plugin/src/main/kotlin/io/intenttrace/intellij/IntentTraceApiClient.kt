@@ -38,6 +38,7 @@ internal class IntentTraceApiClient {
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
                         204, 401 -> Unit
+                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         in 500..599 -> throw IntentTraceClientException(
                             "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
                         )
@@ -66,6 +67,7 @@ internal class IntentTraceApiClient {
                             }
                             bytes.toString(StandardCharsets.UTF_8)
                         }
+                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         else -> throw IntentTraceClientException(when {
                             sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
                             status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
@@ -77,6 +79,13 @@ internal class IntentTraceApiClient {
                     }
                 }
         }
+    }
+
+    private fun rateLimitMessage(retryAfter: String?): String {
+        val seconds = retryAfter?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
+        val guidance = seconds?.let { "${it}초 후 다시 시도해 주세요." }
+            ?: "대기 시간을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        return "호출 제한에 도달했습니다. $guidance"
     }
 
     private fun requireSessionToken(sessionToken: String) {
