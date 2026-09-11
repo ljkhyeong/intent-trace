@@ -218,14 +218,61 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `다른 작성자의 초안은 브라우저 검색과 단건 조회에 노출하지 않는다`() {
         val draft = records.create(command("브라우저 비공개 내용"), ActorIdentity.github(99, "other"))
+        val mine = records.create(command("내 비공개 내용"), ActorIdentity.github(42, "lim"))
         val cookie = login("/records?repositoryKey=acme%2Fbrowser&scope=MINE&q=비공개")
         mvc.get("/records/${draft.id}") { cookie(cookie) }.andExpect {
             status { isNotFound() }; content { string(containsString("기록이 없거나 열람 권한이 없습니다")) }
         }
-        val search = mvc.get("/records") { cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", "MINE"); param("q", "비공개") }
-            .andExpect { status { isOk() } }.andReturn().response.contentAsString
-        assertFalse(search.contains(draft.id.toString()))
-        assertFalse(search.contains(draft.title))
+        for (scope in listOf("MINE", "MY_DRAFTS")) {
+            val search = mvc.get("/records") {
+                cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", scope); param("q", "비공개"); param("status", "DRAFT")
+            }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertTrue(search.contains(mine.id.toString()))
+            assertFalse(search.contains(draft.id.toString()))
+            assertFalse(search.contains(draft.title))
+            val tabs = Regex("<nav class=\"scope-tabs\"[^>]*>(.*?)</nav>").find(search)!!.groupValues[1]
+            assertEquals(2, Regex("<a ").findAll(tabs).count())
+            assertEquals(1, Regex("aria-current").findAll(tabs).count())
+            assertTrue(tabs.contains("scope=MINE\" aria-current=\"page\">내 비공개 기록"))
+            assertFalse(tabs.contains("MY_DRAFTS"))
+            assertTrue(search.contains("name=\"scope\" value=\"MINE\""))
+            assertTrue(search.contains("value=\"DRAFT\" selected"))
+            assertFalse(search.contains("value=\"PUBLISHED\""))
+            assertFalse(search.contains("내 공개 기록만 보기"))
+        }
+    }
+
+    @Test
+    fun `내 공개 기록 바로가기는 로그인 사용자를 필터하고 해제하면 팀 기록을 함께 보여준다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val repository = "acme/my-public-records"
+        fun publish(owner: ActorIdentity) = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), owner).let { draft ->
+            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), owner)
+            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), owner)
+        }
+        val mine = publish(actor)
+        val teammate = publish(ActorIdentity.github(99, "other"))
+        val private = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), actor)
+        val cookie = login("/records")
+        val team = mvc.get("/records") {
+            cookie(cookie); param("repositoryKey", repository); param("q", "공개 기록 검색")
+            param("status", "PUBLISHED"); param("path", "src/App.kt")
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val mineUrl = Regex("href=\"([^\"]+)\">내 공개 기록만 보기").find(team)!!.groupValues[1].replace("&amp;", "&")
+        assertTrue(URI(mineUrl).query.contains("q=공개 기록 검색"))
+        assertTrue(mineUrl.contains("authorId=42"))
+        assertTrue(mineUrl.contains("status=PUBLISHED"))
+        assertTrue(mineUrl.contains("path=src%2FApp.kt"))
+        val onlyMine = mvc.get(URI(mineUrl)) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertTrue(onlyMine.contains(mine.id.toString()))
+        assertFalse(onlyMine.contains(teammate.id.toString()))
+        assertFalse(onlyMine.contains(private.id.toString()))
+        val clearUrl = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(onlyMine)!!.groupValues[1].replace("&amp;", "&")
+        val cleared = mvc.get(URI(clearUrl)) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertTrue(cleared.contains(mine.id.toString()))
+        assertTrue(cleared.contains(teammate.id.toString()))
+        assertFalse(cleared.contains(private.id.toString()))
+        preview("search-my-public-records", onlyMine)
     }
 
     @Test
@@ -257,6 +304,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val secondPage = mvc.get(URI(next)) { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("이 페이지 1건")) }
         }.andReturn().response.contentAsString
+        val clearAuthor = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        assertFalse(clearAuthor.contains("authorId=")); assertFalse(clearAuthor.contains("cursor="))
+        assertTrue(clearAuthor.contains("status=PUBLISHED")); assertTrue(clearAuthor.contains("path=src%2FApp.kt"))
+        assertTrue(URI(clearAuthor).query.contains("q=필터 기록"))
         val recordLink = Regex("<h3><a href=\"([^\"]+)\"").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
         val detail = mvc.get(URI(recordLink)) { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }

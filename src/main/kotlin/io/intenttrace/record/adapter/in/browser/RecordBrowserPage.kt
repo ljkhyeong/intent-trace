@@ -36,7 +36,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         layout("기록 찾기", actor, buildString {
             append("<header class=\"page-heading\"><h1>변경 기록 찾기</h1><p>어떤 요청이었고, 왜 이렇게 바꿨는지 찾아보세요.</p></header>")
             append("<nav class=\"scope-tabs\" aria-label=\"조회 범위\">")
-            RecordScope.entries.forEach { option ->
+            listOf(RecordScope.MINE, RecordScope.TEAM).forEach { option ->
                 val link = html(url("/records", "repositoryKey" to repository, "q" to q, "path" to path, "scope" to option.name))
                 append("<a href=\"$link\" ${if (option == scope) "aria-current=\"page\"" else ""}>${if (option == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</a>")
             }
@@ -53,6 +53,13 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 ${if (scope == RecordScope.TEAM) "<label>작성자 GitHub ID<input name=\"authorId\" type=\"number\" min=\"1\" step=\"1\" value=\"${authorId ?: ""}\" placeholder=\"숫자 ID · 선택\"></label>" else ""}
                 <button type="submit">검색</button></form>
             """.trimIndent())
+            val myAuthorId = actor.subject.removePrefix("github:").toLongOrNull()
+            if (scope == RecordScope.TEAM && myAuthorId != null) {
+                val mineOnly = authorId == myAuthorId
+                val link = url("/records", "repositoryKey" to repository, "q" to q, "path" to path,
+                    "scope" to scope.name, "status" to status?.name, "authorId" to if (mineOnly) null else myAuthorId.toString())
+                append("<p><a class=\"button secondary\" href=\"${html(link)}\">${if (mineOnly) "작성자 필터 해제" else "내 공개 기록만 보기"}</a></p>")
+            }
             if (page == null) {
                 append("<div class=\"empty\"><h2>저장소를 입력하세요</h2><p>검색어를 비워두면 최근 기록부터 볼 수 있습니다.</p></div>")
             } else {

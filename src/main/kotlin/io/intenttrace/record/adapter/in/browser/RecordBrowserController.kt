@@ -78,8 +78,9 @@ class RecordBrowserController(
         @RequestParam(required = false) authorId: Long?,
     ): ResponseEntity<String> = read(request) { session ->
         val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
-        pages.search(session.actor, repository, q, scope,
-            repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
+        val browserScope = if (scope == RecordScope.MY_DRAFTS) RecordScope.MINE else scope
+        pages.search(session.actor, repository, q, browserScope,
+            repository?.let { catalog.list(it, browserScope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
             status, path, authorId, returnTo(request))
     }
 
