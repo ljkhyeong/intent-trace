@@ -46,7 +46,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
 - 사용자별 활성 session은 기본 5개로 제한하고, 새 session 발급 시 상한을 넘는 가장 오래된 session을 폐기한다.
 - `DELETE /api/v1/session`은 현재 `its_` session만 폐기한다. `ghu_` 직접 인증은 로컬 session 폐기 대상이 아니다.
-- refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 갱신이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재승인을 요구한다. 사용자 subject가 바뀐 경우에도 세션을 폐기한다.
+- refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 갱신이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내한다. 사용자 subject가 바뀐 경우에도 세션을 폐기한다.
 - 세션 잠금을 기다리던 요청은 잠금 획득 후 세션이 아직 등록돼 있는지 확인한다. 앞선 요청이 폐기한 세션으로는 token 갱신이나 사용자 조회를 다시 수행하지 않는다.
 - 같은 `requestId`를 다른 사용자·저장소가 재사용하거나 저장할 내용이 달라지면 기존 기록을 반환하지 않고 충돌로 처리한다.
 - `requestId`에서 GitHub·IntentTrace token, client secret, private key 또는 개인 home 절대 경로가 감지되면 저장 전에 원문 없는 입력 오류로 거부하고, 충돌 오류에도 실제 값을 포함하지 않는다.
@@ -87,5 +87,5 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 
 - `GET /auth/github/start`에 선택 `returnTo`를 지정하면 ADR-0009의 브라우저 세션을 발급하고 기록 화면으로 돌아온다. 생략하면 기존 CLI용 `its_` 표시를 유지한다.
 - 브라우저 cookie에는 GitHub token 대신 `itb_`를 넣으며 기록 화면에서만 사용한다. REST·MCP는 cookie나 `itb_` Bearer를 받지 않는다.
-- 세션 목록의 `channel`은 `CLIENT` 또는 `BROWSER`, `expiresAt`은 로컬 세션의 실제 만료 시각이다. `accessExpiresAt`·`refreshExpiresAt`은 GitHub token 수명이고 로컬 세션 수명과 구분한다.
+- 세션 목록의 `channel`은 `CLIENT` 또는 `BROWSER`, `expiresAt`은 로컬 세션의 만료 시각이다. `accessExpiresAt`·`refreshExpiresAt`은 GitHub 토큰의 만료 시각이며 로컬 세션 만료 시각과 구분한다.
 - 본인의 선택·전체 세션 폐기는 브라우저 연결에도 적용한다. 브라우저 로그아웃은 현재 연결만 폐기한다.

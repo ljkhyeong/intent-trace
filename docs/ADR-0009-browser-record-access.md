@@ -14,7 +14,7 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 - 미로그인·만료 상태에는 내용을 숨긴 로그인 안내를 표시한다. 사용자가 로그인하면 원래 목록 또는 기록 화면으로 돌아온다.
 - `/auth/github/start?returnTo=...`의 복귀 주소를 검증한 뒤 OAuth state와 함께 서버 메모리에 보관한다. `/records`, UUID 단건·비교·코드 확인·변경 이력·Markdown 저장 경로와 `/records/pull-requests`, `/records/connection`, `/records/history`, `/records/sessions`, `/records/github`만 허용하고 외부 주소·authority·fragment·경로 이동을 거부한다. callback 입력의 복귀 주소는 신뢰하지 않는다.
 - 기존 cookie·일회성 state·TTL·PKCE 검증을 모두 통과한 뒤 브라우저용 `itb_` 세션을 발급한다. `HttpOnly`, `SameSite=Lax`, `Path=/records`를 적용하고 HTTPS 환경에서는 `Secure`도 적용한다.
-- `itb_`는 서버 메모리에 digest로 저장하고 발급 후 8시간에 만료한다. token 갱신으로 브라우저 수명을 연장하지 않는다. GitHub access·refresh token은 계속 서버 메모리에만 둔다.
+- `itb_`는 서버 메모리에 digest로 저장하고 발급 후 8시간에 만료한다. GitHub 토큰을 갱신해도 브라우저 세션 만료 시각은 바뀌지 않는다. GitHub access·refresh token은 계속 서버 메모리에만 둔다.
 - 브라우저 세션은 REST·MCP Bearer나 cookie 인증으로 사용하지 않는다. 기존 `/auth/github/start`의 CLI 연결은 `its_`를 한 번 표시하는 계약을 유지한다.
 - 화면의 변경 동작은 로그아웃과 본인 연결의 선택·전체 종료로 제한한다. 설정한 공개 origin과 요청의 `Origin`을 비교한다. `POST /records/logout`은 해당 브라우저 세션을 폐기하고 cookie를 지우며 GitHub 장애 중에도 로컬에서 처리한다. 다른 연결의 종료는 인증된 본인 세션 관리 서비스를 거친다.
 - HTML에는 사용자 입력을 이스케이프한다. 기록 Markdown을 그대로 HTML로 해석하지 않는다. 외부 스크립트·폰트·이미지는 불러오지 않고 `no-store`, `no-referrer`, 제한된 CSP를 적용한다.
@@ -25,7 +25,7 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 
 - REST·MCP 목록에 선택 `q`를 추가하고 브라우저가 같은 사용 사례를 호출한다.
 - 검색어는 최대 200자이며 앞뒤 공백을 제거한다. 빈 값은 기존 목록 조회와 같다.
-- 제목, 요청 요약, 판단 요약과 근거 중 검색어 전체를 포함하는 기록을 반환한다. 대소문자를 구분하지 않으며 `%`, `_`, `!`는 와일드카드가 아닌 문자 그대로 검색한다.
+- 제목·요청 요약·구현 결정 요약·결정 이유 중 검색어 전체를 포함하는 기록을 반환한다. 대소문자를 구분하지 않으며 `%`, `_`, `!`는 와일드카드가 아닌 문자 그대로 검색한다.
 - 권한·상태·작성자·파일 조건은 검색과 함께 적용한다. 판단 여러 개가 일치해도 기록은 한 번 반환한다. 기존 생성 시각·ID 커서 순서를 유지한다.
 - 현재는 저장소 범위의 부분 문자열 검색을 사용한다. 전문 검색 인덱스·관련도 정렬은 실제 사용량을 확인한 뒤 결정한다.
 

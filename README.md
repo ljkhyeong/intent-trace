@@ -258,7 +258,7 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 | 내 세션 관리 | `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions` |
 
 내 공개 기록으로 새 초안을 만들 때는 `create_successor_draft`를 사용합니다. 원본의 구현 결정을 복사하고 새 스냅샷 해시·관련 코드를 받으며 검증·확인 상태는 비웁니다. 원본 대체는 새 초안을 공개한 뒤 별도로 요청합니다.
-공개 기록을 대체할 때는 후속 기록을 먼저 확인·공개한 뒤 `supersede_change_record(recordId, expectedVersion, replacementRecordId)`를 호출합니다. 같은 작성자·저장소의 공개 기록끼리만 연결하며 기존 본문·증거는 유지합니다. `expectedVersion`은 기존 기록을 조회한 값입니다. 결과가 불확실하면 상태를 다시 조회하고, 새 버전으로 무조건 재시도하지 않습니다. 이 작업은 GitHub Check Run을 자동 갱신하지 않습니다.
+공개 기록을 대체할 때는 후속 기록을 먼저 확인·공개한 뒤 `supersede_change_record(recordId, expectedVersion, replacementRecordId)`를 호출합니다. 같은 작성자·저장소의 공개 기록끼리만 연결하며 기존 본문·코드 근거·검증 결과는 유지합니다. `expectedVersion`은 기존 기록을 조회한 값입니다. 결과가 불확실하면 상태를 다시 조회하고, 새 버전으로 무조건 재시도하지 않습니다. 이 작업은 GitHub Check Run을 자동 갱신하지 않습니다.
 
 ### 목록 조회
 

@@ -495,3 +495,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*ChangeRecordMarkdownRendererTest' --tests '*GitHubContextIntegrationTest'` 13개와 최종 `./gradlew test` 180개가 통과했다. 실패·오류·건너뜀은 없으며 부분 테스트는 전체에 포함된다. 로그인 후 다운로드 복귀, 파일 형식·헤더, REST 본문 일치, 다른 작성자의 비공개·없는 기록 거부, 기록 미변경과 CI 링크 커밋을 확인했다.
 - 로그는 `/tmp/intent-trace-browser-export-focused.log`, `/tmp/intent-trace-browser-export-server.log`이며 최종 결과 시각은 2026-09-08 10:17 KST다. `python3 scripts/test-summary.py focused`와 `python3 scripts/test-summary.py server`로 집계했다. 변경 문서 3개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다. 이후 이력·인계 문서만 추가했다.
 - IntelliJ·PostgreSQL·Zed 패키지·스킬은 변경하지 않아 독립 검증을 반복하지 않았다. 실제 브라우저 파일 저장 대화상자·GitHub 게시·배포는 확인하지 않았다.
+
+## 2026-09-11 오류·출처 표시와 문서 문구 정리
+
+- 시작 리비전 `e234584`, 미커밋 변경 없음. 코드 검증 대상은 `bb06a1f`와 같다. 서버·MCP 오류와 설명, IntelliJ 출처·로그인·주소 안내를 수정했다. 동작·API 필드·상태 코드·의존성은 유지했다.
+- `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*DraftManagementIntegrationTest' --tests '*AuthenticatedRestIntegrationTest' --tests '*ChangeRecordFacadeTest' --tests '*AuthenticatedMcpIntegrationTest'` 29개와 최종 `./gradlew test` 180개 통과. 부분 테스트는 전체에 포함된다. 로그는 `/tmp/intent-trace-clear-wording-focused.log`, `/tmp/intent-trace-clear-wording-server.log`이며 최종 결과 시각은 2026-09-11 23:11 KST다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트는 32개이며 로그는 `/tmp/intent-trace-clear-wording-intellij.log`다. `python3 scripts/test-summary.py server focused intellij`로 모두 실패·오류·건너뜀 0개를 확인했다.
+- README·설계 문서 10개의 로컬 링크 61개·제목 링크 6개와 `git diff --check` 통과. 일회성 Python 검사 결과는 `/tmp/intent-trace-clear-wording-docs.log`에 보관했다. 이후 변경 이력과 이 인계만 추가했다.
+- 실제 IDE 화면은 확인하지 않았다. DB·Zed 실행 코드·스킬을 변경하지 않아 해당 독립 검증은 생략했다. 원격 게시·배포는 수행하지 않았다.
