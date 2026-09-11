@@ -35,6 +35,7 @@ class RecordBrowsingTest {
             val query = RecordListQuery("team/repository", RecordListScope.MY_DRAFTS, "src/한 글#?.kt", "DRAFT", 2)
             val page = api.list(endpoint, token, query)
             val record = api.record(endpoint, token, id)
+            assertEquals("${endpoint.baseUri}/records/$id", endpoint.webRecordUri(id).toString())
 
             assertEquals(2, page.page)
             assertFalse(page.hasNext)
@@ -97,6 +98,7 @@ class RecordBrowsingTest {
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(draft, draft.codeAnchors[1]) }
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(record, ChangeCodeAnchor("../App.kt", 1, 1)) }
         assertFailsWith<IllegalArgumentException> { IntentTraceServer.parse(null).recordUri("../auth/github/start") }
+        assertFailsWith<IllegalArgumentException> { IntentTraceServer.parse(null).webRecordUri("../auth/github/start") }
     }
 
     companion object {

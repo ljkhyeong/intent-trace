@@ -15,6 +15,7 @@ import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.net.URI
 import javax.swing.Action
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
@@ -34,8 +35,10 @@ internal object IntentTraceRecordBrowser {
 
     fun showRecord(project: Project, id: String) {
         // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
-        val record = load(project) { server, token -> IntentTraceApiClient().record(server, token, id) } ?: return
-        RecordHistoryDialog(project, record).show()
+        val (record, webRecordUri) = load(project) { server, token ->
+            IntentTraceApiClient().record(server, token, id) to server.webRecordUri(id)
+        } ?: return
+        RecordHistoryDialog(project, record, webRecordUri).show()
     }
 
     fun <T> load(project: Project, request: (IntentTraceServer, String) -> T): T? {
@@ -171,7 +174,9 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
 internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
+    private val webRecordUri: URI,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
+    private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
     init {
         title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
@@ -179,6 +184,11 @@ internal open class RecordHistoryDialog(
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
+        add(JPanel(FlowLayout(FlowLayout.TRAILING)).apply {
+            add(JButton("웹에서 기록 열기").apply {
+                addActionListener { browse { webRecordUri } }
+            })
+        }, BorderLayout.NORTH)
         add(JBScrollPane(JBTextArea(IntentTraceTextRenderer.renderHistory(record)).apply {
             isEditable = false
             lineWrap = true
@@ -220,9 +230,9 @@ internal open class RecordHistoryDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun browse(uri: () -> java.net.URI) {
+    private fun browse(uri: () -> URI) {
         try {
-            BrowserUtil.browse(uri())
+            openBrowser(uri())
         } catch (error: IntentTraceUserException) {
             Messages.showErrorDialog(project, error.message, "IntentTrace")
         }

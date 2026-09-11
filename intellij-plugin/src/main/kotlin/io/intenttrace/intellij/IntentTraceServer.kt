@@ -29,6 +29,8 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
 
     fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
 
+    fun webRecordUri(id: String): URI = URI.create("$baseUri/records/${UUID.fromString(id)}")
+
     fun listUri(query: RecordListQuery): URI {
         val parameters = listOfNotNull(
             "repositoryKey" to query.repositoryKey,

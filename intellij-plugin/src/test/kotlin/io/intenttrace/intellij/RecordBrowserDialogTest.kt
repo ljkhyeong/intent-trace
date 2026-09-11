@@ -3,6 +3,7 @@ package io.intenttrace.intellij
 import com.intellij.testFramework.LightPlatformTestCase
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.UIUtil
+import java.net.URI
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
@@ -10,9 +11,12 @@ import javax.swing.JLabel
 import javax.swing.JList
 
 class RecordBrowserDialogTest : LightPlatformTestCase() {
+    private val recordId = "11111111-1111-4111-8111-111111111111"
+    private val webRecordUri = IntentTraceServer.parse("https://intenttrace.example.test").webRecordUri(recordId)
+
     fun testOriginalAndReplacementRecordsOpenIndependentlyOnRequest() {
         val draft = ChangeIntentRecord(
-            id = "record-id", title = "후속 기록", requestSummary = "변경 과정 확인", status = "DRAFT",
+            id = recordId, title = "후속 기록", requestSummary = "변경 과정 확인", status = "DRAFT",
             authorLogin = "developer", decisions = emptyList(), codeAnchors = emptyList(),
             verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
             targetRevision = null, supersededBy = null, derivedFromRecordId = "original-id",
@@ -21,7 +25,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             draft.copy(derivedFromRecordId = null))) {
             val opened = mutableListOf<String>()
             var centerPanel: JComponent? = null
-            val dialog = object : RecordHistoryDialog(project, record, { opened.add(it) }) {
+            val dialog = object : RecordHistoryDialog(project, record, webRecordUri, { opened.add(it) }) {
                 override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
             }
             try {
@@ -42,7 +46,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
 
     fun testCodeLinkUsesSelectedSideAndItsRevision() {
         val record = ChangeIntentRecord(
-            id = "record-id", title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",
+            id = recordId, title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",
             authorLogin = "developer", decisions = emptyList(),
             codeAnchors = listOf(
                 ChangeCodeAnchor("src/Before.kt", 1, 2, CodeSide.BASE),
@@ -53,7 +57,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         )
         for (candidate in listOf(record, record.copy(baseRevision = null, targetRevision = "a".repeat(40)))) {
             var centerPanel: JComponent? = null
-            val dialog = object : RecordHistoryDialog(project, candidate) {
+            val dialog = object : RecordHistoryDialog(project, candidate, webRecordUri) {
                 override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
             }
             try {
@@ -73,6 +77,31 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             } finally {
                 dialog.close(0)
             }
+        }
+    }
+
+    fun testWebRecordOpensOnlyOnRequestAndDoesNotRequireACommit() {
+        val draft = ChangeIntentRecord(
+            id = recordId, title = "비공개 초안", requestSummary = "웹에서 변경 이력 확인", status = "DRAFT",
+            authorLogin = "developer", decisions = emptyList(), codeAnchors = emptyList(),
+            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
+            targetRevision = null, supersededBy = null,
+        )
+        val opened = mutableListOf<URI>()
+        var centerPanel: JComponent? = null
+        val dialog = object : RecordHistoryDialog(project, draft, webRecordUri, openBrowser = { opened.add(it) }) {
+            override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+        }
+        try {
+            val buttons = UIUtil.findComponentsOfType(requireNotNull(centerPanel), JButton::class.java)
+            val web = buttons.single { it.text == "웹에서 기록 열기" }
+            assertEmpty(opened)
+            assertTrue(web.isEnabled)
+            assertFalse(buttons.single { it.text == "원래 커밋 열기" }.isEnabled)
+            web.doClick()
+            assertEquals(listOf(URI("https://intenttrace.example.test/records/$recordId")), opened)
+        } finally {
+            dialog.close(0)
         }
     }
 
