@@ -81,7 +81,7 @@ class IntentTraceTools(
         ),
     )
     fun create(
-        @McpToolParam(description = "작성자가 검토할 구조화된 변경 의도 초안", required = true)
+        @McpToolParam(description = "작성자가 검토할 기록 초안", required = true)
         request: CreateChangeRecordRequest,
     ): ChangeRecordResponse {
         val violations = validator.validate(request)
@@ -166,7 +166,7 @@ class IntentTraceTools(
 
     @McpTool(
         name = "supersede_change_record",
-        description = "작성자가 명시적으로 요청한 공개 기록을 같은 작성자·저장소의 새 공개 기록으로 대체합니다. 기존 본문과 증거는 유지합니다.",
+        description = "작성자가 명시적으로 요청한 공개 기록을 같은 작성자·저장소의 새 공개 기록으로 대체합니다. 기존 본문과 코드 근거·검증 결과는 유지합니다.",
         generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(
             readOnlyHint = false,

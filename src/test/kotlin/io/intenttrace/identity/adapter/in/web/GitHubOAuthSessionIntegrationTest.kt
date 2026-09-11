@@ -143,7 +143,7 @@ class GitHubOAuthSessionIntegrationTest(
             header(HttpHeaders.AUTHORIZATION, "Bearer ghu_direct-access")
         }.andExpect {
             status { isBadRequest() }
-            jsonPath("$.title") { value("IntentTrace session 필요") }
+            jsonPath("$.title") { value("IntentTrace 세션 필요") }
         }
     }
 

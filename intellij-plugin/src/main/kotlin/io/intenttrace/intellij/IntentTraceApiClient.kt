@@ -41,7 +41,7 @@ internal class IntentTraceApiClient {
                         in 500..599 -> throw IntentTraceClientException(
                             "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
                         )
-                        else -> throw IntentTraceClientException("IntentTrace session 폐기 요청이 거부됐습니다. HTTP $status")
+                        else -> throw IntentTraceClientException("IntentTrace 세션 폐기 요청이 거부됐습니다. HTTP $status")
                     }
                 }
         }
@@ -68,7 +68,7 @@ internal class IntentTraceApiClient {
                         }
                         else -> throw IntentTraceClientException(when {
                             sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
-                            status == 401 -> "IntentTrace session이 만료됐습니다. GitHub 승인을 다시 진행해 주세요."
+                            status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
                             status == 403 -> "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
                             status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
                             status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
@@ -81,16 +81,16 @@ internal class IntentTraceApiClient {
 
     private fun requireSessionToken(sessionToken: String) {
         if (!SESSION_TOKEN.matches(sessionToken)) {
-            throw IntentTraceUsageException("IntentTrace session token은 its_ 형식이어야 합니다.")
+            throw IntentTraceUsageException("로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.")
         }
     }
 
     private fun <T> execute(block: () -> T): T = try {
         block()
     } catch (_: SocketTimeoutException) {
-        throw IntentTraceClientException("IntentTrace server의 응답 대기 시간을 초과했습니다.")
+        throw IntentTraceClientException("IntentTrace 서버의 응답 대기 시간을 초과했습니다.")
     } catch (_: IOException) {
-        throw IntentTraceClientException("IntentTrace server에 연결하지 못했습니다.")
+        throw IntentTraceClientException("IntentTrace 서버에 연결하지 못했습니다.")
     }
 
     companion object {

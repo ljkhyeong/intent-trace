@@ -184,9 +184,9 @@ class ChangeRecordFacade(
     }
 
     private fun validateCreate(command: CreateChangeRecordCommand) {
-        require(command.requestId.isNotBlank()) { "요청 식별자는 비어 있을 수 없습니다." }
+        require(command.requestId.isNotBlank()) { "요청 ID는 비어 있을 수 없습니다." }
         require(redactor.redact(command.requestId) == command.requestId) {
-            "요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다."
+            "요청 ID에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다."
         }
         require(command.title.isNotBlank()) { "제목은 비어 있을 수 없습니다." }
         require(command.requestSummary.isNotBlank()) { "요청 요약은 비어 있을 수 없습니다." }
@@ -227,13 +227,13 @@ class ChangeRecordFacade(
     }
 
     private fun redact(decision: Decision): Decision = decision.copy(
-        summary = redact(decision.summary, 1000, "판단 요약"),
-        rationale = decision.rationale?.let { redact(it, 2000, "판단 근거") },
+        summary = redact(decision.summary, 1000, "구현 결정 요약"),
+        rationale = decision.rationale?.let { redact(it, 2000, "결정 이유") },
     )
 
     private fun normalize(anchor: CodeAnchor): CodeAnchor = anchor.copy(
         relativePath = requireRepositoryRelativePath(anchor.relativePath),
-        symbolName = anchor.symbolName?.let { redact(it, 500, "코드 심벌 이름") },
+        symbolName = anchor.symbolName?.let { redact(it, 500, "코드 심볼 이름") },
         contentHash = anchor.contentHash.lowercase(),
         relatedPath = anchor.relatedPath?.let(::requireRepositoryRelativePath),
     )

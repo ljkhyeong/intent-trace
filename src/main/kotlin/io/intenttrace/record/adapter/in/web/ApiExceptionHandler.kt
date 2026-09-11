@@ -36,7 +36,7 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(ChangeRecordNotFoundException::class)
     fun notFound(exception: ChangeRecordNotFoundException): ProblemDetail =
-        problem(HttpStatus.NOT_FOUND, "변경 의도 기록 없음", exception.message)
+        problem(HttpStatus.NOT_FOUND, "변경 기록 없음", exception.message)
 
     @ExceptionHandler(ConcurrentChangeRecordUpdateException::class)
     fun conflict(exception: ConcurrentChangeRecordUpdateException): ProblemDetail =
@@ -52,7 +52,7 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(LocalGitHubUserSessionRequiredException::class)
     fun localGitHubUserSessionRequired(exception: LocalGitHubUserSessionRequiredException): ProblemDetail =
-        problem(HttpStatus.BAD_REQUEST, "IntentTrace session 필요", exception.message)
+        problem(HttpStatus.BAD_REQUEST, "IntentTrace 세션 필요", exception.message)
 
     @ExceptionHandler(RepositoryAccessDeniedException::class, ChangeRecordOwnershipException::class)
     fun repositoryAccessDenied(exception: RuntimeException): ProblemDetail =
@@ -68,11 +68,11 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(GitHubCredentialMissingException::class, GitHubCredentialConfigurationException::class)
     fun githubCredentialUnavailable(exception: RuntimeException): ProblemDetail =
-        problem(HttpStatus.SERVICE_UNAVAILABLE, "GitHub 자격 증명 사용 불가", exception.message)
+        problem(HttpStatus.SERVICE_UNAVAILABLE, "GitHub 게시 인증 설정 오류", exception.message)
 
     @ExceptionHandler(GitHubPublicationContentTooLargeException::class)
     fun githubContentTooLarge(exception: GitHubPublicationContentTooLargeException): ProblemDetail =
-        problem(HttpStatus.UNPROCESSABLE_ENTITY, "GitHub 게시 내용 초과", exception.message)
+        problem(HttpStatus.UNPROCESSABLE_ENTITY, "GitHub 게시 글자 수 초과", exception.message)
 
     @ExceptionHandler(GitHubApiException::class)
     fun githubApiFailure(exception: GitHubApiException): ProblemDetail =
@@ -84,13 +84,13 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalStateException::class)
     fun invalidState(exception: IllegalStateException): ProblemDetail =
-        problem(HttpStatus.CONFLICT, "변경 의도 기록 처리 실패", exception.message)
+        problem(HttpStatus.CONFLICT, "기록 처리 불가", exception.message)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun validation(exception: MethodArgumentNotValidException): ProblemDetail {
         val detail = exception.bindingResult.fieldErrors
             .joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
-        return problem(HttpStatus.BAD_REQUEST, "요청 값 검증 실패", detail)
+        return problem(HttpStatus.BAD_REQUEST, "입력값 오류", detail)
     }
 
     private fun problem(status: HttpStatus, title: String, detail: String?): ProblemDetail =

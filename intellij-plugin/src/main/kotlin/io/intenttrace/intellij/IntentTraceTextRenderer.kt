@@ -8,7 +8,7 @@ internal object IntentTraceTextRenderer {
     }.trimEnd()
 
     fun renderHistory(record: ChangeIntentRecord): String = buildString {
-        appendLine("${record.repositoryKey} · 기록에 연결된 커밋: ${record.targetRevision ?: "아직 확인하지 않음"}")
+        appendLine("${record.repositoryKey} · 기록에 연결된 커밋: ${record.targetRevision ?: "작성자 확인 전"}")
         appendLine("이 기록의 코드와 검증은 당시 스냅샷 기준입니다. 현재 편집 중인 코드의 검증이 아닙니다.")
         record.supersededBy?.let { appendLine("대체 기록: $it") }
         append(renderRecords(listOf(record)))
@@ -38,7 +38,7 @@ internal object IntentTraceTextRenderer {
             } else {
                 record.verifications.forEach { verification ->
                     val snapshot = if (verification.current) "기록 스냅샷과 일치" else "기록 스냅샷과 불일치"
-                    appendLine("- [$snapshot, exit ${verification.exitCode}] ${verification.command}")
+                    appendLine("- [$snapshot, 종료 코드 ${verification.exitCode}] ${verification.command}")
                     appendLine("  ${verification.summary}")
                 }
             }
@@ -60,17 +60,17 @@ internal object IntentTraceTextRenderer {
     fun status(value: String): String = when (value) {
         "DRAFT" -> "초안"
         "AUTHOR_CONFIRMED" -> "작성자 확인 · 비공개"
-        "PUBLISHED" -> "공개"
+        "PUBLISHED" -> "팀 공개"
         "SUPERSEDED" -> "대체됨"
         else -> value
     }
 
     private fun source(value: String): String = when (value) {
         "STATED_BY_USER" -> "사용자 요청"
-        "STATED_IN_COMMIT" -> "커밋"
-        "CONFIRMED_AI_SUMMARY" -> "작성자 확인 AI 요약"
-        "INFERRED" -> "추론"
-        "UNKNOWN" -> "미확인"
+        "STATED_IN_COMMIT" -> "커밋에 명시"
+        "CONFIRMED_AI_SUMMARY" -> "작성자가 확인한 AI 요약"
+        "INFERRED" -> "정황에서 추론"
+        "UNKNOWN" -> "근거 미확인"
         else -> value
     }
 }

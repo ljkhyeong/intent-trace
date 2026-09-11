@@ -50,7 +50,7 @@
             id="io.intenttrace.intellij.SaveSessionToken"
             class="io.intenttrace.intellij.SaveSessionTokenAction"
             text="IntentTrace 세션 연결"
-            description="OAuth callback에서 받은 its_ session token을 IntelliJ PasswordSafe에 저장합니다."
+            description="로그인 완료 화면의 its_ 세션 토큰을 IntelliJ PasswordSafe에 저장합니다."
             icon="AllIcons.Actions.Checked">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
