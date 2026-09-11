@@ -510,3 +510,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubAppInstallationClientTest' --tests '*PublicationPreflightServiceTest' --tests '*AuthenticatedMcpIntegrationTest'` 13개와 최종 `./gradlew test` 180개 통과. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused`로 실패·오류·건너뜀 0개를 확인했다. 로그는 `/tmp/intent-trace-login-wording-focused.log`, `/tmp/intent-trace-login-wording-server.log`이며 최종 결과 시각은 2026-09-11 23:19 KST다.
 - README·IntelliJ·Zed·운영·설계 문서 8개의 로컬 링크 61개·제목 링크 8개와 `git diff --check` 통과. 일회성 Python 검사 결과는 `/tmp/intent-trace-login-wording-docs.log`에 보관했다. 이후 변경 이력과 이 인계만 추가했다.
 - IntelliJ는 `bb06a1f`와 파일이 같아 앞선 테스트 32개와 패키지 검사 결과를 재사용했다. DB·Zed 실행 코드·스킬을 변경하지 않아 해당 독립 검증은 생략했다. 실제 브라우저 로그인·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 코드 경로·검증 결과·릴리스 안내 정리
+
+- 시작 리비전 `553fd41`, 미커밋 변경 없음. 코드 검증 대상은 `96398ec`과 같다. 비교 화면·Markdown의 `relatedPath`를 변경 전·후 파일 경로로 표시하고 조회 제한·파일 내용 일치 안내를 구체화했다. 기존 Markdown 테스트에서 경로 방향과 특수문자 표시를 확인했다.
+- 최초 부분 검증에서 이전 문구를 기대한 테스트 1곳이 실패해 기대값을 수정했다. `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest'` 8개와 최종 `./gradlew test` 180개 통과. `python3 scripts/test-summary.py server focused`로 실패·오류·건너뜀 0개를 확인했다. 로그는 `/tmp/intent-trace-evidence-wording-focused.log`, `/tmp/intent-trace-evidence-wording-browser.log`, `/tmp/intent-trace-evidence-wording-server.log`이며 최종 결과 시각은 2026-09-12 06:47 KST다.
+- 릴리스 문서의 수정 파일 제한을 현재 줄 조회로 명시했다. 일회성 Python 검사로 변경 문서 3개의 로컬 링크 2개와 `git diff --check`를 확인했다. 이후 변경 이력과 이 인계만 추가했다.
+- IntelliJ는 `bb06a1f`와 파일이 같아 앞선 테스트 32개와 패키지 검사 결과를 재사용했다. DB·Zed·스킬 독립 검증은 변경이 없어 생략했다. 실제 브라우저 화면·GitHub 게시·릴리스 발행은 수행하지 않았다.

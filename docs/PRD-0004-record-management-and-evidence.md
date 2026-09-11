@@ -51,7 +51,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 
 ## 코드 확인과 이전 기록
 
-- 코드 근거의 `side` 기본값은 `TARGET`이다. `BASE`는 전체 `baseRevision`을 요구한다. `relatedPath`는 반대쪽 근거의 경로여야 한다.
+- 코드 근거의 `side` 기본값은 `TARGET`이다. `BASE`는 전체 `baseRevision`을 요구한다. `relatedPath`는 `BASE` 근거에서 변경 후 파일을, `TARGET` 근거에서 변경 전 파일을 가리킨다. 해당 경로의 코드 근거도 함께 등록해야 한다.
 - 기존 줄 조회도 근거가 가리키는 BASE·TARGET 커밋으로 검색한다. 삭제 이전 줄을 변경 후 커밋의 줄로 취급하지 않는다.
 - 검증의 `source`는 `CLIENT_REPORTED` 또는 `LOCAL_RUNNER_REPORTED`이며 응답의 `serverExecutionVerified`는 항상 false다. `current`는 기록 스냅샷과 제출한 검증 스냅샷의 일치만 의미한다. 줄 조회에서 조회 커밋이 target과 다르면 false로 반환한다.
 - `GET /api/v1/change-records/{id}/evidence-check`와 `check_change_record_evidence`는 GitHub의 커밋 트리와 코드 줄 해시를 확인한다. 기록의 전체 커밋 확인이 선행되어야 하며 결과에 기록 ID·버전·커밋·스냅샷·확인 시각을 반환한다.
