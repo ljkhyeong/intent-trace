@@ -10,6 +10,36 @@ import javax.swing.JLabel
 import javax.swing.JList
 
 class RecordBrowserDialogTest : LightPlatformTestCase() {
+    fun testOriginalAndReplacementRecordsOpenIndependentlyOnRequest() {
+        val draft = ChangeIntentRecord(
+            id = "record-id", title = "후속 기록", requestSummary = "변경 과정 확인", status = "DRAFT",
+            authorLogin = "developer", decisions = emptyList(), codeAnchors = emptyList(),
+            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
+            targetRevision = null, supersededBy = null, derivedFromRecordId = "original-id",
+        )
+        for (record in listOf(draft, draft.copy(status = "SUPERSEDED", supersededBy = "replacement-id"),
+            draft.copy(derivedFromRecordId = null))) {
+            val opened = mutableListOf<String>()
+            var centerPanel: JComponent? = null
+            val dialog = object : RecordHistoryDialog(project, record, { opened.add(it) }) {
+                override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+            }
+            try {
+                val buttons = UIUtil.findComponentsOfType(requireNotNull(centerPanel), JButton::class.java)
+                val original = buttons.single { it.text == "원본 기록 열기" }
+                val replacement = buttons.single { it.text == "대체 기록 열기" }
+                assertEmpty(opened)
+                assertEquals(record.derivedFromRecordId != null, original.isEnabled)
+                assertEquals(record.supersededBy != null, replacement.isEnabled)
+                original.doClick()
+                replacement.doClick()
+                assertEquals(listOfNotNull(record.derivedFromRecordId, record.supersededBy), opened)
+            } finally {
+                dialog.close(0)
+            }
+        }
+    }
+
     fun testCodeLinkUsesSelectedSideAndItsRevision() {
         val record = ChangeIntentRecord(
             id = "record-id", title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",

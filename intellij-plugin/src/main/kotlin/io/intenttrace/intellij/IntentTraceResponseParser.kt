@@ -41,6 +41,7 @@ private data class ChangeIntentResponse(
     val targetRevision: String?,
     val supersededBy: String? = null,
     val baseRevision: String? = null,
+    val derivedFromRecordId: String? = null,
 ) {
     fun toRecord(): ChangeIntentRecord = ChangeIntentRecord(
         id = id,
@@ -56,5 +57,6 @@ private data class ChangeIntentResponse(
         targetRevision = targetRevision,
         supersededBy = supersededBy,
         baseRevision = baseRevision,
+        derivedFromRecordId = derivedFromRecordId,
     )
 }

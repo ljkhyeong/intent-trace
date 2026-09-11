@@ -41,6 +41,7 @@ class RecordBrowsingTest {
             assertNull(page.items.single().targetRevision)
             assertEquals("team/repository", record.repositoryKey)
             assertEquals(replacement, record.supersededBy)
+            assertEquals(original, record.derivedFromRecordId)
             assertContains(requests.first(), "scope=MY_DRAFTS")
             assertContains(requests.first(), "path=src%2F%ED%95%9C+%EA%B8%80%23%3F.kt&status=DRAFT&page=2&size=20")
             assertEquals("/api/v1/change-records/$id", requests.last())
@@ -63,6 +64,7 @@ class RecordBrowsingTest {
         assertContains(output, "현재 편집 중인 코드의 검증이 아닙니다.")
         assertContains(output, "기록 스냅샷과 일치")
         assertContains(output, "대체 기록: $replacement")
+        assertContains(output, "원본 기록: $original")
         assertEquals("https://github.com/team/repository/commit/$revision", GitHubEvidenceLinks.commit(record).toString())
         val code = GitHubEvidenceLinks.code(record, ChangeCodeAnchor("src/한 글#?.kt", 10, 12))
         assertEquals("github.com", code.host)
@@ -100,11 +102,12 @@ class RecordBrowsingTest {
     companion object {
         private val id = UUID.randomUUID().toString()
         private val replacement = UUID.randomUUID().toString()
+        private val original = UUID.randomUUID().toString()
         private val revision = "a".repeat(40)
         private val baseRevision = "b".repeat(40)
         private val token = "its_${"A".repeat(43)}"
         private val recordJson = """
-            {"id":"$id","repositoryKey":"team/repository","baseRevision":"$baseRevision","targetRevision":"$revision","supersededBy":"$replacement",
+            {"id":"$id","repositoryKey":"team/repository","baseRevision":"$baseRevision","targetRevision":"$revision","supersededBy":"$replacement","derivedFromRecordId":"$original",
              "title":"파일 이력","requestSummary":"과거 의도를 확인한다.","status":"SUPERSEDED","createdBy":{"login":"developer"},
              "decisions":[],"codeAnchors":[
                {"relativePath":"src/이전 #?.kt","startLine":3,"endLine":5,"side":"BASE"},

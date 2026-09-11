@@ -167,6 +167,7 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
 internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
+    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
 ) : DialogWrapper(project, true) {
     init {
         title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
@@ -201,9 +202,13 @@ internal open class RecordHistoryDialog(
             anchors.addActionListener { updateCodeLink() }
             updateCodeLink()
             add(openCode)
+            add(JButton("원본 기록 열기").apply {
+                isEnabled = record.derivedFromRecordId != null
+                addActionListener { record.derivedFromRecordId?.let(openRecord) }
+            })
             add(JButton("대체 기록 열기").apply {
                 isEnabled = record.supersededBy != null
-                addActionListener { record.supersededBy?.let { IntentTraceRecordBrowser.showRecord(project, it) } }
+                addActionListener { record.supersededBy?.let(openRecord) }
             })
         }, BorderLayout.SOUTH)
         preferredSize = Dimension(960, 560)

@@ -11,6 +11,7 @@ internal object IntentTraceTextRenderer {
         appendLine("${record.repositoryKey} · 기록에 연결된 커밋: ${record.targetRevision ?: "작성자 확인 전"}")
         record.baseRevision?.let { appendLine("변경 전 커밋: $it") }
         appendLine("이 기록의 코드와 검증은 당시 스냅샷 기준입니다. 현재 편집 중인 코드의 검증이 아닙니다.")
+        record.derivedFromRecordId?.let { appendLine("원본 기록: $it") }
         record.supersededBy?.let { appendLine("대체 기록: $it") }
         append(renderRecords(listOf(record)))
     }.trimEnd()

@@ -16,6 +16,7 @@ internal data class ChangeIntentRecord(
     val targetRevision: String?,
     val supersededBy: String?,
     val baseRevision: String? = null,
+    val derivedFromRecordId: String? = null,
 ) {
     fun revisionFor(anchor: ChangeCodeAnchor): String? = when (anchor.side) {
         CodeSide.BASE -> baseRevision
