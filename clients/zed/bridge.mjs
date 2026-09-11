@@ -57,7 +57,7 @@ export async function serve(url) {
   }
 }
 
-export async function check(script, url, repositoryKey) {
+export async function check(script, url, repositoryKey, diagnostic = {}) {
   const client = new Client({ name: 'intent-trace-connection-check', version });
   const transport = new StdioClientTransport({
     command: process.execPath, args: [script, 'serve', url.href],
@@ -78,7 +78,7 @@ export async function check(script, url, repositoryKey) {
     if (!result.tools.some(tool => tool.name === 'diagnose_connection')) throw new Error('진단 도구가 없습니다.');
     console.log(`MCP 연결 성공: ${result.tools.length}개 도구를 확인했습니다.`);
     if (repositoryKey) {
-      const result = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey } });
+      const result = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey, ...diagnostic } });
       if (result.isError) throw new Error('저장소 진단에 실패했습니다.');
       const diagnosis = result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
       for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}`);

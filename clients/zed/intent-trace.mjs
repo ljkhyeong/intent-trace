@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { realpathSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
 import { BridgeFailure } from './errors.mjs';
 
 const script = fileURLToPath(import.meta.url);
@@ -25,6 +26,26 @@ export function sessionToken() {
     throw new Error('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
   }
   return value;
+}
+
+function checkOptions(args) {
+  let parsed;
+  try {
+    parsed = parseArgs({ args, allowPositionals: true, options: {
+      revision: { type: 'string' }, pr: { type: 'string' },
+    } });
+  } catch {
+    throw new Error('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
+  }
+  const { positionals, values } = parsed;
+  const pullNumber = values.pr === undefined ? undefined : Number(values.pr);
+  if (pullNumber !== undefined && (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)) {
+    throw new Error('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
+  }
+  if ((values.revision !== undefined || pullNumber !== undefined) && !positionals[1]) {
+    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 MCP 주소 뒤에 owner/repo를 지정하세요.');
+  }
+  return { positionals, diagnostic: { revision: values.revision, pullNumber } };
 }
 
 async function main() {
@@ -53,10 +74,11 @@ async function main() {
     }
     return configure(path, { command: process.execPath, args: [script, 'serve', endpoint(address).href], env: {} }, apply);
   }
-  const [address, repositoryKey] = arguments_;
-  if (arguments_.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
+  const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
+  const [address, repositoryKey] = positionals;
+  if (positionals.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   if (!['config', 'serve', 'check'].includes(mode)) {
-    console.log('사용법: intent-trace-zed config|check|serve [MCP 주소] [check 시 저장소 owner/repo], configure [MCP 주소] [--settings 설정파일] [--apply], launch [Zed 인자]');
+    console.log('사용법: intent-trace-zed config|serve [MCP 주소], check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호], configure [MCP 주소] [--settings 설정파일] [--apply], launch [Zed 인자]');
     return;
   }
   const url = endpoint(address);
@@ -69,7 +91,7 @@ async function main() {
   sessionToken();
   const bridge = await import('./bridge.mjs');
   if (mode === 'serve') await bridge.serve(url);
-  else await bridge.check(script, url, repositoryKey);
+  else await bridge.check(script, url, repositoryKey, diagnostic);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
@@ -83,7 +105,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
       ? '연결 도구를 다시 설치하세요. 소스 실행 시 clients/zed에서 npm ci를 실행하세요.'
-      : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소')
+      : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소') || error?.message?.startsWith('IntentTrace 연결 점검:')
         ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
     console.error(message);
     process.exitCode = 1;

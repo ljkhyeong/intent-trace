@@ -38,6 +38,25 @@ test('원격 HTTP와 인증 정보가 포함된 주소를 거부한다', () => {
   assert.equal(endpoint('http://[::1]:8080/mcp').hostname, '[::1]');
 });
 
+test('연결 점검의 잘못된 옵션과 저장소 누락은 연결 전에 입력 원문 없이 안내한다', () => {
+  const address = 'http://127.0.0.1:1/mcp';
+  for (const args of [
+    [address, '--pr', '12'], [address, '--revision', 'a'.repeat(40)],
+    [address, 'acme/project', '--pr', token], [address, 'acme/project', '--pr', '0'],
+    [address, 'acme/project', '--pr', '1.5'], [address, 'acme/project', '--pr', '9007199254740992'],
+    [address, 'acme/project', '--revision'], [address, 'acme/project', `--${token}`],
+  ]) {
+    const result = spawnSync(process.execPath, [script, 'check', ...args], {
+      env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: token }, encoding: 'utf8',
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /IntentTrace 연결 점검:/);
+    assert.ok(!result.stderr.includes(token));
+    assert.equal(result.stdout, '');
+    assert.ok(!result.stderr.includes('CONNECTION_FAILED'));
+  }
+});
+
 test('인증 실패 응답의 원문과 토큰을 로그로 내보내지 않는다', { timeout: 15_000 }, async () => {
   const server = createServer((request, response) => {
     response.writeHead(401, { 'Content-Type': 'text/plain' });
