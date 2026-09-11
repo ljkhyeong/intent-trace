@@ -40,6 +40,7 @@ private data class ChangeIntentResponse(
     val repositoryKey: String,
     val targetRevision: String?,
     val supersededBy: String? = null,
+    val baseRevision: String? = null,
 ) {
     fun toRecord(): ChangeIntentRecord = ChangeIntentRecord(
         id = id,
@@ -54,5 +55,6 @@ private data class ChangeIntentResponse(
         repositoryKey = repositoryKey,
         targetRevision = targetRevision,
         supersededBy = supersededBy,
+        baseRevision = baseRevision,
     )
 }

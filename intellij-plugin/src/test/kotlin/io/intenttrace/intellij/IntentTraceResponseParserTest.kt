@@ -41,6 +41,8 @@ class IntentTraceResponseParserTest {
 
         assertEquals(1, records.size)
         assertEquals("developer", records.single().authorLogin)
+        assertNull(records.single().baseRevision)
+        assertEquals(CodeSide.TARGET, records.single().codeAnchors.single().side)
         assertEquals("CONFIRMED_AI_SUMMARY", records.single().decisions.first().source)
         assertNull(records.single().decisions[1].rationale)
         assertNull(records.single().decisions[2].rationale)

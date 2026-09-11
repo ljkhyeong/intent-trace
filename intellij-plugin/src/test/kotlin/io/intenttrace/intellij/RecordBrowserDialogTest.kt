@@ -10,6 +10,42 @@ import javax.swing.JLabel
 import javax.swing.JList
 
 class RecordBrowserDialogTest : LightPlatformTestCase() {
+    fun testCodeLinkUsesSelectedSideAndItsRevision() {
+        val record = ChangeIntentRecord(
+            id = "record-id", title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",
+            authorLogin = "developer", decisions = emptyList(),
+            codeAnchors = listOf(
+                ChangeCodeAnchor("src/Before.kt", 1, 2, CodeSide.BASE),
+                ChangeCodeAnchor("src/After.kt", 3, 4, CodeSide.TARGET),
+            ),
+            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
+            baseRevision = "b".repeat(40), targetRevision = null, supersededBy = null,
+        )
+        for (candidate in listOf(record, record.copy(baseRevision = null, targetRevision = "a".repeat(40)))) {
+            var centerPanel: JComponent? = null
+            val dialog = object : RecordHistoryDialog(project, candidate) {
+                override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+            }
+            try {
+                val panel = requireNotNull(centerPanel)
+                val anchors = requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java))
+                val buttons = UIUtil.findComponentsOfType(panel, JButton::class.java)
+                val code = buttons.single { it.text == "당시 코드 열기" }
+                val commit = buttons.single { it.text == "원래 커밋 열기" }
+                assertEquals(candidate.targetRevision != null, commit.isEnabled)
+                assertTrue(anchors.selectedItem.toString().startsWith("[변경 전]"))
+                assertEquals(candidate.baseRevision != null, code.isEnabled)
+                anchors.selectedIndex = 1
+                assertTrue(anchors.selectedItem.toString().startsWith("[변경 후]"))
+                assertEquals(candidate.targetRevision != null, code.isEnabled)
+                anchors.selectedIndex = 0
+                assertEquals(candidate.baseRevision != null, code.isEnabled)
+            } finally {
+                dialog.close(0)
+            }
+        }
+    }
+
     fun testFailedQueryRestoresFiltersAndKeepsPageAndSelection() {
         val context = RepositoryFileContext("team/repository", "src/App.kt")
         val query = RecordListQuery(context.repositoryKey, path = context.relativePath, status = "PUBLISHED", page = 2)

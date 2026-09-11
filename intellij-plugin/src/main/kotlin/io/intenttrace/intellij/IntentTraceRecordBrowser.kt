@@ -164,7 +164,7 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     override fun toString(): String = label
 }
 
-private class RecordHistoryDialog(
+internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
 ) : DialogWrapper(project, true) {
@@ -186,14 +186,21 @@ private class RecordHistoryDialog(
                 isEnabled = record.targetRevision != null
                 addActionListener { browse { GitHubEvidenceLinks.commit(record) } }
             })
-            val anchors = JComboBox(record.codeAnchors.map { "${it.relativePath}:${it.startLine}-${it.endLine}" }.toTypedArray())
+            val anchors = JComboBox(record.codeAnchors.map { it.label }.toTypedArray())
             anchors.renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
             anchors.preferredSize = Dimension(320, anchors.preferredSize.height)
             add(anchors)
-            add(JButton("당시 코드 열기").apply {
-                isEnabled = record.targetRevision != null && record.codeAnchors.isNotEmpty()
-                addActionListener { browse { GitHubEvidenceLinks.code(record, record.codeAnchors[anchors.selectedIndex]) } }
-            })
+            val openCode = JButton("당시 코드 열기").apply {
+                addActionListener {
+                    record.codeAnchors.getOrNull(anchors.selectedIndex)?.let { anchor -> browse { GitHubEvidenceLinks.code(record, anchor) } }
+                }
+            }
+            fun updateCodeLink() {
+                openCode.isEnabled = record.codeAnchors.getOrNull(anchors.selectedIndex)?.let(record::revisionFor) != null
+            }
+            anchors.addActionListener { updateCodeLink() }
+            updateCodeLink()
+            add(openCode)
             add(JButton("대체 기록 열기").apply {
                 isEnabled = record.supersededBy != null
                 addActionListener { record.supersededBy?.let { IntentTraceRecordBrowser.showRecord(project, it) } }
