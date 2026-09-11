@@ -250,11 +250,27 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             records.publish(PublishChangeRecordCommand(d.id, c.version, digest), actor)
         }
         val team = mvc.get("/records") {
-            cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42")
+            cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42"); param("q", "필터 기록")
         }.andExpect { status { isOk() }; content { string(containsString("다음 기록")) } }.andReturn().response.contentAsString
         val next = Regex("href=\"([^\"]+)\">다음 기록").find(team)!!.groupValues[1].replace("&amp;", "&")
         assertTrue(next.contains("status=PUBLISHED")); assertTrue(next.contains("authorId=42")); assertTrue(next.contains("path=src%2FApp.kt"))
-        mvc.get(URI(next)) { cookie(cookie) }.andExpect { status { isOk() }; content { string(containsString("이 페이지 1건")) } }
+        val secondPage = mvc.get(URI(next)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("이 페이지 1건")) }
+        }.andReturn().response.contentAsString
+        val recordLink = Regex("<h3><a href=\"([^\"]+)\"").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        val detail = mvc.get(URI(recordLink)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }
+        }.andReturn().response.contentAsString
+        val backLink = Regex("class=\"back-link\" href=\"([^\"]+)\"").find(detail)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals(next, backLink)
+        mvc.get(URI(backLink)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("이 페이지 1건")) }
+        }
+        val renewed = login(recordLink)
+        mvc.get(URI(recordLink)) { cookie(renewed) }.andExpect {
+            status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }
+        }
+        preview("search-return", detail)
         mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("authorId", "99"); param("path", "src/App.kt") }
             .andExpect { content { string(containsString("이 페이지 0건")) } }
         mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("path", "src/Missing.kt") }

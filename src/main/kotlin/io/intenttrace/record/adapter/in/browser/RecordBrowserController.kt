@@ -80,12 +80,12 @@ class RecordBrowserController(
         val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
         pages.search(session.actor, repository, q, scope,
             repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
-            status, path, authorId)
+            status, path, authorId, returnTo(request))
     }
 
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.record(it.actor, records.get(id))
+        pages.record(it.actor, records.get(id), request.queryString?.let { query -> "/records?$query" })
     }
 
     @GetMapping("/{id}/markdown")

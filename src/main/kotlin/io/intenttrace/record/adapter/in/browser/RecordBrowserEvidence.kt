@@ -42,6 +42,11 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                 append("<li><div><span class=\"status\">${labels.getValue(item.match)}</span><h2><a href=\"/records/${item.record.id}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p>")
                 append("<p>원본: ${html(item.sourcePath)}:${item.sourceStartLine}–${item.sourceEndLine} · ${if (item.side == CodeSide.BASE) "변경 전" else "변경 후"}</p><p class=\"hash\">${html(item.sourceRevision)}</p>")
                 if (item.currentStartLine != null) append("<p>조회한 파일의 줄: ${item.currentStartLine}–${item.currentEndLine}</p>")
+                append("<p><a href=\"${html(codeUrl(item.record.repositoryKey, item.sourceRevision, item.sourcePath, item.sourceStartLine, item.sourceEndLine))}\">당시 코드 열기</a>")
+                if (item.currentStartLine != null && item.currentEndLine != null) {
+                    append(" · <a href=\"${html(codeUrl(item.record.repositoryKey, result.queryRevision, result.path, item.currentStartLine, item.currentEndLine))}\">조회한 커밋의 코드 열기</a>")
+                }
+                append("</p>")
                 if (!item.verificationAppliesToQuery) append("<p class=\"muted\">이 기록의 테스트 결과로 조회한 커밋이 검증됐다고 볼 수 없습니다.</p>")
                 append("</div></li>")
             }

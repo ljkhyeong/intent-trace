@@ -32,7 +32,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     """)
 
     fun search(actor: ActorIdentity, repository: String?, q: String?, scope: RecordScope, page: ChangeRecordPage?,
-        status: ChangeRecordStatus? = null, path: String? = null, authorId: Long? = null): String =
+        status: ChangeRecordStatus? = null, path: String? = null, authorId: Long? = null, searchUrl: String = "/records"): String =
         layout("기록 찾기", actor, buildString {
             append("<header class=\"page-heading\"><h1>변경 기록 찾기</h1><p>어떤 요청이었고, 왜 이렇게 바꿨는지 찾아보세요.</p></header>")
             append("<nav class=\"scope-tabs\" aria-label=\"조회 범위\">")
@@ -60,7 +60,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 if (page.items.isEmpty()) append("<div class=\"empty\"><h3>일치하는 기록이 없습니다</h3><p>검색어를 줄이거나 저장소와 조회 범위를 확인해 주세요.</p></div>")
                 append("<ul class=\"records\">")
                 page.items.forEach { record ->
-                    append("""<li><div class="record-summary"><span class="status">${record.status.label}</span><h3><a href="/records/${record.id}">${html(record.title)}</a></h3><p>${html(record.requestSummary)}</p><div class="record-meta"><span>@${html(record.createdBy.login)}</span>${stamp(record.createdAt)}</div></div><span class="open-record" aria-hidden="true">↗</span></li>""")
+                    val recordUrl = UriComponentsBuilder.fromUriString(searchUrl).replacePath("/records/${record.id}").build().toUriString()
+                    append("""<li><div class="record-summary"><span class="status">${record.status.label}</span><h3><a href="${html(recordUrl)}">${html(record.title)}</a></h3><p>${html(record.requestSummary)}</p><div class="record-meta"><span>@${html(record.createdBy.login)}</span>${stamp(record.createdAt)}</div></div><span class="open-record" aria-hidden="true">↗</span></li>""")
                 }
                 append("</ul>")
                 page.nextCursor?.let { cursor ->
@@ -69,8 +70,9 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             }
         })
 
-    fun record(actor: ActorIdentity, record: ChangeRecord): String = layout(record.title, actor, buildString {
-        append("<a class=\"back-link\" href=\"${html(url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null))}\">${html(record.repositoryKey)} 기록 목록</a>")
+    fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null): String = layout(record.title, actor, buildString {
+        val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
+        append("<a class=\"back-link\" href=\"${html(backUrl)}\">${if (searchUrl == null) "${html(record.repositoryKey)} 기록 목록" else "검색 결과로 돌아가기"}</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
         record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a> · <a href=\"/records/${record.id}/comparison\">원본과 비교</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새 기록으로 대체됐습니다. <a href=\"/records/$it\">새 기록 읽기</a></aside>") }
@@ -86,8 +88,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         record.codeAnchors.forEach { anchor ->
             val revision = if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision
             val label = "${anchor.relativePath}:${anchor.startLine}–${anchor.endLine}"
-            val encodedPath = anchor.relativePath.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8) }
-            val codeUrl = revision?.let { properties.userAuthorization.webBaseUrl.resolve("/${record.repositoryKey}/blob/$it/$encodedPath").toString() + "#L${anchor.startLine}-L${anchor.endLine}" }
+            val codeUrl = revision?.let { codeUrl(record.repositoryKey, it, anchor.relativePath, anchor.startLine, anchor.endLine) }
             append("<li><span class=\"source\">${if (anchor.side == CodeSide.BASE) "변경 전" else "변경 후"}</span> ")
             append(if (codeUrl == null) "<span>${html(label)}</span>" else "<a href=\"${html(codeUrl)}\">${html(label)}</a>")
             anchor.symbolName?.let { append("<p>${html(it)}</p>") }
@@ -119,6 +120,11 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
 
     fun error(message: String): String = layout("기록을 열 수 없습니다", null,
         "<section class=\"empty\"><h1>기록을 열 수 없습니다</h1><p>${html(message)}</p><a class=\"button\" href=\"/records\">기록 찾기로 이동</a></section>")
+
+    internal fun codeUrl(repository: String, revision: String, path: String, startLine: Int, endLine: Int): String {
+        val encodedPath = path.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8) }
+        return properties.userAuthorization.webBaseUrl.resolve("/$repository/blob/$revision/$encodedPath").toString() + "#L$startLine-L$endLine"
+    }
 
     internal fun layout(title: String, actor: ActorIdentity?, content: String): String = """
         <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
