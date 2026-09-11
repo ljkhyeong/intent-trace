@@ -13,6 +13,7 @@
 - `GET /api/v1/connection-diagnostics`와 `diagnose_connection`은 `repositoryKey`, 선택 전체 `revision`·`pullNumber`를 받는다. 인증은 기존 REST·MCP 필터를 거친다.
 - 저장소 읽기·쓰기 권한을 확인하고, 읽기 권한이 있을 때만 선택 PR·Git 트리를 조회한다. revision을 생략하고 PR 조회가 성공하면 해당 HEAD로 트리를 읽는다. 트리 접근 성공은 모든 blob이나 기록 근거 해시 확인 성공을 뜻하지 않는다.
 - 결과는 `VERIFIED`, `FAILED`, `CONFIGURED_UNVERIFIED`, `NOT_CONFIGURED`, `NOT_CHECKED`를 구분한다. 서버 게시 키는 존재 여부만 확인하며 실제 키 유효성·App 설치·Checks 쓰기를 검증하지 않는다. 관리자용 별도 사전 점검은 ADR-0003을 따른다. 진단 중 GitHub 호출 제한은 기존 429·대기 시간 계약으로 처리한다.
+- Zed의 `check [MCP 주소] [저장소]`는 선택 `--revision <커밋>`·`--pr <번호>`를 기존 `diagnose_connection`의 `revision`·`pullNumber`로 전달한다. 옵션을 쓰려면 저장소가 필요하다. Node.js 기본 옵션 파서와 PR 번호 변환만 클라이언트에서 처리하고 커밋 형식·권한·진단은 서버에 맡긴다. 기존 옵션 없는 점검도 유지한다.
 
 ## 영향
 

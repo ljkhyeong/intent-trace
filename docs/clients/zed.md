@@ -66,9 +66,12 @@ python3 scripts/zed-with-intent-trace.py .
 
 ```bash
 node clients/zed/intent-trace.mjs check http://127.0.0.1:8080/mcp acme/project
+node clients/zed/intent-trace.mjs check http://127.0.0.1:8080/mcp acme/project --pr 12
 ```
 
 Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호출한다. MCP 연결에 성공하면 도구 개수를 표시하고 각 진단의 상태만 출력한다. 저장소 이름을 생략하면 초기화와 도구 목록만 확인한다. 인증 또는 진단 실패 시 종료 코드는 1이다. 서버 게시 키가 미설정이어도 기록 조회와 초안 기능은 사용할 수 있다.
+
+`--pr 12`는 PR 읽기와 해당 PR의 현재 커밋 읽기를 점검한다. 특정 커밋은 `--revision <40자 또는 64자 커밋 해시>`로 지정한다. 두 옵션을 함께 쓰면 코드 읽기는 지정한 커밋을 기준으로 확인한다. PR·커밋 옵션을 쓰려면 저장소 이름도 필요하다.
 
 ## 기록할 때 지킬 내용
 

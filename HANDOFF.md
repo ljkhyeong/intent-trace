@@ -588,3 +588,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*RecordBrowserNavigationTest'` 13개와 최종 `./gradlew test` 186개 통과. 검색 두 번째 페이지의 상세 왕복, 이력 페이지 이동, 비교 필터 전환과 원본·후속 링크, 코드 확인 불가, 한글·특수문자 쿼리 보존과 기존 접근 제한을 확인했다. 부분 테스트는 전체에 포함된다.
 - `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다. 로그는 `/tmp/intent-trace-browser-detail-return-focused.log`, `/tmp/intent-trace-browser-detail-return-server.log`, 최종 시각은 2026-09-12 08:12 KST다.
 - REST·MCP 계약, DB·IDE·Zed·의존성은 변경하지 않아 관련 독립 검증은 반복하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 Zed 연결 점검의 PR·커밋 지정
+
+- 시작 리비전 `414bc0c`, 미커밋 변경 없음. 코드 검증 대상은 `4cbd976`과 같다. `check` 명령에 `--pr <번호>`·`--revision <전체 커밋>`을 추가했다. 기존 `diagnose_connection`에 선택 인자를 전달하며 PR만 지정하면 서버가 조회한 PR HEAD를 사용한다. 옵션이 없는 기존 점검도 유지한다.
+- `npm test --prefix clients/zed`: Node 테스트 10개와 Python 실행 도구 테스트 3개 통과. 잘못된 옵션·PR 번호·저장소 누락 안내에서 입력 원문이 나오지 않는지와 기존 연결·JSONC 설정·배포 패키지의 오프라인 설치를 확인했다. 로그는 `/tmp/intent-trace-zed-diagnostic-options-node.log`다.
+- 최종 `./gradlew test` 187개 통과. 포함된 `ZedBridgeIntegrationTest` 2개가 실제 stdio → HTTP MCP → Spring 진단 경로로 기본 점검, PR HEAD 사용, 명시한 40·64자 커밋 전달을 확인했다. GitHub 응답은 mock이며 실제 GitHub 접근 성공을 뜻하지 않는다. 별도 Zed 부분 테스트는 반복하지 않았다.
+- `python3 scripts/test-summary.py server` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 08:21 KST다. 로그는 `/tmp/intent-trace-zed-diagnostic-options-server.log`다. 서버 API·DB·IntelliJ·의존성은 변경하지 않았다. 실제 Zed 앱 조작·사용자 설정 적용·패키지 게시·배포는 수행하지 않았다.

@@ -349,6 +349,8 @@ GitHub 연동과 IntelliJ 조회에서 응답 파싱이 실패하면 응답 원�
 
 Zed Agent에서는 공식 MCP SDK 중계기로 연결합니다. 0.12.0부터 의존성이 포함된 `.tgz`를 저장소 밖에 설치할 수 있습니다. [패키지 설치 안내](clients/zed/README.md)와 [배포 파일 생성·레지스트리 준비](docs/clients/zed-distribution.md)를 제공합니다.
 
+Zed 연결 점검의 `check <MCP 주소> <owner/repo>`에 `--pr <번호>`와 `--revision <전체 커밋 해시>`를 추가하면 PR·코드 읽기 권한도 확인할 수 있습니다. PR만 지정하면 해당 PR의 현재 커밋으로 확인합니다.
+
 저장소에서 직접 실행하려면 다음 절차를 사용합니다. Node.js 22 이상에서 설정을 생성하고 Zed 사용자 설정에 추가한 뒤 세션 입력 도구로 실행합니다. 자세한 절차와 연결 점검은 [Zed 사용 안내](docs/clients/zed.md)에 있습니다.
 
 ```bash
