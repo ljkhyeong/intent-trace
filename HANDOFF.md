@@ -546,3 +546,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 수정 전 `./gradlew -p intellij-plugin test --tests '*RecordBrowsingTest'`에서 새 회귀 테스트가 잘못된 커밋 링크로 실패했다. 수정 후 `./gradlew -p intellij-plugin test buildPlugin` 35개와 설치 ZIP 빌드가 통과했다. 변경 전·후 링크와 경로 인코딩, 커밋 누락 시 대체 연결 금지, 선택별 버튼 상태, 이전 응답의 기본 `TARGET` 처리를 확인했다.
 - `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 최종 시각은 2026-09-12 07:22 KST다. 로그는 `/tmp/intent-trace-intellij-base-reproduction.log`, `/tmp/intent-trace-intellij-base-fix.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 서버·REST·MCP 계약·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 코드 링크 접속·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 검증 대상과 수집 출처 표시
+
+- 시작 리비전 `1d55b08`, 미커밋 변경 없음. 코드 검증 대상은 `4f9ca4c`와 같다. 현재 줄 조회의 `current=false`는 조회 커밋 차이도 포함하는데 스냅샷 불일치로 단정하던 표시를 수정했다. 조회 커밋이 기록의 변경 후 커밋과 다르면 `다른 커밋의 결과`로 표시하며 단건 상세는 기존 스냅샷 일치 여부를 표시한다.
+- 기존 `source` 응답을 읽어 로컬 실행 도구 수집·클라이언트 제출·미확인을 구분한다. 필드가 없거나 알 수 없는 값이면 출처를 추정하지 않는다. 서버의 테스트 실행 확인과 구분하는 안내를 추가했다.
+- `./gradlew -p intellij-plugin test buildPlugin` 테스트 37개와 설치 ZIP 빌드 통과. 조회 커밋 차이·단건 상세 구분, 출처와 구버전 응답 처리를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:25 KST다. 로그는 `/tmp/intent-trace-intellij-verification-context.log`다.
+- ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다. 서버·API·DB·Zed·설정·의존성은 바꾸지 않아 해당 검증은 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
