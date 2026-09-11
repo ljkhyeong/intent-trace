@@ -609,3 +609,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin` 테스트 41개와 설치 ZIP 빌드 통과. 커밋 없는 초안의 웹 이동, 클릭 전 브라우저 호출 없음, 서버·기록 경로와 잘못된 ID 거부를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-intellij-web-record.log`, 결과 시각은 2026-09-12 08:37 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 관련 검증은 반복하지 않았다. 실제 IDE·브라우저 화면 조작, 플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 웹 조회 오류의 재조회
+
+- 시작 리비전 `9ac719a`, 미커밋 변경 없음. 코드 검증 대상은 `1f85eaf`다. GitHub 일시 장애(502)·호출 제한(429)의 GET 오류 화면에 `다시 조회`를 추가했다. 기존 복귀 주소 검사와 HTML 이스케이프를 사용해 조회 경로·쿼리를 유지한다. POST에는 제공하지 않으며 자동 재조회하지 않는다.
+- `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*RecordBrowserNavigationTest'` 15개 통과. 이후 복구 응답의 로그인 상태 확인을 보강하고 `./gradlew test` 189개 통과. `python3 scripts/test-summary.py server focused` 기준 각 범위의 실패·오류·건너뜀 0개다.
+- 목록·상세의 특수문자 검색 조건과 기존 세션 유지, 호출 제한 대기 시간·재조회 주소, 연결 종료 실패 후 세션 보존을 확인했다. 로그는 `/tmp/intent-trace-browser-retry-focused.log`, `/tmp/intent-trace-browser-retry-server.log`이며 전체 결과 시각은 2026-09-12 08:44 KST다.
+- REST·MCP 계약·DB·IntelliJ·Zed·의존성은 변경하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다. 변경 문서의 로컬 링크 검사와 `git diff --check`를 통과했다.
