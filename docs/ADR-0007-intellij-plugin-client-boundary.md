@@ -17,6 +17,7 @@
 - PRD-0005의 기록함은 공용 목록·단건 조회 API를 사용한다. 파일 이력은 수정 중인 파일에서도 조회하되 현재 줄 조회와 분리한다. 비공개 작성자 필터와 공개 상태는 서버가 페이지 처리 전에 적용한다.
 - 현재 줄 결과의 상세·파일 이력 버튼도 기존 기록함을 연다. 상세는 선택한 기록 ID로 다시 조회해 권한을 확인하고, 파일 이력은 현재 줄 조회에 사용한 저장소·경로를 유지한다. 버튼을 누르기 전에는 추가 조회하지 않는다.
 - 과거 기록에서 코드로 이동할 때는 GitHub의 전체 커밋 SHA와 기록의 코드 근거를 사용한다. 현재 편집기 줄로 자동 이동하거나 현재 검증으로 표시하지 않는다.
+- 응답의 `baseRevision`과 코드 근거의 `side`를 읽어 `BASE`는 변경 전 커밋, `TARGET`은 변경 후 커밋으로 연결한다. 선택한 쪽의 커밋이 없으면 코드 이동을 비활성화한다. `side`가 없는 이전 응답은 서버 기본값과 같은 `TARGET`으로 처리한다.
 - GitHub App user access·refresh token은 플러그인에 전달하지 않는다. 플러그인은 `its_` session token만 IntelliJ PasswordSafe 또는 환경 변수에서 읽는다.
 - server URL은 `Settings > Tools > IntentTrace`의 값, `INTENT_TRACE_URL`, 기본값 `http://127.0.0.1:8080` 순서로 선택한다. 빈 설정은 환경 변수 또는 기본값으로 돌아가며, 적용 뒤 다음 요청부터 반영한다. HTTP는 loopback host에만 허용하고 그 밖의 주소는 HTTPS만 허용한다.
 - 서버 주소는 IDE 공용 로컬 설정으로 둔다. IntelliJ `SimplePersistentStateComponent`와 `BaseState`로 정규화한 주소만 저장하고 `RoamingType.DISABLED`로 동기화에서 제외한다. 프로젝트 파일에서 자격 증명의 전송 대상을 바꿀 수 없게 한다. 설정 화면은 `BoundConfigurable`과 Kotlin UI DSL로 구성한다.

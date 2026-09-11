@@ -539,3 +539,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubContextIntegrationTest' --tests '*RecordBrowserNavigationTest' --tests '*RecordBrowserIntegrationTest'` 16개와 최종 `./gradlew test` 184개 통과. 첫·마지막·빈 페이지, 같은 저장소·커밋으로 페이지 왕복과 새로고침, PR·이슈 링크 구분을 확인했다. 부분 테스트는 전체에 포함된다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-github-navigation-focused.log`, `/tmp/intent-trace-github-navigation-server.log`, 최종 결과 시각은 2026-09-12 07:14 KST다. README·ADR·변경 이력을 현재 동작에 맞췄다.
 - REST·MCP 응답·DB·의존성·IDE 코드는 유지했다. 새 CI 실행·자동 반복 조회·유료 연동은 추가하지 않았다. IntelliJ·PostgreSQL·Zed 패키지 독립 검증은 변경이 없어 생략했다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 변경 전·후 코드 연결 수정
+
+- 시작 리비전 `e2a7adc`, 미커밋 변경 없음. 코드 검증 대상은 `5c2683a`와 같다. 플러그인이 `baseRevision`·`side`를 무시해 변경 전 코드도 변경 후 커밋으로 열던 오류를 수정했다. 코드 목록에 변경 전·후를 표시하고 선택한 쪽의 커밋으로 이동한다. 변경 후 커밋이 없는 초안도 변경 전 커밋이 있으면 이전 코드를 열 수 있다.
+- 수정 전 `./gradlew -p intellij-plugin test --tests '*RecordBrowsingTest'`에서 새 회귀 테스트가 잘못된 커밋 링크로 실패했다. 수정 후 `./gradlew -p intellij-plugin test buildPlugin` 35개와 설치 ZIP 빌드가 통과했다. 변경 전·후 링크와 경로 인코딩, 커밋 누락 시 대체 연결 금지, 선택별 버튼 상태, 이전 응답의 기본 `TARGET` 처리를 확인했다.
+- `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 최종 시각은 2026-09-12 07:22 KST다. 로그는 `/tmp/intent-trace-intellij-base-reproduction.log`, `/tmp/intent-trace-intellij-base-fix.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 서버·REST·MCP 계약·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 코드 링크 접속·게시·배포는 수행하지 않았다.
