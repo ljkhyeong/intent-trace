@@ -560,3 +560,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin` 테스트 38개와 설치 ZIP 빌드 통과. 로컬 HTTP stub으로 120초·0초·누락·음수·숫자 범위 초과·잘못된 헤더를 세 작업에 확인했다. 오류 본문·토큰을 예외에 포함하지 않고 작업당 한 번만 요청하는지 검증했다.
 - `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:38 KST다. 로그는 `/tmp/intent-trace-intellij-rate-limit.log`, ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 서버·REST·MCP·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·세션 삭제·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 후속 기록의 원본 탐색
+
+- 시작 리비전 `c3e9396`, 미커밋 변경 없음. 코드 검증 대상은 `c99f635`와 같다. 기존 응답의 `derivedFromRecordId`를 읽어 원본 ID와 `원본 기록 열기`를 표시한다. 대체 기록과 독립적으로 이동하며 기존 단건 조회로 권한을 확인한다. 연결 정보가 없으면 버튼을 비활성화한다.
+- `./gradlew -p intellij-plugin test buildPlugin` 테스트 39개와 설치 ZIP 빌드 통과. 원본·대체 ID 전달, 명시적 클릭 시 조회, 커밋 없는 후속 초안, 연결 정보 없는 응답과 원본 표시를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-intellij-original-record.log`, 결과 시각은 2026-09-12 07:45 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
