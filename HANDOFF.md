@@ -525,3 +525,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*RecordBrowserNavigationTest' --tests '*RecordBrowserIntegrationTest'` 10개와 최종 `./gradlew test` 182개 통과. 검색의 두 번째 페이지·상세·목록 왕복, 로그인 후 조건 유지, 이름 변경·줄 이동·한글과 특수문자 경로·별도 GitHub 호스트·현재 위치 미확인을 확인했다. `python3 scripts/test-summary.py server focused` 기준 실패·오류·건너뜀 0개다.
 - 로그는 `/tmp/intent-trace-browser-navigation-focused.log`, `/tmp/intent-trace-browser-navigation-server.log`이며 최종 결과 시각은 2026-09-12 06:57 KST다. 변경 문서 3개의 로컬 링크 51개·제목 링크 6개와 `git diff --check`도 통과했다. 이후 이력·인계 문서만 추가했다.
 - 새 의존성·DB 변경·외부 API 호출은 없다. IntelliJ는 `bb06a1f`와 같아 기존 검증을 재사용했고 DB·Zed·스킬 독립 검증은 생략했다. 실제 브라우저 조작·GitHub 코드 링크 접속·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 현재 줄 결과의 상세·파일 이력 이동
+
+- 시작 리비전 `fa9c268`, 미커밋 변경 없음. 코드 검증 대상은 `c19e3f7`과 같다. 현재 줄 결과에서 기록을 선택해 상세를 열고 조회한 파일의 과거 기록으로 이동하도록 개선했다. 기존 기록함과 조회 API를 사용하며 버튼을 누를 때만 추가 조회한다.
+- `./gradlew -p intellij-plugin test` 33개 통과. 같은 제목의 기록 선택, 선택한 ID 전달, 파일 경로 유지, 읽기 전용 표시와 명시적 실행을 SDK 테스트로 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 07:06 KST다. 로그는 `/tmp/intent-trace-intellij-result-navigation.log`다.
+- `./gradlew -p intellij-plugin buildPlugin` 통과. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`, 로그는 `/tmp/intent-trace-intellij-result-package.log`다.
+- 서버·DB·Zed·플러그인 설정·의존성을 변경하지 않아 해당 검증은 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
