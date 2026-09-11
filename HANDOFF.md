@@ -602,3 +602,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `npm test --prefix clients/zed`: Node 테스트 11개와 Python 실행 도구 테스트 3개 통과. 잘못된 주소·빈 세션에서도 도움말을 읽을 수 있고, 명령 오입력에 비밀값이 섞여도 안내에 노출되지 않는지 확인했다. 기존 설정·연결·배포 패키지의 오프라인 설치도 통과했다. 로그는 `/tmp/intent-trace-zed-cli-help-node.log`다.
 - `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'` 2개 통과. 실제 stdio → HTTP MCP → Spring 연결에서 기존 기본 점검과 PR·커밋 전달을 확인했다. `python3 scripts/test-summary.py focused` 기준 실패·오류·건너뜀 0개, 결과 시각은 2026-09-12 08:29 KST다. 로그는 `/tmp/intent-trace-zed-cli-help-mcp.log`다.
 - 서버 코드·API·DB·IntelliJ·의존성은 변경하지 않아 서버 전체·IDE 검증은 반복하지 않았다. 실제 Zed 앱 조작·사용자 설정 적용·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 상세에서 웹 기록 이동
+
+- 시작 리비전 `4cad463`, 미커밋 변경 없음. 코드 검증 대상은 `5112bdd`와 같다. 상세 창에 `웹에서 기록 열기`를 추가했다. 단건 조회 시 서버 주소와 요청한 기록 ID로 웹 주소를 정하고 버튼을 누르면 시스템 브라우저로 연다. API 토큰은 전달하지 않으며 웹 로그인과 읽기 권한 검사를 사용한다.
+- `./gradlew -p intellij-plugin test buildPlugin` 테스트 41개와 설치 ZIP 빌드 통과. 커밋 없는 초안의 웹 이동, 클릭 전 브라우저 호출 없음, 서버·기록 경로와 잘못된 ID 거부를 확인했다. `python3 scripts/test-summary.py intellij` 기준 실패·오류·건너뜀 0개다.
+- 로그는 `/tmp/intent-trace-intellij-web-record.log`, 결과 시각은 2026-09-12 08:37 KST다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 서버·API·DB·Zed·플러그인 설정·의존성은 변경하지 않아 관련 검증은 반복하지 않았다. 실제 IDE·브라우저 화면 조작, 플러그인 설치·GitHub 게시·배포는 수행하지 않았다.
