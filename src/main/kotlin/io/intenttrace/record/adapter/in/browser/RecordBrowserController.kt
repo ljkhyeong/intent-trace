@@ -86,7 +86,7 @@ class RecordBrowserController(
 
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.record(it.actor, records.get(id), request.queryString?.let { query -> "/records?$query" })
+        pages.record(it.actor, records.get(id), searchUrl(request))
     }
 
     @GetMapping("/{id}/markdown")
@@ -100,7 +100,7 @@ class RecordBrowserController(
     @GetMapping("/{id}/comparison")
     fun compare(request: HttpServletRequest, @PathVariable id: UUID,
         @RequestParam(defaultValue = "false") changesOnly: Boolean): ResponseEntity<String> = read(request) {
-        pages.comparison(it.actor, comparison.compare(id), changesOnly)
+        pages.comparison(it.actor, comparison.compare(id), changesOnly, searchUrl(request))
     }
 
     @GetMapping("/history")
@@ -121,16 +121,16 @@ class RecordBrowserController(
 
     @GetMapping("/{id}/evidence")
     fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
-        try { browserResponse(pages.evidence(it.actor, evidence.check(id))) }
+        try { browserResponse(pages.evidence(it.actor, evidence.check(id), searchUrl(request))) }
         catch (failure: EvidenceUnavailableException) {
-            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason), 422)
+            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason, searchUrl(request)), 422)
         }
     }
 
     @GetMapping("/{id}/activities")
     fun activities(request: HttpServletRequest, @PathVariable id: UUID,
         @RequestParam(required = false) beforeVersion: Long?): ResponseEntity<String> = read(request) {
-        pages.activities(it.actor, activities.list(id, beforeVersion))
+        pages.activities(it.actor, activities.list(id, beforeVersion), searchUrl(request))
     }
 
     @GetMapping("/sessions")
@@ -206,6 +206,14 @@ class RecordBrowserController(
         val origin = UriComponentsBuilder.fromUri(callback).replacePath(null).replaceQuery(null).fragment(null)
             .port(if (defaultPort) -1 else callback.port).build().toUriString()
         return origin.equals(request.getHeader(HttpHeaders.ORIGIN), ignoreCase = true)
+    }
+
+    private fun searchUrl(request: HttpServletRequest): String? {
+        val query = request.queryString ?: return null
+        val builder = UriComponentsBuilder.fromPath("/records").query(query)
+        val searchParameters = setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        builder.build().queryParams.keys.filterNot { it in searchParameters }.forEach { builder.replaceQueryParam(it) }
+        return builder.build().takeIf { it.queryParams.isNotEmpty() }?.toUriString()
     }
 
     private fun returnTo(request: HttpServletRequest): String = if (request.method == "GET")

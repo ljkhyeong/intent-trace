@@ -36,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.util.HtmlUtils
 import java.util.UUID
 import java.net.URI
 import java.nio.file.Files
@@ -123,12 +124,14 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             status { isOk() }; content { string(containsString("스냅샷 해시와 모든 관련 코드가 일치")) }; content { string(containsString("서버는 테스트 실행 여부를 확인하지 않습니다")) }
         }.andReturn().response.contentAsString
         preview("evidence", evidence)
-        val unavailable = mvc.get("/records/${failed.id}/evidence") { cookie(cookie) }.andExpect {
+        val failedRecordUrl = "/records/${failed.id}?repositoryKey=acme%2Fhistory-browser&scope=TEAM&path=src%2FApp.kt"
+        val unavailable = mvc.get(URI(failedRecordUrl.replace("?", "/evidence?"))) { cookie(cookie) }.andExpect {
             status { isUnprocessableContent() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }
             content { string(containsString("코드 일치 여부는 미확인")) }
             content { string(containsString("/records/${failed.id}")) }
         }.andReturn().response.contentAsString
         assertFalse(unavailable.contains("잠시 후 다시 시도"))
+        assertEquals(URI(failedRecordUrl), link(unavailable, "기록으로 돌아가기"))
         preview("evidence-unavailable", unavailable)
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
@@ -314,6 +317,20 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         }.andReturn().response.contentAsString
         val backLink = Regex("class=\"back-link\" href=\"([^\"]+)\"").find(detail)!!.groupValues[1].replace("&amp;", "&")
         assertEquals(next, backLink)
+        for (label in listOf("기록 변경 이력", "GitHub 코드와 비교")) {
+            val sectionLink = link(detail, label)
+            assertEquals(URI(recordLink).rawQuery, sectionLink.rawQuery)
+            val section = mvc.get(sectionLink) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertEquals(URI(recordLink), link(section, "기록으로 돌아가기"))
+            if (label == "기록 변경 이력") {
+                val older = mvc.get(URI("$sectionLink&beforeVersion=3")) { cookie(cookie) }
+                    .andExpect { status { isOk() } }.andReturn().response.contentAsString
+                assertEquals(URI(recordLink), link(older, "기록으로 돌아가기"))
+                val direct = mvc.get(URI("${sectionLink.path}?beforeVersion=3")) { cookie(cookie) }
+                    .andExpect { status { isOk() } }.andReturn().response.contentAsString
+                assertEquals(URI(URI(recordLink).path), link(direct, "기록으로 돌아가기"))
+            }
+        }
         mvc.get(URI(backLink)) { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("이 페이지 1건")) }
         }
@@ -368,7 +385,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("revision", "e".repeat(40))
         }.andExpect { status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") } }
         val comparisonCookie = login("/records/${successor.id}/comparison")
-        val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
+        val searchUrl = url("/records", "repositoryKey" to "acme/browser", "scope" to "MINE", "q" to "<후속 판단> & + %")
+        val successorUrl = URI("/records/${successor.id}?${URI(searchUrl).rawQuery}")
+        val successorPage = mvc.get(successorUrl) { cookie(comparisonCookie) }.andReturn().response.contentAsString
+        assertEquals(successorUrl.rawQuery, link(successorPage, "원본 공개 기록 읽기").rawQuery)
+        val comparisonUrl = link(successorPage, "원본과 비교")
+        assertEquals(successorUrl.rawQuery, comparisonUrl.rawQuery)
+        val compared = mvc.get(comparisonUrl) { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("새 기록에 등록된 검증 결과가 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
         preview("comparison", compared)
         assertTrue(compared.contains("내용 변경 · 출처"))
@@ -376,9 +399,14 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertTrue(compared.contains("<del>&lt;원본 판단&gt;</del>"))
         assertTrue(compared.contains("<ins>&lt;후속 판단&gt;</ins>"))
         assertTrue(compared.contains("<ins>등록된 내용 없음</ins>"))
-        val changesOnly = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie); param("changesOnly", "true") }
+        val changesOnly = mvc.get(link(compared, "변경된 항목만 보기")) { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("변경된 항목만 표시 중")) } }.andReturn().response.contentAsString
         assertFalse(changesOnly.contains("<h2>스냅샷"))
+        assertEquals(successorUrl, link(changesOnly, "새 기록"))
+        assertEquals(URI("/records/${original.id}?${successorUrl.rawQuery}"), link(changesOnly, "원본 기록"))
+        assertEquals("${successorUrl.rawQuery}&changesOnly=false", link(changesOnly, "같은 항목도 함께 보기").rawQuery)
+        val restored = mvc.get(link(changesOnly, "새 기록")) { cookie(comparisonCookie) }.andReturn().response.contentAsString
+        assertEquals(URI(searchUrl), link(restored, "검색 결과로 돌아가기"))
         mvc.get("/api/v1/change-records/${successor.id}/comparison") { header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test") }.andExpect {
             status { isOk() }
             jsonPath("$.changedFields[1]") { value("DECISIONS") }
@@ -424,6 +452,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertTrue(callback.getHeaders(HttpHeaders.SET_COOKIE).any { it.contains("SameSite=Lax") })
         return cookie
     }
+
+    private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
+        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
+    ))
 
     private fun preview(name: String, content: String) {
         val directory = Files.createDirectories(Path.of("build/browser-preview"))

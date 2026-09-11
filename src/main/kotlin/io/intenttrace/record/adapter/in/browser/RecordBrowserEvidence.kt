@@ -70,9 +70,9 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
         }
     })
 
-internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck): String =
+internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck, searchUrl: String? = null): String =
     layout("GitHub 코드와 비교", actor, buildString {
-        append("<a class=\"back-link\" href=\"/records/${result.recordId}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>GitHub 코드와 비교</h1></header>")
+        append("<a class=\"back-link\" href=\"${html(recordUrl(result.recordId, searchUrl))}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>GitHub 코드와 비교</h1></header>")
         append("<aside class=\"notice\">${if (result.codeVerified) "스냅샷 해시와 모든 관련 코드가 일치합니다." else "스냅샷 해시 또는 관련 코드가 일치하지 않습니다."} 서버는 테스트 실행 여부를 확인하지 않습니다.</aside>")
         append("<dl class=\"evidence-facts\"><dt>기록 버전</dt><dd>${result.recordVersion}</dd><dt>확인 시각</dt><dd>${stamp(result.checkedAt)}</dd><dt>커밋 해시(전체 길이)</dt><dd class=\"hash\">${html(result.targetRevision)}</dd><dt>기록의 스냅샷 해시</dt><dd class=\"hash\">${html(result.snapshotDigest)}</dd><dt>스냅샷 해시 비교</dt><dd>${if (result.snapshotMatches) "일치" else "불일치"}</dd></dl><ul class=\"records\">")
         result.anchors.forEach { anchor ->
@@ -92,9 +92,9 @@ internal val EvidenceUnavailableReason.message: String get() = when (this) {
     EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
 }
 
-internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason): String =
+internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason, searchUrl: String? = null): String =
     layout("코드 확인 불가", actor, """
-        <a class="back-link" href="/records/$recordId">기록으로 돌아가기</a>
+        <a class="back-link" href="${html(recordUrl(recordId, searchUrl))}">기록으로 돌아가기</a>
         <section class="empty"><h1>코드를 확인하지 못했습니다</h1><p>${reason.message}</p>
         <p>파일·응답 크기와 Git 객체 형식이 그대로라면 다시 확인해도 같은 오류가 날 수 있습니다.</p>
         <p class="muted">코드 일치 여부는 미확인입니다. 코드 불일치나 테스트 실패를 뜻하지 않습니다.</p></section>

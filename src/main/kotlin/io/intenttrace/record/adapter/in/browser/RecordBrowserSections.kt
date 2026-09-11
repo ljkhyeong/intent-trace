@@ -67,12 +67,12 @@ internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: Stri
         }
     })
 
-internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false): String =
+internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false, searchUrl: String? = null): String =
     layout("원본과 새 기록 비교", actor, buildString {
         append("<header class=\"page-heading\"><h1>원본과 새 기록 비교</h1><p>원본과 새 기록의 변경 내용을 확인하세요.</p></header>")
         if (result.successor.content.verifications.isEmpty()) append("<aside class=\"notice\">새 기록에 등록된 검증 결과가 없습니다. 원본의 검증 결과는 복사하지 않습니다.</aside>")
-        append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"/records/${result.original.id}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"/records/${result.successor.id}\">새 기록</a> · 버전 ${result.successor.version}</p></div>")
-        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"/records/${result.successor.id}/comparison?changesOnly=${!changesOnly}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
+        append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"${html(recordUrl(result.original.id, searchUrl))}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"${html(recordUrl(result.successor.id, searchUrl))}\">새 기록</a> · 버전 ${result.successor.version}</p></div>")
+        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"${html(recordUrl(result.successor.id, searchUrl, "comparison", "changesOnly" to !changesOnly))}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
         val labels = mapOf(ComparisonField.TITLE to "제목", ComparisonField.REQUEST to "요청", ComparisonField.DECISIONS to "구현 결정과 출처",
             ComparisonField.CODE_ANCHORS to "관련 코드", ComparisonField.VERIFICATIONS to "검증", ComparisonField.OPEN_QUESTIONS to "남은 질문",
             ComparisonField.BASE_REVISION to "변경 전 커밋", ComparisonField.TARGET_REVISION to "변경 후 커밋", ComparisonField.SNAPSHOT to "스냅샷 해시")

@@ -19,6 +19,7 @@ import org.springframework.web.util.UriUtils
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 @Component
 class RecordBrowserPage(private val properties: GitHubProperties) {
@@ -67,7 +68,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 if (page.items.isEmpty()) append("<div class=\"empty\"><h3>일치하는 기록이 없습니다</h3><p>검색어를 줄이거나 저장소와 조회 범위를 확인해 주세요.</p></div>")
                 append("<ul class=\"records\">")
                 page.items.forEach { record ->
-                    val recordUrl = UriComponentsBuilder.fromUriString(searchUrl).replacePath("/records/${record.id}").build().toUriString()
+                    val recordUrl = recordUrl(record.id, searchUrl)
                     append("""<li><div class="record-summary"><span class="status">${record.status.label}</span><h3><a href="${html(recordUrl)}">${html(record.title)}</a></h3><p>${html(record.requestSummary)}</p><div class="record-meta"><span>@${html(record.createdBy.login)}</span>${stamp(record.createdAt)}</div></div><span class="open-record" aria-hidden="true">↗</span></li>""")
                 }
                 append("</ul>")
@@ -81,8 +82,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
         append("<a class=\"back-link\" href=\"${html(backUrl)}\">${if (searchUrl == null) "${html(record.repositoryKey)} 기록 목록" else "검색 결과로 돌아가기"}</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
-        record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"/records/$it\">원본 공개 기록 읽기</a> · <a href=\"/records/${record.id}/comparison\">원본과 비교</a></aside>") }
-        record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새 기록으로 대체됐습니다. <a href=\"/records/$it\">새 기록 읽기</a></aside>") }
+        record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"${html(recordUrl(it, searchUrl))}\">원본 공개 기록 읽기</a> · <a href=\"${html(recordUrl(record.id, searchUrl, "comparison"))}\">원본과 비교</a></aside>") }
+        record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새 기록으로 대체됐습니다. <a href=\"${html(recordUrl(it, searchUrl))}\">새 기록 읽기</a></aside>") }
         append("<div class=\"reading-layout\"><article>")
         append("<section><h2>요청</h2><p class=\"prose lead\">${html(record.requestSummary)}</p></section>")
         append("<section><h2>구현 결정과 이유</h2><ol class=\"decisions\">")
@@ -103,7 +104,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             append("</li>")
         }
         append("</ul><p class=\"muted\">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p>")
-        if (record.targetRevision != null) append("<a class=\"button secondary\" href=\"/records/${record.id}/evidence\">GitHub 코드와 비교</a>")
+        if (record.targetRevision != null) append("<a class=\"button secondary\" href=\"${html(recordUrl(record.id, searchUrl, "evidence"))}\">GitHub 코드와 비교</a>")
         append("</section>")
         append("<section><h2>등록된 검증 결과</h2>")
         if (record.verifications.isEmpty()) append("<p class=\"muted\">등록된 검증 결과가 없습니다.</p>")
@@ -122,7 +123,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("</section></article><aside class=\"record-facts\"><h2>기록 정보</h2><dl><dt>작성자</dt><dd>@${html(record.createdBy.login)}</dd><dt>생성</dt><dd>${stamp(record.createdAt)}</dd>")
         record.confirmedAt?.let { append("<dt>작성자 확인</dt><dd>${stamp(it)}</dd>") }
         record.publishedAt?.let { append("<dt>공개</dt><dd>${stamp(it)}</dd>") }
-        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"/records/${record.id}/activities\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p></aside></div>")
+        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"${html(recordUrl(record.id, searchUrl, "activities"))}\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p></aside></div>")
     })
 
     fun error(message: String): String = layout("기록을 열 수 없습니다", null,
@@ -154,6 +155,12 @@ internal fun html(value: String): String = HtmlUtils.htmlEscape(value, "UTF-8")
 internal fun url(path: String, vararg values: Pair<String, String?>): String = UriComponentsBuilder.fromPath(path).apply {
     values.filter { !it.second.isNullOrEmpty() }.forEach { (key, value) -> queryParam(key, "{$key}") }
 }.encode().buildAndExpand(values.filter { !it.second.isNullOrEmpty() }.toMap()).toUriString()
+
+internal fun recordUrl(id: UUID, searchUrl: String?, section: String? = null, vararg controls: Pair<String, Any>): String =
+    UriComponentsBuilder.fromUriString(searchUrl ?: "/records")
+        .replacePath("/records/$id${section?.let { "/$it" }.orEmpty()}")
+        .apply { controls.forEach { (key, value) -> replaceQueryParam(key, value) } }
+        .build().toUriString()
 
 private val ChangeRecord.isPrivate: Boolean get() = status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
 internal val ChangeRecordStatus.label: String get() = when (this) {

@@ -4,6 +4,8 @@ import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeIntentHistory
+import io.intenttrace.record.application.ActivityVisibility
+import io.intenttrace.record.application.RecordActivities
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.GitHubActionsResults
 import io.intenttrace.record.application.HistoricalIntent
@@ -75,6 +77,20 @@ class RecordBrowserNavigationTest {
         assertEquals("$base&page=1", link(body, "이전 실행 결과").toString())
         assertEquals("$base&page=2", link(body, "결과 새로고침").toString())
         assertFalse(body.contains("다음 실행 결과"))
+    }
+
+    @Test
+    fun `이전 작업 링크는 검색 커서와 이력 조회 위치를 함께 유지한다`() {
+        val searchUrl = url("/records", "repositoryKey" to summary.repositoryKey,
+            "q" to "요청 & + %", "cursor" to "search-cursor")
+        val result = RecordActivities(summary.id, ActivityVisibility.AUTHOR, emptyList(), 12, true)
+        val body = pages.activities(actor, result, searchUrl)
+        val previous = link(body, "이전 작업 더 보기")
+        val back = link(body, "기록으로 돌아가기")
+        assertEquals("/records/${summary.id}/activities", previous.path)
+        assertEquals("${URI(searchUrl).rawQuery}&beforeVersion=12", previous.rawQuery)
+        assertEquals("/records/${summary.id}", back.path)
+        assertEquals(URI(searchUrl).rawQuery, back.rawQuery)
     }
 
     private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
