@@ -26,6 +26,7 @@ import java.time.Instant
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.VerificationRun
 import jakarta.servlet.http.Cookie
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
@@ -43,6 +44,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -59,6 +61,35 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,
     @Autowired private val sessionManagement: UserSessionManagement,
     @Autowired private val userAccess: GitHubOAuthSessionIntegrationTest.TestGitHubUserAccessGateway) {
+    @Test
+    fun `검증 상세는 현재 기록과 다른 스냅샷의 실행도 각각의 해시로 표시한다`() {
+        val current = VerificationRun("./gradlew test", 0, Instant.parse("2026-08-27T13:58:00Z"),
+            Instant.parse("2026-08-27T13:59:00Z"), digest, "b".repeat(64), "전체 테스트 통과")
+        val previous = current.copy(command = "./gradlew focusedTest", exitCode = 1,
+            snapshotDigest = "e".repeat(64), outputDigest = "f".repeat(64), summary = "이전 코드의 테스트 실패")
+        val record = records.create(command("검증 대상 비교").copy(verifications = listOf(current, previous)), ActorIdentity.github(42, "lim"))
+        val path = "/records/${record.id}"
+        val cookie = login(path)
+
+        val page = mvc.get(path) { cookie(cookie) }.andExpect {
+            status { isOk() }; header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+        }.andReturn().response.contentAsString
+
+        val sections = Regex("<div class=\"verification\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(page).map { it.groupValues[1] }.toList()
+        assertEquals(2, sections.size)
+        assertContains(sections[0], "<strong>통과</strong>")
+        assertContains(sections[1], "<strong>다른 스냅샷의 결과</strong>")
+        sections.zip(listOf(current, previous)).forEach { (section, verification) ->
+            val details = section.substringAfter("<details>")
+            assertContains(details, "<dt>검증 스냅샷 해시</dt><dd class=\"hash\">${verification.snapshotDigest}</dd>")
+            assertContains(details, "<dt>출력 해시</dt><dd class=\"hash\">${verification.outputDigest}</dd>")
+            assertContains(section, "종료 코드 ${verification.exitCode}")
+        }
+        assertEquals(record, records.get(record.id))
+        preview("verification-snapshots", page)
+    }
+
     @Test
     fun `일시 장애 후 같은 세션과 검색 조건으로 목록과 기록을 다시 조회한다`() {
         val record = records.create(command("조회 복구"), ActorIdentity.github(42, "lim"))

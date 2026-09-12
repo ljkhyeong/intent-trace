@@ -118,7 +118,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             val status = if (!verification.isCurrentFor(record)) "다른 스냅샷의 결과" else if (verification.exitCode == 0) "통과" else "실패"
             append("<div class=\"verification\"><strong>$status</strong><pre>${html(verification.command)}</pre><p class=\"prose\">${html(verification.summary)}</p>")
             append("<p class=\"muted\">${if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구에서 수집한 결과" else "클라이언트가 제출한 결과"} · 종료 코드 ${verification.exitCode}</p>")
-            append("<details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd>${stamp(verification.startedAt)}</dd><dt>종료</dt><dd>${stamp(verification.finishedAt)}</dd><dt>출력 해시</dt><dd class=\"hash\">${html(verification.outputDigest)}</dd></dl></details></div>")
+            append("<details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd>${stamp(verification.startedAt)}</dd><dt>종료</dt><dd>${stamp(verification.finishedAt)}</dd><dt>검증 스냅샷 해시</dt><dd class=\"hash\">${html(verification.snapshotDigest)}</dd><dt>출력 해시</dt><dd class=\"hash\">${html(verification.outputDigest)}</dd></dl></details></div>")
         }
         append("<p class=\"muted\">서버는 테스트 실행 여부를 확인하지 않습니다.</p>")
         record.targetRevision?.let { append("<a href=\"${html(url("/records/github", "repositoryKey" to record.repositoryKey, "revision" to it))}\">이 커밋의 GitHub CI 결과 조회</a>") }
