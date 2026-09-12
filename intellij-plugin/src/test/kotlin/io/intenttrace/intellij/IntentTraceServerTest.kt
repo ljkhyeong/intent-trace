@@ -48,21 +48,24 @@ class IntentTraceServerTest {
     }
 
     @Test
-    fun `현재 줄 조회 query를 URL 인코딩한다`() {
-        val uri = IntentTraceServer.parse("https://trace.example.com").lookupUri(
-            LineLookup(
-                repositoryKey = "team/repository",
-                revision = "a".repeat(40),
-                relativePath = "src/main/한글 파일.kt",
-                line = 12,
-            ),
+    fun `현재 줄 API와 웹 이력은 같은 커밋과 특수문자 경로를 URL 인코딩한다`() {
+        val server = IntentTraceServer.parse("https://trace.example.com")
+        val lookup = LineLookup(
+            repositoryKey = "team/repository",
+            revision = "a".repeat(40),
+            relativePath = "src/main/한글 파일#?&%.kt",
+            line = 12,
         )
-
-        assertEquals(
-            "https://trace.example.com/api/v1/change-records/lookup" +
-                "?repositoryKey=team%2Frepository&revision=${"a".repeat(40)}" +
-                "&path=src%2Fmain%2F%ED%95%9C%EA%B8%80+%ED%8C%8C%EC%9D%BC.kt&line=12",
-            uri.toString(),
-        )
+        for ((path, uri) in listOf(
+            "/api/v1/change-records/lookup" to server.lookupUri(lookup),
+            "/records/history" to server.webHistoryUri(lookup),
+        )) {
+            assertEquals(
+                "https://trace.example.com$path" +
+                    "?repositoryKey=team%2Frepository&revision=${"a".repeat(40)}" +
+                    "&path=src%2Fmain%2F%ED%95%9C%EA%B8%80+%ED%8C%8C%EC%9D%BC%23%3F%26%25.kt&line=12",
+                uri.toString(),
+            )
+        }
     }
 }

@@ -4,6 +4,10 @@ internal object IntentTraceTextRenderer {
     fun render(lookup: LineLookup, records: List<ChangeIntentRecord>): String = buildString {
         appendLine("${lookup.repositoryKey} · ${lookup.revision.take(12)}")
         appendLine("${lookup.relativePath}:${lookup.line}")
+        if (records.isEmpty()) {
+            appendLine().appendLine("이 커밋의 현재 줄에 연결된 공개 기록이 없습니다.")
+            appendLine("아래 버튼으로 파일의 과거 기록이나 줄 이동·이름 변경을 찾아보세요.")
+        }
         append(renderRecords(records, lookup.revision))
     }.trimEnd()
 
@@ -75,6 +79,7 @@ internal object IntentTraceTextRenderer {
         "AUTHOR_CONFIRMED" -> "작성자 확인 · 비공개"
         "PUBLISHED" -> "팀 공개"
         "SUPERSEDED" -> "대체됨"
+        "DISCARDED" -> "폐기"
         else -> value
     }
 

@@ -46,14 +46,18 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
         return URI.create("$baseUri/api/v1/change-records?$parameters")
     }
 
-    fun lookupUri(lookup: LineLookup): URI {
+    fun lookupUri(lookup: LineLookup): URI = lineUri("/api/v1/change-records/lookup", lookup)
+
+    fun webHistoryUri(lookup: LineLookup): URI = lineUri("/records/history", lookup)
+
+    private fun lineUri(path: String, lookup: LineLookup): URI {
         val query = listOf(
             "repositoryKey" to lookup.repositoryKey,
             "revision" to lookup.revision,
             "path" to lookup.relativePath,
             "line" to lookup.line.toString(),
         ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
-        return URI.create("$baseUri/api/v1/change-records/lookup?$query")
+        return URI.create("$baseUri$path?$query")
     }
 
     companion object {

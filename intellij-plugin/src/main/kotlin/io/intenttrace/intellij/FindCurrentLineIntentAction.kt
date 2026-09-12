@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.Messages
+import java.net.URI
 
 class FindCurrentLineIntentAction : DumbAwareAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -31,6 +32,7 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
 
         object : Task.Backgroundable(project, "IntentTrace 변경 의도 조회", false) {
             private lateinit var records: List<ChangeIntentRecord>
+            private lateinit var webHistoryUri: URI
 
             override fun run(indicator: ProgressIndicator) {
                 val server = IntentTraceServer.current()
@@ -39,25 +41,12 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
                         "IntentTrace 세션이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.",
                     )
                 records = IntentTraceApiClient().lookup(server, token, lookup)
+                webHistoryUri = server.webHistoryUri(lookup)
             }
 
             override fun onSuccess() {
                 if (project.isDisposed) return
-                if (records.isEmpty()) {
-                    val choice = Messages.showYesNoDialog(
-                        project,
-                        "현재 HEAD의 ${lookup.relativePath}:${lookup.line}에 연결된 공개 변경 의도가 없습니다.\n이 파일의 다른 커밋에 기록된 의도를 볼까요?",
-                        "IntentTrace",
-                        "이 파일의 과거 기록 보기",
-                        "닫기",
-                        Messages.getQuestionIcon(),
-                    )
-                    if (choice == Messages.YES) {
-                        IntentTraceRecordBrowser.open(project, RepositoryFileContext(lookup.repositoryKey, lookup.relativePath), fileOnly = true)
-                    }
-                } else {
-                    IntentTraceResultDialog(project, lookup, records).show()
-                }
+                IntentTraceResultDialog(project, lookup, records, webHistoryUri).show()
             }
 
             override fun onThrowable(error: Throwable) {
