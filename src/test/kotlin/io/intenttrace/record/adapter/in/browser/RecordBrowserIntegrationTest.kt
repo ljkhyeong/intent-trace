@@ -11,6 +11,7 @@ import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthController
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthSessionIntegrationTest
 import io.intenttrace.identity.application.BrowserReturnPath
+import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
@@ -65,7 +66,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             "q" to "요청 & + % \"<입력>\"", "status" to "DRAFT", "path" to "src/App.kt"))
         val cookie = login(searchUrl.toString())
         for (target in listOf(searchUrl, URI("/records/${record.id}?${searchUrl.rawQuery}"))) {
-            userAccess.failAuthentication = true
+            userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
             val failed = try {
                 mvc.get(target) { cookie(cookie) }.andExpect {
                     status { isBadGateway() }
@@ -73,7 +74,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                     header { string("Referrer-Policy", "no-referrer") }
                 }.andReturn().response.contentAsString
             } finally {
-                userAccess.failAuthentication = false
+                userAccess.authenticationFailure = null
             }
             assertEquals(target, link(failed, "다시 조회"))
             assertFalse(failed.contains(cookie.value))
@@ -89,7 +90,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     fun `연결 종료 중 장애가 나면 종료 요청의 재조회 링크를 만들지 않는다`() {
         val cookie = login("/records/sessions")
         val sessionId = sessionStore.resolve(cookie.value).sessionId!!
-        userAccess.failAuthentication = true
+        userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
         try {
             for (target in listOf("/records/sessions/$sessionId/revoke", "/records/sessions/revoke-all")) {
                 val failed = mvc.post(target) { cookie(cookie); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }
@@ -98,7 +99,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 assertEquals(URI("/records"), link(failed, "기록 찾기로 이동"))
             }
         } finally {
-            userAccess.failAuthentication = false
+            userAccess.authenticationFailure = null
         }
         assertEquals(sessionId, sessionStore.resolve(cookie.value).sessionId)
     }

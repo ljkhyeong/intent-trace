@@ -6,6 +6,8 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.net.URI
 import java.time.Clock
 import java.time.Duration
@@ -13,10 +15,13 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 class GitHubOAuthFlowServiceTest {
-    @Test
-    fun `유효 시간이 지난 state는 code 교환 전에 거부한다`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `유효 시간이 지난 state는 code 교환 전에 거부하고 브라우저 복귀 주소만 남긴다`(browser: Boolean) {
         val clock = MutableClock(Instant.parse("2026-08-28T12:00:00Z"))
         val oauth = FakeOAuthGateway(clock)
         val flow = GitHubOAuthFlowService(
@@ -28,13 +33,23 @@ class GitHubOAuthFlowServiceTest {
             ),
             clock = clock,
         )
-        val start = flow.start()
+        val returnTo = if (browser) "/records?scope=MINE" else null
+        val start = flow.start(returnTo)
         clock.advance(Duration.ofMinutes(11))
 
+        val failure = assertFailsWith<GitHubOAuthException> {
+            flow.complete("authorization-code", start.state, start.state, null)
+        }
+        if (browser) {
+            assertEquals(returnTo, assertIs<GitHubOAuthCallbackException>(failure).returnTo)
+            assertIs<GitHubOAuthStateException>(failure.cause)
+        } else {
+            assertIs<GitHubOAuthStateException>(failure)
+        }
         assertFailsWith<GitHubOAuthStateException> {
             flow.complete("authorization-code", start.state, start.state, null)
         }
-        kotlin.test.assertEquals(0, oauth.exchangeCount)
+        assertEquals(0, oauth.exchangeCount)
     }
 
     @Test

@@ -4,6 +4,8 @@ import io.intenttrace.config.GITHUB_OAUTH_CALLBACK_PATH
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubOAuthApiException
+import io.intenttrace.identity.application.GitHubOAuthCallbackException
+import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubOAuthCodeException
 import io.intenttrace.identity.application.GitHubOAuthCapacityException
 import io.intenttrace.identity.application.GitHubOAuthConfigurationException
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.util.HtmlUtils
+import org.springframework.web.util.UriComponentsBuilder
 import java.time.Duration
 import java.net.URI
 
@@ -94,43 +97,34 @@ class GitHubOAuthController(
 @RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class GitHubOAuthExceptionHandler {
-    @ExceptionHandler(IllegalArgumentException::class)
-    fun invalidReturnPath(): ResponseEntity<String> = secure(ResponseEntity.badRequest())
-        .contentType(HTML_UTF8).body(errorPage("기록으로 돌아갈 주소가 올바르지 않습니다."))
-    @ExceptionHandler(GitHubRateLimitException::class)
-    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)).contentType(HTML_UTF8)
-            .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
-            .body(errorPage(exception.message ?: "GitHub 호출 제한에 도달했습니다."))
-    @ExceptionHandler(GitHubOAuthCapacityException::class)
-    fun tooManyRequests(): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS))
-            .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요."))
-
-    @ExceptionHandler(GitHubOAuthStateException::class, GitHubOAuthCodeException::class)
-    fun invalidRequest(): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.BAD_REQUEST))
-            .contentType(HTML_UTF8)
-            .body(errorPage("로그인 요청을 확인할 수 없습니다. 아래 링크에서 다시 로그인해 주세요."))
-
-    @ExceptionHandler(GitHubOAuthDeniedException::class, GitHubUserAuthenticationException::class)
-    fun denied(): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.UNAUTHORIZED))
-            .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 로그인을 완료하지 못했습니다."))
-
-    @ExceptionHandler(GitHubOAuthConfigurationException::class)
-    fun unavailable(): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE))
-            .contentType(HTML_UTF8)
-            .body(errorPage("서버의 GitHub 로그인 설정이 올바르지 않습니다. 운영자에게 문의해 주세요."))
-
-    @ExceptionHandler(GitHubOAuthApiException::class, GitHubIdentityApiException::class)
-    fun dependencyFailure(): ResponseEntity<String> =
-        secure(ResponseEntity.status(HttpStatus.BAD_GATEWAY))
-            .contentType(HTML_UTF8)
-            .body(errorPage("GitHub 인증 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."))
+    @ExceptionHandler(
+        GitHubOAuthException::class,
+        GitHubUserAuthenticationException::class,
+        GitHubIdentityApiException::class,
+        GitHubRateLimitException::class,
+        IllegalArgumentException::class,
+    )
+    fun failure(exception: RuntimeException): ResponseEntity<String> {
+        val callback = exception as? GitHubOAuthCallbackException
+        val failure = callback?.cause ?: exception
+        val (status, message) = when (failure) {
+            is GitHubRateLimitException -> HttpStatus.TOO_MANY_REQUESTS to failure.message!!
+            is GitHubOAuthCapacityException -> HttpStatus.TOO_MANY_REQUESTS to "GitHub 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+            is GitHubOAuthStateException, is GitHubOAuthCodeException ->
+                HttpStatus.BAD_REQUEST to "로그인 요청을 확인할 수 없습니다. 아래 링크에서 다시 로그인해 주세요."
+            is GitHubOAuthDeniedException, is GitHubUserAuthenticationException ->
+                HttpStatus.UNAUTHORIZED to "GitHub 로그인을 완료하지 못했습니다."
+            is GitHubOAuthConfigurationException ->
+                HttpStatus.SERVICE_UNAVAILABLE to "서버의 GitHub 로그인 설정이 올바르지 않습니다. 운영자에게 문의해 주세요."
+            is GitHubOAuthApiException, is GitHubIdentityApiException ->
+                HttpStatus.BAD_GATEWAY to "GitHub 인증 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+            is IllegalArgumentException -> HttpStatus.BAD_REQUEST to "기록으로 돌아갈 주소가 올바르지 않습니다."
+            else -> throw failure
+        }
+        val response = secure(ResponseEntity.status(status)).contentType(HTML_UTF8)
+        if (failure is GitHubRateLimitException) response.header(HttpHeaders.RETRY_AFTER, failure.retryAfterSeconds.toString())
+        return response.body(errorPage(message, callback?.returnTo))
+    }
 }
 
 const val BROWSER_SESSION_COOKIE = "intent_trace_browser"
@@ -151,10 +145,14 @@ private fun successPage(session: IssuedGitHubUserSession): String =
             """.trimIndent(),
     )
 
-private fun errorPage(message: String): String = page(
-    title = "GitHub 연결 실패",
-    content = "<p>${escapeHtml(message)}</p><p><a href=\"/auth/github/start\">다시 로그인</a></p>",
-)
+private fun errorPage(message: String, returnTo: String?): String {
+    val retryUrl = if (returnTo == null) "/auth/github/start" else UriComponentsBuilder.fromPath("/auth/github/start")
+        .queryParam("returnTo", "{returnTo}").encode().buildAndExpand(returnTo).toUriString()
+    return page(
+        title = "GitHub 연결 실패",
+        content = "<p>${escapeHtml(message)}</p><p><a href=\"${escapeHtml(retryUrl)}\">다시 로그인</a></p>",
+    )
+}
 
 private val HTML_UTF8 = MediaType("text", "html", Charsets.UTF_8)
 

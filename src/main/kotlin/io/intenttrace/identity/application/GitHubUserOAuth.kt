@@ -130,18 +130,23 @@ class GitHubOAuthFlowService(
         val verifiedState = verifyBrowserState(state, cookieState)
         val pending = pendingStates.remove(TokenDigests.sha256(verifiedState))
             ?: throw GitHubOAuthStateException()
-        if (!Instant.now(clock).isBefore(pending.expiresAt)) throw GitHubOAuthStateException()
-        if (!error.isNullOrBlank()) throw GitHubOAuthDeniedException()
+        try {
+            if (!Instant.now(clock).isBefore(pending.expiresAt)) throw GitHubOAuthStateException()
+            if (!error.isNullOrBlank()) throw GitHubOAuthDeniedException()
 
-        val verifiedCode = code?.takeIf {
-            it.isNotBlank() && it.length <= MAX_CODE_LENGTH && it.none(Char::isWhitespace)
-        } ?: throw GitHubOAuthCodeException()
-        val tokens = oauthGateway.exchange(verifiedCode, pending.codeVerifier)
-        val actor = userAccessGateway.authenticate(tokens.accessToken)
-        return GitHubOAuthCompletion(
-            sessions.issue(actor, tokens, if (pending.returnTo == null) SessionChannel.CLIENT else SessionChannel.BROWSER),
-            pending.returnTo,
-        )
+            val verifiedCode = code?.takeIf {
+                it.isNotBlank() && it.length <= MAX_CODE_LENGTH && it.none(Char::isWhitespace)
+            } ?: throw GitHubOAuthCodeException()
+            val tokens = oauthGateway.exchange(verifiedCode, pending.codeVerifier)
+            val actor = userAccessGateway.authenticate(tokens.accessToken)
+            return GitHubOAuthCompletion(
+                sessions.issue(actor, tokens, if (pending.returnTo == null) SessionChannel.CLIENT else SessionChannel.BROWSER),
+                pending.returnTo,
+            )
+        } catch (exception: RuntimeException) {
+            if (pending.returnTo == null) throw exception
+            throw GitHubOAuthCallbackException(pending.returnTo, exception)
+        }
     }
 
     private fun verifyBrowserState(state: String?, cookieState: String?): String {
@@ -332,6 +337,9 @@ class InMemoryGitHubUserSessionStore(
 val BROWSER_SESSION_TTL: Duration = Duration.ofHours(8)
 
 open class GitHubOAuthException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+
+class GitHubOAuthCallbackException(val returnTo: String, cause: RuntimeException) :
+    GitHubOAuthException("GitHub 브라우저 로그인을 완료하지 못했습니다.", cause)
 
 class GitHubOAuthConfigurationException : GitHubOAuthException("GitHub 사용자 승인 설정을 사용할 수 없습니다.")
 

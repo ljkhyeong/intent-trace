@@ -1,6 +1,7 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.IntentTraceApplication
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserOAuthGateway
@@ -10,6 +11,8 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -23,6 +26,7 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.util.HtmlUtils
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Clock
@@ -30,6 +34,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import kotlin.test.assertFalse
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -203,7 +208,7 @@ class GitHubOAuthSessionIntegrationTest(
             .build()
             .queryParams
             .getFirst("state")!!
-        userAccess.failAuthentication = true
+        userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
 
         try {
             mockMvc.get("/auth/github/callback") {
@@ -216,9 +221,76 @@ class GitHubOAuthSessionIntegrationTest(
                 header { string("Referrer-Policy", "no-referrer") }
                 content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
                 content { string(containsString("GitHub 인증 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")) }
+                content { string(containsString("href=\"/auth/github/start\">다시 로그인")) }
             }
         } finally {
-            userAccess.failAuthentication = false
+            userAccess.authenticationFailure = null
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource("denied, 401", "code, 400", "identity, 502", "rate, 429")
+    fun `브라우저 로그인 실패 후 재시도하면 같은 검색 화면으로 돌아온다`(failure: String, expectedStatus: Int) {
+        val returnTo = "/records?repository=acme/demo&q=a%2Bb%26%22%3Ctag%3E&scope=MINE"
+        val start = mockMvc.get("/auth/github/start") { param("returnTo", returnTo) }.andReturn().response
+        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        userAccess.authenticationFailure = when (failure) {
+            "identity" -> GitHubIdentityApiException("테스트 사용자 조회 장애")
+            "rate" -> GitHubRateLimitException(120)
+            else -> null
+        }
+        val callback = try {
+            mockMvc.get("/auth/github/callback") {
+                param("state", stateCookie.value)
+                if (failure != "code") param("code", "authorization-code")
+                if (failure == "denied") param("error", "access_denied")
+                param("returnTo", "https://untrusted.example/records")
+                cookie(stateCookie)
+            }.andExpect {
+                status { isEqualTo(expectedStatus) }
+                header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
+                header { string("Referrer-Policy", "no-referrer") }
+            }.andReturn().response
+        } finally {
+            userAccess.authenticationFailure = null
+        }
+        if (failure == "rate") assertEquals("120", callback.getHeader(HttpHeaders.RETRY_AFTER))
+        assertTrue(callback.cookies.none { it.name == BROWSER_SESSION_COOKIE })
+        assertFalse(callback.contentAsString.contains("untrusted.example"))
+        assertFalse(callback.contentAsString.contains("its_"))
+        assertFalse(callback.contentAsString.contains("ghu_"))
+        assertEquals(0, callback.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }.maxAge)
+
+        val retryUrl = URI(HtmlUtils.htmlUnescape(
+            Regex("href=\"([^\"]+)\">다시 로그인</a>").find(callback.contentAsString)!!.groupValues[1],
+        ))
+        val retry = mockMvc.get(retryUrl).andExpect { status { isFound() } }.andReturn().response
+        val newState = retry.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        mockMvc.get("/auth/github/callback") {
+            param("state", stateCookie.value); param("code", "authorization-code"); cookie(stateCookie)
+        }.andExpect { status { isBadRequest() } }
+        val completed = mockMvc.get("/auth/github/callback") {
+            param("state", newState.value); param("code", "authorization-code"); cookie(newState)
+        }.andExpect {
+            status { isSeeOther() }
+            header { string(HttpHeaders.LOCATION, returnTo) }
+        }.andReturn().response
+        assertTrue(completed.cookies.single { it.name == BROWSER_SESSION_COOKIE }.value.startsWith("itb_"))
+        assertFalse(completed.contentAsString.contains("its_"))
+    }
+
+    @Test
+    fun `확인되지 않은 state의 복귀 주소는 재로그인 링크에 사용하지 않는다`() {
+        val start = mockMvc.get("/auth/github/start") { param("returnTo", "/records?scope=MINE") }.andReturn().response
+        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        mockMvc.get("/auth/github/callback") {
+            param("state", "different-state")
+            param("code", "authorization-code")
+            param("returnTo", "https://untrusted.example/records")
+            cookie(stateCookie)
+        }.andExpect {
+            status { isBadRequest() }
+            content { string(containsString("href=\"/auth/github/start\">다시 로그인")) }
         }
     }
 
@@ -259,10 +331,10 @@ class GitHubOAuthSessionIntegrationTest(
     }
 
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
-        var failAuthentication = false
+        var authenticationFailure: RuntimeException? = null
 
         override fun authenticate(accessToken: String): ActorIdentity {
-            if (failAuthentication) throw GitHubIdentityApiException("테스트 사용자 조회 장애")
+            authenticationFailure?.let { throw it }
             return ActorIdentity.github(42, "lim")
         }
 
