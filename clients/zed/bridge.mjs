@@ -80,7 +80,7 @@ export async function check(script, url, repositoryKey, diagnostic = {}) {
       const result = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey, ...diagnostic } });
       if (result.isError) throw new Error('저장소 진단에 실패했습니다.');
       const diagnosis = result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
-      for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}`);
+      for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}${item.message ? ` — ${item.message}` : ''}`);
       if (diagnosis.checks.some(item => item.status === 'FAILED')) process.exitCode = 1;
     }
   } catch (error) {

@@ -62,6 +62,19 @@ class ZedBridgeIntegrationTest(
     }
 
     @Test
+    fun `연결 점검은 실패 사유와 나머지 진단 안내를 함께 표시한다`() {
+        val repository = GitHubRepository.parse("acme/intent-trace")
+        val revision = "d".repeat(40)
+        for (reason in EvidenceUnavailableReason.entries) {
+            Mockito.doThrow(EvidenceUnavailableException(reason)).`when`(evidence).snapshot(repository, revision)
+            val output = check("--revision", revision, expectedExitCode = 1)
+            assertTrue(output.contains("git_tree_read: FAILED — ${reason.message}"), output)
+            assertTrue(output.contains("repository_read: VERIFIED — GitHub 응답으로 확인했습니다."), output)
+            assertTrue(output.contains("publication_credentials: NOT_CONFIGURED — 운영자가 서버 게시용 GitHub App client ID와 private key를 설정해야 합니다."), output)
+        }
+    }
+
+    @Test
     fun `세션 종료는 잘못된 ID를 노출하거나 다른 연결을 종료하지 않고 ID 생략만 현재 연결을 종료한다`() {
         val now = Instant.now()
         fun issue() = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
@@ -214,7 +227,7 @@ class ZedBridgeIntegrationTest(
         }
     }
 
-    private fun check(vararg options: String, explicitAddress: Boolean = true): String {
+    private fun check(vararg options: String, explicitAddress: Boolean = true, expectedExitCode: Int = 0): String {
         assumeTrue(Files.exists(Path.of("clients/zed/node_modules/@modelcontextprotocol/sdk")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
         val now = Instant.now()
         val session = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
@@ -235,7 +248,7 @@ class ZedBridgeIntegrationTest(
         assertTrue(finished, "Zed 연결 점검이 30초 안에 끝나야 합니다.")
         val output = process.inputStream.bufferedReader().readText()
         assertFalse(output.contains(session.sessionToken), "세션은 출력하지 않아야 합니다.")
-        assertEquals(0, process.exitValue(), output)
+        assertEquals(expectedExitCode, process.exitValue(), output)
         return output
     }
 }
