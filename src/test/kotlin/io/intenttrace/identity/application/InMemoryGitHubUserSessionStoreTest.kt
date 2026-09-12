@@ -199,19 +199,29 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = [false, true])
-    fun `token 갱신 중 선택 또는 전체 폐기한 session을 다시 활성화하지 않는다`(revokeAll: Boolean) {
-        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
-        val id = store.list(owner.subject).single().id
+    @ValueSource(strings = ["현재", "브라우저", "선택", "전체"])
+    fun `세션 폐기는 진행 중인 갱신을 기다리지 않고 해당 인증도 거부한다`(mode: String) {
+        val channel = if (mode == "브라우저") SessionChannel.BROWSER else SessionChannel.CLIENT
+        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)), channel)
+        val session = store.resolve(issued.sessionToken)
+        clock.advance(Duration.ofHours(8).minusMinutes(4))
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
-        oauth.beforeRefresh = { entered.countDown(); assertTrue(release.await(5, TimeUnit.SECONDS)) }
-        val executor = Executors.newSingleThreadExecutor()
+        oauth.beforeRefresh = { entered.countDown(); check(release.await(10, TimeUnit.SECONDS)) }
+        val executor = Executors.newFixedThreadPool(2)
         try {
             val resolving = executor.submit<GitHubUserSession> { store.resolve(issued.sessionToken) }
             assertTrue(entered.await(5, TimeUnit.SECONDS))
-            if (revokeAll) assertEquals(1, store.revokeAll(owner.subject))
-            else assertTrue(store.revoke(owner.subject, id))
+            executor.submit<Unit> {
+                when (mode) {
+                    "현재" -> store.revoke(session.localSessionId!!)
+                    "브라우저" -> store.revokeBrowser(issued.sessionToken)
+                    "선택" -> assertTrue(store.revoke(owner.subject, session.sessionId!!))
+                    "전체" -> assertEquals(1, store.revokeAll(owner.subject))
+                }
+            }.get(5, TimeUnit.SECONDS)
+            assertTrue(store.list(owner.subject).isEmpty())
+            assertFalse(resolving.isDone)
             release.countDown()
             val error = assertFailsWith<ExecutionException> { resolving.get(5, TimeUnit.SECONDS) }
             assertTrue(error.cause is GitHubUserAuthenticationException)
@@ -229,6 +239,18 @@ class InMemoryGitHubUserSessionStoreTest {
         assertFailsWith<GitHubUserAuthenticationException> { store.resolve(browser.sessionToken) }
         store.revokeBrowser(client.sessionToken)
         assertEquals(owner, store.resolve(client.sessionToken).actor)
+    }
+
+    @Test
+    fun `GitHub 인증 응답을 기다리는 사이 만료된 브라우저 세션은 거부한다`() {
+        val browser = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)), SessionChannel.BROWSER)
+        clock.advance(Duration.ofHours(8).minusSeconds(1))
+        users.beforeAuthenticate = { clock.advance(Duration.ofSeconds(1)) }
+
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(browser.sessionToken) }
+
+        assertTrue(store.list(owner.subject).isEmpty())
+        assertFailsWith<GitHubUserAuthenticationException> { store.resolve(browser.sessionToken) }
     }
 
     @Test
@@ -317,8 +339,10 @@ class InMemoryGitHubUserSessionStoreTest {
     private class FakeGitHubUserAccessGateway : GitHubUserAccessGateway {
         var refreshedActor: ActorIdentity = owner
         var authenticationFailure: GitHubIdentityApiException? = null
+        var beforeAuthenticate: () -> Unit = {}
 
         override fun authenticate(accessToken: String): ActorIdentity {
+            beforeAuthenticate()
             authenticationFailure?.let { throw it }
             return if (accessToken == "ghu_access-2") refreshedActor else owner
         }
