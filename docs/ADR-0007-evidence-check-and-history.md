@@ -12,6 +12,7 @@
 - 코드 확인 결과는 요청 시 계산해 기록 ID·버전·커밋·스냅샷·확인 시각과 함께 반환한다. 공개 본문이나 기존 해시를 갱신하지 않으며 코드 원문을 DB에 저장하지 않는다.
 - 스냅샷은 `git -c core.quotePath=true ls-tree -r --full-tree`의 UTF-8 출력에 SHA-256을 적용한다. 파일 mode·객체 type·객체 ID·탭·Git의 경로 인용 규칙·LF를 고정한다. 서버는 트리의 leaf를 Git 경로 순서로 정렬해 같은 출력을 만든다.
 - 일부만 반환한 GitHub tree, 없는 파일, 범위 밖 줄과 제한을 넘는 blob은 확인 성공으로 처리하지 않는다. 줄 해시는 원래 줄 끝 바이트를 유지한다.
+- GitHub 응답의 객체 해시 형식 오류와 알 수 없는 커밋 비교 상태는 조회 실패(`502`)로 처리한다. [공식 응답 규격](https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json)의 `ahead`·`identical`은 조상 관계로 인정하고 `behind`·`diverged`는 제외한다.
 - 현재 커밋과 다른 기록은 별도 탐색 결과로 반환한다. 조상 여부와 파일 blob이 같다고 서버가 확인한 경우만 파일 동일로 표시한다. 관련 후보에는 원본 커밋을 표시하고 이전 검증 결과를 현재 커밋의 검증으로 사용하지 않는다.
 - 로컬 실행 도구는 검증 명령을 실제 실행하고 출력 해시·종료 코드·시각을 수집한다. 실행 전후 Git 상태가 대상 커밋과 다르면 현재 커밋 검증으로 내보내지 않는다. 출력은 메모리에서 해시만 계산하고 파일로 저장하지 않는다.
 

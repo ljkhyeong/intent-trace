@@ -690,3 +690,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubUserPullRequestClientTest' --tests '*GitHubRestClientTest'`: 23개 통과. 두 클라이언트의 base·head 저장소명과 HEAD 형식 오류, 응답 원문 미노출을 검증했다. 수정 전 오류 분류 실패 5건과 기존 HEAD 안내 문구 차이는 `/tmp/intent-trace-pr-response-before.log`, 수정 후 결과는 `/tmp/intent-trace-pr-response-focused.log`에 있다.
 - `./gradlew test bootJar`: 서버 212개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:07 KST이며 로그는 `/tmp/intent-trace-pr-response-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 호출·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 GitHub 코드 조회 실패와 비교 결과 구분
+
+- 시작 리비전 `b62aed9`, 코드 검증 대상은 `3b80474`다. GitHub 코드 응답의 트리·파일 객체 해시 파싱 실패를 API 오류로 변환했다. 공식 OpenAPI의 비교 상태 네 가지를 확인하고, 알 수 없는 상태가 조상 관계 없음으로 처리돼 일부 이력이 누락될 수 있던 문제를 수정했다. 기존 해시 검증을 재사용하며 HTTP 호출·재시도는 추가하지 않았다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다.
+- `./gradlew focusedTest --tests '*GitHubEvidenceClientTest' --tests '*RecordEvidenceIntegrationTest'`: 14개 통과. 잘못된 응답 네 사례를 수정 전에 재현하고 정상 비교 상태·원문 미노출·시간 제한·취소·이력 조회를 확인했다. 로그는 `/tmp/intent-trace-evidence-response-before.log`, `/tmp/intent-trace-evidence-response-focused.log`다.
+- `./gradlew test bootJar`: 서버 220개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:12 KST이며 로그는 `/tmp/intent-trace-evidence-response-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 저장소 조회·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
