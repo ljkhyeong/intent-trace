@@ -172,7 +172,15 @@ class ChangeRecordFacade(
         verifications = command.verifications.map(::normalize),
         openQuestions = command.openQuestions.map { redact(it, 1000, "남은 질문") },
         derivedFromRecordId = command.derivedFromRecordId,
-    )
+    ).also { content ->
+        content.codeAnchors.forEach { anchor ->
+            anchor.relatedPath?.let { related ->
+                require(content.codeAnchors.any { it.side != anchor.side && it.relativePath == related }) {
+                    "relatedPath는 다른 side(BASE/TARGET)에 등록된 코드 근거의 파일 경로여야 합니다."
+                }
+            }
+        }
+    }
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
@@ -195,13 +203,6 @@ class ChangeRecordFacade(
         require(command.codeAnchors.isNotEmpty()) { "관련 코드를 1개 이상 입력하세요." }
         require(command.baseRevision != null || command.codeAnchors.none { it.side == CodeSide.BASE }) {
             "변경 전 관련 코드에는 변경 전 커밋 해시(전체 길이)가 필요합니다."
-        }
-        command.codeAnchors.forEach { anchor ->
-            anchor.relatedPath?.let { related ->
-                require(command.codeAnchors.any { it.side != anchor.side && it.relativePath == related }) {
-                    "relatedPath는 다른 side(BASE/TARGET)에 등록된 코드 근거의 파일 경로여야 합니다."
-                }
-            }
         }
     }
 

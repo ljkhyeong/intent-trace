@@ -7,6 +7,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
@@ -28,6 +29,41 @@ class ChangeRecordFacadeIntegrationTest(
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val gitHubPublicationRepository: GitHubPublicationRepository,
 ) : ChangeRecordStorageContract() {
+    @Test
+    fun `연결 경로를 정규화해 생성과 수정을 처리하고 상대편 근거가 없으면 거부한다`() {
+        val input = CreateChangeRecordCommand(
+            requestId = "related-path-${UUID.randomUUID()}", repositoryKey = "acme/related-path", baseRevision = revision,
+            snapshotDigest = digest, title = "파일 이름 변경", requestSummary = "변경 전후 파일의 코드 근거를 연결한다.",
+            decisions = listOf(Decision("같은 경로 표기를 사용한다.", null, PurposeSource.STATED_BY_USER)),
+            codeAnchors = listOf(
+                CodeAnchor("./src//Old.kt/", null, 1, 2, digest, CodeSide.BASE, "src/./New.kt"),
+                CodeAnchor("./src/New.kt/", null, 1, 2, digest, CodeSide.TARGET, "src//Old.kt"),
+            ),
+            verifications = emptyList(), openQuestions = emptyList(),
+        )
+        val normalized = input.copy(codeAnchors = listOf(
+            input.codeAnchors[0].copy(relativePath = "src/Old.kt", relatedPath = "src/New.kt"),
+            input.codeAnchors[1].copy(relativePath = "src/New.kt", relatedPath = "src/Old.kt"),
+        ))
+        val draft = facade.create(input, actor)
+        assertEquals(normalized.codeAnchors, facade.get(draft.id).codeAnchors)
+        assertEquals(draft, facade.create(normalized, actor))
+        val revised = facade.revise(draft, draft.version, input.copy(title = "이름 변경 검토 완료"), actor)
+        assertEquals(normalized.codeAnchors, facade.get(draft.id).codeAnchors)
+        assertEquals(revised, facade.create(normalized, actor))
+
+        val invalidAnchors = listOf(
+            normalized.codeAnchors.map { it.copy(relatedPath = "./src/Missing.kt") },
+            normalized.codeAnchors.map { it.copy(side = CodeSide.TARGET) },
+        )
+        for (anchors in invalidAnchors) {
+            val invalid = input.copy(codeAnchors = anchors)
+            assertFailsWith<IllegalArgumentException> { facade.create(invalid.copy(requestId = UUID.randomUUID().toString()), actor) }
+            assertFailsWith<IllegalArgumentException> { facade.revise(revised, revised.version, invalid, actor) }
+            assertEquals(revised, facade.get(draft.id))
+        }
+    }
+
     @Test
     fun `같은 요청은 한 번만 만들고 공개 기록을 코드 줄로 찾는다`() {
         val command = CreateChangeRecordCommand(
