@@ -810,3 +810,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `f79ce1f`, 검증 대상 코드는 `a50e9b5`다. 공통 Markdown 출력에 검증별 종료 코드·실행 시각(UTC)·검증 스냅샷 해시를 추가했다. 파일 내려받기와 GitHub 공유에 함께 적용하며 다른 스냅샷의 결과라는 표시와 실행 출처를 유지한다.
 - 수정 전 성공·실패 및 스냅샷 일치 여부를 조합한 테스트 4개 실패로 누락을 재현했다. `./gradlew focusedTest --tests '*ChangeRecordMarkdownRendererTest' --tests '*PublishChangeRecordToGitHubTest' --tests '*RecordBrowserIntegrationTest'`: 27개 통과. `./gradlew test bootJar`: 서버 240개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:09 KST이며 로그는 `/tmp/intent-trace-markdown-evidence-before.log`, `/tmp/intent-trace-markdown-evidence-focused.log`, `/tmp/intent-trace-markdown-evidence-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증은 생략했다. 실제 GitHub 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 IntelliJ 후속 조회의 서버 유지
+
+- 시작 리비전은 `a4b2c5a`, 검증 대상 코드는 `50b24c2`다. 조회 중 서버 설정을 바꿔도 열린 창의 검색·페이지 이동·새로고침·상세·원본·대체·파일 이력은 최초 조회 서버를 사용한다. 창에는 주소만 보관하고 요청마다 해당 서버의 세션을 다시 읽는다. 새로 여는 조회와 연결 작업에는 변경한 설정을 적용한다.
+- 임시 로컬 서버 두 개로 이전 커서가 새 서버에 전달되는 테스트 실패를 재현했다. 수정 후 같은 서버의 세션을 교체하면 다음 요청에 반영되는지도 확인했다. 관련 화면 테스트 9개 통과 후 `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`로 전체 53개 통과·실패/오류/건너뜀 0개와 ZIP 구조 검사를 확인했다. 결과 시각은 2026-09-12 21:17 KST다. 로그는 `/tmp/intent-trace-ide-server-context-before.log`, `/tmp/intent-trace-ide-server-context-focused.log`, `/tmp/intent-trace-ide-server-context-all.log`, 설치 파일은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·Zed 코드는 변경하지 않아 관련 검증과 빌드를 반복하지 않았다. 실제 IDE 설치·수동 화면 확인·운영 배포는 수행하지 않았다. 테스트 설정과 세션은 복원했고 임시 서버는 종료했다. 기존 미추적 PNG는 보존했다.
