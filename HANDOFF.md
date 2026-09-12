@@ -17,9 +17,9 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `29d4977` | [서버 245개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-oauth-상태-쿠키-설정-통합) |
+| 서버·MCP | `5e5c094` | [서버 248개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화) |
 | PostgreSQL | `8da47c8` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-기록-요약과-저장소-키-중복-처리-제거) |
-| IntelliJ | `69eda59` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-intellij-기록-응답-모델-중복-제거). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| IntelliJ | `5e5c094` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
 | 검증·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
@@ -849,3 +849,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `a769b71`, 구현 커밋은 `29d4977`이다. OAuth 상태 쿠키의 발급·만료 설정을 기존 함수 한 곳으로 모아 제품 코드 7줄을 줄였다. 쿠키 값과 유효기간만 인자로 받고 이름·경로·HttpOnly·Secure·SameSite 설정을 함께 관리한다. 로그인 성공·실패 처리와 세션 정책은 유지했다.
 - 지역 검사 후 `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubOAuthFlowServiceTest'` 13개가 통과했다. 기존 통합 테스트에서 발급 유효기간과 만료 응답의 빈 값·유효기간 0·경로·보안 설정 보존을 확인했다. 최종 `./gradlew test bootJar`는 서버 245개·ArchUnit 4개가 모두 통과했고 표준 MCP SDK 연결도 포함한다. 결과 시각은 2026-09-12 23:18 KST, 로그는 `/tmp/intent-trace-oauth-cookie-{files,focused,server}.log`다. 실행 JAR은 `build/libs/intent-trace.jar`다.
 - 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·IntelliJ·Zed 코드와 배포 설정은 변경하지 않아 독립 테스트·패키지 빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 운영 배포는 하지 않았다.
+
+## 2026-09-12 HTTP 날짜 처리와 세션 토큰 검증 단순화
+
+- 시작 리비전은 `5c6fb4c`, 구현 커밋은 `5e5c094`다. `Retry-After` 날짜 해석을 Spring `HttpHeaders.getFirstZonedDateTime`에 맡기고 숫자 처리·기본 대기 시간·최소 1초·사용량 초기화 시각 계산은 유지했다. IntelliJ의 세션 저장·전송 전 검증은 기존 함수 하나로 모았다. 제품 코드는 4줄 줄었다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*GitHubHttpPolicyTest' --tests '*GitHubUserRestClientTest'` 24개, `./gradlew test bootJar`의 서버 248개·ArchUnit 4개가 통과했다. 미래·과거·잘못된 날짜의 대기 시간과 기존 오류 분류를 확인했다. 서버 결과 시각은 2026-09-12 23:32 KST이며 표준 MCP SDK 연결도 포함한다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`는 53개 테스트와 ZIP 빌드·구조 검사를 통과했다. 기존 저장 테스트에서 잘못된 토큰을 거부한 뒤 정상 세션이 보존되는지 확인했다. 결과 시각은 2026-09-12 23:33 KST다. 로그는 `/tmp/intent-trace-standard-api-{files,focused,server,intellij}.log`, 빌드 파일은 `build/libs/intent-trace.jar`와 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·Zed 실행 코드·의존성·설정은 바뀌지 않아 별도 PostgreSQL·Node 테스트는 반복하지 않았다. 실제 IDE 설치·GitHub 호출·원격 푸시·운영 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
