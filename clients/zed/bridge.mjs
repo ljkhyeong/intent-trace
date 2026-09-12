@@ -4,10 +4,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { sessionToken } from './intent-trace.mjs';
+import { sessionToken, version } from './intent-trace.mjs';
 import { httpFailure, parseFailureLine, safeFailure } from './errors.mjs';
 
-const version = '0.12.0';
 const timeout = 60_000;
 
 export async function serve(url) {
@@ -81,7 +80,7 @@ export async function check(script, url, repositoryKey, diagnostic = {}) {
       const result = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey, ...diagnostic } });
       if (result.isError) throw new Error('저장소 진단에 실패했습니다.');
       const diagnosis = result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
-      for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}`);
+      for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}${item.message ? ` — ${item.message}` : ''}`);
       if (diagnosis.checks.some(item => item.status === 'FAILED')) process.exitCode = 1;
     }
   } catch (error) {

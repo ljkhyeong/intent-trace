@@ -31,6 +31,8 @@ import io.intenttrace.record.application.ChangeRecordOwnershipException
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.application.GitHubContextService
+import io.intenttrace.record.application.GitHubContextNotFoundException
+import io.intenttrace.record.application.GitHubContextPermissionException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ContentDisposition
@@ -116,7 +118,7 @@ class RecordBrowserController(
         require(repository != null || (cursor == null && retryRecordId == null)) { "먼저 조회 조건을 입력해 주세요." }
         pages.history(it.actor, repository, ref, file, line, repository?.let { repo ->
             history.find(repo, requireNotNull(ref), requireNotNull(file), requireNotNull(line), cursor, retryRecordId = retryRecordId)
-        })
+        }, returnTo(request))
     }
 
     @GetMapping("/{id}/evidence")
@@ -168,7 +170,7 @@ class RecordBrowserController(
         require((repository == null) == (pullNumber == null)) { "저장소와 PR 번호를 함께 입력해 주세요." }
         pages.pullRequests(it.actor, repository?.key, pullNumber, repository?.let { repo ->
             overview.overview(GitHubPullRequestTarget(repo.canonicalOwner, repo.canonicalName, requireNotNull(pullNumber)), cursor)
-        })
+        }, returnTo(request))
     }
 
     @GetMapping("/github")
@@ -210,8 +212,12 @@ class RecordBrowserController(
 
     private fun searchUrl(request: HttpServletRequest): String? {
         val query = request.queryString ?: return null
-        val builder = UriComponentsBuilder.fromPath("/records").query(query)
-        val searchParameters = setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        val (path, searchParameters) = when (request.getParameter("from")) {
+            "history" -> "/records/history" to setOf("repositoryKey", "revision", "path", "line", "cursor", "retryRecordId")
+            "pull-requests" -> "/records/pull-requests" to setOf("repositoryKey", "pullNumber", "cursor")
+            else -> "/records" to setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        }
+        val builder = UriComponentsBuilder.fromPath(path).query(query)
         builder.build().queryParams.keys.filterNot { it in searchParameters }.forEach { builder.replaceQueryParam(it) }
         return builder.build().takeIf { it.queryParams.isNotEmpty() }?.toUriString()
     }
@@ -241,6 +247,14 @@ class RecordBrowserController(
 
     @ExceptionHandler(ChangeRecordNotFoundException::class, ChangeRecordOwnershipException::class, RepositoryAccessDeniedException::class)
     fun unavailable(): ResponseEntity<String> = browserResponse(pages.error("기록이 없거나 열람 권한이 없습니다."), 404)
+
+    @ExceptionHandler(GitHubContextNotFoundException::class)
+    fun githubContextNotFound(exception: GitHubContextNotFoundException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), 404)
+
+    @ExceptionHandler(GitHubContextPermissionException::class)
+    fun githubContextPermission(exception: GitHubContextPermissionException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), 403)
 
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
     fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)

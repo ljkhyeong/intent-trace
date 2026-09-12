@@ -76,20 +76,38 @@ class GitHubContextClientTest {
     }
 
     @Test
+    fun `없는 자료와 조회 거부는 서버 장애와 구분하고 원문을 숨긴다`() {
+        for (suffix in listOf("/issues/7", "/actions/runs?head_sha=$revision&per_page=20&page=1")) {
+            for (status in listOf(HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.GONE)) {
+                expect(suffix).andRespond(withStatus(status).body("secret=remote-secret"))
+            }
+        }
+        for (read in listOf<() -> Any>({ client.request(repository, 7) }, { client.actions(repository, revision, 1) })) {
+            val denied = assertFailsWith<GitHubContextPermissionException> { read() }
+            assertContains(denied.message.orEmpty(), "읽기 권한")
+            assertFalse(denied.message.orEmpty().contains("remote-secret"))
+            repeat(2) {
+                val missing = assertFailsWith<GitHubContextNotFoundException> { read() }
+                assertContains(missing.message.orEmpty(), "없거나 열람할 수 없습니다")
+                assertFalse(missing.message.orEmpty().contains("remote-secret"))
+            }
+        }
+        server.verify()
+    }
+
+    @Test
     fun `권한과 외부 오류 및 크기 초과는 비밀값 없이 실패하고 호출 제한은 보존한다`() {
         expect("/issues/7").andRespond(withStatus(HttpStatus.UNAUTHORIZED))
-        for (status in listOf(HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.BAD_GATEWAY)) {
-            expect("/issues/7").andRespond(withStatus(status).body("secret=remote-secret"))
-        }
+        expect("/issues/7").andRespond(withStatus(HttpStatus.BAD_GATEWAY).body("secret=remote-secret"))
         expect("/issues/7").andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "12"))
+        expect("/issues/7").andRespond(withStatus(HttpStatus.FORBIDDEN).header("Retry-After", "13"))
         expect("/issues/7").andRespond(withSuccess("x".repeat(2 * 1024 * 1024 + 1), MediaType.APPLICATION_JSON))
         expect("/issues/7").andRespond(withSuccess("{invalid", MediaType.APPLICATION_JSON))
         assertFailsWith<GitHubUserAuthenticationException> { client.request(repository, 7) }
-        repeat(3) {
-            val error = assertFailsWith<GitHubApiException> { client.request(repository, 7) }
-            assertFalse(error.message.orEmpty().contains("remote-secret"))
-        }
+        val error = assertFailsWith<GitHubApiException> { client.request(repository, 7) }
+        assertFalse(error.message.orEmpty().contains("remote-secret"))
         assertEquals(12L, assertFailsWith<GitHubRateLimitException> { client.request(repository, 7) }.retryAfterSeconds)
+        assertEquals(13L, assertFailsWith<GitHubRateLimitException> { client.request(repository, 7) }.retryAfterSeconds)
         assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("2 MiB"))
         assertTrue(assertFailsWith<GitHubApiException> { client.request(repository, 7) }.message.orEmpty().contains("응답 형식"))
         server.verify()

@@ -17,7 +17,7 @@ class SensitiveTextRedactorTest {
             /Users/lim/devProject/intent-trace C:\Users\lim\intent-trace
         """.trimIndent()
 
-        val redacted = redactor.redact(source)
+        val redacted = redactBoth(source)
 
         assertEquals(6, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
         assertFalse(redacted.contains("ghu_userToken123"))
@@ -28,15 +28,10 @@ class SensitiveTextRedactorTest {
     @Test
     fun `서버와 실행 도구가 점으로 구분된 설치 token 전체를 제거하고 문장 끝을 보존한다`() {
         val samples = listOf("ghs_" + "a".repeat(36) + "." + "b".repeat(36) + "." + "c".repeat(35) + "-", "ghs_classicToken", "its_" + "a".repeat(42) + "-")
-        val script = java.nio.file.Path.of("scripts/run-verification.py").toAbsolutePath().toString()
         for (sample in samples) {
             val source = "설명 ($sample). 다음 문장"
             val expected = "설명 ([REDACTED]). 다음 문장"
-            assertEquals(expected, redactor.redact(source))
-            val process = ProcessBuilder("python3", "-c",
-                "import runpy,sys; print(runpy.run_path(sys.argv[1])['redact'](sys.argv[2]))", script, source).start()
-            assertEquals(expected, process.inputStream.bufferedReader().readText().trim())
-            assertEquals(0, process.waitFor())
+            assertEquals(expected, redactBoth(source))
         }
     }
 
@@ -49,11 +44,11 @@ class SensitiveTextRedactorTest {
             """{"password": "${"a".repeat(1900)}\"TAIL_ONLY_FOR_TEST", "label": "남길 값"}""",
         )
         sources.forEach { source ->
-            assertEquals("""{"password": [REDACTED], "label": "남길 값"}""", redactor.redact(source))
+            assertEquals("""{"password": [REDACTED], "label": "남길 값"}""", redactBoth(source))
         }
         assertEquals(
             "secret=[REDACTED]; label=남길값",
-            redactor.redact("""secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값"""),
+            redactBoth("""secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값"""),
         )
     }
 
@@ -65,7 +60,8 @@ class SensitiveTextRedactorTest {
             -----END PRIVATE KEY-----
         """.trimIndent()
 
-        assertEquals("[REDACTED]", redactor.redact(source))
+        assertEquals("[REDACTED]", redactBoth(source))
+        assertEquals("private_key=[REDACTED]", redactBoth("private_key=$source"))
     }
 
     @Test
@@ -77,7 +73,7 @@ class SensitiveTextRedactorTest {
         )
 
         tokens.forEach { token ->
-            assertEquals("세션 [REDACTED] 사용", redactor.redact("세션 $token 사용"))
+            assertEquals("세션 [REDACTED] 사용", redactBoth("세션 $token 사용"))
         }
     }
 
@@ -85,6 +81,17 @@ class SensitiveTextRedactorTest {
     fun `독립된 compact JWT를 제거한다`() {
         val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJleGFtcGxlIn0.signatureValue123"
 
-        assertEquals("jwt=[REDACTED]", redactor.redact("jwt=$jwt"))
+        assertEquals("jwt=[REDACTED]", redactBoth("jwt=$jwt"))
+    }
+
+    private fun redactBoth(source: String): String {
+        val expected = redactor.redact(source)
+        val script = java.nio.file.Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        val process = ProcessBuilder("python3", "-c",
+            "import runpy,sys; print(runpy.run_path(sys.argv[1])['redact'](sys.stdin.read()))", script).start()
+        process.outputStream.bufferedWriter().use { it.write(source) }
+        assertEquals(expected, process.inputStream.bufferedReader().readText().removeSuffix("\n"))
+        assertEquals(0, process.waitFor())
+        return expected
     }
 }

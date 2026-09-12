@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
-import { realpathSync, existsSync } from 'node:fs';
+import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { BridgeFailure } from './errors.mjs';
 
+export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
   config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
   configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
-  check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. PR·커밋을 지정하려면 저장소도 필요합니다.',
+  unconfigure: 'unconfigure [--settings 설정파일] [--apply]\n  IntentTrace 연결 제거를 미리 봅니다. --apply를 지정하면 설정에서 제거합니다.',
+  check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. 저장소만 입력할 수 있으며 PR·커밋 옵션에는 저장소가 필요합니다.',
   serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
   launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
 };
@@ -21,6 +23,7 @@ function printHelp(mode) {
     : `사용법: intent-trace-zed <명령> [옵션]\n\n${Object.values(commandUsage).join('\n\n')}`);
   console.log('\nMCP 주소는 INTENT_TRACE_MCP_URL 환경 변수, 없으면 http://127.0.0.1:8080/mcp를 사용합니다.');
   console.log('check·serve에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
+  console.log('--version 또는 -V로 설치된 연결 도구의 버전을 확인합니다.');
 }
 
 export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl) {
@@ -51,19 +54,22 @@ function checkOptions(args) {
   } catch {
     throw new Error('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
   }
-  const { positionals, values } = parsed;
+  const { values } = parsed;
+  const positionals = parsed.positionals.length === 1 && /^[^:/\s]+\/[^/\s]+$/.test(parsed.positionals[0])
+    ? [undefined, parsed.positionals[0]] : parsed.positionals;
   const pullNumber = values.pr === undefined ? undefined : Number(values.pr);
   if (pullNumber !== undefined && (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)) {
     throw new Error('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
   }
   if ((values.revision !== undefined || pullNumber !== undefined) && !positionals[1]) {
-    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 MCP 주소 뒤에 owner/repo를 지정하세요.');
+    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
   }
   return { positionals, diagnostic: { revision: values.revision, pullNumber } };
 }
 
 async function main() {
   const [mode, ...arguments_] = process.argv.slice(2);
+  if (['--version', '-V'].includes(mode)) return console.log(version);
   if (!mode || ['--help', '-h'].includes(mode)) return printHelp();
   if (!Object.hasOwn(commandUsage, mode)) {
     console.error('알 수 없는 명령입니다. intent-trace-zed --help로 사용법을 확인하세요.');
@@ -81,19 +87,21 @@ async function main() {
     });
     return;
   }
-  if (mode === 'configure') {
+  if (mode === 'configure' || mode === 'unconfigure') {
     const { configure, defaultSettingsPath } = await import('./settings.mjs');
-    let path = defaultSettingsPath();
-    let address;
-    let apply = false;
-    for (let i = 0; i < arguments_.length; i++) {
-      const value = arguments_[i];
-      if (value === '--apply' && !apply) apply = true;
-      else if (value === '--settings' && arguments_[i + 1] && !arguments_[i + 1].startsWith('--')) path = arguments_[++i];
-      else if (!value.startsWith('--') && !address) address = value;
-      else throw new Error('Zed 설정: configure [MCP 주소] [--settings 설정파일] [--apply] 형식을 확인하세요.');
+    let parsed;
+    try {
+      parsed = parseArgs({ args: arguments_, allowPositionals: true, options: {
+        settings: { type: 'string' }, apply: { type: 'boolean', default: false },
+      } });
+      if (parsed.positionals.length > (mode === 'configure' ? 1 : 0)) throw new Error();
+    } catch {
+      throw new Error(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    return configure(path, { command: process.execPath, args: [script, 'serve', endpoint(address).href], env: {} }, apply);
+    const entry = mode === 'configure'
+      ? { command: process.execPath, args: [script, 'serve', endpoint(parsed.positionals[0]).href], env: {} }
+      : undefined;
+    return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;

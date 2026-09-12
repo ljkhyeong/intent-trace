@@ -5,11 +5,12 @@ import argparse
 import datetime
 import hashlib
 import json
-import os
 import re
 import shlex
 import subprocess
 import sys
+
+SECRET_NAME = r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret|private[_-]?key|token)"
 
 
 def git(*arguments: str) -> bytes:
@@ -22,17 +23,31 @@ def git(*arguments: str) -> bytes:
 def require_clean(revision: str) -> None:
     if git("rev-parse", "HEAD").decode().strip() != revision:
         raise ValueError("현재 HEAD와 검증할 커밋이 다릅니다.")
-    if git("status", "--porcelain", "--untracked-files=all"):
+    if git("status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none"):
         raise ValueError("커밋하지 않은 변경 또는 추적하지 않는 파일이 있어 검증을 현재 커밋에 연결할 수 없습니다.")
 
 
 def redact(text: str) -> str:
-    text = re.sub(r"(?i)([\"']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|secret|private[_-]?key|token)[\"']?\s*[:=]\s*)(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;]+)", r"\1[REDACTED]", text)
+    text = re.sub(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", "[REDACTED]", text, flags=re.S)
+    text = re.sub(
+        rf"""(?i)(["']?{SECRET_NAME}["']?\s*[:=]\s*)(?:"(?:\\[^\r\n]|[^"\\\r\n])*"|'(?:\\[^\r\n]|[^'\\\r\n])*'|[^\s,;]+)""",
+        r"\1[REDACTED]", text,
+    )
     text = re.sub(r"(?i)\bBearer\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?", "Bearer [REDACTED]", text)
+    text = re.sub(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", "[REDACTED]", text)
     text = re.sub(r"(?i)\b(?:ghs_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}|(?:ghp|gho|ghu|ghs|ghr|github_pat|its|itb)_[A-Za-z0-9_=-]+)", "[REDACTED]", text)
     text = re.sub(r"(?i)/(?:Users|home)/[^\s\"'`,;)\]}]+|[A-Z]:\\Users\\[^\s\"'`,;)\]}]+", "[REDACTED]", text)
-    text = re.sub(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", "[REDACTED]", text, flags=re.S)
     return text
+
+
+def redact_command(command: list[str]) -> str:
+    arguments = []
+    hide_next = False
+    for argument in command:
+        arguments.append("[REDACTED]" if hide_next else redact(argument))
+        hide_next = not hide_next and re.fullmatch(rf"--{SECRET_NAME}", argument, re.I) is not None
+    # 셸 인용 전에 값 내부를 정제하고, 인자 사이의 Bearer 자격 증명도 제거한다.
+    return redact(shlex.join(arguments))
 
 
 def now() -> str:
@@ -54,14 +69,14 @@ def main() -> int:
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", arguments.revision):
         parser.error("전체 Git 커밋 ID가 필요합니다.")
     summary = redact(arguments.summary)
-    command_text = redact(shlex.join(command))
+    command_text = redact_command(command)
     if not summary.strip() or len(summary) > 2000 or len(command_text) > 2000:
         parser.error("명령과 요약은 비어 있지 않은 2,000자 이하 텍스트여야 합니다.")
     try:
         require_clean(arguments.revision)
         snapshot = hashlib.sha256(git("-c", "core.quotePath=true", "ls-tree", "-r", "--full-tree", arguments.revision)).hexdigest()
         started = now()
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=os.environ.copy())
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         digest = hashlib.sha256()
         with process.stdout:
             while chunk := process.stdout.read(65536):

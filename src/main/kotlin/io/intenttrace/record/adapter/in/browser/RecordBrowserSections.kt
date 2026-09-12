@@ -13,7 +13,8 @@ import io.intenttrace.record.application.ItemChange
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
 
-internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?): String =
+internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?,
+    searchUrl: String? = null): String =
     layout("PR 변경 기록", actor, buildString {
         append("<header class=\"page-heading\"><h1>PR 변경 기록</h1><p>현재 PR 커밋과 게시 기록을 함께 확인하세요.</p></header>")
         append("""<form action="/records/pull-requests" class="search-form" method="get">
@@ -36,7 +37,7 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
                     null -> if (item.publication != null) "게시 완료" else "게시 결과 없음"
                 }
                 append("<li><div class=\"record-summary\"><span class=\"status\">${if (item.matchesCurrentHead) "현재 커밋과 일치" else "PR 최신 커밋과 다름"}</span>")
-                append("<h2><a href=\"/records/${item.record.id}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
+                append("<h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
                 if (item.publication != null) append("<p class=\"muted\">마지막으로 확인한 게시: ${stamp(item.publication.publishedAt)}</p>")
                 append("</div></li>")
             }
@@ -55,7 +56,8 @@ internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: Stri
         if (result == null) append("<p class=\"empty\">저장소를 입력하면 연결 상태를 확인합니다.</p>") else {
             append("<p>${stamp(result.checkedAt)}</p><ul class=\"records\">")
             val names = mapOf("authentication" to "사용자 인증", "repository_read" to "저장소 읽기", "repository_write" to "저장소 쓰기",
-                "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
+                "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "pull_request_revision" to "PR 커밋 일치",
+                "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
             result.checks.forEach { check ->
                 val status = when (check.status) {
                     DiagnosticStatus.VERIFIED -> "확인 완료"; DiagnosticStatus.FAILED -> "확인 실패"

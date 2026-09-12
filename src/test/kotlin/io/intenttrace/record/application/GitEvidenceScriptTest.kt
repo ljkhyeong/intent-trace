@@ -64,7 +64,7 @@ class GitEvidenceScriptTest {
             val (mode, type, sha) = header.split(' ')
             GitTreeEntry(path, mode, type, sha)
         }
-        assertEquals(runEvidence("snapshot", revision).output.trim(), GitEvidenceDigest.snapshot(entries))
+        assertEquals(runEvidence("snapshot", revision).output.trim(), GitEvidenceSnapshot(entries.associateBy { it.path }).digest)
         val bytes = Files.readAllBytes(repository.resolve("한글 파일.txt"))
         for (line in 1..2) {
             assertEquals(runEvidence("anchor", revision, "한글 파일.txt", line.toString(), line.toString()).output.trim(),
@@ -90,6 +90,65 @@ class GitEvidenceScriptTest {
             "from pathlib import Path; Path('sample.txt').write_text('changed')"))
         assertEquals(2, changed.exitCode)
         assertFalse(changed.output.contains("\"snapshotDigest\""))
+    }
+
+    @Test
+    fun `Git 설정에 숨겨진 서브모듈 변경도 검증 실행 전후에 거부한다`(@TempDir source: Path) {
+        runGit("-C", source.toString(), "init")
+        Files.writeString(source.resolve("tracked.txt"), "original\n")
+        runGit("-C", source.toString(), "add", ".")
+        runGit("-C", source.toString(), "-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local",
+            "commit", "-m", "서브모듈 파일 추가")
+        runGit("-c", "protocol.file.allow=always", "submodule", "add", source.toString(), "module")
+        runGit("config", "-f", ".gitmodules", "submodule.module.ignore", "all")
+        runGit("add", ".")
+        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "서브모듈 추가")
+        runGit("config", "diff.ignoreSubmodules", "all")
+        val revision = runGit("rev-parse", "HEAD").output.trim()
+        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        val marker = repository.resolve("module/executed")
+        for (file in listOf("tracked.txt", "untracked.txt")) {
+            val changed = repository.resolve("module/$file")
+            for (before in listOf(true, false)) {
+                if (before) Files.writeString(changed, "changed\n")
+                assertTrue(runGit("status", "--porcelain", "--untracked-files=all").output.isEmpty())
+                val result = runCommand(listOf("python3", script, revision, "--summary", "서브모듈 변경 감지", "--",
+                    "python3", "-c", "from pathlib import Path; Path('module/executed').touch(); Path('module/$file').write_text('changed\\n')"))
+                assertEquals(2, result.exitCode, result.output)
+                assertTrue(result.output.contains("커밋하지 않은 변경"), result.output)
+                assertFalse(result.output.contains("\"snapshotDigest\""), result.output)
+                assertEquals(!before, Files.exists(marker), "기존 변경이 있으면 검증 명령을 실행하지 않아야 합니다.")
+                Files.deleteIfExists(marker)
+                if (file == "tracked.txt") Files.writeString(changed, "original\n") else Files.deleteIfExists(changed)
+            }
+        }
+    }
+
+    @Test
+    fun `실행 인자는 유지하고 결과 JSON의 명령과 요약에서 비밀값을 제거한다`() {
+        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJleGFtcGxlIn0.signatureValue123"
+        val secrets = listOf(
+            """secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값""",
+            "--password", "ARGUMENT_VALUE_ONLY_FOR_TEST",
+            "--client-secret=ASSIGNMENT_VALUE_ONLY_FOR_TEST", jwt,
+            "Bearer", "BEARER_VALUE_ONLY_FOR_TEST",
+        )
+        val summary = """{"password": "prefix\"SUMMARY_ONLY_FOR_TEST", "label": "검증 완료"}"""
+        val result = runCommand(listOf("python3", script, revision, "--summary", summary, "--", "python3", "-c",
+            "import sys; sys.stdout.write('\\n'.join(sys.argv[1:]))") + secrets)
+        assertEquals(0, result.exitCode)
+        val json = tools.jackson.module.kotlin.jacksonObjectMapper().readTree(result.output)
+        assertEquals(0, json.get("exitCode").asInt())
+        assertEquals("LOCAL_RUNNER_REPORTED", json.get("source").asText())
+        assertEquals(sha256(secrets.joinToString("\n")), json.get("outputDigest").asText())
+        assertEquals(runEvidence("snapshot", revision).output.trim(), json.get("snapshotDigest").asText())
+        assertTrue(json.get("summary").asText().contains("검증 완료"))
+        assertTrue(json.get("command").asText().contains("label=남길값"))
+        for (secret in listOf("TAIL_ONLY_FOR_TEST", "ARGUMENT_VALUE_ONLY_FOR_TEST", "ASSIGNMENT_VALUE_ONLY_FOR_TEST",
+            "SUMMARY_ONLY_FOR_TEST", "BEARER_VALUE_ONLY_FOR_TEST", jwt)) {
+            assertFalse(result.output.contains(secret))
+        }
     }
 
     @Test

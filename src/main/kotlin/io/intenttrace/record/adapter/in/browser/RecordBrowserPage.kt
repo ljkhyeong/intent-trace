@@ -80,7 +80,13 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
 
     fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null): String = layout(record.title, actor, buildString {
         val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
-        append("<a class=\"back-link\" href=\"${html(backUrl)}\">${if (searchUrl == null) "${html(record.repositoryKey)} 기록 목록" else "검색 결과로 돌아가기"}</a>")
+        val backLabel = when {
+            searchUrl == null -> "${html(record.repositoryKey)} 기록 목록"
+            backUrl.substringBefore('?') == "/records/history" -> "파일·줄 조회로 돌아가기"
+            backUrl.substringBefore('?') == "/records/pull-requests" -> "PR 기록으로 돌아가기"
+            else -> "검색 결과로 돌아가기"
+        }
+        append("<a class=\"back-link\" href=\"${html(backUrl)}\">$backLabel</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
         record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"${html(recordUrl(it, searchUrl))}\">원본 공개 기록 읽기</a> · <a href=\"${html(recordUrl(record.id, searchUrl, "comparison"))}\">원본과 비교</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새 기록으로 대체됐습니다. <a href=\"${html(recordUrl(it, searchUrl))}\">새 기록 읽기</a></aside>") }
@@ -112,7 +118,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             val status = if (!verification.isCurrentFor(record)) "다른 스냅샷의 결과" else if (verification.exitCode == 0) "통과" else "실패"
             append("<div class=\"verification\"><strong>$status</strong><pre>${html(verification.command)}</pre><p class=\"prose\">${html(verification.summary)}</p>")
             append("<p class=\"muted\">${if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구에서 수집한 결과" else "클라이언트가 제출한 결과"} · 종료 코드 ${verification.exitCode}</p>")
-            append("<details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd>${stamp(verification.startedAt)}</dd><dt>종료</dt><dd>${stamp(verification.finishedAt)}</dd><dt>출력 해시</dt><dd class=\"hash\">${html(verification.outputDigest)}</dd></dl></details></div>")
+            append("<details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd>${stamp(verification.startedAt)}</dd><dt>종료</dt><dd>${stamp(verification.finishedAt)}</dd><dt>검증 스냅샷 해시</dt><dd class=\"hash\">${html(verification.snapshotDigest)}</dd><dt>출력 해시</dt><dd class=\"hash\">${html(verification.outputDigest)}</dd></dl></details></div>")
         }
         append("<p class=\"muted\">서버는 테스트 실행 여부를 확인하지 않습니다.</p>")
         record.targetRevision?.let { append("<a href=\"${html(url("/records/github", "repositoryKey" to record.repositoryKey, "revision" to it))}\">이 커밋의 GitHub CI 결과 조회</a>") }
@@ -161,6 +167,12 @@ internal fun url(path: String, vararg values: Pair<String, String?>): String = U
 
 internal fun recordUrl(id: UUID, searchUrl: String?, section: String? = null, vararg controls: Pair<String, Any>): String =
     UriComponentsBuilder.fromUriString(searchUrl ?: "/records")
+        .apply {
+            when (build().path) {
+                "/records/history" -> replaceQueryParam("from", "history")
+                "/records/pull-requests" -> replaceQueryParam("from", "pull-requests")
+            }
+        }
         .replacePath("/records/$id${section?.let { "/$it" }.orEmpty()}")
         .apply { controls.forEach { (key, value) -> replaceQueryParam(key, value) } }
         .build().toUriString()

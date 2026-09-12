@@ -10,6 +10,7 @@ import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
+import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.domain.GitRevision
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -39,6 +40,9 @@ class ConnectionDiagnostics(
         } catch (_: RepositoryAccessDeniedException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요.")
             false
+        } catch (failure: EvidenceUnavailableException) {
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, failure.reason.message)
+            false
         } catch (_: GitHubApiException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요.")
             false
@@ -54,6 +58,12 @@ class ConnectionDiagnostics(
             pr?.let {
                 checks += ConnectionCheck("pull_request_publication", if (it.fork) DiagnosticStatus.FAILED else DiagnosticStatus.VERIFIED,
                     if (it.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR 원본 저장소와 병합 대상 저장소가 같습니다.")
+                if (ref != null) {
+                    val matches = ref == it.headRevision
+                    checks += ConnectionCheck("pull_request_revision", if (matches) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED,
+                        if (matches) "입력한 커밋이 PR의 현재 커밋과 같습니다."
+                        else "입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다.")
+                }
             }
         } else checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
         val evidenceRevision = ref ?: pr?.headRevision

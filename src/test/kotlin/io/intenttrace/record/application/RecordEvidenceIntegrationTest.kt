@@ -127,6 +127,8 @@ class RecordEvidenceIntegrationTest(
             assertTrue(retried.complete)
             assertEquals(listOf(bad.id), retried.items.map { it.record.id })
             assertEquals(1, retried.scannedRecords)
+            val normallyLoaded = history.find(repo, nextRevision, "new.txt", 1).items.single { it.record.id == bad.id }
+            assertEquals(normallyLoaded.record, retried.items.single().record)
             assertFailsWith<ChangeRecordNotFoundException> { history.find("acme/another", nextRevision, "new.txt", 1, retryRecordId = bad.id) }
             for (failure in listOf(GitHubUserAuthenticationException(), GitHubApiException("HTTP 403"), GitHubRateLimitException(60))) {
                 gateway.failure = badRevision to failure
@@ -174,6 +176,7 @@ class RecordEvidenceIntegrationTest(
             assertTrue(resumed.complete)
             assertFalse(resumed.resumeBlocked)
             assertEquals(listOf(newer.id to CodeSide.TARGET), resumed.items.map { it.record.id to it.side })
+            assertEquals(first.items.single().record, resumed.items.single().record)
             val next = service.find(repo, nextRevision, "new.txt", 1, cursor = resumed.nextCursor)
             assertEquals(setOf(older.id), next.items.map { it.record.id }.toSet())
             assertEquals(null, next.nextCursor)
@@ -211,14 +214,14 @@ class RecordEvidenceIntegrationTest(
             val entries = mutableListOf(GitTreeEntry(path, "100644", "blob", sha))
             if (revision == duplicateBlobRevision) entries += GitTreeEntry("copy.txt", "100644", "blob", sha)
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
-            return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
+            return GitEvidenceSnapshot(entries.associateBy { it.path })
         }
         override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
             budget?.beforeRemoteCall()
             blobCalls++
             return when (sha) {
             "f".repeat(40) -> "바뀐 코드\n".toByteArray()
-            "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes
+            "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes + "// ".toByteArray() + bytes
             else -> bytes
         }
         }

@@ -62,7 +62,7 @@ class GitHubUserRestClient(
             }
             return response.toRole()
         } catch (exception: RestClientResponseException) {
-            if (exception.statusCode == HttpStatus.NOT_FOUND) return null
+            if (exception.statusCode == HttpStatus.FORBIDDEN || exception.statusCode == HttpStatus.NOT_FOUND) return null
             throw mapResponseException("저장소 권한 조회", exception)
         } catch (_: RestClientException) {
             throw GitHubIdentityApiException("GitHub 저장소 권한 조회 요청을 완료하지 못했습니다.")

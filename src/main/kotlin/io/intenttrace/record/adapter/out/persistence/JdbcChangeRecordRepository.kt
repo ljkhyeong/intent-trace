@@ -70,21 +70,8 @@ class JdbcChangeRecordRepository(
                 "limit" to pageable.pageSize + 1,
                 "offset" to pageable.offset,
             ),
-        ) { row, _ ->
-            ChangeRecordSummary(
-                id = UUID.fromString(row.getString("id")),
-                repositoryKey = row.getString("repository_key"),
-                title = row.getString("title"),
-                requestSummary = row.getString("request_summary"),
-                version = row.getLong("version"),
-                status = ChangeRecordStatus.valueOf(row.getString("status")),
-                targetRevision = row.getString("target_revision"),
-                createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
-                createdAt = row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
-                publishedAt = row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
-                supersededBy = row.getString("superseded_by")?.let(UUID::fromString),
-            )
-        }
+            changeRecordSummaryRowMapper,
+        )
         return SliceImpl(rows.take(pageable.pageSize), pageable, rows.size > pageable.pageSize)
     }
 
@@ -170,9 +157,9 @@ class JdbcChangeRecordRepository(
             record.status.name,
             record.createdBy.login,
             record.createdBy.subject,
-            record.createdAt.toDatabaseTime(),
-            record.confirmedAt?.toDatabaseTime(),
-            record.publishedAt?.toDatabaseTime(),
+            record.createdAt.atOffset(ZoneOffset.UTC),
+            record.confirmedAt?.atOffset(ZoneOffset.UTC),
+            record.publishedAt?.atOffset(ZoneOffset.UTC),
             record.supersededBy?.toString(),
             record.version,
             record.creationDigest,
@@ -198,8 +185,8 @@ class JdbcChangeRecordRepository(
             """.trimIndent(),
             record.targetRevision,
             record.status.name,
-            record.confirmedAt?.toDatabaseTime(),
-            record.publishedAt?.toDatabaseTime(),
+            record.confirmedAt?.atOffset(ZoneOffset.UTC),
+            record.publishedAt?.atOffset(ZoneOffset.UTC),
             record.supersededBy?.toString(),
             record.version,
             record.creationDigest,
@@ -338,8 +325,8 @@ class JdbcChangeRecordRepository(
                 index,
                 verification.command,
                 verification.exitCode,
-                verification.startedAt.toDatabaseTime(),
-                verification.finishedAt.toDatabaseTime(),
+                verification.startedAt.atOffset(ZoneOffset.UTC),
+                verification.finishedAt.atOffset(ZoneOffset.UTC),
                 verification.snapshotDigest,
                 verification.outputDigest,
                 verification.summary,
@@ -414,8 +401,6 @@ class JdbcChangeRecordRepository(
         verifications = emptyList(),
         openQuestions = emptyList(),
     )
-
-    private fun Instant.toDatabaseTime(): OffsetDateTime = OffsetDateTime.ofInstant(this, ZoneOffset.UTC)
 
     private fun ResultSet.getNullableInstant(column: String): Instant? =
         getObject(column, OffsetDateTime::class.java)?.toInstant()

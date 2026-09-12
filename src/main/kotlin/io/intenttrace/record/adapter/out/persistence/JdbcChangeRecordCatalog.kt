@@ -6,6 +6,7 @@ import io.intenttrace.record.application.ChangeRecordCatalog
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.RecordCatalogQuery
 import io.intenttrace.record.domain.ChangeRecordStatus
+import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
@@ -47,7 +48,7 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
         }
         query.cursor?.let {
             conditions += "(r.created_at < :createdAt or (r.created_at = :createdAt and r.id < :cursorId))"
-            parameters["createdAt"] = OffsetDateTime.ofInstant(it.createdAt, ZoneOffset.UTC)
+            parameters["createdAt"] = it.createdAt.atOffset(ZoneOffset.UTC)
             parameters["cursorId"] = it.id.toString()
         }
         return jdbc.query(
@@ -58,17 +59,23 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
             order by r.created_at desc, r.id desc limit :limit
             """.trimIndent(),
             parameters,
-            { row, _ ->
-                ChangeRecordSummary(
-                    UUID.fromString(row.getString("id")), row.getString("title"), row.getString("request_summary"),
-                    row.getString("repository_key"), row.getString("target_revision"),
-                    ChangeRecordStatus.valueOf(row.getString("status")),
-                    ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
-                    row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
-                    row.getString("superseded_by")?.let(UUID::fromString), row.getLong("version"),
-                    row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
-                )
-            },
+            changeRecordSummaryRowMapper,
         )
     }
+}
+
+internal val changeRecordSummaryRowMapper = RowMapper<ChangeRecordSummary> { row, _ ->
+    ChangeRecordSummary(
+        id = UUID.fromString(row.getString("id")),
+        repositoryKey = row.getString("repository_key"),
+        title = row.getString("title"),
+        requestSummary = row.getString("request_summary"),
+        version = row.getLong("version"),
+        status = ChangeRecordStatus.valueOf(row.getString("status")),
+        targetRevision = row.getString("target_revision"),
+        createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
+        createdAt = row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
+        publishedAt = row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
+        supersededBy = row.getString("superseded_by")?.let(UUID::fromString),
+    )
 }

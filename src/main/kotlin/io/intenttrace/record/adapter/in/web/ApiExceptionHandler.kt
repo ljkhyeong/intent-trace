@@ -15,6 +15,9 @@ import io.intenttrace.record.application.ChangeRecordNotFoundException
 import io.intenttrace.record.application.ChangeRecordOwnershipException
 import io.intenttrace.record.application.ChangeRecordRequestConflictException
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
+import io.intenttrace.record.application.GitHubContextNotFoundException
+import io.intenttrace.record.application.GitHubContextPermissionException
+import io.intenttrace.record.application.EvidenceUnavailableException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
@@ -77,6 +80,21 @@ class ApiExceptionHandler {
     @ExceptionHandler(GitHubApiException::class)
     fun githubApiFailure(exception: GitHubApiException): ProblemDetail =
         problem(HttpStatus.BAD_GATEWAY, "GitHub API 요청 실패", exception.message)
+
+    @ExceptionHandler(EvidenceUnavailableException::class)
+    fun evidenceUnavailable(exception: EvidenceUnavailableException): ProblemDetail =
+        problem(HttpStatus.UNPROCESSABLE_ENTITY, "코드 확인 불가", exception.reason.message).also {
+            it.setProperty("code", "EVIDENCE_UNAVAILABLE")
+            it.setProperty("reason", exception.reason.name)
+        }
+
+    @ExceptionHandler(GitHubContextNotFoundException::class)
+    fun githubContextNotFound(exception: GitHubContextNotFoundException): ProblemDetail =
+        problem(HttpStatus.NOT_FOUND, "GitHub 자료 조회 불가", exception.message)
+
+    @ExceptionHandler(GitHubContextPermissionException::class)
+    fun githubContextPermission(exception: GitHubContextPermissionException): ProblemDetail =
+        problem(HttpStatus.FORBIDDEN, "GitHub 자료 조회 거부", exception.message)
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun invalidInput(exception: IllegalArgumentException): ProblemDetail =

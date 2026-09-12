@@ -12,8 +12,8 @@ import java.util.UUID
 
 data class GitTreeEntry(val path: String, val mode: String, val type: String, val sha: String)
 
-data class GitEvidenceSnapshot(val revision: String, val entries: Map<String, GitTreeEntry>) {
-    val digest: String get() = GitEvidenceDigest.snapshot(entries.values.toList())
+data class GitEvidenceSnapshot(val entries: Map<String, GitTreeEntry>) {
+    val digest: String get() = GitEvidenceDigest.snapshot(entries.values)
 }
 
 interface GitEvidenceGateway {
@@ -31,7 +31,7 @@ object GitEvidenceDigest {
         return HexFormat.of().formatHex(digest.digest())
     }
 
-    fun snapshot(entries: List<GitTreeEntry>): String {
+    fun snapshot(entries: Iterable<GitTreeEntry>): String {
         val rows = entries.filter { it.type != "tree" }.sortedWith { left, right ->
             java.util.Arrays.compareUnsigned(left.path.toByteArray(Charsets.UTF_8), right.path.toByteArray(Charsets.UTF_8))
         }.joinToString("") { "${it.mode} ${it.type} ${it.sha}\t${quotePath(it.path)}\n" }

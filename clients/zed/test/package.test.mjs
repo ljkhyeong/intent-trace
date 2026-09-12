@@ -15,12 +15,14 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
   const output = join(directory, 'release');
   const install = join(directory, 'install');
   const token = `its_${'a'.repeat(43)}`;
+  const fixtureVersion = '9.8.7';
   function run(command, args, options = {}) {
     const result = spawnSync(command, args, { cwd: directory, encoding: 'utf8', ...options });
     assert.equal(result.status, 0, result.stderr);
     return result.stdout;
   }
   let server;
+  const diagnostics = [];
   try {
     const fixture = join(directory, 'source');
     const source = join(fixture, 'clients/zed');
@@ -30,6 +32,14 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     await cp(join(dirname(builder), 'zed-with-intent-trace.py'), join(fixture, 'scripts/zed-with-intent-trace.py'));
     for (const name of ['package.json', 'package-lock.json', 'intent-trace.mjs', 'bridge.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
       await cp(new URL(`../${name}`, import.meta.url), join(source, name));
+    }
+    // 다음 배포에서도 CLI·MCP가 소스에 고정한 버전 대신 설치된 패키지 버전을 사용해야 한다.
+    for (const name of ['package.json', 'package-lock.json']) {
+      const path = join(source, name);
+      const manifest = JSON.parse(await readFile(path, 'utf8'));
+      manifest.version = fixtureVersion;
+      if (manifest.packages) manifest.packages[''].version = fixtureVersion;
+      await writeFile(path, JSON.stringify(manifest));
     }
     const isolatedBuilder = join(fixture, 'scripts/package-zed.mjs');
     // 직접·하위 의존성이 잘못 설치돼 있어도 배포에는 잠금 파일의 버전만 들어가야 한다.
@@ -44,6 +54,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     assert.equal(await readFile(`${tarball}.sha256`, 'utf8'), `${digest}  ${filename}\n`);
     run('npm', ['install', '--prefix', install, '--cache', join(directory, 'empty-cache'), '--offline', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
     const bin = join(install, 'node_modules/.bin/intent-trace-zed');
+    assert.equal(run(bin, ['--version'], { env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' } }).trim(), fixtureVersion);
     const configured = JSON.parse(run(bin, ['config']));
     const entry = configured.context_servers['intent-trace'];
     assert.ok(entry.args[0].startsWith(await realpath(install)));
@@ -52,6 +63,10 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     run(bin, ['configure', '--settings', settings, '--apply']);
     assert.ok((await readFile(settings, 'utf8')).includes(await realpath(install)));
     assert.ok(!(await readFile(settings, 'utf8')).includes(token));
+    assert.match(run(bin, ['unconfigure', '--settings', settings]), /연결 제거 미리보기/);
+    assert.ok((await readFile(settings, 'utf8')).includes(await realpath(install)));
+    run(bin, ['unconfigure', '--settings', settings, '--apply']);
+    assert.deepEqual(JSON.parse(await readFile(settings, 'utf8')).context_servers, {});
     const packageDirectory = join(install, 'node_modules/intent-trace-zed');
     assert.ok((await readdir(packageDirectory)).includes('zed-with-intent-trace.py'));
     assert.ok(!(await readdir(packageDirectory)).includes('test'));
@@ -71,19 +86,30 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
       let body = ''; for await (const chunk of request) body += chunk;
       const message = JSON.parse(body);
       if (message.id === undefined) { response.writeHead(202).end(); return; }
+      if (message.method === 'initialize') assert.equal(message.params.clientInfo.version, fixtureVersion);
       const result = message.method === 'initialize'
         ? { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: '설치 검증', version: '1' } }
-        : { tools: [{ name: 'diagnose_connection', inputSchema: { type: 'object', properties: {} } }] };
+        : message.method === 'tools/call'
+          ? { content: [], structuredContent: { checks: [{ name: 'repository_read', status: 'VERIFIED' }] } }
+          : { tools: [{ name: 'diagnose_connection', inputSchema: { type: 'object', properties: {} } }] };
+      if (message.method === 'tools/call') {
+        assert.equal(message.params.name, 'diagnose_connection');
+        diagnostics.push(message.params.arguments);
+      }
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }));
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const child = spawn(bin, ['check'], { cwd: directory, env: { ...process.env, INTENT_TRACE_MCP_URL: `http://127.0.0.1:${server.address().port}/mcp`, INTENT_TRACE_SESSION_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] });
-    let text = '';
-    child.stdout.on('data', bytes => { text += bytes; }); child.stderr.on('data', bytes => { text += bytes; });
-    const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
-    assert.equal(code, 0, text);
-    assert.ok(!text.includes(token));
+    for (const args of [[], ['acme/project'], ['acme/project', '--pr', '12']]) {
+      const child = spawn(bin, ['check', ...args], { cwd: directory, env: { ...process.env, INTENT_TRACE_MCP_URL: `http://127.0.0.1:${server.address().port}/mcp`, INTENT_TRACE_SESSION_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let text = '';
+      child.stdout.on('data', bytes => { text += bytes; }); child.stderr.on('data', bytes => { text += bytes; });
+      const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
+      assert.equal(code, 0, text);
+      assert.ok(!text.includes(token));
+      if (args.length) assert.match(text, /repository_read: VERIFIED/);
+    }
+    assert.deepEqual(diagnostics, [{ repositoryKey: 'acme/project' }, { repositoryKey: 'acme/project', pullNumber: 12 }]);
 
     const fakeBin = join(directory, 'fake-bin');
     await mkdir(fakeBin);

@@ -60,6 +60,15 @@ python3 scripts/zed-with-intent-trace.py .
 
 > IntentTrace에서 acme/project의 12번 PR에 연결된 기록과 현재 커밋에 맞지 않는 기록을 보여줘.
 
+## 연결 설정 제거
+
+```bash
+node clients/zed/intent-trace.mjs unconfigure
+node clients/zed/intent-trace.mjs unconfigure --apply
+```
+
+첫 명령은 미리보기이며 `--apply`에서만 IntentTrace 연결을 제거한다. `--settings`로 별도 설정 파일을 지정할 수 있다. 다른 연결·주석·파일 권한을 유지하고, 이미 제거됐다면 파일을 쓰지 않는다. 서버 주소와 세션 없이 실행한다. 서버 세션도 끝내려면 내 연결 화면에서 사용하지 않는 연결을 종료한다.
+
 ## 연결만 먼저 점검하기
 
 전체 사용법은 `node clients/zed/intent-trace.mjs --help`, 점검 옵션은 `node clients/zed/intent-trace.mjs check --help`로 확인한다. 도움말에는 로그인이나 서버 연결이 필요 없다. 알 수 없는 명령은 종료 코드 1로 실패한다.
@@ -71,9 +80,11 @@ node clients/zed/intent-trace.mjs check http://127.0.0.1:8080/mcp acme/project
 node clients/zed/intent-trace.mjs check http://127.0.0.1:8080/mcp acme/project --pr 12
 ```
 
-Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호출한다. MCP 연결에 성공하면 도구 개수를 표시하고 각 진단의 상태만 출력한다. 저장소 이름을 생략하면 초기화와 도구 목록만 확인한다. 인증 또는 진단 실패 시 종료 코드는 1이다. 서버 게시 키가 미설정이어도 기록 조회와 초안 기능은 사용할 수 있다.
+서버 주소를 생략한 `node clients/zed/intent-trace.mjs check acme/project --pr 12`도 사용할 수 있다. `INTENT_TRACE_MCP_URL` 환경 변수, 없으면 기본 로컬 서버를 사용하며 명령에 직접 넣은 주소가 우선한다.
 
-`--pr 12`는 PR 읽기와 해당 PR의 현재 커밋 읽기를 점검한다. 특정 커밋은 `--revision <40자 또는 64자 커밋 해시>`로 지정한다. 두 옵션을 함께 쓰면 코드 읽기는 지정한 커밋을 기준으로 확인한다. PR·커밋 옵션을 쓰려면 저장소 이름도 필요하다.
+Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호출한다. MCP 연결에 성공하면 도구 개수와 각 진단의 상태·설명을 출력한다. 실패 사유와 필요한 설정을 같은 결과에서 확인할 수 있다. 저장소 이름을 생략하면 초기화와 도구 목록만 확인한다. 인증 또는 진단 실패 시 종료 코드는 1이다. 서버 게시 키가 미설정이어도 기록 조회와 초안 기능은 사용할 수 있다.
+
+`--pr 12`는 PR 읽기와 해당 PR의 현재 커밋 읽기를 점검한다. 특정 커밋은 `--revision <40자 또는 64자 커밋 해시>`로 지정한다. 두 옵션을 함께 쓰면 PR의 현재 커밋과 일치하는지도 확인한다. 불일치는 진단 실패로 표시하며 지정한 커밋의 코드 읽기는 계속한다. PR·커밋 옵션을 쓰려면 저장소 이름도 필요하다.
 
 ## 기록할 때 지킬 내용
 
@@ -89,6 +100,8 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 - 필요한 상세 절차는 [IntentTrace 사용 스킬](../../skills/intent-trace/SKILL.md)을 Zed의 지침에서 참고한다.
 
 ## 연결이 안 될 때
+
+`node clients/zed/intent-trace.mjs --version`으로 연결 도구의 버전을 확인한다. 설치 패키지는 `intent-trace-zed --version`을 사용한다. 주소·세션 없이 실행하며 서버 버전과는 별개다.
 
 0.11.0부터 연결 초기화·도구 호출·`check`에서 오류를 구분한다. 도구 호출 오류의 `data.code`와 선택 `retryAfterSeconds`를 사용하며 외부 오류 본문은 출력하지 않는다.
 

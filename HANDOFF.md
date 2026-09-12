@@ -2,73 +2,30 @@
 
 ## 현재 구현
 
-- IntentTrace 개발 version 0.8.0-SNAPSHOT, 최신 공개 release 0.7.0, Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
-- H2 기본 저장소와 PostgreSQL 프로필
-- Flyway 초기 스키마
-- Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키, V5 코드 경로 정규화와 V6 미사용 기준 revision 제거 스키마
-- 변경 의도 생성·확인·공개·대체·라인 조회
-- 저장소·파일·상태별 공개 목록과 내 비공개 기록함, 생성 시각·UUID 순서의 페이지 조회
-- 팀 공유용 Markdown 출력
-- PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
-- GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
-- 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
-- GitHub user access token 인증과 저장소별 READER·CONTRIBUTOR·MAINTAINER 역할 판정
-- GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
-- GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
-- SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
-- 현재 `its_` 세션 폐기, 사용자별 활성 세션 기본 5개 상한과 오래된 세션 자동 폐기
-- PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
-- 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
-- 비root·읽기 전용 app container와 분리된 data·edge network
-- PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
-- GitHub Actions commit SHA 고정, 중복 실행 취소와 Dependabot 정기 갱신
-- 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- 브라우저 기록 열람·로그인 복귀·로그아웃과 8시간 전용 세션
-- REST·MCP·브라우저의 제목·요청·판단 키워드 검색
-- Zed Agent용 공식 MCP SDK 중계기·설정 생성·연결 점검·세션 토큰 입력 도구
-- 실제 Spring 서버와 stdio MCP 초기화·도구 목록·진단 호출 통합 검증
-- Flyway V10 후속 초안의 원본 공개 기록 연결과 검증·확인 상태 초기화
-- 고유한 동일 blob 이름 변경과 원본 코드 조각의 줄 이동 추적
-- PR별 게시·시도 기록 목록과 현재 HEAD 비교, 연결·권한·설정 진단
-- 새 GitHub JWT 형식 설치 token 전체 제거, 요청 안의 권한·Git 객체 조회 재사용
-- 이전 기록별 확인 불가 사유·처리 완료 여부·실패한 기록 재조회
-- 관리자용 App 키 서명·원격 인증·설치·실제 발급 범위·권한 사전 점검
-- 원본·후속 기록 비교와 브라우저 PR 기록·연결 진단 화면
-- JSONC 설정 미리보기·등록·갱신과 실제 Zed 1.18.1의 도구 승인·조회·세션 폐기·재연결 확인
-- Streamable HTTP MCP 도구 24개, 줄 조회의 최상위 `items` 객체 응답
-- Zed 초기화·도구 호출·연결 점검의 안전한 오류 분류와 호출 제한 대기 시간 전달
-- 웹 파일·줄 조회와 실패 후보 재조회, 별도 코드 근거 확인
-- 웹의 코드 확인 불가 사유와 본인 폐기 기록·파일·팀 작성자 필터
-- 과거 조회의 기본 30초·40회 HTTP 제한, 근거 순서별 중단·재개
-- Zed 의존성 포함 설치 패키지와 버전별 설치·업데이트·등록 자료 생성
-- 토큰 입력 보호 실패·취소 시 실행 중단과 잠금 파일 기준 배포 의존성 준비·생성 기준 해시
-- 과거 조회 최소 7회 설정과 근거를 처리하지 못한 재개의 `resumeBlocked`·원인 확인 안내
-- 웹 본인 연결 조회·선택·전체 종료와 현재 연결 로그아웃
-- 비교의 추가·삭제·출처·상대 순서 변경 표시와 중복 항목의 전체 내용 확인
-- Flyway V11 기록 변경 이력과 기록 저장의 원자성, 작성자 전체·팀 공개 작업 조회
-- 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
-- MCP 기록 대체와 Markdown의 후속 기록 링크
-- Flyway V9 게시 시도 이력, 게시 결과 조회·응답 유실 복구·기존 Check Run 대체 안내
-- 내 세션 목록과 선택·전체 폐기, 갱신 도중 폐기 처리
-- GitHub 호출 제한 429·Retry-After와 기능별 Micrometer 지표
-- Flyway V7 최초 생성 내용 해시와 목록 조회 인덱스, V8 코드 근거 BASE·TARGET과 실행 결과 출처
-- GitHub 코드 해시 확인과 이전 커밋의 동일 파일·관련 기록 조회
-- 로컬 실행 도구의 종료 코드·시각·출력 해시 수집과 변경 파일 감지
-- REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
-- GitHub token·private key·client secret의 안전한 문자열 표현
-- Codex 기록 사용·저장소 개발 스킬
-- Codex 조회 스킬의 정확한 줄·기록함·파일 이력 분기, 페이지·상세·대체 기록 조회 안내
-- Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
-- IntentTrace 저장소 전용 개발 스킬
-- 화면·Markdown·MCP·Zed·문서의 문구 개선안 52개 반영과 모바일 안내의 단어 단위 줄바꿈
-- IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
-- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션의 서버 폐기·삭제
-- IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
-- IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
-- IntelliJ 기록함 조회 실패 시 마지막 성공 필터 복원과 기존 목록·선택·페이지 유지
-- tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
-- Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
-- SECURITY 정책과 0.6.0 변경 이력
+- 기록 생성·수정·작성자 확인·공개·폐기·대체와 후속 초안, 변경 이력을 지원한다.
+- 기록함 검색·페이지 조회, 원본 비교, Git 코드 해시 확인과 이름 변경·줄 이동 조회를 제공한다.
+- GitHub 사용자·저장소 권한을 확인하고 세션을 메모리에 보관한다. 사용자 승인 폐기 웹훅과 본인 세션 종료를 지원한다.
+- PR 게시·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
+- 웹·REST·MCP, Codex·IntelliJ·Zed에서 사용한다. 클라이언트별 범위는 [README](README.md#주요-기능)를 따른다.
+- H2 개발 환경과 PostgreSQL 운영 프로필, Compose·k3s 배포 설정을 준비했다. 운영 설정과 배포는 사용자가 수행한다.
+
+버전은 [서버 빌드](build.gradle.kts), [MCP 설정](src/main/resources/application.properties), [Codex 플러그인](.codex-plugin/plugin.json), [IntelliJ](intellij-plugin/gradle.properties), [Zed](clients/zed/package.json)를 기준으로 확인한다. 도구 목록은 [README의 MCP 도구](README.md#mcp-도구), 배포 파일 확인은 [릴리스 절차](docs/operations/release.md)를 따른다.
+
+## 최근 검증
+
+2026-09-12 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
+
+| 대상 | 검증한 코드 | 결과·상세 인계 |
+| --- | --- | --- |
+| 서버·MCP | `60c4bfc` | [서버 248개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-db-시간-변환을-표준-api로-정리) |
+| PostgreSQL | `60c4bfc` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-db-시간-변환을-표준-api로-정리) |
+| IntelliJ | `5e5c094` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
+| Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
+| 검증 결과 수집·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
+| Git 근거·검증 루프 | `938f570` | [Git 근거 8개·검증 루프 8개 통과, Compose 설정 확인](#2026-09-12-보조-도구의-중복-검사와-불필요한-해시-계산-제거) |
+
+[남은 작업](#다음-작업-후보)과 [현재 제한](#현재-제한)을 먼저 확인한다. 아래 날짜별 결과는 당시 검증이며 현재 코드의 검증으로 간주하지 않는다.
 
 ## 작업 규칙
 
@@ -265,22 +222,22 @@
 1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
+4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
 
 ## 현재 제한
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
-- 승인 폐기 webhook은 없다. 웹·REST·MCP에서 본인 세션을 조회·폐기할 수 있다. 연결 이름은 기기를 추정하지 않고 브라우저·Agent/API 채널로 구분한다.
+- 서명을 확인한 GitHub 사용자 승인 폐기 webhook은 해당 사용자의 모든 메모리 세션을 종료한다. 웹·REST·MCP에서도 본인 세션을 조회·폐기할 수 있다. 연결 이름은 기기를 추정하지 않고 브라우저·Agent/API 채널로 구분한다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
-- GitHub 사용자 인증은 요청마다 확인한다. 저장소 권한은 같은 인증 요청 안에서만 재사용하며 새 요청에서는 다시 확인한다. 요청 간 캐시와 webhook 무효화는 없다.
+- GitHub 사용자 인증은 요청마다 확인한다. 저장소 권한은 같은 인증 요청 안에서만 재사용하며 새 요청에서는 다시 확인한다. 저장소 권한의 요청 간 캐시는 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
 - 서버 코드 확인은 별도 요청에서 GitHub 객체를 읽으며 `Contents: read` 권한이 필요하다. 결과는 저장하지 않고 호출 시 계산한다. 일부 트리·2 MiB 초과 blob은 확인하지 않는다.
 - 코드 이동은 동일 blob의 고유한 이름 변경 또는 원본·현재 파일에서 고유한 전체 줄 조각에 한정한다. 수정·이름 변경 동시 발생과 중복 조각은 자동 연결하지 않는다. 조회는 후보 단위 페이지이며 빈 결과에서도 다음 커서가 있을 수 있다.
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
-- Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
+- Fork PR Check Run과 GitHub App 설치·권한 변경 webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
 - IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
@@ -711,3 +668,204 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*PublishChangeRecordToGitHubTest'`: 9개 통과. 동시 게시 테스트는 공통 서비스에서 같은 기록·서로 다른 PR의 중복 생성 방지와 응답 유실 복구를 확인한다. 게시 이력이 없는 대체 안내의 불필요한 PR 조회를 수정 전에 재현했다. 로그는 `/tmp/intent-trace-publication-flow-before.log`, `/tmp/intent-trace-publication-flow-focused.log`다.
 - `./gradlew test bootJar`: 서버 224개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:28 KST이며 로그는 `/tmp/intent-trace-publication-flow-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 조회·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 기록 검색과 폐기 기록 조회
+
+- 시작 리비전은 `e817291`, 코드 검증 대상은 `027a1a5`다. IntelliJ 기록함에 제목·요청·결정 검색과 내 폐기 기록 필터를 추가했다. 기존 커서 API를 사용하며 이전·다음·새로고침의 검색 조건과 실패 시 페이지 위치를 유지한다. 사용 안내를 갱신하고 위의 웹훅 미지원 설명에서 이미 구현한 사용자 승인 폐기를 제외했다.
+- `./gradlew -p intellij-plugin test`: 51개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 18:09 KST다. HTTP 검색어·커서 인코딩, 검색 초기화, 실패한 페이지 이동, 새로고침의 선택 유지와 폐기 필터를 확인했다. 로그는 `/tmp/intent-trace-record-search-intellij.log`다.
+- `./gradlew -p intellij-plugin buildPlugin verifyPluginStructure` 통과. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`, 로그는 `/tmp/intent-trace-record-search-package.log`다.
+- 파일별 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 서버·DB·Zed·배포 설정은 변경하지 않아 PR #21의 성공한 검증을 재사용한다. 실제 IntelliJ 설치·화면 확인과 운영 배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ에서 웹 코드 이동 조회 연결
+
+- 시작 리비전은 `292dc7b`, 코드 검증 대상은 `847bdea`다. 현재 줄 결과 창에 웹 줄 이동·이름 변경 조회를 연결했다. 조회 당시 서버·커밋·파일·줄로 주소를 만들고 세션 토큰을 전달하지 않는다. 결과가 없을 때도 같은 창에서 파일 이력과 웹 조회를 선택한다. 폐기 상태의 표시도 `폐기`로 맞췄다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginStructure`: 테스트 52개, 설치 ZIP과 구조 검사 통과. 결과 시각은 2026-09-12 18:21 KST이며 로그는 `/tmp/intent-trace-line-history-intellij.log`다. 빈 결과의 버튼 상태, 명시적 클릭 후 이동, 전체 커밋·특수문자 경로의 URL 전달을 확인했다.
+- 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다. 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·Zed·배포 설정은 변경하지 않아 기존 검증을 재사용한다. 실제 IDE 화면·브라우저 로그인 연결은 수동 확인하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 웹 파일·줄과 PR 조회 조건 유지
+
+- 시작 리비전은 `44e9d49`, 코드 검증 대상은 `8088857`이다. 파일·줄 조회와 PR 기록에서 상세·원본·비교·코드 확인·변경 이력을 거쳐도 원래 조건과 커서로 복귀한다. 실패 기록 재조회 ID도 유지한다. 복귀 화면과 인자는 화면별로 제한하고 별도 탐색 상태는 저장하지 않는다.
+- 브라우저 관련 `focusedTest` 17개, `./gradlew test bootJar`의 서버 226개와 ArchUnit 4개 통과. 실패·오류·건너뜀은 0개이며 전체 결과 시각은 2026-09-12 18:29 KST다. 로그는 `/tmp/intent-trace-browser-return-focused.log`와 `/tmp/intent-trace-browser-return-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. DB·의존성·클라이언트·배포 설정은 변경하지 않았다. IntelliJ 52개와 설치 ZIP 검증은 직전 결과를 재사용한다. 실제 GitHub 로그인·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 연결 설정 제거
+
+- 시작 리비전은 `6338784`, 코드 검증 대상은 `4ebe8b7`이다. `unconfigure [--settings 설정파일] [--apply]`로 연결 제거 미리보기와 적용을 제공한다. IntentTrace 항목과 구분 쉼표만 편집해 다른 연결·인접 주석·파일 권한을 유지한다. 설정이 없으면 파일을 쓰지 않고 서버 주소·세션 없이 실행한다. 등록·제거 옵션은 Node 기본 파서를 사용한다.
+- `npm test --prefix clients/zed`: Node 테스트 13개와 Python 실행기 테스트 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결·진단 테스트 2개 통과. 끝 쉼표를 허용하는 JSONC의 항목 위치별 삭제, 미리보기, 반복 적용, 파일 없음, 비밀값 미출력과 설치된 명령을 확인했다. 결과 시각은 2026-09-12 18:41 KST이며 로그는 `/tmp/intent-trace-zed-remove-all.log`, `/tmp/intent-trace-zed-remove-bridge.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 SHA-256·빌드 정보를 생성했고 체크섬이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-remove-package.log`다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ·의존성·배포 설정은 변경하지 않았다. 실제 사용자 Zed 설정·서버 세션은 변경하지 않았고 외부 패키지 게시·운영 배포는 수행하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 GitHub 자료 조회 오류 구분
+
+- 시작 리비전은 `19d631b`, 검증 대상 코드는 `f12af2a`다. 이슈·PR·CI 조회의 GitHub 403은 조회 거부(403), 404·410은 자료 없음·열람 불가(404)로 전달한다. 브라우저는 주소·App 권한을 확인하도록 안내하고 재조회 버튼을 표시하지 않는다. 호출 제한에 해당하는 403은 기존 공통 처리에서 429·대기 시간으로 전달한다. 일시 장애의 502·재조회와 MCP의 원인별 안내를 유지한다.
+- `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest'`: 관련 테스트 10개 통과. `./gradlew test bootJar`: 서버 228개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 표준 MCP SDK로 실제 서버의 오류 안내를 확인했다. 전체 결과 시각은 2026-09-12 18:52 KST이며 로그는 `/tmp/intent-trace-context-errors-focused.log`, `/tmp/intent-trace-context-errors-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 자료 조회·게시와 운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 검증 수집 도구의 비밀값 제거
+
+- 시작 리비전은 `9e6b7c6`, 검증 대상 코드는 `cbb75b9`다. `run-verification.py`의 이스케이프된 따옴표·독립 JWT·대입된 PEM 키 처리 누락을 수정했다. 인자별 정제 후 표시용 명령을 만들고 분리된 비밀값 옵션도 제거한다. 실제 실행 인자와 출력 해시는 유지한다. 기존 서버 정제 테스트를 Python 도구에도 적용하고 실제 명령의 결과 JSON을 확인했다.
+- 수정 전 정제 테스트 3개 실패로 재현했다. 수정 후 관련 `focusedTest` 13개와 `./gradlew test`의 서버 229개·ArchUnit 4개가 통과했으며 실패·오류·건너뜀은 0개다. 전체 결과 시각은 2026-09-12 19:02 KST다. 로그는 `/tmp/intent-trace-runner-redaction-before.log`, `/tmp/intent-trace-runner-redaction-focused.log`, `/tmp/intent-trace-runner-redaction-server.log`다. `scripts/validate-plugin.sh`의 로컬 구성 검사도 통과했다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IDE·의존성·배포 설정은 변경하지 않아 JAR·IDE 패키지 재빌드와 별도 PostgreSQL 검증을 생략했다. 실제 비밀값은 사용하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 MCP 세션 ID 오류 정제
+
+- 시작 리비전은 `fb58995`, 검증 대상 코드는 `a3fabd5`다. `revoke_my_session`의 UUID 변환 오류에서 입력값·원인 예외를 제거했다. 도구 설명에 목록의 연결 ID를 사용하도록 명시했다. 빈 문자열·잘못된 ID는 연결을 종료하지 않고, ID 생략만 현재 연결 종료로 처리한다.
+- 수정 전 신규 SDK 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 17개가 통과했다. 실제 Spring 서버에 stdio·표준 SDK로 연결해 오류 응답의 입력값 미노출, 기존 세션 보존, 선택·반복·현재 연결 종료를 확인했다. `./gradlew test bootJar`: 서버 230개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:09 KST이며 로그는 `/tmp/intent-trace-session-id-before.log`, `/tmp/intent-trace-session-id-focused.log`, `/tmp/intent-trace-session-id-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트 구현·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE 패키지 검증을 생략했다. 외부 GitHub 호출이나 사용자 세션 변경은 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 점검 주소 생략
+
+- 시작 리비전은 `3083cb5`, 검증 대상 코드는 `d4d5134`다. `check owner/repo [--pr 번호] [--revision 커밋]`에서 서버 주소를 생략하면 `INTENT_TRACE_MCP_URL`, 없으면 기본 로컬 서버를 사용한다. 직접 입력한 주소가 우선하며 주소 검증·세션 전달·서버 진단은 기존 경로를 사용한다. 도움말과 설치·사용 안내를 갱신했다.
+- 주소 생략 오류를 Node 테스트 1개 실패로 재현한 뒤 수정했다. `npm test --prefix clients/zed`: Node 14개·Python 실행기 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 3개 통과, 실패·오류·건너뜀 0개다. 주소 입력·생략 양쪽에서 PR HEAD·명시 커밋 전달과 주소 우선순위를 확인했다. 결과 시각은 2026-09-12 19:17 KST이며 로그는 `/tmp/intent-trace-zed-check-address-before.log`, `/tmp/intent-trace-zed-check-address-all.log`, `/tmp/intent-trace-zed-check-address-bridge.log`다.
+- 설치 테스트에서 저장소 밖의 패키지 명령으로 주소 없는 저장소·PR 진단을 확인했다. `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 만들었고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-check-address-package.log`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IntelliJ·의존성·배포 설정은 변경하지 않아 전체 서버·PostgreSQL·IDE 검증과 JAR 재빌드를 반복하지 않았다. 실제 사용자 설정·외부 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 코드 줄 이동의 부분 일치 처리
+
+- 시작 리비전은 `e3c9782`, 검증 대상 코드는 `b0759b0`다. 주석·다른 들여쓰기의 부분 일치를 중복으로 세어 실제 줄 이동을 놓치던 문제를 수정했다. 원본과 현재 파일에서 전체 줄이 각각 한 곳에만 일치해야 연결하며, 겹치는 여러 줄 조각도 중복이면 제외한다. 줄 끝 바이트와 이전 커밋의 검증 표시 규칙은 유지한다.
+- 수정 전 신규 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 6개가 통과했다. `./gradlew test bootJar`: 서버 232개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:38 KST이며 로그는 `/tmp/intent-trace-line-boundary-before.log`, `/tmp/intent-trace-line-boundary-focused.log`, `/tmp/intent-trace-line-boundary-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시와 운영 배포는 수행하지 않았다. 기존 미추적 PNG는 보존했으며 작업 변경은 커밋했다.
+
+## 2026-09-12 코드 확인 불가 응답과 진단 사유 구분
+
+- 시작 리비전은 `67a8def`, 검증 대상 코드는 `b1ae4ad`다. 크기 초과·불완전한 트리·지원하지 않는 객체의 REST 응답을 502에서 422로 구분하고 `EVIDENCE_UNAVAILABLE`과 사유 코드를 제공한다. 기존 웹 안내를 공통 사유로 옮겨 MCP 오류와 연결 진단에서도 사용한다. 진단은 해당 항목 실패를 기록하고 나머지 점검을 계속한다. 일반 장애·호출 제한 처리는 유지한다.
+- 수정 전 REST·웹 진단 테스트 2개가 실패했고 수정 후 관련 `focusedTest` 31개가 통과했다. 실제 Spring 서버에 표준 MCP SDK와 REST로 연결해 세 사유의 응답·진단을 확인했다. `./gradlew test bootJar`: 서버 233개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:47 KST이며 로그는 `/tmp/intent-trace-evidence-errors-before.log`, `/tmp/intent-trace-evidence-errors-focused.log`, `/tmp/intent-trace-evidence-errors-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트 실행 코드·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시와 운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다. 작업 변경은 커밋했다.
+
+## 2026-09-12 검증 수집의 서브모듈 변경 감지
+
+- 시작 리비전은 `7e7b749`, 검증 대상 코드는 `d58faa5`다. `run-verification.py`가 실행 전후 상태 조회에 `--ignore-submodules=none`을 지정한다. `.gitmodules`나 로컬 Git 설정이 숨긴 서브모듈 변경도 확인하며, 실행 전 변경이 있으면 명령을 시작하지 않고 실행 후 변경이 있으면 검증 JSON을 내보내지 않는다.
+- 수정 전 신규 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 8개가 통과했다. 로컬 임시 저장소에서 서브모듈의 수정·미추적 파일을 실행 전후 네 경우로 확인했다. `./gradlew test`: 서버 234개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:54 KST이며 로그는 `/tmp/intent-trace-submodule-verification-before.log`, `/tmp/intent-trace-submodule-verification-focused.log`, `/tmp/intent-trace-submodule-verification-server.log`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·클라이언트·의존성·배포 설정은 변경하지 않아 JAR·패키지 재빌드와 별도 PostgreSQL·IDE 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포와 사용자 Git 설정은 변경하지 않았다. 기존 미추적 PNG는 보존했으며 작업 변경은 커밋했다.
+
+## 2026-09-12 릴리스 MCP 테스트 의존성 준비
+
+- 시작 리비전은 `5255e76`, 수정 리비전은 `d0ac0b3`이다. 태그 릴리스에서 서버 테스트 전에 일반 CI와 같은 Node.js 22와 잠금 파일 기준 Zed 의존성을 준비한다. 로컬 릴리스 문서에도 최초 설치와 재설치 조건을 명시했다.
+- 시작 리비전의 추적 파일만 임시 폴더에 복사해 `./gradlew --no-daemon test --tests io.intenttrace.connection.ZedBridgeIntegrationTest --tests io.intenttrace.record.application.GitHubContextIntegrationTest`를 실행했다. 설치 전 MCP SDK 누락으로 3개 실패·2개 건너뜀을 재현했다. `npm ci --prefix clients/zed --ignore-scripts` 후 같은 테스트 10개와 ArchUnit 4개가 통과했고 실패·오류·건너뜀은 0개다. 로컬 Node.js는 25.4.0이며 결과 시각은 2026-09-12 20:20 KST다. 로그는 `/tmp/intent-trace-release-before.log`, `/tmp/intent-trace-release-install.log`, `/tmp/intent-trace-release-after.log`다.
+- 워크플로 YAML 구문, 일반 CI와 준비 단계 일치, 서버 테스트 전 설치 순서를 확인했다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·클라이언트 코드와 의존성 파일은 그대로여서 전체 서버 234개·ArchUnit 4개의 직전 성공 결과를 재사용하고 JAR·패키지는 다시 만들지 않았다. 실제 GitHub Actions·태그 발행·운영 배포는 실행하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 버전 조회와 MCP 버전 일치
+
+- 시작 리비전은 `06408f9`, 검증 대상 코드는 `09feee4`다. MCP 중계기가 0.12.0을 고정해 전달하던 부분을 제거하고 CLI·MCP가 설치된 `package.json` 버전을 함께 사용한다. `--version`·`-V`는 주소·세션 없이 버전을 표시한다. 서버 버전과는 별개다.
+- 수정 전 테스트 2개 실패로 명령 누락과 버전 불일치를 재현했다. `npm test --prefix clients/zed`: Node 15개·Python 실행기 3개 통과. 임시 패키지의 버전을 바꿔 저장소 밖의 설치 명령·MCP에도 반영되는지 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:30 KST이며 로그는 `/tmp/intent-trace-zed-version-before.log`, `/tmp/intent-trace-zed-version-all.log`, `/tmp/intent-trace-zed-version-bridge.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 생성했고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-version-package.log`다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ 코드는 변경하지 않아 전체 서버·DB·IDE 검증과 JAR 빌드는 생략했다. 실제 Zed 설정·외부 게시·운영 배포는 변경하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 변경 전후 코드의 경로 연결 정규화
+
+- 시작 리비전은 `ee8b7e6`, 검증 대상 코드는 `27ef0d4`다. 공통 생성·수정 서비스가 경로를 정규화한 뒤 `relatedPath`의 반대쪽 코드 근거를 확인한다. `./`·중복 `/`·끝 `/` 표기 차이로 정상 연결이 거부되던 문제를 수정했다. 연결 대상 누락·같은 side 연결은 계속 거부한다.
+- 수정 전 신규 테스트 1개 실패로 재현했다. 생성·수정 후 DB 경로, 표기가 다른 재요청의 기존 기록 재사용, 잘못된 수정 시 원본 보존을 확인했다. `./gradlew focusedTest --tests '*ChangeRecordFacadeIntegrationTest' --tests '*RecordEvidenceIntegrationTest' --tests '*DraftManagementIntegrationTest'`: 18개 통과. `./gradlew test bootJar`: 서버 235개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:36 KST이며 로그는 `/tmp/intent-trace-related-path-before.log`, `/tmp/intent-trace-related-path-focused.log`, `/tmp/intent-trace-related-path-server.log`다. 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB 구조·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 연결 점검의 진단 설명 표시
+
+- 시작 리비전은 `1c0e7b6`, 검증 대상 코드는 `ec00793`이다. `check`가 항목 이름·상태와 서버 진단의 `message`를 함께 출력한다. 실패 사유와 설정 안내를 한 번에 확인하며 실패 항목이 있어도 나머지 진단을 표시한다. 종료 코드 1과 HTTP 오류 원문 폐기 동작은 유지한다.
+- 수정 전 통합 테스트 1개 실패로 설명 누락을 재현했다. `npm test --prefix clients/zed`: Node 15개·Python 실행기 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 5개 통과, 실패·오류·건너뜀 0개다. 코드 확인 불가 사유 3종, 성공 설명·후속 설정 안내와 토큰 미출력을 확인했다. 결과 시각은 2026-09-12 21:00 KST이며 로그는 `/tmp/intent-trace-zed-diagnostic-before.log`, `/tmp/intent-trace-zed-diagnostic-node.log`, `/tmp/intent-trace-zed-diagnostic-focused.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 생성했고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-diagnostic-package.log`다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IntelliJ·의존성·배포 설정은 변경하지 않아 전체 서버·DB·IDE 검증과 JAR 빌드는 반복하지 않았다. 실제 사용자 설정·외부 게시·운영 배포는 변경하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 공유 문서의 검증 실행 정보 보완
+
+- 시작 리비전은 `f79ce1f`, 검증 대상 코드는 `a50e9b5`다. 공통 Markdown 출력에 검증별 종료 코드·실행 시각(UTC)·검증 스냅샷 해시를 추가했다. 파일 내려받기와 GitHub 공유에 함께 적용하며 다른 스냅샷의 결과라는 표시와 실행 출처를 유지한다.
+- 수정 전 성공·실패 및 스냅샷 일치 여부를 조합한 테스트 4개 실패로 누락을 재현했다. `./gradlew focusedTest --tests '*ChangeRecordMarkdownRendererTest' --tests '*PublishChangeRecordToGitHubTest' --tests '*RecordBrowserIntegrationTest'`: 27개 통과. `./gradlew test bootJar`: 서버 240개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:09 KST이며 로그는 `/tmp/intent-trace-markdown-evidence-before.log`, `/tmp/intent-trace-markdown-evidence-focused.log`, `/tmp/intent-trace-markdown-evidence-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증은 생략했다. 실제 GitHub 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 IntelliJ 후속 조회의 서버 유지
+
+- 시작 리비전은 `a4b2c5a`, 검증 대상 코드는 `50b24c2`다. 조회 중 서버 설정을 바꿔도 열린 창의 검색·페이지 이동·새로고침·상세·원본·대체·파일 이력은 최초 조회 서버를 사용한다. 창에는 주소만 보관하고 요청마다 해당 서버의 세션을 다시 읽는다. 새로 여는 조회와 연결 작업에는 변경한 설정을 적용한다.
+- 임시 로컬 서버 두 개로 이전 커서가 새 서버에 전달되는 테스트 실패를 재현했다. 수정 후 같은 서버의 세션을 교체하면 다음 요청에 반영되는지도 확인했다. 관련 화면 테스트 9개 통과 후 `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`로 전체 53개 통과·실패/오류/건너뜀 0개와 ZIP 구조 검사를 확인했다. 결과 시각은 2026-09-12 21:17 KST다. 로그는 `/tmp/intent-trace-ide-server-context-before.log`, `/tmp/intent-trace-ide-server-context-focused.log`, `/tmp/intent-trace-ide-server-context-all.log`, 설치 파일은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·Zed 코드는 변경하지 않아 관련 검증과 빌드를 반복하지 않았다. 실제 IDE 설치·수동 화면 확인·운영 배포는 수행하지 않았다. 테스트 설정과 세션은 복원했고 임시 서버는 종료했다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 웹 검증 상세의 대상 해시 표시
+
+- 시작 리비전은 `c66b28c`, 검증 대상 코드는 `008c92d`다. 브라우저 상세의 `검증 시각과 해시`에 각 검증의 스냅샷 해시를 표시한다. 현재 기록과 다른 검증도 원래 해시·출력 해시·종료 코드와 상태를 유지한다.
+- 수정 전 신규 통합 테스트 1개 실패로 누락을 재현했다. `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest'`: 14개 통과. `./gradlew test bootJar`: 서버 241개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:25 KST다. 로그는 `/tmp/intent-trace-browser-verification-before.log`, `/tmp/intent-trace-browser-verification-focused.log`, `/tmp/intent-trace-browser-verification-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·API·클라이언트·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 검증은 생략했다. 실제 GitHub 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 IntelliJ 비공개 기록 범위 안내
+
+- 시작 리비전은 `25a6b32`, 검증 대상 코드는 `e10b373`이다. 폐기 기록을 제외하는 비공개 기본 범위를 `전체`에서 `초안·작성자 확인`으로 명확히 했다. 페이지 안내도 적용한 필터 이름을 사용해 상태 설명을 중복 조합하지 않는다.
+- 테스트는 추가하지 않았다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`: 기존 테스트 53개 통과·실패/오류/건너뜀 0개와 ZIP 구조 검사 성공. 결과 시각은 2026-09-12 21:33 KST, 로그는 `/tmp/intent-trace-ide-filter-label.log`, 설치 파일은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·Zed·운영 설정은 변경하지 않아 관련 검증을 반복하지 않았다. 실제 IDE 설치·수동 화면 확인·배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 GitHub 저장소 접근 거부 응답 분류
+
+- 시작 리비전은 `1b33a07`, 검증 대상 코드는 `27116da`다. 저장소 권한 조회의 일반 403 응답을 404와 같이 접근 거부로 처리한다. 호출 제한 헤더가 있는 403·429는 공통 처리에서 대기 시간을 전달하며, 401 인증 실패와 5xx 연동 장애는 구분한다. 기존 REST·MCP·브라우저 접근 제어를 사용한다.
+- 수정 전 테스트 2개 실패로 403이 연동 장애로 처리되는 문제를 재현했다. `./gradlew focusedTest --tests '*GitHubUserRestClientTest' --tests '*GitHubHttpPolicyTest' --tests '*TeamChangeRecordServiceTest' --tests '*RecordBrowserIntegrationTest'`: 41개 통과. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:40 KST이며 로그는 `/tmp/intent-trace-permission-denied-before.log`, `/tmp/intent-trace-permission-denied-focused.log`, `/tmp/intent-trace-permission-denied-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 이력 재개·재조회 공개 시각 유지
+
+- 시작 리비전은 `9a25f0f`, 검증 대상 코드는 `489fe0c`다. 중단 커서로 재개하거나 실패 기록 ID로 재조회할 때 기록 요약의 `publishedAt`이 빠지던 부분을 수정했다. 일반 조회와 같은 저장된 공개 시각을 반환한다.
+- 기존 재개·재조회 통합 테스트에서 일반 조회의 기록 요약과 비교해 수정 전 2개 실패를 재현했다. `./gradlew focusedTest --tests '*RecordEvidenceIntegrationTest' --tests '*RecordBrowserIntegrationTest'`: 17개 통과. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:55 KST이며 로그는 `/tmp/intent-trace-history-metadata-before.log`, `/tmp/intent-trace-history-metadata-focused.log`, `/tmp/intent-trace-history-metadata-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·응답 형식·클라이언트·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 연결 진단의 PR 커밋 일치 확인
+
+- 시작 리비전은 `55cb38a`, 검증 대상 코드는 `2afaa2b`다. PR과 커밋을 함께 지정하면 기존 PR 응답의 HEAD와 비교해 `pull_request_revision=VERIFIED|FAILED`로 표시한다. 불일치 시에도 지정한 커밋 읽기와 나머지 진단을 계속한다. 웹·MCP·Zed 안내에 적용했으며 추가 GitHub 호출은 없다.
+- 추가 전 통합 테스트 2개 실패로 진단 누락을 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest' --tests '*RecordBrowserIntegrationTest'`: 19개 통과. 표준 MCP 중계 연결에서 일치·불일치·대문자 커밋·PR/커밋 생략과 종료 코드를 확인했다. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 22:05 KST이며 로그는 `/tmp/intent-trace-diagnostic-revision-before.log`, `/tmp/intent-trace-diagnostic-revision-focused.log`, `/tmp/intent-trace-diagnostic-revision-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- `npm test --prefix clients/zed`에서 Node 11개가 통과하고 로컬 서버·npm 접근 제한으로 4개가 실패했다. 권한을 적용해 `node --test --test-name-pattern='인증 실패 응답|연결 후 인증과|연결 점검 초기화 실패|배포 패키지는' test/connection.test.mjs test/package.test.mjs`를 `clients/zed`에서 재실행해 4개 통과를 확인했다. `python3 scripts/test-zed-launcher.py` 3개도 통과했다. 로그는 `/tmp/intent-trace-diagnostic-revision-node.log`, `/tmp/intent-trace-diagnostic-revision-node-retry.log`, `/tmp/intent-trace-diagnostic-revision-launcher.log`다. 같은 검증은 로컬 서버·npm 캐시 접근이 가능한 권한으로 실행한다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·IntelliJ·Zed 실행 코드·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE 검사와 Zed 배포 패키지 재생성은 생략했다. 실제 GitHub 게시·Zed 앱 조작·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 현재 상태와 검증 안내 정리
+
+- 시작 리비전은 `d2143b8`이다. 오래된 버전·도구 수 표기를 기준 파일 링크로 바꾸고 현재 구현 목록을 67개에서 6개로 줄였다. 최근 검증의 코드 리비전·결과·제한과 상세 인계 링크를 앞에 배치했다. 기존 작업 규칙과 날짜별 이력은 원문을 보존했다.
+- 새 소개의 로컬 경로·제목 링크 14개와 기존 이력 보존을 확인했다. 서버 `2afaa2b`, IntelliJ `e10b373`, Zed 실행 코드 `ec00793` 이후 관련 파일 변경이 없고 저장된 XML 결과가 상세 인계와 일치함을 확인했다. 문서만 바꿔 동작 테스트·빌드는 반복하지 않았다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다.
+- 게시 결과 조회·응답 유실 복구·PR 목록 조회에서는 추가 수정이 필요한 오류를 확인하지 못했다. 운영 설정·게시·배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 저장소와 플러그인 소개 한국어 정리
+
+- GitHub 저장소는 이미 `PUBLIC`이고 소개문구도 한국어였다. 공개 설정과 소개문구는 변경하지 않았다.
+- `f8e9ec4`에서 README 3개와 서버·플러그인 소개, 기여자 표시를 한국어로 정리했다. IntelliJ 설명은 앞부분 40자 검사에 맞춰 제품명 제목과 한국어 본문으로 구성했다. 명령·설정 키·API·기능은 변경하지 않았다.
+- `feedback.py files`, `feedback.py finish --base 93bfc85b36f2f17719569b4d03c0fd3ad63671ef`, `scripts/validate-plugin.sh`와 IntelliJ `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`가 통과했다. 생성 ZIP의 한국어 설명·기여자 표시, README 코드 예시·설정·링크 보존과 로컬 링크 45개를 확인했다. 전체 diff를 검토했고 기존 미추적 PNG는 커밋에서 제외했다.
+- 문구·메타데이터만 바뀌어 로컬 동작 테스트와 서버 JAR·Zed 패키지 빌드는 반복하지 않았다. 로그는 `/tmp/intent-trace-korean-intro-*.log`에 있다. 이번 IntelliJ ZIP은 `f8e9ec4` 기준이며 실제 IDE에는 설치하지 않았다.
+- 원격 메인 `e817291`에서 문구 수정 7개 파일만 분리한 커밋은 `4983806`이다. [PR #22](https://github.com/ljkhyeong/intent-trace/pull/22)의 서버·IntelliJ·CodeQL 검증이 통과했고 원격 메인 `5620ccb`로 병합했다. 원격 7개 파일이 검증한 내용과 일치함을 확인했다. 기존 개발 브랜치의 다른 커밋은 포함하지 않았다.
+
+## 2026-09-12 기록 요약과 저장소 키 중복 처리 제거
+
+- 시작 리비전은 `27a9c70`, 구현 커밋은 `8da47c8`이다. 기존 표준 API·중복 검증 점검 결과를 재사용하고 목록·비교·DTO·GitHub 연동과 사용하지 않는 보조 함수를 확인했다. 기록 목록 두 곳의 11개 요약 필드 변환을 같은 DB 계층의 `RowMapper`로 모으고, 토큰 캐시에서 이미 정규화된 저장소 키를 다시 소문자로 바꾸던 처리를 제거했다. 제품 코드는 8줄 줄었다.
+- 기존 토큰 테스트에서 저장소 대소문자가 달라도 캐시 재사용·폐기·재발급이 이어지는지 확인했다. 관련 `focusedTest` 36개, PostgreSQL 5개, 최종 `./gradlew test bootJar`의 서버 245개·ArchUnit 4개가 모두 통과했다. 전체 검증 시각은 2026-09-12 22:39 KST이며 표준 MCP SDK 연결도 포함한다.
+- `scripts/verify-postgres.sh`는 별도 임시 DB에서 저장·조회와 백업·복구 후 기록 15건·변경 이력 34건의 일치를 확인했다. 로그는 `/tmp/intent-trace-code-reduction-{focused,postgres,server}.log`에 있다. 지역 검사와 시작 리비전 기준 최종 diff·구조 검사도 적용한다.
+- SQL·API·스키마·권한·토큰 만료 정책과 의존성은 유지했다. IntelliJ·Zed 실행 코드는 바뀌지 않아 독립 테스트·패키지 빌드는 반복하지 않았다. 서버 JAR은 이번 커밋으로 갱신했으며 원격 푸시·운영 배포는 하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 스냅샷의 미사용 값과 목록 복사 제거
+
+- 시작 리비전은 `ab2225b`, 구현 커밋은 `e3dcd75`다. 내부 `GitEvidenceSnapshot`에서 읽는 곳이 없는 `revision` 필드를 제거하고, 해시 계산이 `Iterable`을 받아 전체 파일 목록의 `toList()` 복사를 생략하도록 했다. 요청 커밋과 GitHub 응답의 일치 검사, 해시 정렬·경로 인용·줄 끝 처리는 유지했다.
+- 기존 Git 해시 테스트가 실제 스냅샷 객체를 거쳐 Git 명령 결과와 비교하도록 바꿨다. 초기 지역 컴파일에서 삭제 필드를 복사하던 브라우저 테스트 응답이 발견돼 정리했고, 재컴파일 후 관련 `focusedTest` 22개가 통과했다.
+- 최종 `./gradlew test bootJar`는 서버 245개·ArchUnit 4개 통과와 JAR 빌드를 마쳤다. 결과 시각은 2026-09-12 22:54 KST, 로그는 `/tmp/intent-trace-snapshot-simplify-{files,files-retry,focused,server}.log`다. 표준 MCP SDK 연결도 전체 테스트에 포함하며 성능 개선 폭은 측정하지 않았다.
+- SQL·DB·외부 API·IntelliJ·Zed 실행 코드는 변경하지 않았다. PostgreSQL·IDE·Node 독립 테스트는 반복하지 않았다. 시작 커밋 기준 최종 diff·구조 검사를 적용하고 기존 미추적 PNG를 보존했다. 원격 푸시와 배포는 하지 않았다.
+
+## 2026-09-12 IntelliJ 기록 응답 모델 중복 제거
+
+- 시작 리비전은 `9287a7a`, 구현 커밋은 `69eda59`다. 기록 상세의 중복 DTO와 필드 복사를 제거하고, 기존 목록 조회처럼 JSON 응답을 화면 모델로 직접 읽도록 했다. 작성자는 공통 `CreatedByResponse`를 사용한다. 제품 코드가 35줄 줄었으며 응답 필드·선택값 기본값·형식 오류 안내는 유지했다.
+- 지역 검사 후 `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`가 성공했다. 기존 테스트 53개가 모두 통과했고 생략된 선택 필드, 잘못된 응답, 기록 조회·코드 이동·화면 표시를 확인했다. 결과 시각은 2026-09-12 23:04 KST, 로그는 `/tmp/intent-trace-ide-model-{files,test}.log`다. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이며 실제 IDE에는 설치하지 않았다.
+- 시작 커밋 기준 최종 diff 검사를 적용한다. 서버·DB·Zed·의존성·설정은 변경하지 않아 해당 테스트·빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 배포는 하지 않았다.
+
+## 2026-09-12 보조 도구의 해시 계산과 환경 상속 단순화
+
+- 시작 리비전은 `01cc4ba`, 구현 커밋은 `e6e3e5e`다. 릴리스 체크섬의 직접 읽기 루프를 `hashlib.file_digest`로 바꾸고, 검증 명령의 불필요한 환경변수 복사와 `os` import를 제거했다. 실행 코드는 3줄 줄었다. 릴리스 문서는 개발 지침과 같은 Python 3.11 이상을 명시하며 CI는 기존 3.13을 사용한다.
+- `./gradlew focusedTest --tests '*GitEvidenceScriptTest' --tests '*SensitiveTextRedactorTest'` 14개와 `python3 scripts/test_validate_release_version.py` 2개가 통과했다. 기존 릴리스 테스트는 JAR·ZIP 내용과 체크섬 전체를 비교하도록 보완했다. 별도 임시 저장소에서 부모 환경 상속·stdout/stderr 해시·종료 코드 7 유지·원문 미노출도 확인했다. 로컬 Python은 3.14.7, 결과 시각은 2026-09-12 23:12 KST다. 로그는 `/tmp/intent-trace-python-stdlib-{files,focused,release,environment}.log`다.
+- 목록·변경 이력·게시·외부 응답 모델도 점검했으며 추가로 제거할 뚜렷한 중복은 찾지 못했다. 서버·DB·IDE·Zed 제품 코드와 의존성은 바뀌지 않아 전체 테스트·패키지 빌드는 반복하지 않았다. 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용하며 기존 미추적 PNG를 보존했다. 원격 푸시·릴리스 발행·운영 배포는 하지 않았다.
+
+## 2026-09-12 OAuth 상태 쿠키 설정 통합
+
+- 시작 리비전은 `a769b71`, 구현 커밋은 `29d4977`이다. OAuth 상태 쿠키의 발급·만료 설정을 기존 함수 한 곳으로 모아 제품 코드 7줄을 줄였다. 쿠키 값과 유효기간만 인자로 받고 이름·경로·HttpOnly·Secure·SameSite 설정을 함께 관리한다. 로그인 성공·실패 처리와 세션 정책은 유지했다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubOAuthFlowServiceTest'` 13개가 통과했다. 기존 통합 테스트에서 발급 유효기간과 만료 응답의 빈 값·유효기간 0·경로·보안 설정 보존을 확인했다. 최종 `./gradlew test bootJar`는 서버 245개·ArchUnit 4개가 모두 통과했고 표준 MCP SDK 연결도 포함한다. 결과 시각은 2026-09-12 23:18 KST, 로그는 `/tmp/intent-trace-oauth-cookie-{files,focused,server}.log`다. 실행 JAR은 `build/libs/intent-trace.jar`다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·IntelliJ·Zed 코드와 배포 설정은 변경하지 않아 독립 테스트·패키지 빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 운영 배포는 하지 않았다.
+
+## 2026-09-12 HTTP 날짜 처리와 세션 토큰 검증 단순화
+
+- 시작 리비전은 `5c6fb4c`, 구현 커밋은 `5e5c094`다. `Retry-After` 날짜 해석을 Spring `HttpHeaders.getFirstZonedDateTime`에 맡기고 숫자 처리·기본 대기 시간·최소 1초·사용량 초기화 시각 계산은 유지했다. IntelliJ의 세션 저장·전송 전 검증은 기존 함수 하나로 모았다. 제품 코드는 4줄 줄었다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*GitHubHttpPolicyTest' --tests '*GitHubUserRestClientTest'` 24개, `./gradlew test bootJar`의 서버 248개·ArchUnit 4개가 통과했다. 미래·과거·잘못된 날짜의 대기 시간과 기존 오류 분류를 확인했다. 서버 결과 시각은 2026-09-12 23:32 KST이며 표준 MCP SDK 연결도 포함한다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`는 53개 테스트와 ZIP 빌드·구조 검사를 통과했다. 기존 저장 테스트에서 잘못된 토큰을 거부한 뒤 정상 세션이 보존되는지 확인했다. 결과 시각은 2026-09-12 23:33 KST다. 로그는 `/tmp/intent-trace-standard-api-{files,focused,server,intellij}.log`, 빌드 파일은 `build/libs/intent-trace.jar`와 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·Zed 실행 코드·의존성·설정은 바뀌지 않아 별도 PostgreSQL·Node 테스트는 반복하지 않았다. 실제 IDE 설치·GitHub 호출·원격 푸시·운영 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-09-12 DB 시간 변환을 표준 API로 정리
+
+- 시작 리비전은 `1be4784`, 구현 커밋은 `60c4bfc`다. 기록·게시 이력 저장소에 중복된 `toDatabaseTime` 함수 두 개를 제거하고 `Instant.atOffset(ZoneOffset.UTC)`로 바꿨다. 목록 커서와 변경 이력도 같은 API로 맞췄다. UTC·`OffsetDateTime`·선택 시각의 `null` 처리는 유지하며 제품 코드는 5줄 줄었다. 추가로 살펴본 목록·커서·캐시·응답 변환에서 제거할 뚜렷한 중복 검증은 찾지 못했다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*ChangeRecordFacadeIntegrationTest'` 8개가 통과했다. `scripts/verify-postgres.sh`는 임시 PostgreSQL에서 5개 테스트와 백업·복구 후 기록 15건·변경 이력 34건의 일치를 확인했다. 최종 `./gradlew test bootJar`는 서버 248개·ArchUnit 4개가 통과했고 표준 MCP SDK 연결과 JAR 빌드도 포함한다. 결과 시각은 2026-09-12 23:38 KST, 로그는 `/tmp/intent-trace-jdbc-time-{files,focused,postgres,server}.log`다. 기존 테스트를 사용했으며 새 테스트는 추가하지 않았다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. SQL·스키마·클라이언트·의존성·설정은 변경하지 않아 IntelliJ·Node 독립 테스트와 클라이언트 패키지 빌드는 반복하지 않았다. 서버 JAR은 `build/libs/intent-trace.jar`로 갱신했다. 기존 미추적 PNG를 보존했고 원격 푸시·운영 DB 변경·배포는 하지 않았다.
+
+## 2026-09-12 보조 도구의 중복 검사와 불필요한 해시 계산 제거
+
+- 시작 리비전은 `20335f3`, 구현 커밋은 `938f570`이다. Git 근거 스크립트의 시작·끝 줄 숫자 검사를 반복문 하나로 합치고, Compose 네트워크의 목록·객체 형식 검사에서 같은 반환 분기를 합쳤다. 종료 훅에서는 사용하지 않는 변경 감지용 파일 해시 계산을 제거했다. 실행 코드는 6줄 줄었으며 파일 수정 후 변경 감지와 종료 전 전체 diff 검사는 유지했다.
+- `./gradlew focusedTest --tests '*GitEvidenceScriptTest'` 8개, `python3 scripts/test_feedback.py` 8개와 `python3 scripts/validate-compose.py .env.team.example`이 통과했다. 임시 저장소에서 종료 훅의 해시 계산이 변경 전 1회·변경 후 0회이며, 최종 diff에 수정 내용이 포함되는지 확인했다. 결과 시각은 2026-09-12 23:47 KST, 로그는 `/tmp/intent-trace-script-cleanup-{files,focused,feedback,compose,stop}.log`다. 새 테스트 파일은 추가하지 않았다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·클라이언트 제품 코드와 의존성·설정은 바뀌지 않아 전체 서버·PostgreSQL·IntelliJ·Node 테스트와 패키지 빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했고 원격 푸시·운영 설정 변경·배포는 하지 않았다.

@@ -63,7 +63,7 @@ class ChangeIntentHistoryService(
                 throw ChangeRecordNotFoundException(id)
             }
             return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
-                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version)
+                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version, record.publishedAt)
         }
         val page = if (resume != null) {
             val current = summary(resume.record.id)
@@ -150,10 +150,17 @@ internal object LineRelocation {
         if (start < 1 || end < start || end > offsets.size || old.isEmpty()) return null
         val from = offsets[start - 1]
         val fragment = old.substring(from, offsets.getOrElse(end) { old.length })
-        if (fragment.isBlank() || old.indexOf(fragment) != from || old.lastIndexOf(fragment) != from) return null
-        val position = current.indexOf(fragment)
-        if (position < 0 || current.lastIndexOf(fragment) != position || (position > 0 && current[position - 1] != '\n')) return null
-        if (!fragment.endsWith('\n') && position + fragment.length != current.length) return null
+        if (fragment.isBlank()) return null
+        fun uniqueLinePosition(text: String): Int? =
+            generateSequence(text.indexOf(fragment).takeIf { it >= 0 }) { position ->
+                // 한 글자 뒤부터 찾아 서로 겹치는 여러 줄 조각도 중복으로 센다.
+                text.indexOf(fragment, position + 1).takeIf { it >= 0 }
+            }.filter { position ->
+                (position == 0 || text[position - 1] == '\n') &&
+                    (fragment.endsWith('\n') || position + fragment.length == text.length)
+            }.take(2).singleOrNull()
+        if (uniqueLinePosition(old) != from) return null
+        val position = uniqueLinePosition(current) ?: return null
         val first = current.take(position).count { it == '\n' } + 1
         return first..(first + end - start)
     }

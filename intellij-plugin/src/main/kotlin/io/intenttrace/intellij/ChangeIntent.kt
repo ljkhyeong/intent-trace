@@ -2,19 +2,20 @@ package io.intenttrace.intellij
 
 import kotlinx.serialization.Serializable
 
+@Serializable
 internal data class ChangeIntentRecord(
     val id: String,
     val title: String,
     val requestSummary: String,
     val status: String,
-    val authorLogin: String,
+    val createdBy: CreatedByResponse,
     val decisions: List<ChangeDecision>,
     val codeAnchors: List<ChangeCodeAnchor>,
     val verifications: List<ChangeVerification>,
     val openQuestions: List<String>,
     val repositoryKey: String,
     val targetRevision: String?,
-    val supersededBy: String?,
+    val supersededBy: String? = null,
     val baseRevision: String? = null,
     val derivedFromRecordId: String? = null,
 ) {
@@ -26,7 +27,7 @@ internal data class ChangeIntentRecord(
 
 internal enum class RecordListScope(private val label: String) {
     TEAM("팀 공개 기록"),
-    MY_DRAFTS("내 비공개 기록");
+    MINE("내 비공개 기록");
 
     override fun toString(): String = label
 }
@@ -36,15 +37,14 @@ internal data class RecordListQuery(
     val scope: RecordListScope = RecordListScope.TEAM,
     val path: String? = null,
     val status: String? = null,
-    val page: Int = 0,
+    val cursor: String? = null,
+    val keyword: String? = null,
 )
 
 @Serializable
 internal data class ChangeRecordPage(
     val items: List<ChangeRecordSummary>,
-    val page: Int,
-    val size: Int,
-    val hasNext: Boolean,
+    val nextCursor: String?,
 )
 
 @Serializable

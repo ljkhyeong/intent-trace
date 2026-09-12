@@ -9,7 +9,8 @@ import io.intenttrace.record.application.IntentMatch
 import io.intenttrace.record.application.RecordEvidenceCheck
 import io.intenttrace.record.domain.CodeSide
 
-internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?, revision: String?, path: String?, line: Int?, result: ChangeIntentHistory?): String =
+internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?, revision: String?, path: String?, line: Int?,
+    result: ChangeIntentHistory?, searchUrl: String? = null): String =
     layout("파일·줄로 기록 찾기", actor, buildString {
         append("<header class=\"page-heading\"><h1>파일·줄로 기록 찾기</h1><p>이 코드에 연결된 요청과 구현 결정을 찾아보세요.</p></header>")
         append("""<form action="/records/history" method="get" class="search-form">
@@ -39,7 +40,7 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                 IntentMatch.ANCESTOR_RENAMED_FILE to "파일 이름 변경 확인", IntentMatch.ANCESTOR_UNCHANGED_LINES to "과거 코드 조각과 내용 일치",
                 IntentMatch.ANCESTOR_MOVED_LINES to "코드 줄 이동 확인", IntentMatch.RELATED_UNVERIFIED to "관련 기록 · 코드 일치 미확인")
             result.items.forEach { item ->
-                append("<li><div><span class=\"status\">${labels.getValue(item.match)}</span><h2><a href=\"/records/${item.record.id}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p>")
+                append("<li><div><span class=\"status\">${labels.getValue(item.match)}</span><h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p>")
                 append("<p>원본: ${html(item.sourcePath)}:${item.sourceStartLine}–${item.sourceEndLine} · ${if (item.side == CodeSide.BASE) "변경 전" else "변경 후"}</p><p class=\"hash\">${html(item.sourceRevision)}</p>")
                 if (item.currentStartLine != null) append("<p>조회한 파일의 줄: ${item.currentStartLine}–${item.currentEndLine}</p>")
                 append("<p><a href=\"${html(codeUrl(item.record.repositoryKey, item.sourceRevision, item.sourcePath, item.sourceStartLine, item.sourceEndLine))}\">당시 코드 열기</a>")
@@ -55,7 +56,7 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                 append("<section><h2>확인하지 못한 기록</h2><ul class=\"records\">")
                 result.failures.forEach { failure ->
                     val reason = failure.reason.message
-                    append("<li><div><a href=\"/records/${failure.recordId}\">기록 읽기</a><p>$reason</p><a class=\"button secondary\" href=\"${query("retryRecordId", failure.recordId.toString())}\">이 기록 다시 조회</a></div></li>")
+                    append("<li><div><a href=\"${html(recordUrl(failure.recordId, searchUrl))}\">기록 읽기</a><p>$reason</p><a class=\"button secondary\" href=\"${query("retryRecordId", failure.recordId.toString())}\">이 기록 다시 조회</a></div></li>")
                 }
                 append("</ul><p class=\"muted\">파일·응답 크기와 Git 객체 형식이 그대로라면 재조회해도 같은 오류가 날 수 있습니다.</p></section>")
             }
@@ -85,12 +86,6 @@ internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvid
         }
         append("</ul>")
     })
-
-internal val EvidenceUnavailableReason.message: String get() = when (this) {
-    EvidenceUnavailableReason.SIZE_LIMIT -> "파일 또는 응답이 지원 크기를 초과했습니다."
-    EvidenceUnavailableReason.TRUNCATED_TREE -> "GitHub에서 전체 파일 트리를 받지 못했습니다."
-    EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
-}
 
 internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason, searchUrl: String? = null): String =
     layout("코드 확인 불가", actor, """

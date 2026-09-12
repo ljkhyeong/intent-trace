@@ -26,6 +26,7 @@ import java.time.Instant
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.VerificationRun
 import jakarta.servlet.http.Cookie
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
@@ -43,6 +44,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -59,6 +61,35 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,
     @Autowired private val sessionManagement: UserSessionManagement,
     @Autowired private val userAccess: GitHubOAuthSessionIntegrationTest.TestGitHubUserAccessGateway) {
+    @Test
+    fun `검증 상세는 현재 기록과 다른 스냅샷의 실행도 각각의 해시로 표시한다`() {
+        val current = VerificationRun("./gradlew test", 0, Instant.parse("2026-08-27T13:58:00Z"),
+            Instant.parse("2026-08-27T13:59:00Z"), digest, "b".repeat(64), "전체 테스트 통과")
+        val previous = current.copy(command = "./gradlew focusedTest", exitCode = 1,
+            snapshotDigest = "e".repeat(64), outputDigest = "f".repeat(64), summary = "이전 코드의 테스트 실패")
+        val record = records.create(command("검증 대상 비교").copy(verifications = listOf(current, previous)), ActorIdentity.github(42, "lim"))
+        val path = "/records/${record.id}"
+        val cookie = login(path)
+
+        val page = mvc.get(path) { cookie(cookie) }.andExpect {
+            status { isOk() }; header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+        }.andReturn().response.contentAsString
+
+        val sections = Regex("<div class=\"verification\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(page).map { it.groupValues[1] }.toList()
+        assertEquals(2, sections.size)
+        assertContains(sections[0], "<strong>통과</strong>")
+        assertContains(sections[1], "<strong>다른 스냅샷의 결과</strong>")
+        sections.zip(listOf(current, previous)).forEach { (section, verification) ->
+            val details = section.substringAfter("<details>")
+            assertContains(details, "<dt>검증 스냅샷 해시</dt><dd class=\"hash\">${verification.snapshotDigest}</dd>")
+            assertContains(details, "<dt>출력 해시</dt><dd class=\"hash\">${verification.outputDigest}</dd>")
+            assertContains(section, "종료 코드 ${verification.exitCode}")
+        }
+        assertEquals(record, records.get(record.id))
+        preview("verification-snapshots", page)
+    }
+
     @Test
     fun `일시 장애 후 같은 세션과 검색 조건으로 목록과 기록을 다시 조회한다`() {
         val record = records.create(command("조회 복구"), ActorIdentity.github(42, "lim"))
@@ -167,6 +198,11 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", failed.id.toString())
         }.andExpect { status { isOk() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }; content { string(containsString("이 기록 다시 조회")) } }.andReturn().response.contentAsString
         preview("history-failure", retry)
+        val retryUrl = link(retry, "이 기록 다시 조회")
+        val retried = mvc.get(retryUrl) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val failedDetail = mvc.get(link(retried, "기록 읽기")) { cookie(cookie) }
+            .andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertEquals(retryUrl, link(failedDetail, "파일·줄 조회로 돌아가기"))
         val evidence = mvc.get("/records/${matched.id}/evidence") { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("스냅샷 해시와 모든 관련 코드가 일치")) }; content { string(containsString("서버는 테스트 실행 여부를 확인하지 않습니다")) }
         }.andReturn().response.contentAsString
@@ -180,6 +216,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertFalse(unavailable.contains("잠시 후 다시 시도"))
         assertEquals(URI(failedRecordUrl), link(unavailable, "기록으로 돌아가기"))
         preview("evidence-unavailable", unavailable)
+        mvc.get("/records/connection") {
+            cookie(cookie); param("repositoryKey", repository); param("revision", "f".repeat(40))
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("GitHub에서 전체 파일 트리를 받지 못했습니다.")) }
+            content { string(org.hamcrest.Matchers.not(containsString("PR 번호·커밋 해시와 App 읽기 권한"))) }
+        }
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())
@@ -397,6 +440,61 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     }
 
     @Test
+    fun `파일 줄과 PR 조회에서 관련 화면을 거쳐도 원래 조건과 커서로 돌아온다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val repository = "acme/browser-navigation"
+        fun publish(title: String, originalId: UUID? = null): io.intenttrace.record.domain.ChangeRecord {
+            val draft = records.create(command(title).copy(repositoryKey = repository, derivedFromRecordId = originalId), actor)
+            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
+            return records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), actor)
+        }
+        val original = publish("원본 이동 기록")
+        val successor = publish("후속 이동 기록", original.id)
+        val boundary = publish("이전 페이지 마지막 기록")
+        val cursor = RecordCursor(boundary.createdAt, boundary.id).encode()
+        val attempt = tracking.start(successor.id, GitHubPullRequestTarget("acme", "browser-navigation", 27), PublicationOperation.PUBLISH)
+        tracking.finish(attempt, PublicationAttemptStatus.RESULT_UNKNOWN, "UNKNOWN", null)
+        val sources = listOf(
+            URI(url("/records/history", "repositoryKey" to repository, "revision" to "b".repeat(40),
+                "path" to "src/App.kt", "line" to "1", "cursor" to cursor)) to "파일·줄 조회로 돌아가기",
+            URI(url("/records/pull-requests", "repositoryKey" to repository, "pullNumber" to "27", "cursor" to cursor)) to "PR 기록으로 돌아가기",
+        )
+        for ((source, backLabel) in sources) {
+            val cookie = login(source.toString())
+            fun read(uri: URI) = mvc.get(uri) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            val listing = read(source)
+            val recordUrl = link(listing, successor.title)
+            val detail = read(recordUrl)
+            assertEquals(source, link(detail, backLabel))
+            for (label in listOf("GitHub 코드와 비교", "기록 변경 이력")) {
+                val sectionUrl = link(detail, label)
+                val section = read(if (label == "기록 변경 이력") URI("$sectionUrl&beforeVersion=3") else sectionUrl)
+                assertEquals(recordUrl, link(section, "기록으로 돌아가기"))
+            }
+            val compared = read(link(detail, "원본과 비교"))
+            val changed = read(link(compared, "변경된 항목만 보기"))
+            assertEquals(recordUrl, link(changed, "새 기록"))
+            assertEquals(source, link(read(link(changed, "원본 기록")), backLabel))
+            assertEquals(source, link(read(link(detail, "원본 공개 기록 읽기")), backLabel))
+            assertTrue(read(link(detail, backLabel)).contains(successor.title))
+            val renewed = login(recordUrl.toString())
+            val restored = mvc.get(recordUrl) { cookie(renewed) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertEquals(source, link(restored, backLabel))
+        }
+    }
+
+    @Test
+    fun `알 수 없는 출발 화면은 외부 주소나 다른 기록 화면으로 연결하지 않는다`() {
+        val draft = records.create(command("복귀 경로 제한"), ActorIdentity.github(42, "lim"))
+        val cookie = login("/records")
+        for (source in listOf("https://outside.example/records", "../sessions", "github")) {
+            val uri = URI(url("/records/${draft.id}", "repositoryKey" to "acme/browser", "from" to source))
+            val detail = mvc.get(uri) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertEquals(URI("/records?repositoryKey=acme%2Fbrowser"), link(detail, "검색 결과로 돌아가기"))
+        }
+    }
+
+    @Test
     fun `로그인 복귀 주소는 기록 화면만 허용한다`() {
         listOf("https://evil.example/records", "//evil.example/records", "/records/../auth/github/start", "/records%2flogout", "/records/logout", "/records#other").forEach {
             assertFailsWith<IllegalArgumentException> { BrowserReturnPath.validate(it) }
@@ -428,6 +526,15 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
+        val mismatched = mvc.get("/records/connection") {
+            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12"); param("revision", "b".repeat(40))
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("<h2>PR 커밋 일치</h2>")) }
+            content { string(containsString("입력한 커밋이 PR의 현재 커밋과 다릅니다.")) }
+            content { string(containsString("<h2>커밋 트리 읽기</h2>")) }
+        }.andReturn().response.contentAsString
+        preview("connection-revision", mismatched)
         val limitedUrl = URI(url("/records/connection", "repositoryKey" to "acme/browser", "revision" to "e".repeat(40)))
         val limited = mvc.get(limitedUrl) { cookie(connectionCookie) }.andExpect {
             status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") }
@@ -479,7 +586,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 if (revision == "d".repeat(40)) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
                 if (revision == "e".repeat(40)) throw GitHubRateLimitException(12)
                 if (revision == "f".repeat(40)) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
-                return evidenceSnapshot.copy(revision = revision)
+                return evidenceSnapshot
             }
             override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?) = evidenceBytes
             override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?) = true
@@ -521,6 +628,6 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     companion object {
         private val digest = "a".repeat(64)
         private val evidenceBytes = "first\nsecond\n".toByteArray()
-        private val evidenceSnapshot = GitEvidenceSnapshot("b".repeat(40), mapOf("src/App.kt" to GitTreeEntry("src/App.kt", "100644", "blob", "c".repeat(40))))
+        private val evidenceSnapshot = GitEvidenceSnapshot(mapOf("src/App.kt" to GitTreeEntry("src/App.kt", "100644", "blob", "c".repeat(40))))
     }
 }

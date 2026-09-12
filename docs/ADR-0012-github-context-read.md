@@ -28,6 +28,7 @@
 - CI 결과에 현재 페이지·건수와 이전·다음·새로고침 링크를 표시한다. 저장소와 전체 커밋은 유지하며 새로고침은 현재 페이지를 다시 읽는다. 첫 페이지에는 이전 링크가 없고, `nextPage`가 없으면 다음 링크를 표시하지 않는다. 빈 페이지에서도 이전 페이지 이동과 새로고침은 가능하다. 페이지 번호는 브라우저 요청에서 사용하며 REST·MCP 응답 계약은 유지한다.
 - GitHub App에 이슈 조회용 `Issues: read`, PR 조회용 `Pull requests: read`, CI 조회용 `Actions: read`가 필요하다. 저장소 읽기 권한과 App에 부여한 권한이 함께 적용된다. 기존 게시용 installation token의 축소 권한은 유지한다.
 - 조회 응답은 2 MiB로 제한하고 기존 HTTP 제한·호출 제한 안내·지표를 재사용한다. 권한 부족·인증·원격 장애·호출 제한을 빈 목록이나 성공으로 숨기지 않는다. 오류 원문과 토큰은 반환하지 않는다.
+- GitHub의 조회 거부(403)는 REST·브라우저에서도 403, 자료 없음·삭제(404·410)는 404로 반환한다. 404는 비공개 자료의 권한 문제일 수도 있어 주소와 App 권한을 함께 확인하도록 안내한다. 두 오류에는 재조회 버튼을 표시하지 않는다. 일시 장애는 502, 호출 제한은 429와 `Retry-After`를 유지한다. 호출 제한에 해당하는 GitHub 403은 공통 정책에서 먼저 처리한다. MCP에도 같은 원인별 안내를 전달한다.
 - 이 연동은 새 Actions 실행 시간이나 아티팩트 사용량을 만들지 않는다. 기존 서버·네트워크와 사용자가 따로 실행하는 워크플로의 비용은 기존 환경에 따른다.
 - 관리형 DB 전환은 추가 비용 없는 범위에서 제외한다. Blob 원문 응답 전환은 기존 객체·크기 확인을 대체할 코드가 필요해 이번 기능에 포함하지 않는다.
 
@@ -36,3 +37,4 @@
 - [GitHub 이슈 조회 API](https://docs.github.com/en/rest/issues/issues#get-an-issue): 이슈·PR 공통 조회와 읽기 권한.
 - [GitHub Actions 실행 조회 API](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository): 커밋 필터, 실행 메타데이터와 검색 한도.
 - [GitHub API 호출 제한](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api), [Actions 과금 기준](https://docs.github.com/en/billing/concepts/product-billing/github-actions): 조회와 실행·저장 비용을 구분한다. 2026-09-07 확인.
+- [GitHub REST API 오류 안내](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#404-not-found-for-an-existing-resource): 404와 비공개 자료의 접근 권한. 이슈 조회의 404·410 응답과 함께 2026-09-12 확인.

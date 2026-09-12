@@ -64,18 +64,14 @@ case "$operation" in
                 exit 1
                 ;;
         esac
-        case "$start_line" in
-            ''|*[!0-9]*)
-                printf '%s\n' '줄 번호는 양의 정수여야 합니다.' >&2
-                exit 1
-                ;;
-        esac
-        case "$end_line" in
-            ''|*[!0-9]*)
-                printf '%s\n' '줄 번호는 양의 정수여야 합니다.' >&2
-                exit 1
-                ;;
-        esac
+        for line_number in "$start_line" "$end_line"; do
+            case "$line_number" in
+                ''|*[!0-9]*)
+                    printf '%s\n' '줄 번호는 양의 정수여야 합니다.' >&2
+                    exit 1
+                    ;;
+            esac
+        done
         if ! { [ "$start_line" -ge 1 ] &&
             [ "$end_line" -ge "$start_line" ] &&
             [ "$end_line" -le "$max_code_anchor_line" ]; } 2>/dev/null; then

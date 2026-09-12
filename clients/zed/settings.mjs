@@ -1,4 +1,4 @@
-import { applyEdits, findNodeAtLocation, getNodeValue, modify, parseTree } from 'jsonc-parser';
+import { applyEdits, createScanner, findNodeAtLocation, getNodeValue, modify, parseTree, SyntaxKind } from 'jsonc-parser';
 import { isDeepStrictEqual } from 'node:util';
 import { chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -23,7 +23,20 @@ export function prepareSettings(text, entry) {
     }
   }
   const current = root && findNodeAtLocation(root, ['context_servers', 'intent-trace']);
-  if (current && isDeepStrictEqual(getNodeValue(current), entry)) return { text, operation: '변경 없음' };
+  if (isDeepStrictEqual(current ? getNodeValue(current) : undefined, entry)) return { text, operation: '변경 없음' };
+  if (entry === undefined) {
+    const property = current.parent;
+    const siblings = property.parent.children;
+    const previous = siblings[siblings.indexOf(property) - 1];
+    // 기본 속성 삭제는 인접 주석도 지우므로 속성과 구분 쉼표만 제거한다.
+    const scanner = createScanner(text, true);
+    scanner.setPosition(previous ? previous.offset + previous.length : property.offset + property.length);
+    const edits = [{ offset: property.offset, length: property.length, content: '' }];
+    if (scanner.scan() === SyntaxKind.CommaToken) {
+      edits.push({ offset: scanner.getTokenOffset(), length: scanner.getTokenLength(), content: '' });
+    }
+    return { text: applyEdits(text, edits), operation: '연결 제거' };
+  }
   const indent = text.match(/\n([\t ]+)"/)?.[1];
   const edits = modify(text, ['context_servers', 'intent-trace'], entry, {
     formattingOptions: { insertSpaces: !indent?.includes('\t'), tabSize: indent?.includes('\t') ? 1 : indent?.length || 2, eol: text.includes('\r\n') ? '\r\n' : '\n' },
@@ -46,11 +59,12 @@ export async function configure(path, entry, apply) {
   const target = resolve(path);
   const original = await readSettings(target);
   const prepared = prepareSettings(original.text, entry);
-  // 다른 서버 설정에는 비밀값이 있을 수 있어 새 IntentTrace 연결만 미리 보여준다.
+  // 기존 연결에는 비밀값이 있을 수 있어 새 연결 또는 제거할 키만 표시한다.
   console.log(`Zed 설정: ${prepared.operation}${apply ? '' : ' 미리보기'}`);
-  console.log(JSON.stringify({ context_servers: { 'intent-trace': entry } }, null, 2));
+  if (entry === undefined) console.log('제거 대상: context_servers.intent-trace');
+  else console.log(JSON.stringify({ context_servers: { 'intent-trace': entry } }, null, 2));
   if (!apply) {
-    console.log('저장하려면 같은 명령에 --apply를 추가하세요. intent-trace 항목만 교체하며 다른 서버와 주석은 보존합니다.');
+    console.log(`저장하려면 같은 명령에 --apply를 추가하세요. intent-trace 항목만 ${entry === undefined ? '제거' : '교체'}하며 다른 서버와 주석은 보존합니다.`);
     return;
   }
   if (prepared.text === original.text) return;
@@ -64,5 +78,6 @@ export async function configure(path, entry, apply) {
   } finally {
     await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; });
   }
-  console.log('Zed 설정 저장 완료. Zed에서 IntentTrace 연결을 다시 시작하세요.');
+  console.log(entry === undefined ? 'Zed 설정에서 IntentTrace 연결을 제거했습니다. 다른 도구에서도 쓰지 않는 세션은 서버의 내 연결에서 종료하세요.'
+    : 'Zed 설정 저장 완료. Zed에서 IntentTrace 연결을 다시 시작하세요.');
 }

@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -27,28 +28,30 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 internal object IntentTraceRecordBrowser {
-    fun open(project: Project, context: RepositoryFileContext, fileOnly: Boolean = false) {
+    fun open(project: Project, context: RepositoryFileContext, fileOnly: Boolean = false, server: IntentTraceServer? = null) {
         val query = RecordListQuery(context.repositoryKey, path = context.relativePath.takeIf { fileOnly })
-        val page = load(project) { server, token -> IntentTraceApiClient().list(server, token, query) } ?: return
-        RecordBrowserDialog(project, context, query, page).show()
-    }
-
-    fun showRecord(project: Project, id: String) {
-        // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
-        val (record, webRecordUri) = load(project) { server, token ->
-            IntentTraceApiClient().record(server, token, id) to server.webRecordUri(id)
+        val (source, page) = load(project, server) { source, token ->
+            source to IntentTraceApiClient().list(source, token, query)
         } ?: return
-        RecordHistoryDialog(project, record, webRecordUri).show()
+        RecordBrowserDialog(project, context, query, page, source).show()
     }
 
-    fun <T> load(project: Project, request: (IntentTraceServer, String) -> T): T? {
+    fun showRecord(project: Project, id: String, server: IntentTraceServer) {
+        // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
+        val record = load(project, server) { source, token ->
+            IntentTraceApiClient().record(source, token, id)
+        } ?: return
+        RecordHistoryDialog(project, record, server).show()
+    }
+
+    fun <T> load(project: Project, server: IntentTraceServer? = null, request: (IntentTraceServer, String) -> T): T? {
         var result: T? = null
         ProgressManager.getInstance().run(object : Task.Modal(project, "IntentTrace 기록 조회", false) {
             override fun run(indicator: ProgressIndicator) {
-                val server = IntentTraceServer.current()
-                val token = IntentTraceCredentialStore().load(server)
+                val source = server ?: IntentTraceServer.current()
+                val token = IntentTraceCredentialStore().load(source)
                     ?: throw IntentTraceUsageException("Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.")
-                result = request(server, token)
+                result = request(source, token)
             }
 
             override fun onThrowable(error: Throwable) {
@@ -66,14 +69,20 @@ internal open class RecordBrowserDialog(
     private val context: RepositoryFileContext,
     private var query: RecordListQuery,
     private var page: ChangeRecordPage,
+    private val server: IntentTraceServer,
     private val loadPage: (RecordListQuery) -> ChangeRecordPage? = { nextQuery ->
-        IntentTraceRecordBrowser.load(project) { server, token ->
+        IntentTraceRecordBrowser.load(project, server) { server, token ->
             IntentTraceApiClient().list(server, token, nextQuery)
         }
     },
 ) : DialogWrapper(project, true) {
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
+    private val keyword = JBTextField(28).apply {
+        emptyText.text = "제목·요청·결정 검색 (최대 200자)"
+        addActionListener { search() }
+    }
+    private var previousQueries = emptyList<RecordListQuery>()
     private val rows = DefaultListModel<ChangeRecordSummary>()
     private val list = JBList(rows)
     private val pageLabel = JLabel()
@@ -97,24 +106,29 @@ internal open class RecordBrowserDialog(
             }
         }
         list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
-        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id) } }
-        previous.addActionListener { reload(query.copy(page = query.page - 1)) }
-        next.addActionListener { reload(query.copy(page = query.page + 1)) }
+        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id, server) } }
+        previous.addActionListener {
+            previousQueries.lastOrNull()?.let { reload(it, previousQueries.dropLast(1)) }
+        }
+        next.addActionListener {
+            page.nextCursor?.let { reload(query.copy(cursor = it), previousQueries + query) }
+        }
         init()
         displayPage()
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, 8)).apply {
         border = JBUI.Borders.empty(8)
-        add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-            add(filter)
-            add(fileOnly)
-            add(JButton("조회").apply {
-                addActionListener {
-                    val selected = filter.selectedItem as RecordFilter
-                    reload(RecordListQuery(context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status))
-                }
-            })
+        add(JPanel(BorderLayout()).apply {
+            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
+                add(filter)
+                add(fileOnly)
+            }, BorderLayout.NORTH)
+            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
+                add(JLabel("검색어").apply { labelFor = keyword })
+                add(keyword)
+                add(JButton("조회").apply { addActionListener { search() } })
+            }, BorderLayout.SOUTH)
         }, BorderLayout.NORTH)
         add(JBScrollPane(list), BorderLayout.CENTER)
         add(JPanel(BorderLayout()).apply {
@@ -123,7 +137,7 @@ internal open class RecordBrowserDialog(
                 add(previous)
                 add(next)
                 add(JButton("새로고침").apply {
-                    addActionListener { reload(query, list.selectedValue?.id) }
+                    addActionListener { reload(query, previousQueries, list.selectedValue?.id) }
                 })
                 add(open)
             }, BorderLayout.SOUTH)
@@ -133,16 +147,30 @@ internal open class RecordBrowserDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun reload(nextQuery: RecordListQuery, selectedRecordId: String? = null) {
+    private fun search() {
+        val selected = filter.selectedItem as RecordFilter
+        reload(RecordListQuery(
+            context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status,
+            keyword = keyword.text.trim().takeIf { it.isNotEmpty() },
+        ))
+    }
+
+    private fun reload(
+        nextQuery: RecordListQuery,
+        history: List<RecordListQuery> = emptyList(),
+        selectedRecordId: String? = null,
+    ) {
         val loaded = loadPage(nextQuery) ?: return restoreFilters()
         query = nextQuery
         page = loaded
+        previousQueries = history
         displayPage(selectedRecordId)
     }
 
     private fun restoreFilters() {
         filter.selectedItem = RecordFilter.entries.first { it.scope == query.scope && it.status == query.status }
         fileOnly.isSelected = query.path != null
+        keyword.text = query.keyword.orEmpty()
     }
 
     private fun displayPage(selectedRecordId: String? = null) {
@@ -150,11 +178,11 @@ internal open class RecordBrowserDialog(
         rows.clear()
         rows.addAll(page.items)
         list.selectedIndex = page.items.indexOfFirst { it.id == selectedRecordId }
-        previous.isEnabled = page.page > 0
-        next.isEnabled = page.hasNext
+        previous.isEnabled = previousQueries.isNotEmpty()
+        next.isEnabled = page.nextCursor != null
         open.isEnabled = list.selectedValue != null
-        pageLabel.text = "${query.scope} · ${query.path ?: "저장소 전체"} · ${query.status?.let(IntentTraceTextRenderer::status) ?: "모든 상태"} · " +
-            "${page.page + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
+        pageLabel.text = "${filter.selectedItem} · ${query.path ?: "저장소 전체"} · " +
+            "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
     }
@@ -164,9 +192,10 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     TEAM("팀 공개 기록 · 전체", RecordListScope.TEAM, null),
     PUBLISHED("팀 공개 기록 · 공개", RecordListScope.TEAM, "PUBLISHED"),
     SUPERSEDED("팀 공개 기록 · 대체됨", RecordListScope.TEAM, "SUPERSEDED"),
-    MY_DRAFTS("내 비공개 기록 · 전체", RecordListScope.MY_DRAFTS, null),
-    DRAFT("내 비공개 기록 · 초안", RecordListScope.MY_DRAFTS, "DRAFT"),
-    CONFIRMED("내 비공개 기록 · 작성자 확인", RecordListScope.MY_DRAFTS, "AUTHOR_CONFIRMED");
+    MINE("내 비공개 기록 · 초안·작성자 확인", RecordListScope.MINE, null),
+    DRAFT("내 비공개 기록 · 초안", RecordListScope.MINE, "DRAFT"),
+    CONFIRMED("내 비공개 기록 · 작성자 확인", RecordListScope.MINE, "AUTHOR_CONFIRMED"),
+    DISCARDED("내 비공개 기록 · 폐기", RecordListScope.MINE, "DISCARDED");
 
     override fun toString(): String = label
 }
@@ -174,10 +203,12 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
 internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
-    private val webRecordUri: URI,
-    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
+    server: IntentTraceServer,
+    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
+    private val webRecordUri = server.webRecordUri(record.id)
+
     init {
         title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
         init()

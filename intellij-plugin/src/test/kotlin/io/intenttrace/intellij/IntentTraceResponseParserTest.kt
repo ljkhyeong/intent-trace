@@ -40,7 +40,8 @@ class IntentTraceResponseParserTest {
         )
 
         assertEquals(1, records.size)
-        assertEquals("developer", records.single().authorLogin)
+        assertEquals("developer", records.single().createdBy.login)
+        assertNull(records.single().supersededBy)
         assertNull(records.single().baseRevision)
         assertNull(records.single().derivedFromRecordId)
         assertEquals(CodeSide.TARGET, records.single().codeAnchors.single().side)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import hashlib
 import io
 import json
 import pathlib
@@ -49,8 +50,12 @@ class ReleaseArtifactTest(unittest.TestCase):
             ],
             [path.name for path in artifacts],
         )
-        checksum = artifacts[2].read_text(encoding="utf-8")
-        self.assertTrue(checksum.endswith("  intent-trace-0.7.0.jar\n"))
+        for source, artifact, checksum in zip((server_jar, plugin_zip), artifacts[:2], artifacts[2:], strict=True):
+            self.assertEqual(source.read_bytes(), artifact.read_bytes())
+            self.assertEqual(
+                f"{hashlib.sha256(source.read_bytes()).hexdigest()}  {artifact.name}\n",
+                checksum.read_text(encoding="utf-8"),
+            )
 
     def test_plugin_xml_version이_다르면_거부한다(self) -> None:
         self.plugin_zip.unlink()

@@ -19,9 +19,7 @@ internal class IntentTraceCredentialStore(
         ?.takeIf(IntentTraceApiClient::validSessionToken)
 
     fun save(server: IntentTraceServer, sessionToken: String) {
-        if (!IntentTraceApiClient.validSessionToken(sessionToken)) {
-            throw IntentTraceUsageException("로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.")
-        }
+        IntentTraceApiClient.requireSessionToken(sessionToken)
         credentialStore.set(attributes(server), Credentials(null, sessionToken))
     }
 

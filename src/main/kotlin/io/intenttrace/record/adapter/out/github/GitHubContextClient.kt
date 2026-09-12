@@ -55,7 +55,8 @@ class GitHubContextClient(
         client.get().uri(path).headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
-                if (response.statusCode.value() == 403) throw GitHubApiException("GitHub 조회 권한을 확인해 주세요. 이슈는 Issues: read, PR은 Pull requests: read, CI는 Actions: read가 필요합니다.")
+                if (response.statusCode.value() == 403) throw GitHubContextPermissionException()
+                if (response.statusCode.value() in setOf(404, 410)) throw GitHubContextNotFoundException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 자료 조회 실패. HTTP ${response.statusCode.value()}")
                 val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
                 if (bytes.size > MAX_RESPONSE_SIZE) throw GitHubApiException("GitHub 응답이 2 MiB를 초과했습니다.")
