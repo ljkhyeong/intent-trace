@@ -130,18 +130,23 @@ class GitHubOAuthFlowService(
         val verifiedState = verifyBrowserState(state, cookieState)
         val pending = pendingStates.remove(TokenDigests.sha256(verifiedState))
             ?: throw GitHubOAuthStateException()
-        if (!Instant.now(clock).isBefore(pending.expiresAt)) throw GitHubOAuthStateException()
-        if (!error.isNullOrBlank()) throw GitHubOAuthDeniedException()
+        try {
+            if (!Instant.now(clock).isBefore(pending.expiresAt)) throw GitHubOAuthStateException()
+            if (!error.isNullOrBlank()) throw GitHubOAuthDeniedException()
 
-        val verifiedCode = code?.takeIf {
-            it.isNotBlank() && it.length <= MAX_CODE_LENGTH && it.none(Char::isWhitespace)
-        } ?: throw GitHubOAuthCodeException()
-        val tokens = oauthGateway.exchange(verifiedCode, pending.codeVerifier)
-        val actor = userAccessGateway.authenticate(tokens.accessToken)
-        return GitHubOAuthCompletion(
-            sessions.issue(actor, tokens, if (pending.returnTo == null) SessionChannel.CLIENT else SessionChannel.BROWSER),
-            pending.returnTo,
-        )
+            val verifiedCode = code?.takeIf {
+                it.isNotBlank() && it.length <= MAX_CODE_LENGTH && it.none(Char::isWhitespace)
+            } ?: throw GitHubOAuthCodeException()
+            val tokens = oauthGateway.exchange(verifiedCode, pending.codeVerifier)
+            val actor = userAccessGateway.authenticate(tokens.accessToken)
+            return GitHubOAuthCompletion(
+                sessions.issue(actor, tokens, if (pending.returnTo == null) SessionChannel.CLIENT else SessionChannel.BROWSER),
+                pending.returnTo,
+            )
+        } catch (exception: RuntimeException) {
+            if (pending.returnTo == null) throw exception
+            throw GitHubOAuthCallbackException(pending.returnTo, exception)
+        }
     }
 
     private fun verifyBrowserState(state: String?, cookieState: String?): String {
@@ -217,10 +222,9 @@ class InMemoryGitHubUserSessionStore(
         val key = TokenDigests.sha256(sessionToken)
         val stored = sessions[key] ?: throw GitHubUserAuthenticationException()
         return stored.lock.withLock {
-            if (sessions[key] !== stored) throw GitHubUserAuthenticationException()
             val now = Instant.now(clock)
-            if (!stored.active.get() || sessions[key] !== stored || (!now.isBefore(stored.tokens.refreshExpiresAt) || !now.isBefore(stored.expiresAt))) {
-                sessions.remove(key, stored)
+            if (!stored.active.get() || sessions[key] !== stored || stored.isExpired(now)) {
+                revoke(key, stored)
                 throw GitHubUserAuthenticationException()
             }
             if (!now.isBefore(stored.tokens.accessExpiresAt.minus(properties.userAuthorization.refreshBeforeExpiry))) {
@@ -242,27 +246,32 @@ class InMemoryGitHubUserSessionStore(
                 sessions.remove(key, stored)
                 throw GitHubUserAuthenticationException()
             }
+            val authenticatedAt = Instant.now(clock)
+            if (!stored.active.get() || sessions[key] !== stored || stored.isExpired(authenticatedAt)) {
+                revoke(key, stored)
+                throw GitHubUserAuthenticationException()
+            }
             stored.actor = verifiedActor
-            if (!stored.active.get() || sessions[key] !== stored) throw GitHubUserAuthenticationException()
-            stored.lastUsedAt = Instant.now(clock)
+            stored.lastUsedAt = authenticatedAt
             GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id, key)
         }
     }
 
     override fun revoke(localSessionId: String) {
         val stored = sessions[localSessionId] ?: return
-        stored.lock.withLock {
-            stored.active.set(false)
-            sessions.remove(localSessionId, stored)
-        }
+        revoke(localSessionId, stored)
     }
 
     private fun removeExpiredSessions(now: Instant) {
         sessions.forEach { (key, stored) ->
-            stored.lock.withLock {
-                if (!now.isBefore(stored.expiresAt) || !now.isBefore(stored.tokens.refreshExpiresAt)) {
-                    sessions.remove(key, stored)
+            // 사용 중인 세션 정리는 다음 발급으로 미뤄 다른 로그인을 막지 않는다.
+            if (!stored.lock.tryLock()) return@forEach
+            try {
+                if (stored.isExpired(now)) {
+                    revoke(key, stored)
                 }
+            } finally {
+                stored.lock.unlock()
             }
         }
     }
@@ -273,15 +282,13 @@ class InMemoryGitHubUserSessionStore(
             .sortedBy { it.value.createdAt }
         val removalCount = activeSessions.size - properties.userAuthorization.maxSessionsPerUser + 1
         activeSessions.take(removalCount.coerceAtLeast(0)).forEach { (key, stored) ->
-            stored.lock.withLock {
-                sessions.remove(key, stored)
-            }
+            revoke(key, stored)
         }
     }
 
     override fun list(subject: String): List<UserSessionInfo> {
         val now = Instant.now(clock)
-        return sessions.values.filter { it.actor.subject == subject && it.active.get() && now.isBefore(it.tokens.refreshExpiresAt) && now.isBefore(it.expiresAt) }
+        return sessions.values.filter { it.actor.subject == subject && it.active.get() && !it.isExpired(now) }
             .map { stored ->
                 val tokens = stored.tokens
                 UserSessionInfo(stored.id, stored.createdAt, stored.lastUsedAt, tokens.accessExpiresAt, tokens.refreshExpiresAt,
@@ -294,8 +301,7 @@ class InMemoryGitHubUserSessionStore(
         val key = TokenDigests.sha256(sessionToken)
         val stored = sessions[key] ?: return
         if (stored.channel != SessionChannel.BROWSER) return
-        stored.active.set(false)
-        sessions.remove(key, stored)
+        revoke(key, stored)
     }
 
     override fun revoke(subject: String, sessionId: UUID): Boolean {
@@ -325,6 +331,8 @@ class InMemoryGitHubUserSessionStore(
         val active = AtomicBoolean(true)
         @Volatile var lastUsedAt: Instant = createdAt
 
+        fun isExpired(at: Instant): Boolean = !at.isBefore(expiresAt) || !at.isBefore(tokens.refreshExpiresAt)
+
         override fun toString(): String = "StoredSession(actor=$actor, tokens=[보호됨])"
     }
 }
@@ -332,6 +340,9 @@ class InMemoryGitHubUserSessionStore(
 val BROWSER_SESSION_TTL: Duration = Duration.ofHours(8)
 
 open class GitHubOAuthException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+
+class GitHubOAuthCallbackException(val returnTo: String, cause: RuntimeException) :
+    GitHubOAuthException("GitHub 브라우저 로그인을 완료하지 못했습니다.", cause)
 
 class GitHubOAuthConfigurationException : GitHubOAuthException("GitHub 사용자 승인 설정을 사용할 수 없습니다.")
 

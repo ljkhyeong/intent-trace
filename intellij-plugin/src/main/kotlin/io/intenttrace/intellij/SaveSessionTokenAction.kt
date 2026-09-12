@@ -19,30 +19,44 @@ class SaveSessionTokenAction : DumbAwareAction() {
         }
         val token = Messages.showPasswordDialog(
             project,
-            "${server.baseUri} OAuth callback에 표시된 its_ session token을 입력하세요.",
+            "${server.baseUri} 로그인 완료 화면의 its_ 세션 토큰을 입력하세요. 계정을 확인한 뒤 저장합니다.",
             "IntentTrace 세션 연결",
             Messages.getQuestionIcon(),
         )?.trim() ?: return
         if (!IntentTraceApiClient.validSessionToken(token)) {
-            return Messages.showErrorDialog(project, "IntentTrace session token은 its_ 형식이어야 합니다.", "IntentTrace")
+            return Messages.showErrorDialog(project, "로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.", "IntentTrace")
         }
 
-        object : Task.Backgroundable(project, "IntentTrace session 저장", false) {
+        object : Task.Backgroundable(project, "IntentTrace 세션 확인·저장", false) {
+            private lateinit var login: String
+
             override fun run(indicator: ProgressIndicator) {
-                IntentTraceCredentialStore().save(server, token)
+                login = connectSession(server, token, IntentTraceCredentialStore())
             }
 
             override fun onSuccess() {
                 Messages.showInfoMessage(
                     project,
-                    "${server.baseUri} session을 PasswordSafe에 저장했습니다.",
+                    "${server.baseUri}의 @$login 세션을 PasswordSafe에 저장했습니다.",
                     "IntentTrace",
                 )
             }
 
             override fun onThrowable(error: Throwable) {
-                Messages.showErrorDialog(project, "IntentTrace session을 PasswordSafe에 저장하지 못했습니다.", "IntentTrace")
+                val message = (error as? IntentTraceUserException)?.message
+                    ?: "IntentTrace 세션을 PasswordSafe에 저장하지 못했습니다."
+                Messages.showErrorDialog(project, message, "IntentTrace")
             }
         }.queue()
     }
+}
+
+internal fun connectSession(
+    server: IntentTraceServer,
+    sessionToken: String,
+    credentials: IntentTraceCredentialStore,
+): String {
+    val login = IntentTraceApiClient().checkLogin(server, sessionToken)
+    credentials.save(server, sessionToken)
+    return login
 }

@@ -8,7 +8,7 @@
 
 ## 배경
 
-`ADR-0004`는 GitHub user access token으로 실제 사용자를 확인하는 경계를 정했지만, 사용자가 `ghu_` token을 외부에서 발급해 Codex 환경 변수에 넣고 만료 때마다 교체해야 했습니다. refresh token을 클라이언트에 전달하면 GitHub 자격 증명의 노출 범위와 갱신 책임도 커집니다.
+`ADR-0004`에서는 GitHub 사용자 토큰으로 사용자를 인증한다. 사용자는 `ghu_` 토큰을 직접 발급해 Codex 환경 변수에 넣고 만료 때마다 교체해야 했다. refresh token까지 클라이언트에 전달하면 비밀값을 보관하는 곳이 늘어나고 클라이언트도 토큰 갱신을 처리해야 한다.
 
 ## 결정
 
@@ -19,11 +19,13 @@
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
 - 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 가장 오래된 것을 폐기한다.
+- 새 세션 발급은 기존 세션의 GitHub 응답을 기다리지 않는다. 잠금이 사용 중이면 만료 정리를 다음 발급으로 미룬다. 사용자별 상한으로 폐기할 때는 활성 상태를 먼저 해제해, 진행 중인 토큰 갱신이 오래된 세션을 복구하지 못하게 한다.
 - `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` token은 IntentTrace가 발급한 session이 아니므로 이 API로 폐기하지 않는다.
-- access token 만료 5분 전부터 세션 단위 잠금 안에서 refresh를 한 번 수행하고, GitHub가 회전해 준 access·refresh token 쌍을 함께 교체한다.
-- 갱신 요청이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재승인을 요구한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
+- access token 만료 5분 전부터 세션별 잠금 안에서 갱신을 한 번 수행하고, 새 access·refresh token을 함께 저장한다.
+- 갱신 요청이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재로그인을 안내한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
 - token 형식·만료 순서 검증과 만료 시각 계산에서 발생한 예외는 HTTP 어댑터가 OAuth 연동 오류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 연결하지 않는다.
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
+- `POST /webhooks/github`는 GitHub `github_app_authorization`의 `revoked`를 받아 기존 전체 세션 폐기를 호출한다. 전송 원문의 HMAC-SHA256 서명을 먼저 검증하고 `sender.id`로 대상을 정한다. secret 미설정·잘못된 서명·1MiB 초과 본문은 거부하며 `ping`과 다른 이벤트는 상태 변경 없이 응답한다. 원문·서명·전송 이력 저장소를 추가하지 않는다. [설정과 응답](operations/k3s-deployment.md#github-승인-취소-웹훅)을 따른다.
 - `/user` 조회의 일시 장애는 기존처럼 `502`로 구분하고 세션을 유지한다. 앞서 token 갱신에 성공했다면 새 token 쌍을 다음 요청에 사용한다.
 - 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
@@ -31,11 +33,11 @@
 
 ## 영향
 
-- Codex는 GitHub token 수명과 회전을 알 필요 없이 같은 `its_` token을 계속 사용할 수 있다.
+- Codex는 GitHub 토큰의 만료·갱신을 처리하지 않고 같은 `its_` 세션 토큰을 사용한다.
 - 서버 재시작 시 GitHub token 쌍과 로컬 세션이 모두 사라져 사용자가 다시 승인해야 한다.
 - 본인의 세션 목록과 선택·전체 폐기는 메모리에서 처리한다. 공개 세션 ID는 인증 자격 증명이 아니며 token digest를 노출하지 않는다.
 - 전체 폐기는 세션 Map을 한 번 순회하며 본인 항목을 처리한다. 선택 폐기와 같은 활성 상태 변경·조건부 삭제를 사용하고 이번 호출에서 비활성화한 세션 수를 반환한다.
-- 폐기는 활성 상태를 먼저 해제하며 갱신 후에도 활성 상태와 store 연결을 재확인한다. 폐기와 겹친 갱신이 세션을 복구할 수 없다.
+- 현재·브라우저·선택·전체 세션 폐기는 같은 활성 상태 해제·조건부 삭제를 사용한다. 인증을 마친 종료 요청은 다른 요청의 GitHub 응답을 기다리지 않는다. 인증 응답을 받은 뒤 활성 상태·store 연결·만료 시각을 다시 확인해 폐기되거나 만료된 세션의 사용을 막는다.
 - 여러 서버 인스턴스는 세션을 공유하지 못한다. 현재 로컬 단일 인스턴스 범위에서는 sticky session이나 공유 저장소를 추가하지 않는다.
 - `its_` token도 보유자가 사용자를 대신해 IntentTrace를 호출할 수 있는 Bearer 자격 증명이므로 환경 변수로 전달하고 로그·기록·도구 인자에 넣지 않는다.
 - 클라이언트가 연결을 해제하면 이후 요청은 `401`이 되지만, 이미 인증을 통과한 요청까지 취소하지는 않는다.

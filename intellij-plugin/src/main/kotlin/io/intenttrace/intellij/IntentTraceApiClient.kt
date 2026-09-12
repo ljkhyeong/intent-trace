@@ -14,6 +14,13 @@ internal class IntentTraceApiClient {
         }
     }
 
+    fun checkLogin(server: IntentTraceServer, sessionToken: String?): String {
+        val token = sessionToken ?: throw IntentTraceUsageException(
+            "저장된 세션이 없습니다. Tools > IntentTrace 세션 연결에서 토큰을 저장해 주세요.",
+        )
+        return IntentTraceResponseParser.parseLogin(get(server.mySessionsUri(), token, sessionCheck = true))
+    }
+
     fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): List<ChangeIntentRecord> =
         IntentTraceResponseParser.parse(get(server.lookupUri(lookup), sessionToken))
 
@@ -38,16 +45,17 @@ internal class IntentTraceApiClient {
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
                         204, 401 -> Unit
+                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         in 500..599 -> throw IntentTraceClientException(
                             "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
                         )
-                        else -> throw IntentTraceClientException("IntentTrace session 폐기 요청이 거부됐습니다. HTTP $status")
+                        else -> throw IntentTraceClientException("IntentTrace 세션 폐기 요청이 거부됐습니다. HTTP $status")
                     }
                 }
         }
     }
 
-    private fun get(uri: URI, sessionToken: String?): String {
+    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false): String {
         sessionToken?.let(::requireSessionToken)
         return execute {
             HttpRequests.request(uri.toString())
@@ -66,11 +74,14 @@ internal class IntentTraceApiClient {
                             }
                             bytes.toString(StandardCharsets.UTF_8)
                         }
+                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         else -> throw IntentTraceClientException(when {
                             sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
-                            status == 401 -> "IntentTrace session이 만료됐습니다. GitHub 승인을 다시 진행해 주세요."
-                            status == 403 -> "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
-                            status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
+                            status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
+                            status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
+                                else "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
+                            status == 404 -> if (sessionCheck) "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요."
+                                else "해당 IntentTrace 기록을 찾을 수 없습니다."
                             status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
                             else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
                         })
@@ -79,18 +90,25 @@ internal class IntentTraceApiClient {
         }
     }
 
+    private fun rateLimitMessage(retryAfter: String?): String {
+        val seconds = retryAfter?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
+        val guidance = seconds?.let { "${it}초 후 다시 시도해 주세요." }
+            ?: "대기 시간을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
+        return "호출 제한에 도달했습니다. $guidance"
+    }
+
     private fun requireSessionToken(sessionToken: String) {
         if (!SESSION_TOKEN.matches(sessionToken)) {
-            throw IntentTraceUsageException("IntentTrace session token은 its_ 형식이어야 합니다.")
+            throw IntentTraceUsageException("로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.")
         }
     }
 
     private fun <T> execute(block: () -> T): T = try {
         block()
     } catch (_: SocketTimeoutException) {
-        throw IntentTraceClientException("IntentTrace server의 응답 대기 시간을 초과했습니다.")
+        throw IntentTraceClientException("IntentTrace 서버의 응답 대기 시간을 초과했습니다.")
     } catch (_: IOException) {
-        throw IntentTraceClientException("IntentTrace server에 연결하지 못했습니다.")
+        throw IntentTraceClientException("IntentTrace 서버에 연결하지 못했습니다.")
     }
 
     companion object {

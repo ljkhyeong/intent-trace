@@ -21,6 +21,7 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
             <label>PR 번호<input name="pullNumber" type="number" min="1" value="${number ?: ""}" required></label><button>조회</button></form>""")
         if (result == null) append("<p class=\"empty\">저장소와 PR 번호를 입력해 주세요.</p>") else {
             append("<p>PR #${result.pullNumber} · ${stamp(result.checkedAt)}</p><p class=\"hash\">현재 커밋 ${html(result.headRevision)}</p>")
+            append("<p><a class=\"button secondary\" href=\"${html(url("/records/github", "repositoryKey" to result.repositoryKey, "number" to result.pullNumber.toString()))}\">PR 내용 가져오기</a></p>")
             append("<p><a class=\"button secondary\" href=\"${html(url("/records/github", "repositoryKey" to result.repositoryKey, "revision" to result.headRevision))}\">이 커밋의 CI 결과 조회</a></p>")
             if (result.fork) append("<aside class=\"notice\">Fork PR에는 Check Run을 게시할 수 없습니다.</aside>")
             if (result.items.isEmpty()) append("<p class=\"empty\">이 PR에 게시했거나 게시를 시도한 기록이 없습니다.</p>")
@@ -66,12 +67,12 @@ internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: Stri
         }
     })
 
-internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false): String =
+internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false, searchUrl: String? = null): String =
     layout("원본과 새 기록 비교", actor, buildString {
         append("<header class=\"page-heading\"><h1>원본과 새 기록 비교</h1><p>원본과 새 기록의 변경 내용을 확인하세요.</p></header>")
         if (result.successor.content.verifications.isEmpty()) append("<aside class=\"notice\">새 기록에 등록된 검증 결과가 없습니다. 원본의 검증 결과는 복사하지 않습니다.</aside>")
-        append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"/records/${result.original.id}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"/records/${result.successor.id}\">새 기록</a> · 버전 ${result.successor.version}</p></div>")
-        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"/records/${result.successor.id}/comparison?changesOnly=${!changesOnly}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
+        append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"${html(recordUrl(result.original.id, searchUrl))}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"${html(recordUrl(result.successor.id, searchUrl))}\">새 기록</a> · 버전 ${result.successor.version}</p></div>")
+        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"${html(recordUrl(result.successor.id, searchUrl, "comparison", "changesOnly" to !changesOnly))}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
         val labels = mapOf(ComparisonField.TITLE to "제목", ComparisonField.REQUEST to "요청", ComparisonField.DECISIONS to "구현 결정과 출처",
             ComparisonField.CODE_ANCHORS to "관련 코드", ComparisonField.VERIFICATIONS to "검증", ComparisonField.OPEN_QUESTIONS to "남은 질문",
             ComparisonField.BASE_REVISION to "변경 전 커밋", ComparisonField.TARGET_REVISION to "변경 후 커밋", ComparisonField.SNAPSHOT to "스냅샷 해시")
@@ -86,7 +87,7 @@ internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRe
                     ItemChange.MOVED -> "순서 변경"; ItemChange.AMBIGUOUS -> "중복 항목 · 비교 대상 불명확"
                 }
                 val propertyLabels = mapOf("source" to "출처", "rationale" to "결정 이유", "summary" to "요약", "contentHash" to "줄 해시",
-                    "symbolName" to "심볼", "relatedPath" to "연결 경로", "exitCode" to "종료 코드", "snapshotDigest" to "스냅샷 해시", "outputDigest" to "출력 해시")
+                    "symbolName" to "심볼", "relatedPath" to "이름 변경 경로", "exitCode" to "종료 코드", "snapshotDigest" to "스냅샷 해시", "outputDigest" to "출력 해시")
                 append("<div class=\"comparison-detail\"><h3>$name${detail.changedProperties.takeIf { it.isNotEmpty() }?.joinToString(", ", " · ") { propertyLabels[it] ?: it }.orEmpty()}</h3>")
                 if (detail.change == ItemChange.AMBIGUOUS) append("<p>중복 항목은 개별 변경을 구분하지 않습니다. 전체 내용을 확인하세요.</p>")
                 else {
@@ -117,7 +118,7 @@ private fun comparisonItems(field: ComparisonField, side: RecordComparisonSide):
         ComparisonField.TITLE -> listOf(title)
         ComparisonField.REQUEST -> listOf(requestSummary)
         ComparisonField.DECISIONS -> decisions.map { "${it.source.label}\n${it.summary}\n${it.rationale.orEmpty()}" }
-        ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n연결 경로 $path" }.orEmpty()}" }
+        ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n${if (it.side == CodeSide.BASE) "변경 후" else "변경 전"} 파일 경로 $path" }.orEmpty()}" }
         ComparisonField.VERIFICATIONS -> verifications.map { "${it.command}\n종료 코드 ${it.exitCode} · ${if (it.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구 수집" else "클라이언트 제출"}\n${it.summary}\n${it.startedAt} ~ ${it.finishedAt}\n스냅샷 해시 ${it.snapshotDigest}\n출력 해시 ${it.outputDigest}" }
         ComparisonField.OPEN_QUESTIONS -> openQuestions
         ComparisonField.BASE_REVISION -> listOf(baseRevision.orEmpty())

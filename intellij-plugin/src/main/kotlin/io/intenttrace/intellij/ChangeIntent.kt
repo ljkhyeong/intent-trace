@@ -15,7 +15,14 @@ internal data class ChangeIntentRecord(
     val repositoryKey: String,
     val targetRevision: String?,
     val supersededBy: String?,
-)
+    val baseRevision: String? = null,
+    val derivedFromRecordId: String? = null,
+) {
+    fun revisionFor(anchor: ChangeCodeAnchor): String? = when (anchor.side) {
+        CodeSide.BASE -> baseRevision
+        CodeSide.TARGET -> targetRevision
+    }
+}
 
 internal enum class RecordListScope(private val label: String) {
     TEAM("팀 공개 기록"),
@@ -65,7 +72,13 @@ internal data class ChangeCodeAnchor(
     val relativePath: String,
     val startLine: Int,
     val endLine: Int,
-)
+    val side: CodeSide = CodeSide.TARGET,
+) {
+    val label: String get() = "[${side.label}] $relativePath:$startLine-$endLine"
+}
+
+@Serializable
+internal enum class CodeSide(val label: String) { BASE("변경 전"), TARGET("변경 후") }
 
 @Serializable
 internal data class ChangeVerification(
@@ -73,4 +86,5 @@ internal data class ChangeVerification(
     val exitCode: Int,
     val summary: String,
     val current: Boolean,
+    val source: String? = null,
 )

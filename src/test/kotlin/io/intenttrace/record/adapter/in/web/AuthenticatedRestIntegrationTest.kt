@@ -140,7 +140,7 @@ class AuthenticatedRestIntegrationTest(
             content = createRequest(sessionToken, "판단을 기록한다.")
         }.andExpect {
             status { isBadRequest() }
-            jsonPath("$.detail") { value("요청 식별자에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다.") }
+            jsonPath("$.detail") { value("요청 ID에는 비밀값이나 개인 절대 경로를 넣을 수 없습니다.") }
             content { string(not(containsString(sessionToken))) }
         }
     }

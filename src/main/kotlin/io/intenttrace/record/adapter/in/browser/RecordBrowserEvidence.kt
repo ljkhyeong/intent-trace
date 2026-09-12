@@ -25,8 +25,8 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
             if (result.failures.isNotEmpty()) append("<aside class=\"notice\">확인하지 못한 기록이 있습니다. 사유를 확인한 뒤 다시 조회하세요.</aside>")
             result.stopReason?.let {
                 val reason = when (it) {
-                    HistoryStopReason.TIME_LIMIT -> "조회 시간이 길어져 이번 확인을 중단했습니다."
-                    HistoryStopReason.CALL_LIMIT -> "한 번에 확인할 GitHub 호출 수에 도달했습니다."
+                    HistoryStopReason.TIME_LIMIT -> "조회 제한 시간에 도달해 중단했습니다."
+                    HistoryStopReason.CALL_LIMIT -> "이번 조회의 GitHub 호출 한도에 도달했습니다."
                     HistoryStopReason.CANCELLED -> "취소 요청으로 조회를 중단했습니다."
                 }
                 val guidance = if (result.resumeBlocked) {
@@ -35,14 +35,19 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                 append("<aside class=\"notice\">$reason $guidance</aside>")
             }
             append("<ul class=\"records\">")
-            val labels = mapOf(IntentMatch.EXACT_REVISION to "커밋·줄 일치", IntentMatch.ANCESTOR_UNCHANGED_FILE to "과거의 동일 파일",
-                IntentMatch.ANCESTOR_RENAMED_FILE to "파일 이름 변경 확인", IntentMatch.ANCESTOR_UNCHANGED_LINES to "과거의 동일 코드 조각",
+            val labels = mapOf(IntentMatch.EXACT_REVISION to "커밋·줄 일치", IntentMatch.ANCESTOR_UNCHANGED_FILE to "과거 파일과 내용 일치",
+                IntentMatch.ANCESTOR_RENAMED_FILE to "파일 이름 변경 확인", IntentMatch.ANCESTOR_UNCHANGED_LINES to "과거 코드 조각과 내용 일치",
                 IntentMatch.ANCESTOR_MOVED_LINES to "코드 줄 이동 확인", IntentMatch.RELATED_UNVERIFIED to "관련 기록 · 코드 일치 미확인")
             result.items.forEach { item ->
                 append("<li><div><span class=\"status\">${labels.getValue(item.match)}</span><h2><a href=\"/records/${item.record.id}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p>")
                 append("<p>원본: ${html(item.sourcePath)}:${item.sourceStartLine}–${item.sourceEndLine} · ${if (item.side == CodeSide.BASE) "변경 전" else "변경 후"}</p><p class=\"hash\">${html(item.sourceRevision)}</p>")
                 if (item.currentStartLine != null) append("<p>조회한 파일의 줄: ${item.currentStartLine}–${item.currentEndLine}</p>")
-                if (!item.verificationAppliesToQuery) append("<p class=\"muted\">이 기록의 테스트 결과는 조회한 커밋의 검증으로 적용하지 않습니다.</p>")
+                append("<p><a href=\"${html(codeUrl(item.record.repositoryKey, item.sourceRevision, item.sourcePath, item.sourceStartLine, item.sourceEndLine))}\">당시 코드 열기</a>")
+                if (item.currentStartLine != null && item.currentEndLine != null) {
+                    append(" · <a href=\"${html(codeUrl(item.record.repositoryKey, result.queryRevision, result.path, item.currentStartLine, item.currentEndLine))}\">조회한 커밋의 코드 열기</a>")
+                }
+                append("</p>")
+                if (!item.verificationAppliesToQuery) append("<p class=\"muted\">이 기록의 테스트 결과로 조회한 커밋이 검증됐다고 볼 수 없습니다.</p>")
                 append("</div></li>")
             }
             append("</ul>")
@@ -52,7 +57,7 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
                     val reason = failure.reason.message
                     append("<li><div><a href=\"/records/${failure.recordId}\">기록 읽기</a><p>$reason</p><a class=\"button secondary\" href=\"${query("retryRecordId", failure.recordId.toString())}\">이 기록 다시 조회</a></div></li>")
                 }
-                append("</ul><p class=\"muted\">크기와 객체 형식이 그대로라면 재조회해도 같은 사유가 나올 수 있습니다.</p></section>")
+                append("</ul><p class=\"muted\">파일·응답 크기와 Git 객체 형식이 그대로라면 재조회해도 같은 오류가 날 수 있습니다.</p></section>")
             }
             result.nextCursor?.let {
                 val label = when {
@@ -65,9 +70,9 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
         }
     })
 
-internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck): String =
+internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck, searchUrl: String? = null): String =
     layout("GitHub 코드와 비교", actor, buildString {
-        append("<a class=\"back-link\" href=\"/records/${result.recordId}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>GitHub 코드와 비교</h1></header>")
+        append("<a class=\"back-link\" href=\"${html(recordUrl(result.recordId, searchUrl))}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>GitHub 코드와 비교</h1></header>")
         append("<aside class=\"notice\">${if (result.codeVerified) "스냅샷 해시와 모든 관련 코드가 일치합니다." else "스냅샷 해시 또는 관련 코드가 일치하지 않습니다."} 서버는 테스트 실행 여부를 확인하지 않습니다.</aside>")
         append("<dl class=\"evidence-facts\"><dt>기록 버전</dt><dd>${result.recordVersion}</dd><dt>확인 시각</dt><dd>${stamp(result.checkedAt)}</dd><dt>커밋 해시(전체 길이)</dt><dd class=\"hash\">${html(result.targetRevision)}</dd><dt>기록의 스냅샷 해시</dt><dd class=\"hash\">${html(result.snapshotDigest)}</dd><dt>스냅샷 해시 비교</dt><dd>${if (result.snapshotMatches) "일치" else "불일치"}</dd></dl><ul class=\"records\">")
         result.anchors.forEach { anchor ->
@@ -87,10 +92,10 @@ internal val EvidenceUnavailableReason.message: String get() = when (this) {
     EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
 }
 
-internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason): String =
+internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason, searchUrl: String? = null): String =
     layout("코드 확인 불가", actor, """
-        <a class="back-link" href="/records/$recordId">기록으로 돌아가기</a>
+        <a class="back-link" href="${html(recordUrl(recordId, searchUrl))}">기록으로 돌아가기</a>
         <section class="empty"><h1>코드를 확인하지 못했습니다</h1><p>${reason.message}</p>
-        <p>크기와 객체 형식이 그대로라면 다시 확인해도 같은 사유가 나올 수 있습니다.</p>
+        <p>파일·응답 크기와 Git 객체 형식이 그대로라면 다시 확인해도 같은 오류가 날 수 있습니다.</p>
         <p class="muted">코드 일치 여부는 미확인입니다. 코드 불일치나 테스트 실패를 뜻하지 않습니다.</p></section>
     """)

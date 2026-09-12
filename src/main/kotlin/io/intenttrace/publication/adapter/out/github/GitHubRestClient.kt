@@ -39,20 +39,20 @@ class GitHubRestClient(
         }
             ?: throw GitHubApiException("GitHub Pull Request 응답이 비어 있습니다.")
 
-        val base = response.base?.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
-        val head = response.head.repo ?: throw GitHubApiException("GitHub PR의 head 저장소를 확인할 수 없습니다.")
-        if (base.id <= 0 || head.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
-        val baseKey = GitHubRepository.parse(base.fullName).key
-        if (baseKey != target.repositoryKey) {
-            throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
-        }
-        if (head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey) {
-            throw ForkPullRequestUnsupportedException()
-        }
         try {
+            val base = response.base?.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
+            val head = response.head.repo ?: throw GitHubApiException("GitHub PR의 head 저장소를 확인할 수 없습니다.")
+            if (base.id <= 0 || head.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
+            val baseKey = GitHubRepository.parse(base.fullName).key
+            if (baseKey != target.repositoryKey) {
+                throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
+            }
+            if (head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey) {
+                throw ForkPullRequestUnsupportedException()
+            }
             GitRevision.parse(response.head.sha).value
         } catch (_: IllegalArgumentException) {
-            throw GitHubApiException("GitHub Pull Request HEAD 응답 형식이 올바르지 않습니다.")
+            throw GitHubApiException("GitHub PR 응답 형식이 올바르지 않습니다.")
         }
     }
 

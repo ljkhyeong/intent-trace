@@ -94,16 +94,16 @@ class GitHubAppInstallationClient(
             stage = "repository_scope"
             val scopeMatches = token.repositories?.map { it.fullName.lowercase() } == listOf(repository.key)
             checks += PublicationCredentialCheck(stage, if (scopeMatches) PreflightStatus.VERIFIED else PreflightStatus.FAILED,
-                if (scopeMatches) "발급 응답의 저장소 범위가 대상 한 곳과 일치합니다." else "발급 응답에서 대상 저장소 한 곳으로 제한된 범위를 확인하지 못했습니다.")
+                if (scopeMatches) "토큰 발급 응답의 저장소 목록이 대상 저장소 한 곳과 일치합니다." else "토큰 발급 응답에서 대상 저장소만 포함됐는지 확인하지 못했습니다.")
             stage = "permissions"
             val permissionsMatch = token.permissions["checks"] == "write" && token.permissions["pull_requests"] in setOf("read", "write")
             checks += PublicationCredentialCheck(stage, if (permissionsMatch) PreflightStatus.VERIFIED else PreflightStatus.FAILED,
-                if (permissionsMatch) "Checks 쓰기와 Pull requests 읽기 권한을 확인했습니다. 실제 게시 성공을 보장하지는 않습니다." else "발급 응답에서 Checks 쓰기 또는 Pull requests 읽기 권한을 확인하지 못했습니다.")
+                if (permissionsMatch) "Checks 쓰기와 Pull requests 읽기 권한을 확인했습니다. 실제 게시는 실행하지 않았습니다." else "토큰 발급 응답에서 Checks 쓰기 또는 Pull requests 읽기 권한을 확인하지 못했습니다.")
         } catch (exception: GitHubRateLimitException) {
             throw exception
         } catch (_: RuntimeException) {
             // 외부 응답·키 파싱 오류에는 자격 증명이 포함될 수 있어 원문을 내보내지 않는다.
-            checks += PublicationCredentialCheck(stage, PreflightStatus.FAILED, "이 단계의 자격 증명을 확인하지 못했습니다. App 설정·설치 권한과 GitHub 연결을 확인해 주세요.")
+            checks += PublicationCredentialCheck(stage, PreflightStatus.FAILED, "게시 인증 점검에 실패했습니다. GitHub App 설정·설치 권한과 연결 상태를 확인하세요.")
         }
         stages.filter { name -> checks.none { it.name == name } }.forEach {
             checks += PublicationCredentialCheck(it, PreflightStatus.NOT_CHECKED, "앞 단계 실패로 실행하지 않았습니다.")

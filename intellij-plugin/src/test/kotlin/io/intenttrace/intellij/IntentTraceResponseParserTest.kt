@@ -31,7 +31,7 @@ class IntentTraceResponseParserTest {
                   {"relativePath": "src/main/App.kt", "startLine": 10, "endLine": 12}
                 ],
                 "verifications": [
-                  {"command": "./gradlew test", "exitCode": 0, "summary": "테스트 통과", "current": true}
+                  {"command": "./gradlew test", "exitCode": 0, "summary": "테스트 통과", "current": true, "source": "LOCAL_RUNNER_REPORTED"}
                 ],
                 "openQuestions": ["Marketplace 배포 시점을 정한다."]
               }
@@ -41,10 +41,14 @@ class IntentTraceResponseParserTest {
 
         assertEquals(1, records.size)
         assertEquals("developer", records.single().authorLogin)
+        assertNull(records.single().baseRevision)
+        assertNull(records.single().derivedFromRecordId)
+        assertEquals(CodeSide.TARGET, records.single().codeAnchors.single().side)
         assertEquals("CONFIRMED_AI_SUMMARY", records.single().decisions.first().source)
         assertNull(records.single().decisions[1].rationale)
         assertNull(records.single().decisions[2].rationale)
         assertTrue(records.single().verifications.single().current)
+        assertEquals("LOCAL_RUNNER_REPORTED", records.single().verifications.single().source)
     }
 
     @Test

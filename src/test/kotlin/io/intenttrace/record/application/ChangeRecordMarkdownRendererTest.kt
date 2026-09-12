@@ -4,6 +4,7 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
@@ -22,6 +23,7 @@ class ChangeRecordMarkdownRendererTest {
             id = UUID.fromString("8c766289-5c2c-4b1f-90e6-376058868c42"),
             requestId = "markdown-test",
             repositoryKey = "acme/intent-trace",
+            baseRevision = "c".repeat(40),
             targetRevision = "b".repeat(40),
             snapshotDigest = "a".repeat(64),
             title = "# 가짜 제목",
@@ -34,7 +36,10 @@ class ChangeRecordMarkdownRendererTest {
             supersededBy = null,
             version = 2,
             decisions = listOf(Decision("- 새 목록", "**강조된 근거**", PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchor("src/Strange`Name.kt", "`symbol`", 1, 2, "c".repeat(64))),
+            codeAnchors = listOf(
+                CodeAnchor("src/Strange`Name.kt", "`symbol`", 1, 2, "c".repeat(64), relatedPath = "src/Old`Name.kt"),
+                CodeAnchor("src/Old`Name.kt", null, 1, 2, "c".repeat(64), side = CodeSide.BASE, relatedPath = "src/Strange`Name.kt"),
+            ),
             verifications = listOf(
                 VerificationRun(
                     command = "echo `pwd`\n./gradlew test",
@@ -54,9 +59,11 @@ class ChangeRecordMarkdownRendererTest {
         assertContains(markdown, "# 변경 의도: \\# 가짜 제목")
         assertContains(markdown, "\\[가짜 링크\\]\\(https\\:\\/\\/example\\.test\\) \\#\\# 주입된 제목")
         assertContains(markdown, "- \\- 새 목록 — 사용자가 명시함")
-        assertContains(markdown, "근거: \\*\\*강조된 근거\\*\\*")
+        assertContains(markdown, "결정 이유: \\*\\*강조된 근거\\*\\*")
         assertContains(markdown, "``src/Strange`Name.kt:1-2``")
         assertContains(markdown, "(`` `symbol` ``)")
+        assertContains(markdown, "변경 전 파일 경로: ``src/Old`Name.kt``")
+        assertContains(markdown, "변경 후 파일 경로: ``src/Strange`Name.kt``")
         assertContains(markdown, "``echo `pwd` ./gradlew test``")
         assertContains(markdown, "— \\> 성공처럼 보이는 인용")
         assertContains(markdown, "- \\# 확인할 질문")

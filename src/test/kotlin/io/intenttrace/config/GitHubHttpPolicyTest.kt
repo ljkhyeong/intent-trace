@@ -1,10 +1,17 @@
 package io.intenttrace.config
 
 import io.intenttrace.identity.adapter.out.github.GitHubUserRestClient
+import io.intenttrace.identity.application.GitHubIdentityApiException
+import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.identity.domain.RepositoryRole
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
@@ -20,6 +27,42 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class GitHubHttpPolicyTest {
+    @ParameterizedTest
+    @EnumSource(HttpStatus::class, names = ["OK", "NOT_FOUND", "FORBIDDEN", "TOO_MANY_REQUESTS"])
+    fun `저장소 권한 확인의 정상 응답과 실패를 권한 조회 지표로 집계한다`(status: HttpStatus) {
+        val properties = GitHubProperties(apiBaseUrl = URI("https://api.github.test"))
+        val meters = SimpleMeterRegistry()
+        val builder = RestClient.builder()
+        val policy = GitHubHttpPolicy()
+        policy.githubRequestPolicy(properties, Clock.fixed(now, ZoneOffset.UTC), meters).customize(builder)
+        val server = MockRestServiceServer.bindTo(builder).build()
+        val client = GitHubUserRestClient(policy.githubApiRestClient(builder, properties))
+        val response = withStatus(status)
+        if (status == HttpStatus.OK) {
+            response.contentType(MediaType.APPLICATION_JSON)
+                .body("""{"permission":"read","user":{"id":42,"login":"private-user"}}""")
+        }
+        if (status == HttpStatus.TOO_MANY_REQUESTS) response.header(HttpHeaders.RETRY_AFTER, "120")
+        server.expect(requestTo("https://api.github.test/repos/private-owner/private-repo/collaborators/private-user/permission"))
+            .andRespond(response)
+
+        val call = { client.repositoryRole("ghu_private-token", ActorIdentity.github(42, "private-user"), GitHubRepository("private-owner", "private-repo")) }
+        when (status) {
+            HttpStatus.OK -> assertEquals(RepositoryRole.READER, call())
+            HttpStatus.NOT_FOUND -> assertNull(call())
+            HttpStatus.FORBIDDEN -> assertFailsWith<GitHubIdentityApiException> { call() }
+            HttpStatus.TOO_MANY_REQUESTS -> assertEquals(120L, assertFailsWith<GitHubRateLimitException> { call() }.retryAfterSeconds)
+            else -> error("검증 대상이 아닌 HTTP 상태입니다.")
+        }
+
+        val outcome = if (status == HttpStatus.TOO_MANY_REQUESTS) "rate_limited" else "${status.value() / 100}xx"
+        val timer = meters.get("intenttrace.github.request").tag("operation", "repository_access").tag("outcome", outcome).timer()
+        assertEquals(1L, timer.count())
+        assertEquals(mapOf("operation" to "repository_access", "outcome" to outcome), timer.id.tags.associate { it.key to it.value })
+        assertNull(meters.find("intenttrace.github.request").tag("operation", "installation").timer())
+        server.verify()
+    }
+
     @Test
     fun `호출 제한은 안전한 대기 시간으로 전달하고 응답 원문을 노출하지 않는다`() {
         val properties = GitHubProperties(apiBaseUrl = URI("https://api.github.test"))

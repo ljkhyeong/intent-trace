@@ -78,14 +78,15 @@ class RecordBrowserController(
         @RequestParam(required = false) authorId: Long?,
     ): ResponseEntity<String> = read(request) { session ->
         val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
-        pages.search(session.actor, repository, q, scope,
-            repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
-            status, path, authorId)
+        val browserScope = if (scope == RecordScope.MY_DRAFTS) RecordScope.MINE else scope
+        pages.search(session.actor, repository, q, browserScope,
+            repository?.let { catalog.list(it, browserScope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
+            status, path, authorId, returnTo(request))
     }
 
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.record(it.actor, records.get(id))
+        pages.record(it.actor, records.get(id), searchUrl(request))
     }
 
     @GetMapping("/{id}/markdown")
@@ -99,7 +100,7 @@ class RecordBrowserController(
     @GetMapping("/{id}/comparison")
     fun compare(request: HttpServletRequest, @PathVariable id: UUID,
         @RequestParam(defaultValue = "false") changesOnly: Boolean): ResponseEntity<String> = read(request) {
-        pages.comparison(it.actor, comparison.compare(id), changesOnly)
+        pages.comparison(it.actor, comparison.compare(id), changesOnly, searchUrl(request))
     }
 
     @GetMapping("/history")
@@ -120,16 +121,16 @@ class RecordBrowserController(
 
     @GetMapping("/{id}/evidence")
     fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
-        try { browserResponse(pages.evidence(it.actor, evidence.check(id))) }
+        try { browserResponse(pages.evidence(it.actor, evidence.check(id), searchUrl(request))) }
         catch (failure: EvidenceUnavailableException) {
-            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason), 422)
+            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason, searchUrl(request)), 422)
         }
     }
 
     @GetMapping("/{id}/activities")
     fun activities(request: HttpServletRequest, @PathVariable id: UUID,
         @RequestParam(required = false) beforeVersion: Long?): ResponseEntity<String> = read(request) {
-        pages.activities(it.actor, activities.list(id, beforeVersion))
+        pages.activities(it.actor, activities.list(id, beforeVersion), searchUrl(request))
     }
 
     @GetMapping("/sessions")
@@ -179,7 +180,7 @@ class RecordBrowserController(
         require(repository != null || (number == null && ref == null)) { "저장소를 함께 입력해 주세요." }
         pages.github(it.actor, repository,
             number?.let { value -> githubContext.request(requireNotNull(repository), value) },
-            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) })
+            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) }, page)
     }
 
     @GetMapping("/connection")
@@ -207,8 +208,18 @@ class RecordBrowserController(
         return origin.equals(request.getHeader(HttpHeaders.ORIGIN), ignoreCase = true)
     }
 
+    private fun searchUrl(request: HttpServletRequest): String? {
+        val query = request.queryString ?: return null
+        val builder = UriComponentsBuilder.fromPath("/records").query(query)
+        val searchParameters = setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        builder.build().queryParams.keys.filterNot { it in searchParameters }.forEach { builder.replaceQueryParam(it) }
+        return builder.build().takeIf { it.queryParams.isNotEmpty() }?.toUriString()
+    }
+
     private fun returnTo(request: HttpServletRequest): String = if (request.method == "GET")
         BrowserReturnPath.validate(request.requestURI + request.queryString?.let { "?$it" }.orEmpty()) else "/records/sessions"
+
+    private fun retryUrl(request: HttpServletRequest): String? = request.takeIf { it.method == "GET" }?.let(::returnTo)
 
     private fun read(request: HttpServletRequest, render: (GitHubUserSession) -> String): ResponseEntity<String> =
         authenticated(request, returnTo(request)) { browserResponse(render(it)) }
@@ -238,7 +249,8 @@ class RecordBrowserController(
     fun stateConflict(): ResponseEntity<String> = browserResponse(pages.error("기록의 현재 상태에서는 확인할 수 없습니다. 먼저 작성자 확인을 완료해 주세요."), 409)
 
     @ExceptionHandler(GitHubIdentityApiException::class, GitHubOAuthException::class, GitHubApiException::class)
-    fun dependencyFailure(): ResponseEntity<String> = browserResponse(pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."), 502)
+    fun dependencyFailure(request: HttpServletRequest): ResponseEntity<String> = browserResponse(
+        pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", retryUrl(request)), 502)
 
     @ExceptionHandler(GitHubUserAuthenticationException::class)
     fun expired(request: HttpServletRequest): ResponseEntity<String> = browserResponse(pages.login(
@@ -246,8 +258,9 @@ class RecordBrowserController(
     ))
 
     @ExceptionHandler(GitHubRateLimitException::class)
-    fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<String> {
-        val response = browserResponse(pages.error("GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요."), 429)
+    fun rateLimited(exception: GitHubRateLimitException, request: HttpServletRequest): ResponseEntity<String> {
+        val response = browserResponse(pages.error(
+            "GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요.", retryUrl(request)), 429)
         return ResponseEntity.status(response.statusCode).headers(response.headers)
             .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString()).body(response.body)
     }

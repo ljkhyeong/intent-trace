@@ -15,6 +15,7 @@ import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.net.URI
 import javax.swing.Action
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
@@ -34,8 +35,10 @@ internal object IntentTraceRecordBrowser {
 
     fun showRecord(project: Project, id: String) {
         // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
-        val record = load(project) { server, token -> IntentTraceApiClient().record(server, token, id) } ?: return
-        RecordHistoryDialog(project, record).show()
+        val (record, webRecordUri) = load(project) { server, token ->
+            IntentTraceApiClient().record(server, token, id) to server.webRecordUri(id)
+        } ?: return
+        RecordHistoryDialog(project, record, webRecordUri).show()
     }
 
     fun <T> load(project: Project, request: (IntentTraceServer, String) -> T): T? {
@@ -119,6 +122,9 @@ internal open class RecordBrowserDialog(
             add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
                 add(previous)
                 add(next)
+                add(JButton("새로고침").apply {
+                    addActionListener { reload(query, list.selectedValue?.id) }
+                })
                 add(open)
             }, BorderLayout.SOUTH)
         }, BorderLayout.SOUTH)
@@ -127,11 +133,11 @@ internal open class RecordBrowserDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun reload(nextQuery: RecordListQuery) {
+    private fun reload(nextQuery: RecordListQuery, selectedRecordId: String? = null) {
         val loaded = loadPage(nextQuery) ?: return restoreFilters()
         query = nextQuery
         page = loaded
-        displayPage()
+        displayPage(selectedRecordId)
     }
 
     private fun restoreFilters() {
@@ -139,13 +145,14 @@ internal open class RecordBrowserDialog(
         fileOnly.isSelected = query.path != null
     }
 
-    private fun displayPage() {
+    private fun displayPage(selectedRecordId: String? = null) {
         restoreFilters()
         rows.clear()
         rows.addAll(page.items)
+        list.selectedIndex = page.items.indexOfFirst { it.id == selectedRecordId }
         previous.isEnabled = page.page > 0
         next.isEnabled = page.hasNext
-        open.isEnabled = false
+        open.isEnabled = list.selectedValue != null
         pageLabel.text = "${query.scope} · ${query.path ?: "저장소 전체"} · ${query.status?.let(IntentTraceTextRenderer::status) ?: "모든 상태"} · " +
             "${page.page + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
@@ -164,9 +171,12 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     override fun toString(): String = label
 }
 
-private class RecordHistoryDialog(
+internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
+    private val webRecordUri: URI,
+    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
+    private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
     init {
         title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
@@ -174,6 +184,11 @@ private class RecordHistoryDialog(
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
+        add(JPanel(FlowLayout(FlowLayout.TRAILING)).apply {
+            add(JButton("웹에서 기록 열기").apply {
+                addActionListener { browse { webRecordUri } }
+            })
+        }, BorderLayout.NORTH)
         add(JBScrollPane(JBTextArea(IntentTraceTextRenderer.renderHistory(record)).apply {
             isEditable = false
             lineWrap = true
@@ -186,17 +201,28 @@ private class RecordHistoryDialog(
                 isEnabled = record.targetRevision != null
                 addActionListener { browse { GitHubEvidenceLinks.commit(record) } }
             })
-            val anchors = JComboBox(record.codeAnchors.map { "${it.relativePath}:${it.startLine}-${it.endLine}" }.toTypedArray())
+            val anchors = JComboBox(record.codeAnchors.map { it.label }.toTypedArray())
             anchors.renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
             anchors.preferredSize = Dimension(320, anchors.preferredSize.height)
             add(anchors)
-            add(JButton("당시 코드 열기").apply {
-                isEnabled = record.targetRevision != null && record.codeAnchors.isNotEmpty()
-                addActionListener { browse { GitHubEvidenceLinks.code(record, record.codeAnchors[anchors.selectedIndex]) } }
+            val openCode = JButton("당시 코드 열기").apply {
+                addActionListener {
+                    record.codeAnchors.getOrNull(anchors.selectedIndex)?.let { anchor -> browse { GitHubEvidenceLinks.code(record, anchor) } }
+                }
+            }
+            fun updateCodeLink() {
+                openCode.isEnabled = record.codeAnchors.getOrNull(anchors.selectedIndex)?.let(record::revisionFor) != null
+            }
+            anchors.addActionListener { updateCodeLink() }
+            updateCodeLink()
+            add(openCode)
+            add(JButton("원본 기록 열기").apply {
+                isEnabled = record.derivedFromRecordId != null
+                addActionListener { record.derivedFromRecordId?.let(openRecord) }
             })
             add(JButton("대체 기록 열기").apply {
                 isEnabled = record.supersededBy != null
-                addActionListener { record.supersededBy?.let { IntentTraceRecordBrowser.showRecord(project, it) } }
+                addActionListener { record.supersededBy?.let(openRecord) }
             })
         }, BorderLayout.SOUTH)
         preferredSize = Dimension(960, 560)
@@ -204,9 +230,9 @@ private class RecordHistoryDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun browse(uri: () -> java.net.URI) {
+    private fun browse(uri: () -> URI) {
         try {
-            BrowserUtil.browse(uri())
+            openBrowser(uri())
         } catch (error: IntentTraceUserException) {
             Messages.showErrorDialog(project, error.message, "IntentTrace")
         }

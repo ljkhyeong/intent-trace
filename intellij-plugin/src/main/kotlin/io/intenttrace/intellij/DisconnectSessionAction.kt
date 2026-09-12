@@ -22,16 +22,7 @@ class DisconnectSessionAction : DumbAwareAction() {
             private lateinit var message: String
 
             override fun run(indicator: ProgressIndicator) {
-                val credentials = IntentTraceCredentialStore()
-                credentials.loadStored(server)?.let { sessionToken ->
-                    IntentTraceApiClient().revokeSession(server, sessionToken)
-                }
-                credentials.clear(server)
-                message = if (credentials.environmentSessionConfigured(server)) {
-                    "PasswordSafe 세션을 서버에서 폐기하고 삭제했습니다. INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다."
-                } else {
-                    "${server.baseUri} PasswordSafe 세션을 서버에서 폐기하고 삭제했습니다."
-                }
+                message = disconnectSession(server, IntentTraceCredentialStore())
             }
 
             override fun onSuccess() {
@@ -44,5 +35,21 @@ class DisconnectSessionAction : DumbAwareAction() {
                 Messages.showErrorDialog(project, detail, "IntentTrace")
             }
         }.queue()
+    }
+}
+
+internal fun disconnectSession(server: IntentTraceServer, credentials: IntentTraceCredentialStore): String {
+    val sessionToken = credentials.loadStored(server)
+    sessionToken?.let { IntentTraceApiClient().revokeSession(server, it) }
+    credentials.clear(server)
+    val message = if (sessionToken == null) {
+        "${server.baseUri}에 삭제할 저장 세션이 없습니다."
+    } else {
+        "${server.baseUri}의 PasswordSafe 세션을 삭제했습니다."
+    }
+    return if (credentials.environmentSessionConfigured(server)) {
+        "$message INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다."
+    } else {
+        message
     }
 }

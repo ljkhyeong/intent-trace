@@ -11,6 +11,7 @@ import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthController
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthSessionIntegrationTest
 import io.intenttrace.identity.application.BrowserReturnPath
+import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
@@ -36,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
+import org.springframework.web.util.HtmlUtils
 import java.util.UUID
 import java.net.URI
 import java.nio.file.Files
@@ -55,7 +57,53 @@ import kotlin.test.assertTrue
 @AutoConfigureMockMvc
 class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,
-    @Autowired private val sessionManagement: UserSessionManagement) {
+    @Autowired private val sessionManagement: UserSessionManagement,
+    @Autowired private val userAccess: GitHubOAuthSessionIntegrationTest.TestGitHubUserAccessGateway) {
+    @Test
+    fun `일시 장애 후 같은 세션과 검색 조건으로 목록과 기록을 다시 조회한다`() {
+        val record = records.create(command("조회 복구"), ActorIdentity.github(42, "lim"))
+        val searchUrl = URI(url("/records", "repositoryKey" to "acme/browser", "scope" to "MINE",
+            "q" to "요청 & + % \"<입력>\"", "status" to "DRAFT", "path" to "src/App.kt"))
+        val cookie = login(searchUrl.toString())
+        for (target in listOf(searchUrl, URI("/records/${record.id}?${searchUrl.rawQuery}"))) {
+            userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
+            val failed = try {
+                mvc.get(target) { cookie(cookie) }.andExpect {
+                    status { isBadGateway() }
+                    header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+                    header { string("Referrer-Policy", "no-referrer") }
+                }.andReturn().response.contentAsString
+            } finally {
+                userAccess.authenticationFailure = null
+            }
+            assertEquals(target, link(failed, "다시 조회"))
+            assertFalse(failed.contains(cookie.value))
+            assertFalse(failed.contains("테스트 사용자 조회 장애"))
+            mvc.get(link(failed, "다시 조회")) { cookie(cookie) }.andExpect {
+                status { isOk() }; content { string(containsString("로그아웃</button>")) }
+            }
+            preview("retry-query", failed)
+        }
+    }
+
+    @Test
+    fun `연결 종료 중 장애가 나면 종료 요청의 재조회 링크를 만들지 않는다`() {
+        val cookie = login("/records/sessions")
+        val sessionId = sessionStore.resolve(cookie.value).sessionId!!
+        userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
+        try {
+            for (target in listOf("/records/sessions/$sessionId/revoke", "/records/sessions/revoke-all")) {
+                val failed = mvc.post(target) { cookie(cookie); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }
+                    .andExpect { status { isBadGateway() } }.andReturn().response.contentAsString
+                assertFalse(failed.contains("다시 조회"))
+                assertEquals(URI("/records"), link(failed, "기록 찾기로 이동"))
+            }
+        } finally {
+            userAccess.authenticationFailure = null
+        }
+        assertEquals(sessionId, sessionStore.resolve(cookie.value).sessionId)
+    }
+
     @Test
     fun `웹 연결 목록은 본인 연결만 보이고 동일 출처에서 선택 및 전체 종료한다`() {
         val actor = ActorIdentity.github(42, "lim")
@@ -123,17 +171,19 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             status { isOk() }; content { string(containsString("스냅샷 해시와 모든 관련 코드가 일치")) }; content { string(containsString("서버는 테스트 실행 여부를 확인하지 않습니다")) }
         }.andReturn().response.contentAsString
         preview("evidence", evidence)
-        val unavailable = mvc.get("/records/${failed.id}/evidence") { cookie(cookie) }.andExpect {
+        val failedRecordUrl = "/records/${failed.id}?repositoryKey=acme%2Fhistory-browser&scope=TEAM&path=src%2FApp.kt"
+        val unavailable = mvc.get(URI(failedRecordUrl.replace("?", "/evidence?"))) { cookie(cookie) }.andExpect {
             status { isUnprocessableContent() }; content { string(containsString("전체 파일 트리를 받지 못했습니다")) }
             content { string(containsString("코드 일치 여부는 미확인")) }
             content { string(containsString("/records/${failed.id}")) }
         }.andReturn().response.contentAsString
         assertFalse(unavailable.contains("잠시 후 다시 시도"))
+        assertEquals(URI(failedRecordUrl), link(unavailable, "기록으로 돌아가기"))
         preview("evidence-unavailable", unavailable)
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())
-        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 수")) }; content { string(containsString("반복 조회 전에 관리자에게")) } }.andReturn().response.contentAsString
+        }.andExpect { status { isOk() }; content { string(containsString("원인 확인 후 다시 조회")) }; content { string(containsString("GitHub 호출 한도")) }; content { string(containsString("반복 조회 전에 관리자에게")) } }.andReturn().response.contentAsString
         assertFalse(paused.contains("중단 위치부터 계속 조회"))
         preview("history-stopped", paused)
         val activities = mvc.get("/records/${matched.id}/activities") { cookie(cookie) }.andExpect {
@@ -218,14 +268,61 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `다른 작성자의 초안은 브라우저 검색과 단건 조회에 노출하지 않는다`() {
         val draft = records.create(command("브라우저 비공개 내용"), ActorIdentity.github(99, "other"))
+        val mine = records.create(command("내 비공개 내용"), ActorIdentity.github(42, "lim"))
         val cookie = login("/records?repositoryKey=acme%2Fbrowser&scope=MINE&q=비공개")
         mvc.get("/records/${draft.id}") { cookie(cookie) }.andExpect {
             status { isNotFound() }; content { string(containsString("기록이 없거나 열람 권한이 없습니다")) }
         }
-        val search = mvc.get("/records") { cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", "MINE"); param("q", "비공개") }
-            .andExpect { status { isOk() } }.andReturn().response.contentAsString
-        assertFalse(search.contains(draft.id.toString()))
-        assertFalse(search.contains(draft.title))
+        for (scope in listOf("MINE", "MY_DRAFTS")) {
+            val search = mvc.get("/records") {
+                cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", scope); param("q", "비공개"); param("status", "DRAFT")
+            }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertTrue(search.contains(mine.id.toString()))
+            assertFalse(search.contains(draft.id.toString()))
+            assertFalse(search.contains(draft.title))
+            val tabs = Regex("<nav class=\"scope-tabs\"[^>]*>(.*?)</nav>").find(search)!!.groupValues[1]
+            assertEquals(2, Regex("<a ").findAll(tabs).count())
+            assertEquals(1, Regex("aria-current").findAll(tabs).count())
+            assertTrue(tabs.contains("scope=MINE\" aria-current=\"page\">내 비공개 기록"))
+            assertFalse(tabs.contains("MY_DRAFTS"))
+            assertTrue(search.contains("name=\"scope\" value=\"MINE\""))
+            assertTrue(search.contains("value=\"DRAFT\" selected"))
+            assertFalse(search.contains("value=\"PUBLISHED\""))
+            assertFalse(search.contains("내 공개 기록만 보기"))
+        }
+    }
+
+    @Test
+    fun `내 공개 기록 바로가기는 로그인 사용자를 필터하고 해제하면 팀 기록을 함께 보여준다`() {
+        val actor = ActorIdentity.github(42, "lim")
+        val repository = "acme/my-public-records"
+        fun publish(owner: ActorIdentity) = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), owner).let { draft ->
+            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), owner)
+            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), owner)
+        }
+        val mine = publish(actor)
+        val teammate = publish(ActorIdentity.github(99, "other"))
+        val private = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), actor)
+        val cookie = login("/records")
+        val team = mvc.get("/records") {
+            cookie(cookie); param("repositoryKey", repository); param("q", "공개 기록 검색")
+            param("status", "PUBLISHED"); param("path", "src/App.kt")
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val mineUrl = Regex("href=\"([^\"]+)\">내 공개 기록만 보기").find(team)!!.groupValues[1].replace("&amp;", "&")
+        assertTrue(URI(mineUrl).query.contains("q=공개 기록 검색"))
+        assertTrue(mineUrl.contains("authorId=42"))
+        assertTrue(mineUrl.contains("status=PUBLISHED"))
+        assertTrue(mineUrl.contains("path=src%2FApp.kt"))
+        val onlyMine = mvc.get(URI(mineUrl)) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertTrue(onlyMine.contains(mine.id.toString()))
+        assertFalse(onlyMine.contains(teammate.id.toString()))
+        assertFalse(onlyMine.contains(private.id.toString()))
+        val clearUrl = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(onlyMine)!!.groupValues[1].replace("&amp;", "&")
+        val cleared = mvc.get(URI(clearUrl)) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        assertTrue(cleared.contains(mine.id.toString()))
+        assertTrue(cleared.contains(teammate.id.toString()))
+        assertFalse(cleared.contains(private.id.toString()))
+        preview("search-my-public-records", onlyMine)
     }
 
     @Test
@@ -250,11 +347,45 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             records.publish(PublishChangeRecordCommand(d.id, c.version, digest), actor)
         }
         val team = mvc.get("/records") {
-            cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42")
+            cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42"); param("q", "필터 기록")
         }.andExpect { status { isOk() }; content { string(containsString("다음 기록")) } }.andReturn().response.contentAsString
         val next = Regex("href=\"([^\"]+)\">다음 기록").find(team)!!.groupValues[1].replace("&amp;", "&")
         assertTrue(next.contains("status=PUBLISHED")); assertTrue(next.contains("authorId=42")); assertTrue(next.contains("path=src%2FApp.kt"))
-        mvc.get(URI(next)) { cookie(cookie) }.andExpect { status { isOk() }; content { string(containsString("이 페이지 1건")) } }
+        val secondPage = mvc.get(URI(next)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("이 페이지 1건")) }
+        }.andReturn().response.contentAsString
+        val clearAuthor = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        assertFalse(clearAuthor.contains("authorId=")); assertFalse(clearAuthor.contains("cursor="))
+        assertTrue(clearAuthor.contains("status=PUBLISHED")); assertTrue(clearAuthor.contains("path=src%2FApp.kt"))
+        assertTrue(URI(clearAuthor).query.contains("q=필터 기록"))
+        val recordLink = Regex("<h3><a href=\"([^\"]+)\"").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        val detail = mvc.get(URI(recordLink)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }
+        }.andReturn().response.contentAsString
+        val backLink = Regex("class=\"back-link\" href=\"([^\"]+)\"").find(detail)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals(next, backLink)
+        for (label in listOf("기록 변경 이력", "GitHub 코드와 비교")) {
+            val sectionLink = link(detail, label)
+            assertEquals(URI(recordLink).rawQuery, sectionLink.rawQuery)
+            val section = mvc.get(sectionLink) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+            assertEquals(URI(recordLink), link(section, "기록으로 돌아가기"))
+            if (label == "기록 변경 이력") {
+                val older = mvc.get(URI("$sectionLink&beforeVersion=3")) { cookie(cookie) }
+                    .andExpect { status { isOk() } }.andReturn().response.contentAsString
+                assertEquals(URI(recordLink), link(older, "기록으로 돌아가기"))
+                val direct = mvc.get(URI("${sectionLink.path}?beforeVersion=3")) { cookie(cookie) }
+                    .andExpect { status { isOk() } }.andReturn().response.contentAsString
+                assertEquals(URI(URI(recordLink).path), link(direct, "기록으로 돌아가기"))
+            }
+        }
+        mvc.get(URI(backLink)) { cookie(cookie) }.andExpect {
+            status { isOk() }; content { string(containsString("이 페이지 1건")) }
+        }
+        val renewed = login(recordLink)
+        mvc.get(URI(recordLink)) { cookie(renewed) }.andExpect {
+            status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }
+        }
+        preview("search-return", detail)
         mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("authorId", "99"); param("path", "src/App.kt") }
             .andExpect { content { string(containsString("이 페이지 0건")) } }
         mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("path", "src/Missing.kt") }
@@ -291,15 +422,27 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         preview("pull-requests", overview)
         val ciLink = Regex("href=\"([^\"]+)\">이 커밋의 CI 결과 조회").find(overview)!!.groupValues[1].replace("&amp;", "&")
         assertEquals("/records/github?repositoryKey=acme%2Fbrowser&revision=${"c".repeat(40)}", ciLink)
+        val requestLink = Regex("href=\"([^\"]+)\">PR 내용 가져오기").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        assertEquals("/records/github?repositoryKey=acme%2Fbrowser&number=12", requestLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
-        mvc.get("/records/connection") {
-            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("revision", "e".repeat(40))
-        }.andExpect { status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") } }
+        val limitedUrl = URI(url("/records/connection", "repositoryKey" to "acme/browser", "revision" to "e".repeat(40)))
+        val limited = mvc.get(limitedUrl) { cookie(connectionCookie) }.andExpect {
+            status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") }
+            content { string(containsString("12초 후 다시 시도해 주세요.")) }
+        }.andReturn().response.contentAsString
+        assertEquals(limitedUrl, link(limited, "다시 조회"))
+        preview("rate-limited", limited)
         val comparisonCookie = login("/records/${successor.id}/comparison")
-        val compared = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie) }
+        val searchUrl = url("/records", "repositoryKey" to "acme/browser", "scope" to "MINE", "q" to "<후속 판단> & + %")
+        val successorUrl = URI("/records/${successor.id}?${URI(searchUrl).rawQuery}")
+        val successorPage = mvc.get(successorUrl) { cookie(comparisonCookie) }.andReturn().response.contentAsString
+        assertEquals(successorUrl.rawQuery, link(successorPage, "원본 공개 기록 읽기").rawQuery)
+        val comparisonUrl = link(successorPage, "원본과 비교")
+        assertEquals(successorUrl.rawQuery, comparisonUrl.rawQuery)
+        val compared = mvc.get(comparisonUrl) { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("새 기록에 등록된 검증 결과가 없습니다")) }; content { string(containsString("src/App.kt")) }; content { string(containsString("src/New.kt")) } }.andReturn().response.contentAsString
         preview("comparison", compared)
         assertTrue(compared.contains("내용 변경 · 출처"))
@@ -307,9 +450,14 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertTrue(compared.contains("<del>&lt;원본 판단&gt;</del>"))
         assertTrue(compared.contains("<ins>&lt;후속 판단&gt;</ins>"))
         assertTrue(compared.contains("<ins>등록된 내용 없음</ins>"))
-        val changesOnly = mvc.get("/records/${successor.id}/comparison") { cookie(comparisonCookie); param("changesOnly", "true") }
+        val changesOnly = mvc.get(link(compared, "변경된 항목만 보기")) { cookie(comparisonCookie) }
             .andExpect { status { isOk() }; content { string(containsString("변경된 항목만 표시 중")) } }.andReturn().response.contentAsString
         assertFalse(changesOnly.contains("<h2>스냅샷"))
+        assertEquals(successorUrl, link(changesOnly, "새 기록"))
+        assertEquals(URI("/records/${original.id}?${successorUrl.rawQuery}"), link(changesOnly, "원본 기록"))
+        assertEquals("${successorUrl.rawQuery}&changesOnly=false", link(changesOnly, "같은 항목도 함께 보기").rawQuery)
+        val restored = mvc.get(link(changesOnly, "새 기록")) { cookie(comparisonCookie) }.andReturn().response.contentAsString
+        assertEquals(URI(searchUrl), link(restored, "검색 결과로 돌아가기"))
         mvc.get("/api/v1/change-records/${successor.id}/comparison") { header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test") }.andExpect {
             status { isOk() }
             jsonPath("$.changedFields[1]") { value("DECISIONS") }
@@ -355,6 +503,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertTrue(callback.getHeaders(HttpHeaders.SET_COOKIE).any { it.contains("SameSite=Lax") })
         return cookie
     }
+
+    private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
+        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
+    ))
 
     private fun preview(name: String, content: String) {
         val directory = Files.createDirectories(Path.of("build/browser-preview"))

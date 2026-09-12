@@ -27,7 +27,11 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
 
     fun sessionUri(): URI = URI.create("$baseUri/api/v1/session")
 
+    fun mySessionsUri(): URI = URI.create("$baseUri/api/v1/me/sessions")
+
     fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
+
+    fun webRecordUri(id: String): URI = URI.create("$baseUri/records/${UUID.fromString(id)}")
 
     fun listUri(query: RecordListQuery): URI {
         val parameters = listOfNotNull(
@@ -65,20 +69,20 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
             val scheme = uri.scheme?.lowercase()
             val host = uri.host?.lowercase()
             if (host == null) {
-                throw IntentTraceUsageException("IntentTrace server URL에서 host를 확인할 수 없습니다.")
+                throw IntentTraceUsageException("서버 주소에서 호스트를 확인할 수 없습니다.")
             }
             val loopbackHttp = scheme == "http" && host.removeSurrounding("[", "]") in LOOPBACK_HOSTS
             if (scheme != "https" && !loopbackHttp) {
-                throw IntentTraceUsageException("IntentTrace server는 loopback HTTP 또는 HTTPS 주소만 사용할 수 있습니다.")
+                throw IntentTraceUsageException("HTTPS 주소를 사용하세요. HTTP는 localhost·루프백 주소에서만 사용할 수 있습니다.")
             }
             if (uri.userInfo != null || uri.query != null || uri.fragment != null) {
-                throw IntentTraceUsageException("IntentTrace server URL에는 사용자 정보, query 또는 fragment를 넣을 수 없습니다.")
+                throw IntentTraceUsageException("서버 주소에는 사용자 정보·쿼리·프래그먼트를 넣을 수 없습니다.")
             }
             if (uri.path.orEmpty() !in setOf("", "/")) {
-                throw IntentTraceUsageException("IntentTrace server URL에는 별도 경로를 넣을 수 없습니다.")
+                throw IntentTraceUsageException("서버 주소에는 경로를 넣을 수 없습니다.")
             }
             if (uri.port !in -1..65535 || uri.port == 0) {
-                throw IntentTraceUsageException("IntentTrace server port가 올바르지 않습니다.")
+                throw IntentTraceUsageException("서버 포트가 올바르지 않습니다.")
             }
             val normalized = URI(scheme, null, host, uri.port, null, null, null)
             return IntentTraceServer(normalized)

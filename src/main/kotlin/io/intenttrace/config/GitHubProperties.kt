@@ -14,6 +14,7 @@ data class GitHubProperties(
     val apiBaseUrl: URI = URI.create("https://api.github.com"),
     val apiVersion: String = "2026-03-10",
     val token: String = "",
+    val webhookSecret: String = "",
     val app: GitHubAppProperties = GitHubAppProperties(),
     val userAuthorization: GitHubUserAuthorizationProperties = GitHubUserAuthorizationProperties(),
 ) {
@@ -33,7 +34,7 @@ data class GitHubProperties(
     }
 
     override fun toString(): String =
-        "GitHubProperties(apiBaseUrl=$apiBaseUrl, apiVersion=$apiVersion, token=[보호됨], " +
+        "GitHubProperties(apiBaseUrl=$apiBaseUrl, apiVersion=$apiVersion, token=[보호됨], webhookSecret=[보호됨], " +
             "app=$app, userAuthorization=$userAuthorization)"
 }
 

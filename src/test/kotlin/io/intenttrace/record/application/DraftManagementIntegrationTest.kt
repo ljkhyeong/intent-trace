@@ -125,7 +125,7 @@ class DraftManagementIntegrationTest(
         assertEquals(listOf("추가 점검"), records.get(draft.id).openQuestions)
         assertEquals(updated.id, records.create(command).id)
         val conflict = assertFailsWith<ChangeRecordRequestConflictException> { records.create(command.copy(title = "다른 생성 요청")) }
-        assertEquals("요청 식별자가 다른 작성자, 저장소 또는 저장 내용에 이미 사용됐습니다.", conflict.message)
+        assertEquals("요청 ID가 다른 작성자·저장소·내용의 기록에 이미 사용됐습니다.", conflict.message)
         assertFailsWith<ConcurrentChangeRecordUpdateException> { records.revise(draft.id, reopened.version, command) }
         val rechecked = records.confirm(ConfirmChangeRecordCommand(draft.id, updated.version, revision, digest))
         val published = records.publish(PublishChangeRecordCommand(draft.id, rechecked.version, digest))

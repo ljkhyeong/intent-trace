@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 RESULTS = {
     "server": "build/test-results/test",
     "focused": "build/test-results/focusedTest",
+    "architecture": "build/test-results/architectureTest",
     "postgres": "build/test-results/postgresTest",
     "intellij": "intellij-plugin/build/test-results/test",
 }

@@ -30,7 +30,7 @@ internal object CurrentLineContextResolver {
             throw IntentTraceUsageException("현재 파일에 커밋되지 않은 변경이 있습니다. HEAD 기준 줄을 조회하려면 먼저 커밋해 주세요.")
         }
         val revision = repository.currentRevision?.lowercase()
-            ?: throw IntentTraceUsageException("현재 Git HEAD commit을 확인할 수 없습니다.")
+            ?: throw IntentTraceUsageException("현재 Git HEAD 커밋을 확인할 수 없습니다.")
         val context = fileContext(repository, file)
         return LineLookup(
             repositoryKey = context.repositoryKey,
