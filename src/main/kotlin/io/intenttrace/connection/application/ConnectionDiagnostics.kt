@@ -10,6 +10,7 @@ import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
+import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.domain.GitRevision
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -38,6 +39,9 @@ class ConnectionDiagnostics(
             true
         } catch (_: RepositoryAccessDeniedException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요.")
+            false
+        } catch (failure: EvidenceUnavailableException) {
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, failure.reason.message)
             false
         } catch (_: GitHubApiException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요.")

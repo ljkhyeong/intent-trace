@@ -185,6 +185,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertFalse(unavailable.contains("잠시 후 다시 시도"))
         assertEquals(URI(failedRecordUrl), link(unavailable, "기록으로 돌아가기"))
         preview("evidence-unavailable", unavailable)
+        mvc.get("/records/connection") {
+            cookie(cookie); param("repositoryKey", repository); param("revision", "f".repeat(40))
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("GitHub에서 전체 파일 트리를 받지 못했습니다.")) }
+            content { string(org.hamcrest.Matchers.not(containsString("PR 번호·커밋 해시와 App 읽기 권한"))) }
+        }
         val stopped = publish("d".repeat(40), "조회 중단 기록")
         val paused = mvc.get("/records/history") {
             cookie(cookie); param("repositoryKey", repository); param("revision", "b".repeat(40)); param("path", "src/App.kt"); param("line", "1"); param("retryRecordId", stopped.id.toString())

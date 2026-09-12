@@ -87,12 +87,6 @@ internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvid
         append("</ul>")
     })
 
-internal val EvidenceUnavailableReason.message: String get() = when (this) {
-    EvidenceUnavailableReason.SIZE_LIMIT -> "파일 또는 응답이 지원 크기를 초과했습니다."
-    EvidenceUnavailableReason.TRUNCATED_TREE -> "GitHub에서 전체 파일 트리를 받지 못했습니다."
-    EvidenceUnavailableReason.UNSUPPORTED_OBJECT -> "현재 지원하지 않는 Git 객체입니다."
-}
-
 internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason, searchUrl: String? = null): String =
     layout("코드 확인 불가", actor, """
         <a class="back-link" href="${html(recordUrl(recordId, searchUrl))}">기록으로 돌아가기</a>

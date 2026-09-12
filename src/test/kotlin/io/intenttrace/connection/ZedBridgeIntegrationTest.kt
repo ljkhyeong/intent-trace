@@ -12,6 +12,14 @@ import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
+import io.intenttrace.record.application.ChangeRecordFacade
+import io.intenttrace.record.application.CreateChangeRecordCommand
+import io.intenttrace.record.application.ConfirmChangeRecordCommand
+import io.intenttrace.record.application.EvidenceUnavailableException
+import io.intenttrace.record.application.EvidenceUnavailableReason
+import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.Decision
+import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -22,6 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -35,6 +44,7 @@ import kotlin.test.assertTrue
 )
 class ZedBridgeIntegrationTest(
     @Autowired private val sessions: GitHubUserSessionStore,
+    @Autowired private val records: ChangeRecordFacade,
     @LocalServerPort private val port: Int,
 ) {
     @MockitoBean
@@ -102,6 +112,80 @@ class ZedBridgeIntegrationTest(
         assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
         assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(current.sessionToken) }
         assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(other.sessionToken) }
+    }
+
+    @Test
+    fun `코드 확인 불가는 REST와 MCP에서 사유를 유지하고 연결 진단에서도 권한 오류와 구분한다`() {
+        val repository = GitHubRepository.parse("acme/intent-trace")
+        val actor = ActorIdentity.github(42, "lim")
+        val cases = listOf(
+            EvidenceUnavailableReason.SIZE_LIMIT to "파일 또는 응답이 지원 크기를 초과했습니다.",
+            EvidenceUnavailableReason.TRUNCATED_TREE to "GitHub에서 전체 파일 트리를 받지 못했습니다.",
+            EvidenceUnavailableReason.UNSUPPORTED_OBJECT to "현재 지원하지 않는 Git 객체입니다.",
+        ).mapIndexed { index, (reason, message) ->
+            val revision = (index + 1).toString().repeat(40)
+            Mockito.`when`(evidence.snapshot(repository, revision)).thenThrow(EvidenceUnavailableException(reason))
+            val draft = records.create(CreateChangeRecordCommand(
+                UUID.randomUUID().toString(), repository.key, null, "a".repeat(64), "코드 확인 불가", "확인 불가 사유를 구분한다.",
+                listOf(Decision("원격 코드 확인", null, PurposeSource.STATED_BY_USER)),
+                listOf(CodeAnchor("sample.kt", null, 1, 1, "b".repeat(64))), emptyList(), emptyList(),
+            ), actor)
+            records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest), actor)
+            "['${draft.id}', '$revision', '${reason.name}', '$message']"
+        }
+        val now = Instant.now()
+        val session = sessions.issue(actor, GitHubUserOAuthTokens(
+            "ghu_evidence-test", now.plusSeconds(3600), "ghr_evidence-test", now.plusSeconds(7200),
+        ))
+        val script = """
+            import assert from 'node:assert/strict';
+            import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+            import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+            const client = new Client({ name: 'evidence-unavailable-test', version: '1' });
+            const transport = new StdioClientTransport({ command: process.execPath,
+                args: ['intent-trace.mjs', 'serve', 'http://127.0.0.1:$port/mcp'],
+                env: { INTENT_TRACE_SESSION_TOKEN: process.env.INTENT_TRACE_SESSION_TOKEN }, stderr: 'pipe' });
+            transport.stderr?.resume();
+            const get = path => fetch('http://127.0.0.1:$port' + path, {
+                headers: { Authorization: 'Bearer ' + process.env.INTENT_TRACE_SESSION_TOKEN } });
+            const data = result => result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
+            const diagnosis = (result, message) => {
+                const check = result.checks.find(item => item.name === 'git_tree_read');
+                assert.equal(check.status, 'FAILED');
+                assert.equal(check.message, message);
+                assert.ok(result.checks.some(item => item.name === 'publication_credentials'));
+            };
+            try {
+                await client.connect(transport);
+                for (const [id, revision, reason, message] of [${cases.joinToString(",")}]) {
+                    const rest = await get('/api/v1/change-records/' + id + '/evidence-check');
+                    assert.equal(rest.status, 422);
+                    const problem = await rest.json();
+                    assert.equal(problem.code, 'EVIDENCE_UNAVAILABLE');
+                    assert.equal(problem.reason, reason);
+                    assert.equal(problem.detail, message);
+                    const mcp = await client.callTool({ name: 'check_change_record_evidence', arguments: { recordId: id } });
+                    assert.equal(mcp.isError, true);
+                    assert.ok(JSON.stringify(mcp).includes(message));
+                    assert.ok(JSON.stringify(mcp).includes(reason));
+                    const restDiagnosis = await get('/api/v1/connection-diagnostics?repositoryKey=acme/intent-trace&revision=' + revision);
+                    assert.equal(restDiagnosis.status, 200);
+                    diagnosis(await restDiagnosis.json(), message);
+                    const mcpDiagnosis = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey: 'acme/intent-trace', revision } });
+                    assert.notEqual(mcpDiagnosis.isError, true);
+                    diagnosis(data(mcpDiagnosis), message);
+                }
+            } finally { await client.close(); }
+        """.trimIndent()
+        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
+            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = session.sessionToken }.start()
+        val finished = process.waitFor(30, TimeUnit.SECONDS)
+        if (!finished) {
+            process.descendants().forEach { it.destroyForcibly() }
+            process.destroyForcibly()
+        }
+        assertTrue(finished, "코드 확인 불가 검증이 30초 안에 끝나야 합니다.")
+        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
     }
 
     @Test

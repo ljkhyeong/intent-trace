@@ -3,10 +3,14 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubApiException
 
-enum class EvidenceUnavailableReason { SIZE_LIMIT, TRUNCATED_TREE, UNSUPPORTED_OBJECT }
+enum class EvidenceUnavailableReason(val message: String) {
+    SIZE_LIMIT("파일 또는 응답이 지원 크기를 초과했습니다."),
+    TRUNCATED_TREE("GitHub에서 전체 파일 트리를 받지 못했습니다."),
+    UNSUPPORTED_OBJECT("현재 지원하지 않는 Git 객체입니다."),
+}
 
 class EvidenceUnavailableException(val reason: EvidenceUnavailableReason) :
-    GitHubApiException("현재 코드 확인에서 지원하지 않는 Git 객체입니다: ${reason.name}")
+    GitHubApiException("${reason.message} (${reason.name})")
 
 // 조회 한 번의 후보들이 공유한다. 코드 원문과 실패 원인은 요청이 끝나면 버린다.
 internal class GitEvidenceReads(private val repository: GitHubRepository, private val gateway: GitEvidenceGateway, private val budget: EvidenceReadBudget) {
