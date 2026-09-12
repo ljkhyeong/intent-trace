@@ -15,7 +15,7 @@ PR 댓글은 변경 의도 기록을 리뷰에 노출할 수 있지만 특정 �
 - Check Run 결론은 품질 합격을 뜻하지 않는 `neutral`로 사용한다.
 - `intent-trace:<변경 기록 UUID>`를 `external_id`로 보내고, 로컬 Check Run ID가 없거나 오래됐으면 HEAD의 Check Run 목록에서 같은 값을 찾아 갱신한다.
 - 목록 조회는 GitHub의 동일 이름 Check Run 제한에 맞춰 최대 100개씩 10페이지로 제한한다. 마지막 페이지도 가득 차면 기존 실행이 없다고 단정하지 않고 새 Check Run 생성 없이 실패한다.
-- 단일 app 안에서는 변경 기록 UUID 단위로 게시 요청을 직렬화해 조회와 생성 사이의 동시 요청을 막는다. 한 기록의 저장소·커밋과 `external_id`는 고정되므로 PR 번호가 달라도 같은 잠금을 사용한다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지한다.
+- 게시 요청은 단일 app의 `TeamGitHubPublicationService`에서 변경 기록 UUID 단위로 직렬 처리한다. 한 기록의 저장소·커밋과 `external_id`는 고정되므로 PR 번호가 달라도 같은 잠금을 사용한다. 각 PR의 HEAD 확인과 게시 이력은 따로 유지한다.
 - 게시 시도·결과 미확인 복구와 대체 안내는 `ADR-0008`을 따른다.
 - GitHub 원격 호출이 성공한 뒤 로컬 게시 이력을 저장한다. 원격 호출과 DB 저장을 하나의 트랜잭션으로 묶지 않는다.
 - Check Run 생성·수정 응답은 양수 ID, 요청한 HEAD와 `external_id`, 사용자 정보가 없는 HTTPS `html_url`을 모두 확인한 뒤 게시 성공으로 인정한다.

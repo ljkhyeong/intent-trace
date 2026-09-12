@@ -704,3 +704,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*InMemoryGitHubUserSessionStoreTest'`: 20개 통과. 현재·브라우저·선택·전체 폐기가 진행 중인 갱신을 기다리지 않고 해당 인증을 거부하는지 확인했다. 가상 시계로 GitHub 사용자 조회 중 브라우저 세션의 8시간 만료를 재현했다. 수정 전 두 실패는 `/tmp/intent-trace-session-expiry-before.log`, 수정 후 결과는 `/tmp/intent-trace-session-expiry-focused.log`에 있다.
 - `./gradlew test bootJar`: 서버 223개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:21 KST이며 로그는 `/tmp/intent-trace-session-expiry-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 로그인·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 GitHub 게시 잠금과 검사 순서 정리
+
+- 시작 리비전 `6a40684`, 코드 검증 대상은 `bbdc8a7`이다. REST·MCP의 공통 진입점인 `TeamGitHubPublicationService`의 잠금을 유지하고 하위 게시 서비스의 중복 잠금·중간 함수를 제거했다. 대체 안내는 기존 게시 이력을 먼저 확인해, 이력이 없으면 게시용 토큰 발급·PR 조회 전에 거부한다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다.
+- `./gradlew focusedTest --tests '*PublishChangeRecordToGitHubTest'`: 9개 통과. 동시 게시 테스트는 공통 서비스에서 같은 기록·서로 다른 PR의 중복 생성 방지와 응답 유실 복구를 확인한다. 게시 이력이 없는 대체 안내의 불필요한 PR 조회를 수정 전에 재현했다. 로그는 `/tmp/intent-trace-publication-flow-before.log`, `/tmp/intent-trace-publication-flow-focused.log`다.
+- `./gradlew test bootJar`: 서버 224개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:28 KST이며 로그는 `/tmp/intent-trace-publication-flow-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 조회·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
