@@ -97,12 +97,6 @@ internal class IntentTraceApiClient {
         return "호출 제한에 도달했습니다. $guidance"
     }
 
-    private fun requireSessionToken(sessionToken: String) {
-        if (!SESSION_TOKEN.matches(sessionToken)) {
-            throw IntentTraceUsageException("로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.")
-        }
-    }
-
     private fun <T> execute(block: () -> T): T = try {
         block()
     } catch (_: SocketTimeoutException) {
@@ -117,6 +111,12 @@ internal class IntentTraceApiClient {
         private val SESSION_TOKEN = Regex("^its_[A-Za-z0-9_-]{43}$")
 
         fun validSessionToken(value: String): Boolean = SESSION_TOKEN.matches(value)
+
+        fun requireSessionToken(value: String) {
+            if (!validSessionToken(value)) {
+                throw IntentTraceUsageException("로그인 완료 화면에서 받은 its_ 세션 토큰을 입력하세요.")
+            }
+        }
     }
 }
 

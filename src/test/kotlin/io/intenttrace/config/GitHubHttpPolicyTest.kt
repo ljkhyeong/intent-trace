@@ -8,6 +8,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpHeaders
@@ -95,6 +96,18 @@ class GitHubHttpPolicyTest {
         assertEquals(60L, GitHubRateLimit.detect(429, HttpHeaders(), now)?.retryAfterSeconds)
         val reset = HttpHeaders().also { it.set("X-RateLimit-Remaining", "0"); it.set("X-RateLimit-Reset", (now.epochSecond + 300).toString()) }
         assertEquals(300L, GitHubRateLimit.detect(403, reset, now)?.retryAfterSeconds)
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = [
+        "Sat, 05 Sep 2026 00:02:00 GMT | 120",
+        "Fri, 04 Sep 2026 23:59:00 GMT | 1",
+        "invalid-date | 60",
+    ])
+    fun `Retry-After 날짜로 대기 시간을 계산하고 지난 날짜나 잘못된 값은 보정한다`(retryAfter: String, expectedSeconds: Long) {
+        val headers = HttpHeaders().also { it.set(HttpHeaders.RETRY_AFTER, retryAfter) }
+
+        assertEquals(expectedSeconds, GitHubRateLimit.detect(429, headers, now)?.retryAfterSeconds)
     }
 
     companion object { private val now = Instant.parse("2026-09-05T00:00:00Z") }

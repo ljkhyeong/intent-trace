@@ -9,8 +9,6 @@ import org.springframework.web.client.RestClient
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 class GitHubRateLimitException(val retryAfterSeconds: Long) : RuntimeException("GitHub 호출 제한에 도달했습니다. ${retryAfterSeconds}초 후 다시 시도하세요.")
@@ -20,9 +18,9 @@ object GitHubRateLimit {
         val retry = headers.getFirst(HttpHeaders.RETRY_AFTER)
         val exhausted = headers.getFirst("X-RateLimit-Remaining") == "0"
         if (status != 429 && !(status == 403 && (retry != null || exhausted))) return null
-        val retrySeconds = retry?.toLongOrNull() ?: retry?.let {
-            runCatching { Duration.between(now, ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()).seconds }.getOrNull()
-        }
+        val retrySeconds = retry?.toLongOrNull() ?: runCatching {
+            headers.getFirstZonedDateTime(HttpHeaders.RETRY_AFTER)?.let { Duration.between(now, it.toInstant()).seconds }
+        }.getOrNull()
         val reset = if (exhausted) headers.getFirst("X-RateLimit-Reset")?.toLongOrNull()?.let { it - now.epochSecond } else null
         return GitHubRateLimitException(maxOf(retrySeconds ?: 0, reset ?: 0, 1).takeIf { retrySeconds != null || reset != null } ?: 60)
     }
