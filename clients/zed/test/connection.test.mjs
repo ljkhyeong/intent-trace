@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { endpoint } from '../intent-trace.mjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -10,6 +11,18 @@ import { retryAfterSeconds, safeFailure } from '../errors.mjs';
 
 const script = fileURLToPath(new URL('../intent-trace.mjs', import.meta.url));
 const token = `its_${'x'.repeat(43)}`;
+const packageVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+
+test('버전은 서버 주소와 세션 없이 패키지 버전으로 표시한다', () => {
+  for (const option of ['--version', '-V']) {
+    const result = spawnSync(process.execPath, [script, option], {
+      env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), packageVersion);
+    assert.equal(result.stderr, '');
+  }
+});
 
 test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 연결 없이 성공한다', () => {
   const env = { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' };
@@ -123,11 +136,13 @@ test('인증 실패 응답의 원문과 토큰을 로그로 내보내지 않는�
 
 test('연결 후 인증과 호출 제한 및 서버 장애를 구분하고 원문을 버린다', { timeout: 15_000 }, async () => {
   let status = 401;
+  let upstreamVersion;
   const server = createServer(async (request, response) => {
     if (request.method !== 'POST') { response.writeHead(405).end(); return; }
     let body = ''; for await (const chunk of request) body += chunk;
     const message = JSON.parse(body);
     if (message.id === undefined) { response.writeHead(202).end(); return; }
+    if (message.method === 'initialize') upstreamVersion = message.params.clientInfo.version;
     if (message.method === 'tools/call') {
       response.writeHead(status, { 'Content-Type': 'text/plain', 'Retry-After': '120' });
       response.end(token); return;
@@ -143,6 +158,8 @@ test('연결 후 인증과 호출 제한 및 서버 장애를 구분하고 원�
   transport.stderr?.resume();
   try {
     await client.connect(transport);
+    assert.equal(upstreamVersion, packageVersion);
+    assert.equal(client.getServerVersion().version, packageVersion);
     for (const [httpStatus, code] of [[401, 'AUTHENTICATION_REQUIRED'], [403, 'ACCESS_DENIED'], [429, 'RATE_LIMITED'], [502, 'UPSTREAM_UNAVAILABLE']]) {
       status = httpStatus;
       await assert.rejects(client.callTool({ name: 'probe', arguments: {} }), error => {

@@ -15,6 +15,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
   const output = join(directory, 'release');
   const install = join(directory, 'install');
   const token = `its_${'a'.repeat(43)}`;
+  const fixtureVersion = '9.8.7';
   function run(command, args, options = {}) {
     const result = spawnSync(command, args, { cwd: directory, encoding: 'utf8', ...options });
     assert.equal(result.status, 0, result.stderr);
@@ -32,6 +33,14 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     for (const name of ['package.json', 'package-lock.json', 'intent-trace.mjs', 'bridge.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
       await cp(new URL(`../${name}`, import.meta.url), join(source, name));
     }
+    // 다음 배포에서도 CLI·MCP가 소스에 고정한 버전 대신 설치된 패키지 버전을 사용해야 한다.
+    for (const name of ['package.json', 'package-lock.json']) {
+      const path = join(source, name);
+      const manifest = JSON.parse(await readFile(path, 'utf8'));
+      manifest.version = fixtureVersion;
+      if (manifest.packages) manifest.packages[''].version = fixtureVersion;
+      await writeFile(path, JSON.stringify(manifest));
+    }
     const isolatedBuilder = join(fixture, 'scripts/package-zed.mjs');
     // 직접·하위 의존성이 잘못 설치돼 있어도 배포에는 잠금 파일의 버전만 들어가야 한다.
     for (const name of ['@modelcontextprotocol/sdk', 'zod']) {
@@ -45,6 +54,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     assert.equal(await readFile(`${tarball}.sha256`, 'utf8'), `${digest}  ${filename}\n`);
     run('npm', ['install', '--prefix', install, '--cache', join(directory, 'empty-cache'), '--offline', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
     const bin = join(install, 'node_modules/.bin/intent-trace-zed');
+    assert.equal(run(bin, ['--version'], { env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' } }).trim(), fixtureVersion);
     const configured = JSON.parse(run(bin, ['config']));
     const entry = configured.context_servers['intent-trace'];
     assert.ok(entry.args[0].startsWith(await realpath(install)));
@@ -76,6 +86,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
       let body = ''; for await (const chunk of request) body += chunk;
       const message = JSON.parse(body);
       if (message.id === undefined) { response.writeHead(202).end(); return; }
+      if (message.method === 'initialize') assert.equal(message.params.clientInfo.version, fixtureVersion);
       const result = message.method === 'initialize'
         ? { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: '설치 검증', version: '1' } }
         : message.method === 'tools/call'

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
-import { realpathSync, existsSync } from 'node:fs';
+import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { BridgeFailure } from './errors.mjs';
 
+export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
@@ -22,6 +23,7 @@ function printHelp(mode) {
     : `사용법: intent-trace-zed <명령> [옵션]\n\n${Object.values(commandUsage).join('\n\n')}`);
   console.log('\nMCP 주소는 INTENT_TRACE_MCP_URL 환경 변수, 없으면 http://127.0.0.1:8080/mcp를 사용합니다.');
   console.log('check·serve에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
+  console.log('--version 또는 -V로 설치된 연결 도구의 버전을 확인합니다.');
 }
 
 export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl) {
@@ -67,6 +69,7 @@ function checkOptions(args) {
 
 async function main() {
   const [mode, ...arguments_] = process.argv.slice(2);
+  if (['--version', '-V'].includes(mode)) return console.log(version);
   if (!mode || ['--help', '-h'].includes(mode)) return printHelp();
   if (!Object.hasOwn(commandUsage, mode)) {
     console.error('알 수 없는 명령입니다. intent-trace-zed --help로 사용법을 확인하세요.');

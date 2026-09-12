@@ -4,10 +4,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { sessionToken } from './intent-trace.mjs';
+import { sessionToken, version } from './intent-trace.mjs';
 import { httpFailure, parseFailureLine, safeFailure } from './errors.mjs';
 
-const version = '0.12.0';
 const timeout = 60_000;
 
 export async function serve(url) {

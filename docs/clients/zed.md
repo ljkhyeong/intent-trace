@@ -101,6 +101,8 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 
 ## 연결이 안 될 때
 
+`node clients/zed/intent-trace.mjs --version`으로 연결 도구의 버전을 확인한다. 설치 패키지는 `intent-trace-zed --version`을 사용한다. 주소·세션 없이 실행하며 서버 버전과는 별개다.
+
 0.11.0부터 연결 초기화·도구 호출·`check`에서 오류를 구분한다. 도구 호출 오류의 `data.code`와 선택 `retryAfterSeconds`를 사용하며 외부 오류 본문은 출력하지 않는다.
 
 | 오류 코드 | 처리 방법 |
