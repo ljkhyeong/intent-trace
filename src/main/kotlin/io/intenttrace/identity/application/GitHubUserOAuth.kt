@@ -264,10 +264,14 @@ class InMemoryGitHubUserSessionStore(
 
     private fun removeExpiredSessions(now: Instant) {
         sessions.forEach { (key, stored) ->
-            stored.lock.withLock {
+            // 사용 중인 세션 정리는 다음 발급으로 미뤄 다른 로그인을 막지 않는다.
+            if (!stored.lock.tryLock()) return@forEach
+            try {
                 if (!now.isBefore(stored.expiresAt) || !now.isBefore(stored.tokens.refreshExpiresAt)) {
-                    sessions.remove(key, stored)
+                    revoke(key, stored)
                 }
+            } finally {
+                stored.lock.unlock()
             }
         }
     }
@@ -278,9 +282,7 @@ class InMemoryGitHubUserSessionStore(
             .sortedBy { it.value.createdAt }
         val removalCount = activeSessions.size - properties.userAuthorization.maxSessionsPerUser + 1
         activeSessions.take(removalCount.coerceAtLeast(0)).forEach { (key, stored) ->
-            stored.lock.withLock {
-                sessions.remove(key, stored)
-            }
+            revoke(key, stored)
         }
     }
 

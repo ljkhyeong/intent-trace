@@ -86,6 +86,43 @@ class InMemoryGitHubUserSessionStoreTest {
         assertEquals(clock.instant().plus(Duration.ofDays(180)), store.list(owner.subject).single().expiresAt)
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `새 세션 발급은 기존 세션의 GitHub 갱신을 기다리지 않는다`(sameUser: Boolean) {
+        val limitedStore = InMemoryGitHubUserSessionStore(oauth, users,
+            GitHubProperties(userAuthorization = GitHubUserAuthorizationProperties(maxSessionsPerUser = 1)), clock)
+        val first = limitedStore.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        oauth.beforeRefresh = { entered.countDown(); check(release.await(10, TimeUnit.SECONDS)) }
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val resolving = executor.submit<GitHubUserSession> { limitedStore.resolve(first.sessionToken) }
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            val nextActor = if (sameUser) owner else ActorIdentity.github(84, "teammate")
+            val issuing = executor.submit<IssuedGitHubUserSession> {
+                limitedStore.issue(nextActor, tokens(clock.instant(), "new", Duration.ofHours(8)))
+            }
+            val issued = issuing.get(5, TimeUnit.SECONDS)
+            assertEquals(nextActor, issued.actor)
+            assertEquals(1, limitedStore.list(nextActor.subject).size)
+            assertFalse(resolving.isDone)
+            release.countDown()
+            if (sameUser) {
+                val error = assertFailsWith<ExecutionException> { resolving.get(5, TimeUnit.SECONDS) }
+                assertTrue(error.cause is GitHubUserAuthenticationException)
+                assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(first.sessionToken) }
+                assertEquals("ghu_access-new", limitedStore.resolve(issued.sessionToken).accessToken)
+            } else {
+                assertEquals(owner, resolving.get(5, TimeUnit.SECONDS).actor)
+                assertEquals(1, limitedStore.list(owner.subject).size)
+            }
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+        }
+    }
+
     @Test
     fun `동시에 갱신 구간에 들어와도 refresh token은 한 번만 사용한다`() {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
