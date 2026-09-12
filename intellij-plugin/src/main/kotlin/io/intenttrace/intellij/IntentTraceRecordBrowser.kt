@@ -181,7 +181,7 @@ internal open class RecordBrowserDialog(
         previous.isEnabled = previousQueries.isNotEmpty()
         next.isEnabled = page.nextCursor != null
         open.isEnabled = list.selectedValue != null
-        pageLabel.text = "${query.scope} · ${query.path ?: "저장소 전체"} · ${query.status?.let(IntentTraceTextRenderer::status) ?: "모든 상태"} · " +
+        pageLabel.text = "${filter.selectedItem} · ${query.path ?: "저장소 전체"} · " +
             "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
@@ -192,7 +192,7 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     TEAM("팀 공개 기록 · 전체", RecordListScope.TEAM, null),
     PUBLISHED("팀 공개 기록 · 공개", RecordListScope.TEAM, "PUBLISHED"),
     SUPERSEDED("팀 공개 기록 · 대체됨", RecordListScope.TEAM, "SUPERSEDED"),
-    MINE("내 비공개 기록 · 전체", RecordListScope.MINE, null),
+    MINE("내 비공개 기록 · 초안·작성자 확인", RecordListScope.MINE, null),
     DRAFT("내 비공개 기록 · 초안", RecordListScope.MINE, "DRAFT"),
     CONFIRMED("내 비공개 기록 · 작성자 확인", RecordListScope.MINE, "AUTHOR_CONFIRMED"),
     DISCARDED("내 비공개 기록 · 폐기", RecordListScope.MINE, "DISCARDED");
