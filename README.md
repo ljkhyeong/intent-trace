@@ -369,6 +369,8 @@ Zed 연결 점검의 `check <MCP 주소> <owner/repo>`에 `--pr <번호>`와 `--
 
 `node clients/zed/intent-trace.mjs --help`로 전체 사용법을, `check --help`로 점검 옵션을 확인하세요. 도움말에는 서버 연결이나 세션이 필요 없습니다.
 
+Zed 연결을 제거할 때는 `node clients/zed/intent-trace.mjs unconfigure`로 미리 확인하고 `--apply`를 붙여 저장하세요. 다른 연결과 주석은 유지합니다. 별도 설정 파일은 `--settings`로 지정하며 서버 세션은 내 연결 화면에서 따로 종료할 수 있습니다.
+
 저장소에서 직접 실행하려면 다음 절차를 사용합니다. Node.js 22 이상에서 설정을 생성하고 Zed 사용자 설정에 추가한 뒤 세션 입력 도구로 실행합니다. 자세한 절차와 연결 점검은 [Zed 사용 안내](docs/clients/zed.md)에 있습니다.
 
 ```bash

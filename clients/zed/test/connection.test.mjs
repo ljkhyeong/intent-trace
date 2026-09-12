@@ -21,7 +21,7 @@ test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 �
     assert.equal(result.stdout, '');
   }
   for (const args of [[], ['--help'], ['-h'], ['check', '--help'], ['serve', '-h'],
-    ['config', '--help'], ['configure', '--help'], ['check', 'http://127.0.0.1:1/mcp', 'acme/project', '--help']]) {
+    ['config', '--help'], ['configure', '--help'], ['unconfigure', '--help'], ['check', 'http://127.0.0.1:1/mcp', 'acme/project', '--help']]) {
     const result = spawnSync(process.execPath, [script, ...args], { env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /사용법: intent-trace-zed/);

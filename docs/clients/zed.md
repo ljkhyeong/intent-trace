@@ -60,6 +60,15 @@ python3 scripts/zed-with-intent-trace.py .
 
 > IntentTrace에서 acme/project의 12번 PR에 연결된 기록과 현재 커밋에 맞지 않는 기록을 보여줘.
 
+## 연결 설정 제거
+
+```bash
+node clients/zed/intent-trace.mjs unconfigure
+node clients/zed/intent-trace.mjs unconfigure --apply
+```
+
+첫 명령은 미리보기이며 `--apply`에서만 IntentTrace 연결을 제거한다. `--settings`로 별도 설정 파일을 지정할 수 있다. 다른 연결·주석·파일 권한을 유지하고, 이미 제거됐다면 파일을 쓰지 않는다. 서버 주소와 세션 없이 실행한다. 서버 세션도 끝내려면 내 연결 화면에서 사용하지 않는 연결을 종료한다.
+
 ## 연결만 먼저 점검하기
 
 전체 사용법은 `node clients/zed/intent-trace.mjs --help`, 점검 옵션은 `node clients/zed/intent-trace.mjs check --help`로 확인한다. 도움말에는 로그인이나 서버 연결이 필요 없다. 알 수 없는 명령은 종료 코드 1로 실패한다.

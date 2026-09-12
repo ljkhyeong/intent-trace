@@ -52,6 +52,10 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     run(bin, ['configure', '--settings', settings, '--apply']);
     assert.ok((await readFile(settings, 'utf8')).includes(await realpath(install)));
     assert.ok(!(await readFile(settings, 'utf8')).includes(token));
+    assert.match(run(bin, ['unconfigure', '--settings', settings]), /연결 제거 미리보기/);
+    assert.ok((await readFile(settings, 'utf8')).includes(await realpath(install)));
+    run(bin, ['unconfigure', '--settings', settings, '--apply']);
+    assert.deepEqual(JSON.parse(await readFile(settings, 'utf8')).context_servers, {});
     const packageDirectory = join(install, 'node_modules/intent-trace-zed');
     assert.ok((await readdir(packageDirectory)).includes('zed-with-intent-trace.py'));
     assert.ok(!(await readdir(packageDirectory)).includes('test'));

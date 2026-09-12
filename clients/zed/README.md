@@ -30,13 +30,15 @@ IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 
 
 새 버전의 배포 파일을 같은 설치 폴더에 설치하고 `configure` 미리보기·`--apply`를 다시 실행한다. Zed에서 연결을 다시 시작한다. 설치 폴더를 옮기거나 Node 경로가 바뀌었을 때도 다시 등록한다. 이전 버전 파일로 같은 절차를 수행하면 연결 도구만 되돌릴 수 있다.
 
-제거할 때 Zed 설정의 `context_servers.intent-trace` 항목을 삭제하고 다음 명령을 실행한다.
+제거할 때 먼저 설정 변경을 미리 확인하고 `--apply`로 저장한 뒤 패키지를 삭제한다.
 
 ```bash
+~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed unconfigure
+~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed unconfigure --apply
 npm uninstall --prefix ~/.local/share/intent-trace --ignore-scripts intent-trace-zed
 ```
 
-공개 배포용으로 이름을 바꾼 패키지는 해당 이름으로 제거한다. 서버의 내 연결 화면에서 사용하지 않는 세션도 종료할 수 있다.
+`unconfigure`는 `context_servers.intent-trace`만 제거하고 다른 연결·주석·파일 권한을 유지한다. 별도 설정 파일은 `--settings`로 지정한다. 연결이 없으면 파일을 바꾸지 않으며, 서버 주소와 세션 없이 실행할 수 있다. 패키지와 서버 세션은 별도로 관리한다. 공개 배포용으로 이름을 바꾼 패키지는 해당 이름으로 제거하고, 사용하지 않는 세션은 서버의 내 연결 화면에서 종료한다.
 
 ## 지원 범위
 

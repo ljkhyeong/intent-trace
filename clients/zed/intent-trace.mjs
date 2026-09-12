@@ -11,6 +11,7 @@ const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
   config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
   configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
+  unconfigure: 'unconfigure [--settings 설정파일] [--apply]\n  IntentTrace 연결 제거를 미리 봅니다. --apply를 지정하면 설정에서 제거합니다.',
   check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. PR·커밋을 지정하려면 저장소도 필요합니다.',
   serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
   launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
@@ -81,19 +82,21 @@ async function main() {
     });
     return;
   }
-  if (mode === 'configure') {
+  if (mode === 'configure' || mode === 'unconfigure') {
     const { configure, defaultSettingsPath } = await import('./settings.mjs');
-    let path = defaultSettingsPath();
-    let address;
-    let apply = false;
-    for (let i = 0; i < arguments_.length; i++) {
-      const value = arguments_[i];
-      if (value === '--apply' && !apply) apply = true;
-      else if (value === '--settings' && arguments_[i + 1] && !arguments_[i + 1].startsWith('--')) path = arguments_[++i];
-      else if (!value.startsWith('--') && !address) address = value;
-      else throw new Error('Zed 설정: configure [MCP 주소] [--settings 설정파일] [--apply] 형식을 확인하세요.');
+    let parsed;
+    try {
+      parsed = parseArgs({ args: arguments_, allowPositionals: true, options: {
+        settings: { type: 'string' }, apply: { type: 'boolean', default: false },
+      } });
+      if (parsed.positionals.length > (mode === 'configure' ? 1 : 0)) throw new Error();
+    } catch {
+      throw new Error(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    return configure(path, { command: process.execPath, args: [script, 'serve', endpoint(address).href], env: {} }, apply);
+    const entry = mode === 'configure'
+      ? { command: process.execPath, args: [script, 'serve', endpoint(parsed.positionals[0]).href], env: {} }
+      : undefined;
+    return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
