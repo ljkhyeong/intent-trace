@@ -762,3 +762,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 주소 생략 오류를 Node 테스트 1개 실패로 재현한 뒤 수정했다. `npm test --prefix clients/zed`: Node 14개·Python 실행기 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 3개 통과, 실패·오류·건너뜀 0개다. 주소 입력·생략 양쪽에서 PR HEAD·명시 커밋 전달과 주소 우선순위를 확인했다. 결과 시각은 2026-09-12 19:17 KST이며 로그는 `/tmp/intent-trace-zed-check-address-before.log`, `/tmp/intent-trace-zed-check-address-all.log`, `/tmp/intent-trace-zed-check-address-bridge.log`다.
 - 설치 테스트에서 저장소 밖의 패키지 명령으로 주소 없는 저장소·PR 진단을 확인했다. `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 만들었고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-check-address-package.log`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IntelliJ·의존성·배포 설정은 변경하지 않아 전체 서버·PostgreSQL·IDE 검증과 JAR 재빌드를 반복하지 않았다. 실제 사용자 설정·외부 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 코드 줄 이동의 부분 일치 처리
+
+- 시작 리비전은 `e3c9782`, 검증 대상 코드는 `b0759b0`다. 주석·다른 들여쓰기의 부분 일치를 중복으로 세어 실제 줄 이동을 놓치던 문제를 수정했다. 원본과 현재 파일에서 전체 줄이 각각 한 곳에만 일치해야 연결하며, 겹치는 여러 줄 조각도 중복이면 제외한다. 줄 끝 바이트와 이전 커밋의 검증 표시 규칙은 유지한다.
+- 수정 전 신규 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 6개가 통과했다. `./gradlew test bootJar`: 서버 232개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:38 KST이며 로그는 `/tmp/intent-trace-line-boundary-before.log`, `/tmp/intent-trace-line-boundary-focused.log`, `/tmp/intent-trace-line-boundary-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시와 운영 배포는 수행하지 않았다. 기존 미추적 PNG는 보존했으며 작업 변경은 커밋했다.
