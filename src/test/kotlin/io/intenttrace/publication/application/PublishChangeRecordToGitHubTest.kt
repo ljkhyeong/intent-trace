@@ -74,6 +74,7 @@ class PublishChangeRecordToGitHubTest {
     @ParameterizedTest
     @ValueSource(ints = [12, 13])
     fun `같은 기록의 동시 게시는 PR이 같거나 달라도 Check Run을 한 번만 만든다`(secondPullNumber: Int) {
+        val team = teamPublisher()
         val entered = CountDownLatch(1)
         val proceed = CountDownLatch(1)
         gateway.beforeUpsert = {
@@ -81,8 +82,8 @@ class PublishChangeRecordToGitHubTest {
             check(proceed.await(5, TimeUnit.SECONDS))
         }
         val secondTarget = target.copy(pullNumber = secondPullNumber)
-        val first = FutureTask { publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target)) }
-        val second = FutureTask { publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, secondTarget)) }
+        val first = FutureTask { team.publish(PublishChangeRecordToGitHubCommand(record.id, target)) }
+        val second = FutureTask { team.publish(PublishChangeRecordToGitHubCommand(record.id, secondTarget)) }
         val firstThread = Thread(first)
         val secondThread = Thread(second)
         try {
@@ -145,11 +146,8 @@ class PublishChangeRecordToGitHubTest {
 
     @Test
     fun `동시 최초 게시는 한 Check Run으로 모으고 응답 유실도 같은 실행으로 복구한다`() {
-        val records = mock(TeamChangeRecordService::class.java)
-        `when`(records.requireOwnedContributor(record.id)).thenReturn(record)
-        `when`(records.get(record.id)).thenReturn(record)
         val tracking = MemoryTracking()
-        val team = TeamGitHubPublicationService(records, publisher, tracking, publicationRepository)
+        val team = teamPublisher(tracking)
         val command = PublishChangeRecordToGitHubCommand(record.id, target)
         gateway.failAfterCreate = true
         assertFailsWith<GitHubApiException> { team.publish(command) }
@@ -167,6 +165,18 @@ class PublishChangeRecordToGitHubTest {
     }
 
     @Test
+    fun `게시 이력이 없는 대체 안내는 GitHub 조회 전에 거부한다`() {
+        val superseded = record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = UUID.randomUUID())
+
+        assertFailsWith<IllegalStateException> {
+            publisher.syncSupersession(superseded, PublishChangeRecordToGitHubCommand(record.id, target))
+        }
+
+        assertEquals(0, gateway.headRequests.get())
+        assertTrue(gateway.commands.isEmpty())
+    }
+
+    @Test
     fun `PR HEAD가 진행돼도 기존 커밋의 Check Run에 대체 안내를 붙인다`() {
         publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
         val replacement = UUID.randomUUID()
@@ -177,6 +187,12 @@ class PublishChangeRecordToGitHubTest {
         assertEquals(record.targetRevision, gateway.lastCommand?.headRevision)
         assertTrue(gateway.lastCommand!!.markdown.contains(replacement.toString()))
         assertEquals(1, gateway.creations)
+    }
+
+    private fun teamPublisher(tracking: MemoryTracking = MemoryTracking()): TeamGitHubPublicationService {
+        val records = mock(TeamChangeRecordService::class.java)
+        `when`(records.requireOwnedContributor(record.id)).thenReturn(record)
+        return TeamGitHubPublicationService(records, publisher, tracking, publicationRepository)
     }
 
     private class MemoryTracking : GitHubPublicationTracking {
