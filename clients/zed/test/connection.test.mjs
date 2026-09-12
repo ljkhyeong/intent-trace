@@ -79,6 +79,23 @@ test('연결 점검의 잘못된 옵션과 저장소 누락은 연결 전에 입
   }
 });
 
+test('저장소만 입력한 점검은 환경 변수 주소를 사용하고 명시한 주소를 우선한다', () => {
+  for (const args of [['acme/project'], ['acme/project', '--pr', '12'],
+    ['acme/project', '--revision', 'a'.repeat(40)]]) {
+    const result = spawnSync(process.execPath, [script, 'check', ...args], {
+      env: { ...process.env, INTENT_TRACE_MCP_URL: 'http://127.0.0.1:1/mcp', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
+    assert.equal(result.stdout, '');
+  }
+  const explicit = spawnSync(process.execPath, [script, 'check', 'http://127.0.0.1:1/mcp', 'acme/project'], {
+    env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
+  });
+  assert.equal(explicit.status, 1);
+  assert.match(explicit.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
+});
+
 test('인증 실패 응답의 원문과 토큰을 로그로 내보내지 않는다', { timeout: 15_000 }, async () => {
   const server = createServer((request, response) => {
     response.writeHead(401, { 'Content-Type': 'text/plain' });

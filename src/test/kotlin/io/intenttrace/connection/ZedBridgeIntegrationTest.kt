@@ -116,26 +116,33 @@ class ZedBridgeIntegrationTest(
             listOf("--pr", "12", "--revision", explicit) to explicit,
             listOf("--revision", head) to head,
         )) {
-            Mockito.clearInvocations(evidence, pullRequests)
             Mockito.`when`(evidence.snapshot(repository, revision)).thenReturn(GitEvidenceSnapshot(revision, emptyMap()))
-            val output = check(*options.toTypedArray())
-            assertTrue(output.contains("git_tree_read: VERIFIED"), output)
-            Mockito.verify(evidence).snapshot(repository, revision)
-            if ("--pr" in options) {
-                assertTrue(output.contains("pull_request_read: VERIFIED"), output)
-                Mockito.verify(pullRequests).read(target)
-            } else Mockito.verifyNoInteractions(pullRequests)
+            for (explicitAddress in listOf(true, false)) {
+                Mockito.clearInvocations(evidence, pullRequests)
+                val output = check(*options.toTypedArray(), explicitAddress = explicitAddress)
+                assertTrue(output.contains("git_tree_read: VERIFIED"), output)
+                Mockito.verify(evidence).snapshot(repository, revision)
+                if ("--pr" in options) {
+                    assertTrue(output.contains("pull_request_read: VERIFIED"), output)
+                    Mockito.verify(pullRequests).read(target)
+                } else Mockito.verifyNoInteractions(pullRequests)
+            }
         }
     }
 
-    private fun check(vararg options: String): String {
+    private fun check(vararg options: String, explicitAddress: Boolean = true): String {
         assumeTrue(Files.exists(Path.of("clients/zed/node_modules/@modelcontextprotocol/sdk")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
         val now = Instant.now()
         val session = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
             "ghu_zed-test", now.plusSeconds(3600), "ghr_zed-test", now.plusSeconds(7200),
         ))
-        val process = ProcessBuilder("node", "clients/zed/intent-trace.mjs", "check", "http://127.0.0.1:$port/mcp", "acme/intent-trace", *options)
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = session.sessionToken }.start()
+        val address = "http://127.0.0.1:$port/mcp"
+        val command = listOf("node", "clients/zed/intent-trace.mjs", "check") +
+            (if (explicitAddress) listOf(address) else emptyList()) + listOf("acme/intent-trace", *options)
+        val process = ProcessBuilder(command).redirectErrorStream(true).apply {
+            environment()["INTENT_TRACE_SESSION_TOKEN"] = session.sessionToken
+            environment()["INTENT_TRACE_MCP_URL"] = if (explicitAddress) "invalid-address" else address
+        }.start()
         val finished = process.waitFor(30, TimeUnit.SECONDS)
         if (!finished) {
             process.descendants().forEach { it.destroyForcibly() }

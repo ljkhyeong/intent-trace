@@ -12,7 +12,7 @@ const commandUsage = {
   config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
   configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
   unconfigure: 'unconfigure [--settings 설정파일] [--apply]\n  IntentTrace 연결 제거를 미리 봅니다. --apply를 지정하면 설정에서 제거합니다.',
-  check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. PR·커밋을 지정하려면 저장소도 필요합니다.',
+  check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. 저장소만 입력할 수 있으며 PR·커밋 옵션에는 저장소가 필요합니다.',
   serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
   launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
 };
@@ -52,13 +52,15 @@ function checkOptions(args) {
   } catch {
     throw new Error('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
   }
-  const { positionals, values } = parsed;
+  const { values } = parsed;
+  const positionals = parsed.positionals.length === 1 && /^[^:/\s]+\/[^/\s]+$/.test(parsed.positionals[0])
+    ? [undefined, parsed.positionals[0]] : parsed.positionals;
   const pullNumber = values.pr === undefined ? undefined : Number(values.pr);
   if (pullNumber !== undefined && (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)) {
     throw new Error('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
   }
   if ((values.revision !== undefined || pullNumber !== undefined) && !positionals[1]) {
-    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 MCP 주소 뒤에 owner/repo를 지정하세요.');
+    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
   }
   return { positionals, diagnostic: { revision: values.revision, pullNumber } };
 }

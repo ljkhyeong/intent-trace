@@ -21,6 +21,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     return result.stdout;
   }
   let server;
+  const diagnostics = [];
   try {
     const fixture = join(directory, 'source');
     const source = join(fixture, 'clients/zed');
@@ -77,17 +78,27 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
       if (message.id === undefined) { response.writeHead(202).end(); return; }
       const result = message.method === 'initialize'
         ? { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: '설치 검증', version: '1' } }
-        : { tools: [{ name: 'diagnose_connection', inputSchema: { type: 'object', properties: {} } }] };
+        : message.method === 'tools/call'
+          ? { content: [], structuredContent: { checks: [{ name: 'repository_read', status: 'VERIFIED' }] } }
+          : { tools: [{ name: 'diagnose_connection', inputSchema: { type: 'object', properties: {} } }] };
+      if (message.method === 'tools/call') {
+        assert.equal(message.params.name, 'diagnose_connection');
+        diagnostics.push(message.params.arguments);
+      }
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }));
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const child = spawn(bin, ['check'], { cwd: directory, env: { ...process.env, INTENT_TRACE_MCP_URL: `http://127.0.0.1:${server.address().port}/mcp`, INTENT_TRACE_SESSION_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] });
-    let text = '';
-    child.stdout.on('data', bytes => { text += bytes; }); child.stderr.on('data', bytes => { text += bytes; });
-    const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
-    assert.equal(code, 0, text);
-    assert.ok(!text.includes(token));
+    for (const args of [[], ['acme/project'], ['acme/project', '--pr', '12']]) {
+      const child = spawn(bin, ['check', ...args], { cwd: directory, env: { ...process.env, INTENT_TRACE_MCP_URL: `http://127.0.0.1:${server.address().port}/mcp`, INTENT_TRACE_SESSION_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let text = '';
+      child.stdout.on('data', bytes => { text += bytes; }); child.stderr.on('data', bytes => { text += bytes; });
+      const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
+      assert.equal(code, 0, text);
+      assert.ok(!text.includes(token));
+      if (args.length) assert.match(text, /repository_read: VERIFIED/);
+    }
+    assert.deepEqual(diagnostics, [{ repositoryKey: 'acme/project' }, { repositoryKey: 'acme/project', pullNumber: 12 }]);
 
     const fakeBin = join(directory, 'fake-bin');
     await mkdir(fakeBin);
