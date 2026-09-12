@@ -26,7 +26,7 @@ internal data class ChangeIntentRecord(
 
 internal enum class RecordListScope(private val label: String) {
     TEAM("팀 공개 기록"),
-    MY_DRAFTS("내 비공개 기록");
+    MINE("내 비공개 기록");
 
     override fun toString(): String = label
 }
@@ -36,15 +36,14 @@ internal data class RecordListQuery(
     val scope: RecordListScope = RecordListScope.TEAM,
     val path: String? = null,
     val status: String? = null,
-    val page: Int = 0,
+    val cursor: String? = null,
+    val keyword: String? = null,
 )
 
 @Serializable
 internal data class ChangeRecordPage(
     val items: List<ChangeRecordSummary>,
-    val page: Int,
-    val size: Int,
-    val hasNext: Boolean,
+    val nextCursor: String?,
 )
 
 @Serializable

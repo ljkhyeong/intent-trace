@@ -39,8 +39,9 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
             "scope" to query.scope.name,
             query.path?.let { "path" to it },
             query.status?.let { "status" to it },
-            "page" to query.page.toString(),
-            "size" to "20",
+            query.cursor?.let { "cursor" to it },
+            query.keyword?.let { "q" to it },
+            "limit" to "20",
         ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
         return URI.create("$baseUri/api/v1/change-records?$parameters")
     }

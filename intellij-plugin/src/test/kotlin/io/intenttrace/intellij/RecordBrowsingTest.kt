@@ -21,7 +21,7 @@ class RecordBrowsingTest {
                 tokens.add(exchange.requestHeaders.getFirst("Authorization"))
                 val body = if (exchange.requestURI.path.endsWith(id)) recordJson else """
                     {"items":[{"id":"$id","title":"비공개 기록","status":"DRAFT","targetRevision":null,
-                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"page":2,"size":20,"hasNext":false}
+                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"page":null,"size":20,"hasNext":true,"nextCursor":"next-page"}
                 """.trimIndent()
                 val bytes = body.toByteArray()
                 exchange.sendResponseHeaders(200, bytes.size.toLong())
@@ -32,19 +32,24 @@ class RecordBrowsingTest {
         try {
             val api = IntentTraceApiClient()
             val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
-            val query = RecordListQuery("team/repository", RecordListScope.MY_DRAFTS, "src/한 글#?.kt", "DRAFT", 2)
+            val query = RecordListQuery(
+                "team/repository", RecordListScope.MINE, "src/한 글#?.kt", "DRAFT",
+                cursor = "previous+page=", keyword = "세션 & 100%_!",
+            )
             val page = api.list(endpoint, token, query)
             val record = api.record(endpoint, token, id)
             assertEquals("${endpoint.baseUri}/records/$id", endpoint.webRecordUri(id).toString())
 
-            assertEquals(2, page.page)
-            assertFalse(page.hasNext)
+            assertEquals("next-page", page.nextCursor)
             assertNull(page.items.single().targetRevision)
             assertEquals("team/repository", record.repositoryKey)
             assertEquals(replacement, record.supersededBy)
             assertEquals(original, record.derivedFromRecordId)
-            assertContains(requests.first(), "scope=MY_DRAFTS")
-            assertContains(requests.first(), "path=src%2F%ED%95%9C+%EA%B8%80%23%3F.kt&status=DRAFT&page=2&size=20")
+            assertContains(requests.first(), "scope=MINE")
+            assertContains(requests.first(), "path=src%2F%ED%95%9C+%EA%B8%80%23%3F.kt&status=DRAFT")
+            assertContains(requests.first(), "cursor=previous%2Bpage%3D&q=%EC%84%B8%EC%85%98+%26+100%25_%21&limit=20")
+            assertFalse(requests.first().contains("&page="))
+            assertFalse(requests.first().contains("&size="))
             assertEquals("/api/v1/change-records/$id", requests.last())
             assertEquals(listOf("Bearer $token", "Bearer $token"), tokens)
         } finally {

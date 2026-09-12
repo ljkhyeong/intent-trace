@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -74,6 +75,11 @@ internal open class RecordBrowserDialog(
 ) : DialogWrapper(project, true) {
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
+    private val keyword = JBTextField(28).apply {
+        emptyText.text = "제목·요청·결정 검색 (최대 200자)"
+        addActionListener { search() }
+    }
+    private var previousQueries = emptyList<RecordListQuery>()
     private val rows = DefaultListModel<ChangeRecordSummary>()
     private val list = JBList(rows)
     private val pageLabel = JLabel()
@@ -98,23 +104,28 @@ internal open class RecordBrowserDialog(
         }
         list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
         open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id) } }
-        previous.addActionListener { reload(query.copy(page = query.page - 1)) }
-        next.addActionListener { reload(query.copy(page = query.page + 1)) }
+        previous.addActionListener {
+            previousQueries.lastOrNull()?.let { reload(it, previousQueries.dropLast(1)) }
+        }
+        next.addActionListener {
+            page.nextCursor?.let { reload(query.copy(cursor = it), previousQueries + query) }
+        }
         init()
         displayPage()
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, 8)).apply {
         border = JBUI.Borders.empty(8)
-        add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-            add(filter)
-            add(fileOnly)
-            add(JButton("조회").apply {
-                addActionListener {
-                    val selected = filter.selectedItem as RecordFilter
-                    reload(RecordListQuery(context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status))
-                }
-            })
+        add(JPanel(BorderLayout()).apply {
+            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
+                add(filter)
+                add(fileOnly)
+            }, BorderLayout.NORTH)
+            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
+                add(JLabel("검색어").apply { labelFor = keyword })
+                add(keyword)
+                add(JButton("조회").apply { addActionListener { search() } })
+            }, BorderLayout.SOUTH)
         }, BorderLayout.NORTH)
         add(JBScrollPane(list), BorderLayout.CENTER)
         add(JPanel(BorderLayout()).apply {
@@ -123,7 +134,7 @@ internal open class RecordBrowserDialog(
                 add(previous)
                 add(next)
                 add(JButton("새로고침").apply {
-                    addActionListener { reload(query, list.selectedValue?.id) }
+                    addActionListener { reload(query, previousQueries, list.selectedValue?.id) }
                 })
                 add(open)
             }, BorderLayout.SOUTH)
@@ -133,16 +144,30 @@ internal open class RecordBrowserDialog(
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
-    private fun reload(nextQuery: RecordListQuery, selectedRecordId: String? = null) {
+    private fun search() {
+        val selected = filter.selectedItem as RecordFilter
+        reload(RecordListQuery(
+            context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status,
+            keyword = keyword.text.trim().takeIf { it.isNotEmpty() },
+        ))
+    }
+
+    private fun reload(
+        nextQuery: RecordListQuery,
+        history: List<RecordListQuery> = emptyList(),
+        selectedRecordId: String? = null,
+    ) {
         val loaded = loadPage(nextQuery) ?: return restoreFilters()
         query = nextQuery
         page = loaded
+        previousQueries = history
         displayPage(selectedRecordId)
     }
 
     private fun restoreFilters() {
         filter.selectedItem = RecordFilter.entries.first { it.scope == query.scope && it.status == query.status }
         fileOnly.isSelected = query.path != null
+        keyword.text = query.keyword.orEmpty()
     }
 
     private fun displayPage(selectedRecordId: String? = null) {
@@ -150,11 +175,11 @@ internal open class RecordBrowserDialog(
         rows.clear()
         rows.addAll(page.items)
         list.selectedIndex = page.items.indexOfFirst { it.id == selectedRecordId }
-        previous.isEnabled = page.page > 0
-        next.isEnabled = page.hasNext
+        previous.isEnabled = previousQueries.isNotEmpty()
+        next.isEnabled = page.nextCursor != null
         open.isEnabled = list.selectedValue != null
         pageLabel.text = "${query.scope} · ${query.path ?: "저장소 전체"} · ${query.status?.let(IntentTraceTextRenderer::status) ?: "모든 상태"} · " +
-            "${page.page + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
+            "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
     }
@@ -164,9 +189,10 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     TEAM("팀 공개 기록 · 전체", RecordListScope.TEAM, null),
     PUBLISHED("팀 공개 기록 · 공개", RecordListScope.TEAM, "PUBLISHED"),
     SUPERSEDED("팀 공개 기록 · 대체됨", RecordListScope.TEAM, "SUPERSEDED"),
-    MY_DRAFTS("내 비공개 기록 · 전체", RecordListScope.MY_DRAFTS, null),
-    DRAFT("내 비공개 기록 · 초안", RecordListScope.MY_DRAFTS, "DRAFT"),
-    CONFIRMED("내 비공개 기록 · 작성자 확인", RecordListScope.MY_DRAFTS, "AUTHOR_CONFIRMED");
+    MINE("내 비공개 기록 · 전체", RecordListScope.MINE, null),
+    DRAFT("내 비공개 기록 · 초안", RecordListScope.MINE, "DRAFT"),
+    CONFIRMED("내 비공개 기록 · 작성자 확인", RecordListScope.MINE, "AUTHOR_CONFIRMED"),
+    DISCARDED("내 비공개 기록 · 폐기", RecordListScope.MINE, "DISCARDED");
 
     override fun toString(): String = label
 }

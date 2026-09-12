@@ -9,6 +9,7 @@ import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
+import javax.swing.JTextField
 
 class RecordBrowserDialogTest : LightPlatformTestCase() {
     private val recordId = "11111111-1111-4111-8111-111111111111"
@@ -107,11 +108,11 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
 
     fun testFailedQueryRestoresFiltersAndKeepsPageAndSelection() {
         val context = RepositoryFileContext("team/repository", "src/App.kt")
-        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, status = "PUBLISHED", page = 2)
+        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, status = "PUBLISHED", keyword = "공개")
         val record = ChangeRecordSummary(
             "record-id", "공개 기록", "PUBLISHED", "a".repeat(40), CreatedByResponse("developer"), "2026-08-30T00:00:00Z",
         )
-        val initialPage = ChangeRecordPage(listOf(record), 2, 20, true)
+        val initialPage = ChangeRecordPage(listOf(record), "page-2")
         val requests = mutableListOf<RecordListQuery>()
         var response: ChangeRecordPage? = null
         var centerPanel: JComponent? = null
@@ -126,6 +127,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             val panel = requireNotNull(centerPanel)
             val filter = requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java))
             val fileOnly = requireNotNull(UIUtil.findComponentOfType(panel, JBCheckBox::class.java))
+            val keyword = requireNotNull(UIUtil.findComponentOfType(panel, JTextField::class.java))
             val list = requireNotNull(UIUtil.findComponentOfType(panel, JList::class.java))
             val buttons = UIUtil.findComponentsOfType(panel, JButton::class.java)
             val search = buttons.single { it.text == "조회" }
@@ -141,20 +143,22 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
 
             filter.selectedIndex = draftFilter
             fileOnly.isSelected = false
+            keyword.text = "  세션  "
             search.doClick()
 
-            val draftQuery = RecordListQuery(context.repositoryKey, RecordListScope.MY_DRAFTS, status = "DRAFT")
+            val draftQuery = RecordListQuery(context.repositoryKey, RecordListScope.MINE, status = "DRAFT", keyword = "세션")
             assertEquals(draftQuery, requests.last())
             assertEquals(originalFilter, filter.selectedItem)
             assertTrue(fileOnly.isSelected)
+            assertEquals("공개", keyword.text)
             assertEquals(originalLabel, pageLabel.text)
             assertSame(record, list.selectedValue)
-            assertTrue(previous.isEnabled)
+            assertFalse(previous.isEnabled)
             assertTrue(next.isEnabled)
             assertTrue(open.isEnabled)
 
             next.doClick()
-            assertEquals(query.copy(page = 3), requests.last())
+            assertEquals(query.copy(cursor = "page-2"), requests.last())
             assertEquals(originalLabel, pageLabel.text)
             assertSame(record, list.selectedValue)
 
@@ -164,14 +168,16 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             assertSame(record, list.selectedValue)
             assertTrue(open.isEnabled)
 
-            response = ChangeRecordPage(emptyList(), 0, 20, false)
+            response = ChangeRecordPage(emptyList(), null)
             filter.selectedIndex = draftFilter
             fileOnly.isSelected = false
-            search.doClick()
+            keyword.text = "  세션  "
+            keyword.postActionEvent()
 
             assertEquals(draftQuery, requests.last())
             assertEquals(draftFilter, filter.selectedIndex)
             assertFalse(fileOnly.isSelected)
+            assertEquals("세션", keyword.text)
             assertEquals(0, list.model.size)
             assertTrue(pageLabel.text.contains("1페이지 · 0건"))
             assertFalse(previous.isEnabled)
@@ -184,15 +190,15 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
 
     fun testRefreshKeepsCurrentQueryAndSelectionByIdUntilRecordLeavesPage() {
         val context = RepositoryFileContext("team/repository", "src/App.kt")
-        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, page = 2)
+        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, keyword = "변경")
         val record = ChangeRecordSummary(
             "record-id", "공개 기록", "PUBLISHED", "a".repeat(40), CreatedByResponse("developer"), "2026-08-30T00:00:00Z",
         )
         val other = record.copy(id = "other-id", title = "다른 기록")
         val updated = record.copy(status = "SUPERSEDED")
-        val initialPage = ChangeRecordPage(listOf(other, record), 2, 20, true)
+        val initialPage = ChangeRecordPage(listOf(other, record), "page-2")
         val requests = mutableListOf<RecordListQuery>()
-        var response = initialPage.copy(items = listOf(updated, other), hasNext = false)
+        var response = initialPage.copy(items = listOf(updated, other), nextCursor = null)
         var centerPanel: JComponent? = null
         val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
             requests.add(requested)
@@ -204,6 +210,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             val panel = requireNotNull(centerPanel)
             val filter = requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java))
             val fileOnly = requireNotNull(UIUtil.findComponentOfType(panel, JBCheckBox::class.java))
+            val keyword = requireNotNull(UIUtil.findComponentOfType(panel, JTextField::class.java))
             val list = requireNotNull(UIUtil.findComponentOfType(panel, JList::class.java))
             val buttons = UIUtil.findComponentsOfType(panel, JButton::class.java)
             val refresh = buttons.single { it.text == "새로고침" }
@@ -212,18 +219,25 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             val open = buttons.single { it.text == "선택 기록 열기" }
             val pageLabel = UIUtil.findComponentsOfType(panel, JLabel::class.java).single { it.text?.contains("페이지") == true }
             val originalFilter = filter.selectedItem
-            list.selectedIndex = 1
+            next.doClick()
+            val currentQuery = query.copy(cursor = "page-2")
+            requests.clear()
+            list.selectedIndex = 0
             filter.selectedIndex = (0 until filter.itemCount).first { filter.getItemAt(it).toString() == "내 비공개 기록 · 초안" }
             fileOnly.isSelected = false
+            keyword.text = "아직 적용하지 않은 검색어"
+
+            response = response.copy(items = listOf(other, updated))
 
             refresh.doClick()
 
-            assertEquals(listOf(query), requests)
+            assertEquals(listOf(currentQuery), requests)
             assertEquals(originalFilter, filter.selectedItem)
             assertTrue(fileOnly.isSelected)
+            assertEquals("변경", keyword.text)
             assertSame(updated, list.selectedValue)
-            assertEquals(0, list.selectedIndex)
-            assertTrue(pageLabel.text.contains("3페이지 · 2건"))
+            assertEquals(1, list.selectedIndex)
+            assertTrue(pageLabel.text.contains("2페이지 · 2건"))
             assertTrue(previous.isEnabled)
             assertFalse(next.isEnabled)
             assertTrue(open.isEnabled)
@@ -238,13 +252,76 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             response = response.copy(items = emptyList())
             refresh.doClick()
 
-            assertEquals(listOf(query, query, query), requests)
+            assertEquals(listOf(currentQuery, currentQuery, currentQuery), requests)
             assertEquals(0, list.model.size)
-            assertTrue(pageLabel.text.contains("3페이지 · 0건"))
+            assertTrue(pageLabel.text.contains("2페이지 · 0건"))
             assertTrue(previous.isEnabled)
             assertFalse(next.isEnabled)
             assertFalse(open.isEnabled)
             assertTrue(refresh.isEnabled)
+        } finally {
+            dialog.close(0)
+        }
+    }
+
+    fun testCursorNavigationRetainsHistoryOnFailureAndResetsForNewSearch() {
+        val context = RepositoryFileContext("team/repository", "src/App.kt")
+        val query = RecordListQuery(context.repositoryKey, path = context.relativePath, keyword = "로그인")
+        val initialPage = ChangeRecordPage(emptyList(), "page-2")
+        val requests = mutableListOf<RecordListQuery>()
+        var response: ChangeRecordPage? = initialPage.copy(nextCursor = "page-3")
+        var centerPanel: JComponent? = null
+        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
+            requests.add(requested)
+            response
+        }) {
+            override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+        }
+        try {
+            val panel = requireNotNull(centerPanel)
+            val filter = requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java))
+            val keyword = requireNotNull(UIUtil.findComponentOfType(panel, JTextField::class.java))
+            val buttons = UIUtil.findComponentsOfType(panel, JButton::class.java)
+            val previous = buttons.single { it.text == "이전 페이지" }
+            val next = buttons.single { it.text == "다음 페이지" }
+            val search = buttons.single { it.text == "조회" }
+            val pageLabel = UIUtil.findComponentsOfType(panel, JLabel::class.java).single { it.text?.contains("페이지") == true }
+
+            next.doClick()
+            assertEquals(query.copy(cursor = "page-2"), requests.last())
+            assertTrue(pageLabel.text.contains("2페이지"))
+
+            response = null
+            next.doClick()
+            assertEquals(query.copy(cursor = "page-3"), requests.last())
+            previous.doClick()
+            assertEquals(query, requests.last())
+            assertTrue(pageLabel.text.contains("2페이지"))
+            assertTrue(previous.isEnabled)
+
+            response = initialPage.copy(nextCursor = "new-page-2")
+            previous.doClick()
+            assertEquals(query, requests.last())
+            assertTrue(pageLabel.text.contains("1페이지"))
+            assertFalse(previous.isEnabled)
+            next.doClick()
+            assertEquals(query.copy(cursor = "new-page-2"), requests.last())
+            assertTrue(pageLabel.text.contains("2페이지"))
+
+            filter.selectedIndex = (0 until filter.itemCount).first { filter.getItemAt(it).toString() == "내 비공개 기록 · 폐기" }
+            keyword.text = "  폐기 사유  "
+            response = ChangeRecordPage(emptyList(), null)
+            search.doClick()
+            assertEquals(RecordListQuery(context.repositoryKey, RecordListScope.MINE, context.relativePath,
+                "DISCARDED", keyword = "폐기 사유"), requests.last())
+            assertTrue(pageLabel.text.contains("1페이지"))
+            assertFalse(previous.isEnabled)
+            assertFalse(next.isEnabled)
+
+            keyword.text = "   "
+            keyword.postActionEvent()
+            assertNull(requests.last().keyword)
+            assertEquals("", keyword.text)
         } finally {
             dialog.close(0)
         }
