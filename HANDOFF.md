@@ -798,3 +798,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `ee8b7e6`, 검증 대상 코드는 `27ef0d4`다. 공통 생성·수정 서비스가 경로를 정규화한 뒤 `relatedPath`의 반대쪽 코드 근거를 확인한다. `./`·중복 `/`·끝 `/` 표기 차이로 정상 연결이 거부되던 문제를 수정했다. 연결 대상 누락·같은 side 연결은 계속 거부한다.
 - 수정 전 신규 테스트 1개 실패로 재현했다. 생성·수정 후 DB 경로, 표기가 다른 재요청의 기존 기록 재사용, 잘못된 수정 시 원본 보존을 확인했다. `./gradlew focusedTest --tests '*ChangeRecordFacadeIntegrationTest' --tests '*RecordEvidenceIntegrationTest' --tests '*DraftManagementIntegrationTest'`: 18개 통과. `./gradlew test bootJar`: 서버 235개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:36 KST이며 로그는 `/tmp/intent-trace-related-path-before.log`, `/tmp/intent-trace-related-path-focused.log`, `/tmp/intent-trace-related-path-server.log`다. 실행 파일은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB 구조·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 연결 점검의 진단 설명 표시
+
+- 시작 리비전은 `1c0e7b6`, 검증 대상 코드는 `ec00793`이다. `check`가 항목 이름·상태와 서버 진단의 `message`를 함께 출력한다. 실패 사유와 설정 안내를 한 번에 확인하며 실패 항목이 있어도 나머지 진단을 표시한다. 종료 코드 1과 HTTP 오류 원문 폐기 동작은 유지한다.
+- 수정 전 통합 테스트 1개 실패로 설명 누락을 재현했다. `npm test --prefix clients/zed`: Node 15개·Python 실행기 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 5개 통과, 실패·오류·건너뜀 0개다. 코드 확인 불가 사유 3종, 성공 설명·후속 설정 안내와 토큰 미출력을 확인했다. 결과 시각은 2026-09-12 21:00 KST이며 로그는 `/tmp/intent-trace-zed-diagnostic-before.log`, `/tmp/intent-trace-zed-diagnostic-node.log`, `/tmp/intent-trace-zed-diagnostic-focused.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 생성했고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-diagnostic-package.log`다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IntelliJ·의존성·배포 설정은 변경하지 않아 전체 서버·DB·IDE 검증과 JAR 빌드는 반복하지 않았다. 실제 사용자 설정·외부 게시·운영 배포는 변경하지 않았고 기존 미추적 PNG는 보존했다.
