@@ -743,3 +743,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `19d631b`, 검증 대상 코드는 `f12af2a`다. 이슈·PR·CI 조회의 GitHub 403은 조회 거부(403), 404·410은 자료 없음·열람 불가(404)로 전달한다. 브라우저는 주소·App 권한을 확인하도록 안내하고 재조회 버튼을 표시하지 않는다. 호출 제한에 해당하는 403은 기존 공통 처리에서 429·대기 시간으로 전달한다. 일시 장애의 502·재조회와 MCP의 원인별 안내를 유지한다.
 - `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest'`: 관련 테스트 10개 통과. `./gradlew test bootJar`: 서버 228개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 표준 MCP SDK로 실제 서버의 오류 안내를 확인했다. 전체 결과 시각은 2026-09-12 18:52 KST이며 로그는 `/tmp/intent-trace-context-errors-focused.log`, `/tmp/intent-trace-context-errors-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 자료 조회·게시와 운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 검증 수집 도구의 비밀값 제거
+
+- 시작 리비전은 `9e6b7c6`, 검증 대상 코드는 `cbb75b9`다. `run-verification.py`의 이스케이프된 따옴표·독립 JWT·대입된 PEM 키 처리 누락을 수정했다. 인자별 정제 후 표시용 명령을 만들고 분리된 비밀값 옵션도 제거한다. 실제 실행 인자와 출력 해시는 유지한다. 기존 서버 정제 테스트를 Python 도구에도 적용하고 실제 명령의 결과 JSON을 확인했다.
+- 수정 전 정제 테스트 3개 실패로 재현했다. 수정 후 관련 `focusedTest` 13개와 `./gradlew test`의 서버 229개·ArchUnit 4개가 통과했으며 실패·오류·건너뜀은 0개다. 전체 결과 시각은 2026-09-12 19:02 KST다. 로그는 `/tmp/intent-trace-runner-redaction-before.log`, `/tmp/intent-trace-runner-redaction-focused.log`, `/tmp/intent-trace-runner-redaction-server.log`다. `scripts/validate-plugin.sh`의 로컬 구성 검사도 통과했다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IDE·의존성·배포 설정은 변경하지 않아 JAR·IDE 패키지 재빌드와 별도 PostgreSQL 검증을 생략했다. 실제 비밀값은 사용하지 않았고 기존 미추적 PNG는 보존했다.
