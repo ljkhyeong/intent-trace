@@ -7,7 +7,7 @@ plugins {
 
 group = "io.intenttrace"
 version = "0.12.3-SNAPSHOT"
-description = "Intent-aware change provenance for AI-assisted development"
+description = "AI 코드의 변경 이유와 코드 근거·검증 결과를 기록하고 공유하는 서비스"
 
 java {
 	toolchain {

@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>io.intenttrace.lineintent</id>
     <name>IntentTrace</name>
-    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace contributors</vendor>
+    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace 기여자</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
