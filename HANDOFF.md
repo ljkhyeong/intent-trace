@@ -724,3 +724,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `292dc7b`, 코드 검증 대상은 `847bdea`다. 현재 줄 결과 창에 웹 줄 이동·이름 변경 조회를 연결했다. 조회 당시 서버·커밋·파일·줄로 주소를 만들고 세션 토큰을 전달하지 않는다. 결과가 없을 때도 같은 창에서 파일 이력과 웹 조회를 선택한다. 폐기 상태의 표시도 `폐기`로 맞췄다.
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginStructure`: 테스트 52개, 설치 ZIP과 구조 검사 통과. 결과 시각은 2026-09-12 18:21 KST이며 로그는 `/tmp/intent-trace-line-history-intellij.log`다. 빈 결과의 버튼 상태, 명시적 클릭 후 이동, 전체 커밋·특수문자 경로의 URL 전달을 확인했다.
 - 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다. 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·Zed·배포 설정은 변경하지 않아 기존 검증을 재사용한다. 실제 IDE 화면·브라우저 로그인 연결은 수동 확인하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 웹 파일·줄과 PR 조회 조건 유지
+
+- 시작 리비전은 `44e9d49`, 코드 검증 대상은 `8088857`이다. 파일·줄 조회와 PR 기록에서 상세·원본·비교·코드 확인·변경 이력을 거쳐도 원래 조건과 커서로 복귀한다. 실패 기록 재조회 ID도 유지한다. 복귀 화면과 인자는 화면별로 제한하고 별도 탐색 상태는 저장하지 않는다.
+- 브라우저 관련 `focusedTest` 17개, `./gradlew test bootJar`의 서버 226개와 ArchUnit 4개 통과. 실패·오류·건너뜀은 0개이며 전체 결과 시각은 2026-09-12 18:29 KST다. 로그는 `/tmp/intent-trace-browser-return-focused.log`와 `/tmp/intent-trace-browser-return-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. DB·의존성·클라이언트·배포 설정은 변경하지 않았다. IntelliJ 52개와 설치 ZIP 검증은 직전 결과를 재사용한다. 실제 GitHub 로그인·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
