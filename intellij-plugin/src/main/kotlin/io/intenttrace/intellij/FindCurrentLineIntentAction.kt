@@ -8,7 +8,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.Messages
-import java.net.URI
 
 class FindCurrentLineIntentAction : DumbAwareAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -32,21 +31,20 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
 
         object : Task.Backgroundable(project, "IntentTrace 변경 의도 조회", false) {
             private lateinit var records: List<ChangeIntentRecord>
-            private lateinit var webHistoryUri: URI
+            private lateinit var server: IntentTraceServer
 
             override fun run(indicator: ProgressIndicator) {
-                val server = IntentTraceServer.current()
+                server = IntentTraceServer.current()
                 val token = IntentTraceCredentialStore().load(server)
                     ?: throw IntentTraceUsageException(
                         "IntentTrace 세션이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.",
                     )
                 records = IntentTraceApiClient().lookup(server, token, lookup)
-                webHistoryUri = server.webHistoryUri(lookup)
             }
 
             override fun onSuccess() {
                 if (project.isDisposed) return
-                IntentTraceResultDialog(project, lookup, records, webHistoryUri).show()
+                IntentTraceResultDialog(project, lookup, records, server).show()
             }
 
             override fun onThrowable(error: Throwable) {

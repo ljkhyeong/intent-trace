@@ -28,11 +28,12 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
         val replacement = original.copy(id = "record-2", status = "PUBLISHED", supersededBy = null)
         val openedRecords = mutableListOf<String>()
         val openedHistories = mutableListOf<RepositoryFileContext>()
-        val historyUri = IntentTraceServer.parse("https://trace.example.com").webHistoryUri(lookup)
+        val server = IntentTraceServer.parse("https://trace.example.com")
+        val historyUri = server.webHistoryUri(lookup)
         val openedWebPages = mutableListOf<URI>()
         var centerPanel: JComponent? = null
         val dialog = object : IntentTraceResultDialog(
-            project, lookup, listOf(original, replacement), historyUri,
+            project, lookup, listOf(original, replacement), server,
             { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) },
         ) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
@@ -74,12 +75,13 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
 
     fun testEmptyResultKeepsBothHistoryOptionsAvailable() {
         val lookup = LineLookup("team/repository", "b".repeat(40), "src/NewName.kt", 25)
-        val historyUri = IntentTraceServer.parse("https://original.example.com").webHistoryUri(lookup)
+        val server = IntentTraceServer.parse("https://original.example.com")
+        val historyUri = server.webHistoryUri(lookup)
         val openedRecords = mutableListOf<String>()
         val openedHistories = mutableListOf<RepositoryFileContext>()
         val openedWebPages = mutableListOf<URI>()
         var centerPanel: JComponent? = null
-        val dialog = object : IntentTraceResultDialog(project, lookup, emptyList(), historyUri,
+        val dialog = object : IntentTraceResultDialog(project, lookup, emptyList(), server,
             { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) }) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
         }

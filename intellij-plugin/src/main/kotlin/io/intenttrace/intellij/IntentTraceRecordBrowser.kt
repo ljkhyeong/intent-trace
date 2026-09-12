@@ -28,28 +28,30 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 internal object IntentTraceRecordBrowser {
-    fun open(project: Project, context: RepositoryFileContext, fileOnly: Boolean = false) {
+    fun open(project: Project, context: RepositoryFileContext, fileOnly: Boolean = false, server: IntentTraceServer? = null) {
         val query = RecordListQuery(context.repositoryKey, path = context.relativePath.takeIf { fileOnly })
-        val page = load(project) { server, token -> IntentTraceApiClient().list(server, token, query) } ?: return
-        RecordBrowserDialog(project, context, query, page).show()
-    }
-
-    fun showRecord(project: Project, id: String) {
-        // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
-        val (record, webRecordUri) = load(project) { server, token ->
-            IntentTraceApiClient().record(server, token, id) to server.webRecordUri(id)
+        val (source, page) = load(project, server) { source, token ->
+            source to IntentTraceApiClient().list(source, token, query)
         } ?: return
-        RecordHistoryDialog(project, record, webRecordUri).show()
+        RecordBrowserDialog(project, context, query, page, source).show()
     }
 
-    fun <T> load(project: Project, request: (IntentTraceServer, String) -> T): T? {
+    fun showRecord(project: Project, id: String, server: IntentTraceServer) {
+        // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
+        val record = load(project, server) { source, token ->
+            IntentTraceApiClient().record(source, token, id)
+        } ?: return
+        RecordHistoryDialog(project, record, server).show()
+    }
+
+    fun <T> load(project: Project, server: IntentTraceServer? = null, request: (IntentTraceServer, String) -> T): T? {
         var result: T? = null
         ProgressManager.getInstance().run(object : Task.Modal(project, "IntentTrace 기록 조회", false) {
             override fun run(indicator: ProgressIndicator) {
-                val server = IntentTraceServer.current()
-                val token = IntentTraceCredentialStore().load(server)
+                val source = server ?: IntentTraceServer.current()
+                val token = IntentTraceCredentialStore().load(source)
                     ?: throw IntentTraceUsageException("Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.")
-                result = request(server, token)
+                result = request(source, token)
             }
 
             override fun onThrowable(error: Throwable) {
@@ -67,8 +69,9 @@ internal open class RecordBrowserDialog(
     private val context: RepositoryFileContext,
     private var query: RecordListQuery,
     private var page: ChangeRecordPage,
+    private val server: IntentTraceServer,
     private val loadPage: (RecordListQuery) -> ChangeRecordPage? = { nextQuery ->
-        IntentTraceRecordBrowser.load(project) { server, token ->
+        IntentTraceRecordBrowser.load(project, server) { server, token ->
             IntentTraceApiClient().list(server, token, nextQuery)
         }
     },
@@ -103,7 +106,7 @@ internal open class RecordBrowserDialog(
             }
         }
         list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
-        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id) } }
+        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id, server) } }
         previous.addActionListener {
             previousQueries.lastOrNull()?.let { reload(it, previousQueries.dropLast(1)) }
         }
@@ -200,10 +203,12 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
 internal open class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
-    private val webRecordUri: URI,
-    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
+    server: IntentTraceServer,
+    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
+    private val webRecordUri = server.webRecordUri(record.id)
+
     init {
         title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
         init()

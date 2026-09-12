@@ -1,9 +1,13 @@
 package io.intenttrace.intellij
 
 import com.intellij.testFramework.LightPlatformTestCase
+import com.intellij.openapi.components.service
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.UIUtil
+import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
 import java.net.URI
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
@@ -13,7 +17,59 @@ import javax.swing.JTextField
 
 class RecordBrowserDialogTest : LightPlatformTestCase() {
     private val recordId = "11111111-1111-4111-8111-111111111111"
-    private val webRecordUri = IntentTraceServer.parse("https://intenttrace.example.test").webRecordUri(recordId)
+    private val server = IntentTraceServer.parse("https://intenttrace.example.test")
+
+    fun testPaginationKeepsOriginalServerAndReadsItsLatestSession() {
+        val requests = CopyOnWriteArrayList<Pair<URI, String>>()
+        val original = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val other = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val servers = listOf(original, other)
+        val endpoints = servers.map { IntentTraceServer.parse("http://127.0.0.1:${it.address.port}") }
+        val settings = service<IntentTraceSettings>()
+        val previousUrl = settings.serverUrl
+        val credentials = IntentTraceCredentialStore()
+        val previousTokens = endpoints.map(credentials::loadStored)
+        var dialog: RecordBrowserDialog? = null
+        try {
+            servers.zip(endpoints).forEach { (http, endpoint) ->
+                http.createContext("/api/v1/change-records") { exchange ->
+                    requests.add(endpoint.baseUri.resolve(exchange.requestURI) to exchange.requestHeaders.getFirst("Authorization"))
+                    val response = """{"items":[],"nextCursor":null}""".toByteArray()
+                    exchange.sendResponseHeaders(200, response.size.toLong())
+                    exchange.responseBody.use { it.write(response) }
+                }
+                http.start()
+            }
+            val token = "its_${"A".repeat(43)}"
+            val renewedToken = "its_${"B".repeat(43)}"
+            credentials.save(endpoints[0], token)
+            credentials.save(endpoints[1], "its_${"C".repeat(43)}")
+            settings.serverUrl = endpoints[0].baseUri.toString()
+            val context = RepositoryFileContext("team/repository", "src/App.kt")
+            val query = RecordListQuery(context.repositoryKey)
+            var centerPanel: JComponent? = null
+            dialog = object : RecordBrowserDialog(project, context, query, ChangeRecordPage(emptyList(), "original-cursor"), endpoints[0]) {
+                override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+            }
+            settings.serverUrl = endpoints[1].baseUri.toString()
+            val buttons = UIUtil.findComponentsOfType(requireNotNull(centerPanel), JButton::class.java)
+            assertEmpty(requests)
+
+            buttons.single { it.text == "다음 페이지" }.doClick()
+            credentials.save(endpoints[0], renewedToken)
+            buttons.single { it.text == "새로고침" }.doClick()
+
+            val expectedUri = endpoints[0].listUri(query.copy(cursor = "original-cursor"))
+            assertEquals(listOf(expectedUri to "Bearer $token", expectedUri to "Bearer $renewedToken"), requests.toList())
+        } finally {
+            dialog?.close(0)
+            settings.serverUrl = previousUrl
+            endpoints.zip(previousTokens).forEach { (server, token) ->
+                if (token == null) credentials.clear(server) else credentials.save(server, token)
+            }
+            servers.forEach { it.stop(0) }
+        }
+    }
 
     fun testOriginalAndReplacementRecordsOpenIndependentlyOnRequest() {
         val draft = ChangeIntentRecord(
@@ -26,7 +82,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             draft.copy(derivedFromRecordId = null))) {
             val opened = mutableListOf<String>()
             var centerPanel: JComponent? = null
-            val dialog = object : RecordHistoryDialog(project, record, webRecordUri, { opened.add(it) }) {
+            val dialog = object : RecordHistoryDialog(project, record, server, { opened.add(it) }) {
                 override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
             }
             try {
@@ -58,7 +114,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         )
         for (candidate in listOf(record, record.copy(baseRevision = null, targetRevision = "a".repeat(40)))) {
             var centerPanel: JComponent? = null
-            val dialog = object : RecordHistoryDialog(project, candidate, webRecordUri) {
+            val dialog = object : RecordHistoryDialog(project, candidate, server) {
                 override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
             }
             try {
@@ -90,7 +146,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         )
         val opened = mutableListOf<URI>()
         var centerPanel: JComponent? = null
-        val dialog = object : RecordHistoryDialog(project, draft, webRecordUri, openBrowser = { opened.add(it) }) {
+        val dialog = object : RecordHistoryDialog(project, draft, server, openBrowser = { opened.add(it) }) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
         }
         try {
@@ -116,7 +172,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         val requests = mutableListOf<RecordListQuery>()
         var response: ChangeRecordPage? = null
         var centerPanel: JComponent? = null
-        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
+        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, server, { requested ->
             requests.add(requested)
             response
         }) {
@@ -200,7 +256,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         val requests = mutableListOf<RecordListQuery>()
         var response = initialPage.copy(items = listOf(updated, other), nextCursor = null)
         var centerPanel: JComponent? = null
-        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
+        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, server, { requested ->
             requests.add(requested)
             response
         }) {
@@ -271,7 +327,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
         val requests = mutableListOf<RecordListQuery>()
         var response: ChangeRecordPage? = initialPage.copy(nextCursor = "page-3")
         var centerPanel: JComponent? = null
-        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, { requested ->
+        val dialog = object : RecordBrowserDialog(project, context, query, initialPage, server, { requested ->
             requests.add(requested)
             response
         }) {

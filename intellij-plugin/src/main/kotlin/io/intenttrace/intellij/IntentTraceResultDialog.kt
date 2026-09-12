@@ -22,15 +22,16 @@ internal open class IntentTraceResultDialog(
     project: Project,
     lookup: LineLookup,
     private val records: List<ChangeIntentRecord>,
-    private val webHistoryUri: URI,
-    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it) },
+    server: IntentTraceServer,
+    private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openHistory: (RepositoryFileContext) -> Unit = {
-        IntentTraceRecordBrowser.open(project, it, fileOnly = true)
+        IntentTraceRecordBrowser.open(project, it, fileOnly = true, server = server)
     },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
     private val text = IntentTraceTextRenderer.render(lookup, records)
     private val context = RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)
+    private val webHistoryUri = server.webHistoryUri(lookup)
 
     init {
         title = "IntentTrace 변경 의도"
