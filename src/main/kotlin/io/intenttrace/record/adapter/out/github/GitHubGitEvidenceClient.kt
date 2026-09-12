@@ -45,7 +45,7 @@ class GitHubGitEvidenceClient(
             }
             parseResponseRevision(it.sha)
         }
-        return GitEvidenceSnapshot(ref, entries)
+        return GitEvidenceSnapshot(entries)
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {

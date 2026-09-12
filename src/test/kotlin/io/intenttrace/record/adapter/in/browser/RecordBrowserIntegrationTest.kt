@@ -586,7 +586,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 if (revision == "d".repeat(40)) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
                 if (revision == "e".repeat(40)) throw GitHubRateLimitException(12)
                 if (revision == "f".repeat(40)) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
-                return evidenceSnapshot.copy(revision = revision)
+                return evidenceSnapshot
             }
             override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?) = evidenceBytes
             override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?) = true
@@ -628,6 +628,6 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     companion object {
         private val digest = "a".repeat(64)
         private val evidenceBytes = "first\nsecond\n".toByteArray()
-        private val evidenceSnapshot = GitEvidenceSnapshot("b".repeat(40), mapOf("src/App.kt" to GitTreeEntry("src/App.kt", "100644", "blob", "c".repeat(40))))
+        private val evidenceSnapshot = GitEvidenceSnapshot(mapOf("src/App.kt" to GitTreeEntry("src/App.kt", "100644", "blob", "c".repeat(40))))
     }
 }

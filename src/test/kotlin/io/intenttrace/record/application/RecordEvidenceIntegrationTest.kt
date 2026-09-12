@@ -214,7 +214,7 @@ class RecordEvidenceIntegrationTest(
             val entries = mutableListOf(GitTreeEntry(path, "100644", "blob", sha))
             if (revision == duplicateBlobRevision) entries += GitTreeEntry("copy.txt", "100644", "blob", sha)
             if (revision == nextRevision) entries += GitTreeEntry("unrelated.txt", "100644", "blob", "a".repeat(40))
-            return GitEvidenceSnapshot(revision, entries.associateBy { it.path })
+            return GitEvidenceSnapshot(entries.associateBy { it.path })
         }
         override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
             budget?.beforeRemoteCall()

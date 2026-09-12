@@ -64,7 +64,7 @@ class GitEvidenceScriptTest {
             val (mode, type, sha) = header.split(' ')
             GitTreeEntry(path, mode, type, sha)
         }
-        assertEquals(runEvidence("snapshot", revision).output.trim(), GitEvidenceDigest.snapshot(entries))
+        assertEquals(runEvidence("snapshot", revision).output.trim(), GitEvidenceSnapshot(entries.associateBy { it.path }).digest)
         val bytes = Files.readAllBytes(repository.resolve("한글 파일.txt"))
         for (line in 1..2) {
             assertEquals(runEvidence("anchor", revision, "한글 파일.txt", line.toString(), line.toString()).output.trim(),

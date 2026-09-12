@@ -214,7 +214,7 @@ class ZedBridgeIntegrationTest(
             listOf("--pr", "12", "--revision", explicit) to explicit,
             listOf("--revision", head) to head,
         )) {
-            Mockito.`when`(evidence.snapshot(repository, revision)).thenReturn(GitEvidenceSnapshot(revision, emptyMap()))
+            Mockito.`when`(evidence.snapshot(repository, revision)).thenReturn(GitEvidenceSnapshot(emptyMap()))
             for (explicitAddress in listOf(true, false)) {
                 Mockito.clearInvocations(evidence, pullRequests)
                 val mismatch = "--pr" in options && revision != head
