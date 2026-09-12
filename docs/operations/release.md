@@ -28,7 +28,7 @@ IntentTrace는 서버 실행 JAR과 IntelliJ 설치 ZIP을 같은 버전과 Git 
 
 ## 2. 로컬 검증
 
-Java 21, Node.js 22 이상, Python 3을 준비한다. 서버 테스트가 Zed 연결 도구를 사용하므로 새 체크아웃에서는 먼저 의존성을 설치한다. 이후에는 의존성 파일이 바뀌었거나 설치 폴더가 없을 때만 다시 설치한다.
+Java 21, Node.js 22 이상, Python 3.11 이상을 준비한다. 서버 테스트가 Zed 연결 도구를 사용하므로 새 체크아웃에서는 먼저 의존성을 설치한다. 이후에는 의존성 파일이 바뀌었거나 설치 폴더가 없을 때만 다시 설치한다.
 
 ```bash
 npm ci --prefix clients/zed --ignore-scripts

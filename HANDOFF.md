@@ -22,6 +22,7 @@
 | IntelliJ | `69eda59` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-intellij-기록-응답-모델-중복-제거). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
+| 검증·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
 
 [남은 작업](#다음-작업-후보)과 [현재 제한](#현재-제한)을 먼저 확인한다. 아래 날짜별 결과는 당시 검증이며 현재 코드의 검증으로 간주하지 않는다.
 
@@ -836,3 +837,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `9287a7a`, 구현 커밋은 `69eda59`다. 기록 상세의 중복 DTO와 필드 복사를 제거하고, 기존 목록 조회처럼 JSON 응답을 화면 모델로 직접 읽도록 했다. 작성자는 공통 `CreatedByResponse`를 사용한다. 제품 코드가 35줄 줄었으며 응답 필드·선택값 기본값·형식 오류 안내는 유지했다.
 - 지역 검사 후 `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`가 성공했다. 기존 테스트 53개가 모두 통과했고 생략된 선택 필드, 잘못된 응답, 기록 조회·코드 이동·화면 표시를 확인했다. 결과 시각은 2026-09-12 23:04 KST, 로그는 `/tmp/intent-trace-ide-model-{files,test}.log`다. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이며 실제 IDE에는 설치하지 않았다.
 - 시작 커밋 기준 최종 diff 검사를 적용한다. 서버·DB·Zed·의존성·설정은 변경하지 않아 해당 테스트·빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 배포는 하지 않았다.
+
+## 2026-09-12 보조 도구의 해시 계산과 환경 상속 단순화
+
+- 시작 리비전은 `01cc4ba`, 구현 커밋은 `e6e3e5e`다. 릴리스 체크섬의 직접 읽기 루프를 `hashlib.file_digest`로 바꾸고, 검증 명령의 불필요한 환경변수 복사와 `os` import를 제거했다. 실행 코드는 3줄 줄었다. 릴리스 문서는 개발 지침과 같은 Python 3.11 이상을 명시하며 CI는 기존 3.13을 사용한다.
+- `./gradlew focusedTest --tests '*GitEvidenceScriptTest' --tests '*SensitiveTextRedactorTest'` 14개와 `python3 scripts/test_validate_release_version.py` 2개가 통과했다. 기존 릴리스 테스트는 JAR·ZIP 내용과 체크섬 전체를 비교하도록 보완했다. 별도 임시 저장소에서 부모 환경 상속·stdout/stderr 해시·종료 코드 7 유지·원문 미노출도 확인했다. 로컬 Python은 3.14.7, 결과 시각은 2026-09-12 23:12 KST다. 로그는 `/tmp/intent-trace-python-stdlib-{files,focused,release,environment}.log`다.
+- 목록·변경 이력·게시·외부 응답 모델도 점검했으며 추가로 제거할 뚜렷한 중복은 찾지 못했다. 서버·DB·IDE·Zed 제품 코드와 의존성은 바뀌지 않아 전체 테스트·패키지 빌드는 반복하지 않았다. 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용하며 기존 미추적 PNG를 보존했다. 원격 푸시·릴리스 발행·운영 배포는 하지 않았다.
