@@ -127,6 +127,10 @@ curl http://localhost:8080/actuator/health
 
 PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub access·refresh token과 `its_` session은 계속 애플리케이션 메모리에만 있으므로 app container를 다시 만들면 사용자가 GitHub 승인을 다시 해야 합니다.
 
+홈서버 k3s는 [배포 준비 안내](docs/operations/k3s-deployment.md)를 따릅니다. 앱 1개·PostgreSQL PVC·Traefik Ingress와 환경변수 예시를 제공합니다. 이미지 빌드·DNS·공유기·TLS·GitHub App 등록·클러스터 적용은 운영자가 수행합니다.
+
+`POST /webhooks/github`는 GitHub 승인 취소 이벤트를 받아 해당 사용자의 세션을 정리합니다. `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 GitHub App의 Webhook URL·Secret을 설정해야 하며 비밀값을 비워 두면 수신을 거부합니다.
+
 ## 인증과 GitHub 권한
 
 App 등록·환경 변수·로그인은 [빠른 시작](#빠른-시작)을 따릅니다. REST·MCP에는 로그인 후 발급받은 `its_` 세션 토큰을 전달합니다.
@@ -399,12 +403,12 @@ python3 scripts/test_feedback.py
 
 - GitHub App 등록·저장소 설치와 private key 교체는 운영자가 해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 승인 폐기 webhook은 제공하지 않습니다. 본인 연결 조회·폐기는 웹·REST·MCP에서 사용할 수 있습니다.
-- GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 캐시와 webhook 무효화는 없습니다.
+- GitHub 웹훅은 사용자 승인 취소만 처리합니다. PR·CI 이벤트의 자동 기록 생성·게시는 제공하지 않습니다.
+- GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 권한 캐시는 없습니다.
 - V3 이전 초안의 작성자는 `legacy:<login>`으로 남으며 현재 GitHub 계정과 자동으로 연결되지 않습니다.
 - Fork에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
 - IntelliJ 플러그인은 현재 줄 조회와 기록함·파일 이력을 지원하지만 로그인 토큰 자동 가져오기, 기록 생성·수정과 파일 이름 변경 추적은 지원하지 않습니다.
-- 팀 배포는 단일 인스턴스 Docker Compose만 지원하며 무중단 롤링 배포와 서버 간 세션 공유는 제공하지 않습니다.
+- Compose와 k3s 배포는 앱 1개만 지원하며 무중단 롤링 배포와 서버 간 세션 공유는 제공하지 않습니다.
 - 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 이력 수집 이전 작업과 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.
 - 코드 확인은 일부 트리·2 MiB 초과 blob을 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
 - 이전 기록 탐색은 동일 blob의 고유한 이름 변경과 원본·현재 파일에서 한 곳에만 있는 전체 줄 조각을 연결합니다. 수정과 이름 변경이 함께 일어나거나 조각이 중복되면 자동으로 연결하지 않습니다. 후보를 페이지로 살피므로 결과가 비어 있어도 다음 커서를 확인해야 합니다.

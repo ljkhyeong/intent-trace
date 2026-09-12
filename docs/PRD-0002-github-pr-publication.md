@@ -53,7 +53,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 ## 제외
 
 - GitHub App 등록·설치 화면과 private key 회전 자동화
-- GitHub webhook 처리
+- PR 자동 게시를 위한 GitHub webhook 처리
 - Fork PR Check Run
 - line annotation 자동 생성
 - 실제 외부 GitHub 저장소를 사용하는 자동 테스트

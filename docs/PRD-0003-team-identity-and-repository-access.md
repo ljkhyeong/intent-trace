@@ -63,12 +63,13 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - access token 만료 전 갱신과 동시 요청이 refresh token 한 번만 사용한다.
 - callback 성공 응답과 실패 응답은 `no-store`와 `no-referrer` 보안 header를 반환한다.
 - 현재 session 폐기 뒤 같은 `its_` token으로 보호 API를 호출하면 `401`을 반환한다.
+- GitHub 승인 취소 웹훅은 HMAC-SHA256 서명을 확인한 뒤 숫자 사용자 ID에 해당하는 브라우저·도구 세션을 폐기한다. 다른 사용자 세션과 저장된 변경 기록은 유지한다.
 
 ## 제외
 
 - GitHub token·세션의 영구 저장과 암호화 key 회전
 - 서버 재시작 뒤 세션 복구와 여러 인스턴스 간 공유
-- GitHub 승인 폐기 webhook과 관리자 세션 UI
+- 관리자 세션 UI
 - device flow와 MCP OAuth discovery
 - 권한 캐시와 webhook 기반 즉시 무효화
 - 조직 SSO·팀별 추가 정책과 관리자 소유권 강제 이전

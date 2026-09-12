@@ -647,3 +647,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 50개, 실패·오류·건너뜀 0개다. 저장 세션이 없을 때 요청 0건, 204·401 응답 후 로컬 삭제, 다른 서버·환경 변수 세션 유지, 429·503 응답 시 저장 세션 보존을 로컬 HTTP·메모리 저장소로 검증했다.
 - 결과 시각은 2026-09-12 12:50 KST, 로그는 `/tmp/intent-trace-session-disconnect.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 파일별 지역 검사와 `feedback.py finish --base 86eb0c9`의 전체 diff 검토를 적용했다. 서버·API·DB·Zed·의존성은 변경하지 않아 관련 검증을 반복하지 않았다. 실제 IDE 화면·플러그인 설치·실제 세션 폐기·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 GitHub 웹훅과 홈서버 k3s 준비
+
+- 시작 리비전 `4a835cc`, 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 검증 대상은 웹훅 `0a3ac2a`와 배포 코드 `64c29b1`이다. 기존 GitHub OAuth·이슈·PR·Actions·Checks API를 유지하고 승인 취소 웹훅으로 숫자 사용자 ID의 브라우저·도구 세션을 정리한다. 새 유료 서비스·SDK·DB 스키마는 추가하지 않았다.
+- `./gradlew test bootJar`에서 서버 195개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 13:07 KST, 로그는 `/tmp/intent-trace-webhook-server.log`, JAR은 `build/libs/intent-trace.jar`다. 본문 변조·서명 누락·잘못된 ID·중복 수신·사용자별 폐기와 DB 장애·복구 시 readiness/liveness 분리를 확인했다. 수정 중 발견한 빈 본문 처리와 테스트 빈 교체 충돌은 해결했다.
+- `KUBECONFORM=build/tools/kubeconform/kubeconform bash scripts/validate-k3s.sh`에서 9개 리소스가 Kubernetes 1.35 스키마 검사를 통과했다. kubectl 1.36.1/Kustomize 5.8.1, kubeconform 0.8.0을 사용했고 다운로드 체크섬을 확인했다. 로그는 `/tmp/intent-trace-k3s-validation.log`다. `python3 scripts/validate-compose.py .env.team.example`도 통과했다.
+- `deploy/k3s/.env.secrets`는 Git 제외·권한 0600인 임시 예시다. 실제 자격 증명은 없고 웹훅 secret은 기본적으로 비워 수신을 막는다. 운영자가 바꿀 값과 절차는 [k3s 배포 준비](docs/operations/k3s-deployment.md)에 있다. 앱 1개·Recreate, PostgreSQL PVC, Traefik HTTPS, 상태 확인과 CI 스키마 검증을 준비했다.
+- 파일별 검사와 `feedback.py finish --base 4a835cc`의 전체 diff 검토를 적용했다. Docker 이미지 빌드·실제 k3s 적용·공유기·DNS·TLS·GitHub App 설정·실제 웹훅 전송·원격 CI는 수행하지 않았다. DB 스키마·IntelliJ·Zed 구현은 변경하지 않아 해당 독립 검증을 반복하지 않았다.

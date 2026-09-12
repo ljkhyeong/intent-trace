@@ -24,6 +24,7 @@
 - 갱신 요청이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재로그인을 안내한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
 - token 형식·만료 순서 검증과 만료 시각 계산에서 발생한 예외는 HTTP 어댑터가 OAuth 연동 오류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 연결하지 않는다.
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
+- `POST /webhooks/github`는 GitHub `github_app_authorization`의 `revoked`를 받아 기존 전체 세션 폐기를 호출한다. 전송 원문의 HMAC-SHA256 서명을 먼저 검증하고 `sender.id`로 대상을 정한다. secret 미설정·잘못된 서명·1MiB 초과 본문은 거부하며 `ping`과 다른 이벤트는 상태 변경 없이 응답한다. 원문·서명·전송 이력 저장소를 추가하지 않는다. [설정과 응답](operations/k3s-deployment.md#github-승인-취소-웹훅)을 따른다.
 - `/user` 조회의 일시 장애는 기존처럼 `502`로 구분하고 세션을 유지한다. 앞서 token 갱신에 성공했다면 새 token 쌍을 다음 요청에 사용한다.
 - 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
