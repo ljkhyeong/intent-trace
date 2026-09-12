@@ -616,3 +616,12 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*RecordBrowserIntegrationTest' --tests '*RecordBrowserNavigationTest'` 15개 통과. 이후 복구 응답의 로그인 상태 확인을 보강하고 `./gradlew test` 189개 통과. `python3 scripts/test-summary.py server focused` 기준 각 범위의 실패·오류·건너뜀 0개다.
 - 목록·상세의 특수문자 검색 조건과 기존 세션 유지, 호출 제한 대기 시간·재조회 주소, 연결 종료 실패 후 세션 보존을 확인했다. 로그는 `/tmp/intent-trace-browser-retry-focused.log`, `/tmp/intent-trace-browser-retry-server.log`이며 전체 결과 시각은 2026-09-12 08:44 KST다.
 - REST·MCP 계약·DB·IntelliJ·Zed·의존성은 변경하지 않았다. 실제 브라우저 조작·GitHub 게시·배포는 수행하지 않았다. 변경 문서의 로컬 링크 검사와 `git diff --check`를 통과했다.
+
+## 2026-09-12 파일별 검사와 종료 전 구조 검사
+
+- 시작 리비전 `da5960c`, 미커밋 변경 없음. 코드 검증 대상은 `95bbe17`이다. `scripts/feedback.py`의 `files`·`finish --base`와 Codex `UserPromptSubmit`·`PostToolUse`·`Stop` 훅을 추가했다. 변경 파일의 문법·컴파일 검사, 작업 중 커밋·stage·작업 파일·미추적 파일의 전체 diff, ArchUnit 계층 의존 검사를 연결했다.
+- Controller·MCP의 저장소 직접 참조, domain의 application·인프라 참조, application의 어댑터·저장소 구현체 참조를 검사한다. `architectureTest`는 별도 결과를 보존하며 `test`의 선행 작업으로 실행한다. 실제 위반 fixture로 탐지 여부를 확인했다.
+- `./gradlew architectureTest` 4개, `./gradlew test` 서버 189개 통과. 전체 실행에서 구조 검사는 `UP-TO-DATE`로 재사용했다. 로그는 `/tmp/intent-trace-feedback-architecture.log`, `/tmp/intent-trace-feedback-server.log`이며 결과 시각은 각각 2026-09-12 09:55·10:00 KST다.
+- `python3 scripts/test_feedback.py` 8개, `python3 scripts/test_test_summary.py` 3개 통과. 새 파일 공백·구문 오류, stage와 작업 파일의 불일치, 삭제·이름 변경, 읽기 도구의 실패 검사 반복 방지, 종료 실패의 한 차례 연장, 훅 JSON 입출력을 확인했다. CI에 검증 루프 테스트를 추가했다.
+- 변경한 개발 스킬의 `quick_validate.py`, 플러그인 구조, 문서 로컬 링크 검사를 통과했다. `feedback.py finish --base da5960c`와 전체 diff 검토를 수행했고 이후 문서 변경도 확인했다. 현재 결과와 로그는 `build/feedback/manual/`에 있다.
+- Codex CLI 0.144.5에서 hooks 기능을 확인하고 프로젝트 설정을 등록했다. 자동 실행에는 CLI `/hooks`에서 새 정의의 신뢰 승인이 필요하다. 실제 Codex 훅 자동 호출·원격 CI는 실행하지 않았으며 JSON 모의 이벤트와 동일 수동 명령으로 검증했다. 제품 동작·DB·IntelliJ·Zed 구현은 변경하지 않았다.

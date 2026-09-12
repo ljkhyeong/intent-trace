@@ -36,6 +36,8 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 
 아래에서 영향받는 항목만 실행한다. 수정 중에는 관련 테스트, 코드 수정을 마친 뒤에는 필요한 전체 검증을 한 번 실행한다. 결과 정리·작업 재개는 [로컬 검증 절차](../../docs/development/verification.md)를 따른다. 동작을 바꾸지 않은 문서 수정에는 서버·IDE 테스트가 필요하지 않다.
 
+파일 작성 직후 지역 검사와 종료 전 전체 diff·구조 검사는 루트 AGENTS의 `feedback.py` 절차를 따른다. Codex 훅의 동일 변경 검사 결과는 재사용하고, 문법·구조 검사를 동작 테스트 통과로 보고하지 않는다.
+
 | 변경 대상 | 검증 |
 | --- | --- |
 | 서버 Kotlin·Spring 설정 | 수정 중 `./gradlew focusedTest --tests '*대상테스트명'`, 수정 완료 후 `./gradlew test` |
@@ -46,4 +48,4 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | Compose | `python3 scripts/validate-compose.py .env.team.example`, Caddy 수정 시 운영 문서의 설정 검증 |
 | 릴리스 버전·패키지 | [릴리스 절차](../../docs/operations/release.md)의 해당 검사 |
 
-결과 집계는 `python3 scripts/test-summary.py server focused postgres intellij`에서 실행한 대상만 지정한다. SDK·stub 검증을 실제 IDE 화면 확인이나 GitHub 게시 성공으로 설명하지 않는다. 전체 릴리스는 [README 검증 목록](../../README.md#검증)을 따른다.
+결과 집계는 `python3 scripts/test-summary.py server architecture focused postgres intellij`에서 실행한 대상만 지정한다. SDK·stub 검증을 실제 IDE 화면 확인이나 GitHub 게시 성공으로 설명하지 않는다. 전체 릴리스는 [README 검증 목록](../../README.md#검증)을 따른다.

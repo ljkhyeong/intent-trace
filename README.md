@@ -374,6 +374,8 @@ python3 scripts/zed-with-intent-trace.py .
 
 로컬 수정·실패 재현·작업 재개는 [로컬 검증 절차](docs/development/verification.md)를 따릅니다. 아래는 릴리스·CI의 전체 검증 목록입니다.
 
+파일 작성 직후에는 `python3 scripts/feedback.py files <파일...>`, 작업 종료 전에는 `python3 scripts/feedback.py finish --base <작업 시작 커밋>`을 실행합니다. 최종 검사에는 작업 중 커밋·stage·작업 파일·새 파일과 서버 계층 의존 규칙을 포함합니다. 출력된 `review.diff` 전체를 검토한 뒤 작업을 마칩니다. Codex 자동 실행은 프로젝트 훅을 불러오고 `/hooks`에서 신뢰 승인한 뒤 적용됩니다.
+
 ```bash
 npm ci --prefix clients/zed --ignore-scripts
 npm test --prefix clients/zed
@@ -386,6 +388,7 @@ python3 scripts/validate-compose.py .env.team.example
 python3 scripts/test_validate_release_version.py
 python3 scripts/test_backup_postgres.py
 python3 scripts/test_test_summary.py
+python3 scripts/test_feedback.py
 ```
 
 기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 PostgreSQL 17에서 Flyway·JDBC와 백업·복구를 확인합니다. 백업 검증은 동시 실행과 중단 시 기존 파일이 보존되는지 확인합니다. Compose 검증은 서비스·네트워크 구성, 외부 포트와 이미지 해시를 확인합니다. GitHub Actions는 PR과 `main` push에서 같은 검증과 Caddy 설정 확인을 실행합니다.
