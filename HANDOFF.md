@@ -834,3 +834,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `1b33a07`, 검증 대상 코드는 `27116da`다. 저장소 권한 조회의 일반 403 응답을 404와 같이 접근 거부로 처리한다. 호출 제한 헤더가 있는 403·429는 공통 처리에서 대기 시간을 전달하며, 401 인증 실패와 5xx 연동 장애는 구분한다. 기존 REST·MCP·브라우저 접근 제어를 사용한다.
 - 수정 전 테스트 2개 실패로 403이 연동 장애로 처리되는 문제를 재현했다. `./gradlew focusedTest --tests '*GitHubUserRestClientTest' --tests '*GitHubHttpPolicyTest' --tests '*TeamChangeRecordServiceTest' --tests '*RecordBrowserIntegrationTest'`: 41개 통과. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:40 KST이며 로그는 `/tmp/intent-trace-permission-denied-before.log`, `/tmp/intent-trace-permission-denied-focused.log`, `/tmp/intent-trace-permission-denied-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 이력 재개·재조회 공개 시각 유지
+
+- 시작 리비전은 `9a25f0f`, 검증 대상 코드는 `489fe0c`다. 중단 커서로 재개하거나 실패 기록 ID로 재조회할 때 기록 요약의 `publishedAt`이 빠지던 부분을 수정했다. 일반 조회와 같은 저장된 공개 시각을 반환한다.
+- 기존 재개·재조회 통합 테스트에서 일반 조회의 기록 요약과 비교해 수정 전 2개 실패를 재현했다. `./gradlew focusedTest --tests '*RecordEvidenceIntegrationTest' --tests '*RecordBrowserIntegrationTest'`: 17개 통과. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 21:55 KST이며 로그는 `/tmp/intent-trace-history-metadata-before.log`, `/tmp/intent-trace-history-metadata-focused.log`, `/tmp/intent-trace-history-metadata-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·응답 형식·클라이언트·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
