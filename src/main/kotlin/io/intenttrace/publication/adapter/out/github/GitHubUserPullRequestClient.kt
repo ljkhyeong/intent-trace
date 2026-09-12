@@ -34,14 +34,18 @@ class GitHubUserPullRequestClient(
                 val pr = try { mapper.readValue(bytes, UserPullRequestResponse::class.java) } catch (_: RuntimeException) {
                     throw GitHubApiException("GitHub PR 응답을 해석할 수 없습니다.")
                 }
-                val base = pr.base.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
-                if (base.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
-                val baseKey = GitHubRepository.parse(base.fullName).key
-                if (baseKey != target.repositoryKey) throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
-                val head = pr.head.repo
-                // 삭제된 Fork의 head 저장소도 게시할 수 없는 대상으로 표시한다.
-                PullRequestSnapshot(GitRevision.parse(pr.head.sha).value,
-                    head == null || head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey)
+                try {
+                    val base = pr.base.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
+                    if (base.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
+                    val baseKey = GitHubRepository.parse(base.fullName).key
+                    if (baseKey != target.repositoryKey) throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
+                    val head = pr.head.repo
+                    // 삭제된 Fork의 head 저장소도 게시할 수 없는 대상으로 표시한다.
+                    PullRequestSnapshot(GitRevision.parse(pr.head.sha).value,
+                        head == null || head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey)
+                } catch (_: IllegalArgumentException) {
+                    throw GitHubApiException("GitHub PR 응답 형식이 올바르지 않습니다.")
+                }
             }
     } catch (_: RestClientException) {
         throw GitHubApiException("GitHub PR 조회를 완료하지 못했습니다.")

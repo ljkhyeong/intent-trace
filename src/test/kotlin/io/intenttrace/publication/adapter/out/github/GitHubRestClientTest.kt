@@ -56,15 +56,19 @@ class GitHubRestClientTest {
         server.verify()
     }
 
-    @Test
-    fun `PR HEAD 응답이 전체 커밋 ID가 아니면 원문 없이 거부한다`() {
+    @ParameterizedTest
+    @ValueSource(strings = ["base", "head", "sha"])
+    fun `PR 응답의 저장소명이나 커밋 형식 오류는 원문 없이 API 오류로 처리한다`(field: String) {
         val marker = "test-private-response-marker"
+        val base = if (field == "base") marker else "acme/intent-trace"
+        val head = if (field == "head") marker else "acme/intent-trace"
+        val sha = if (field == "sha") marker else revision
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/pulls/12"))
-            .andRespond(withSuccess("""{"head":{"sha":"$marker","repo":{"id":1,"full_name":"acme/intent-trace"}},"base":{"repo":{"id":1,"full_name":"acme/intent-trace"}}}""", MediaType.APPLICATION_JSON))
+            .andRespond(withSuccess("""{"head":{"sha":"$sha","repo":{"id":1,"full_name":"$head"}},"base":{"repo":{"id":1,"full_name":"$base"}}}""", MediaType.APPLICATION_JSON))
 
         val exception = assertFailsWith<GitHubApiException> { client.getHeadRevision(target) }
 
-        assertEquals("GitHub Pull Request HEAD 응답 형식이 올바르지 않습니다.", exception.message)
+        assertEquals("GitHub PR 응답 형식이 올바르지 않습니다.", exception.message)
         assertFalse(exception.stackTraceToString().contains(marker))
         server.verify()
     }
