@@ -526,6 +526,15 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
+        val mismatched = mvc.get("/records/connection") {
+            cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12"); param("revision", "b".repeat(40))
+        }.andExpect {
+            status { isOk() }
+            content { string(containsString("<h2>PR 커밋 일치</h2>")) }
+            content { string(containsString("입력한 커밋이 PR의 현재 커밋과 다릅니다.")) }
+            content { string(containsString("<h2>커밋 트리 읽기</h2>")) }
+        }.andReturn().response.contentAsString
+        preview("connection-revision", mismatched)
         val limitedUrl = URI(url("/records/connection", "repositoryKey" to "acme/browser", "revision" to "e".repeat(40)))
         val limited = mvc.get(limitedUrl) { cookie(connectionCookie) }.andExpect {
             status { isTooManyRequests() }; header { string(HttpHeaders.RETRY_AFTER, "12") }

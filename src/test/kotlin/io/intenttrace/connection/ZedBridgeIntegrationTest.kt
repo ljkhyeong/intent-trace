@@ -202,7 +202,7 @@ class ZedBridgeIntegrationTest(
     }
 
     @Test
-    fun `연결 점검은 지정한 PR과 커밋을 전달하고 커밋 생략 시 PR HEAD를 확인한다`() {
+    fun `연결 점검은 PR 커밋 일치를 구분하고 지정한 커밋 또는 PR HEAD를 확인한다`() {
         val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
         val repository = GitHubRepository.parse("acme/intent-trace")
         val head = "b".repeat(40)
@@ -210,14 +210,21 @@ class ZedBridgeIntegrationTest(
         Mockito.`when`(pullRequests.read(target)).thenReturn(PullRequestSnapshot(head, false))
         for ((options, revision) in listOf(
             listOf("--pr", "12") to head,
+            listOf("--pr", "12", "--revision", head.uppercase()) to head,
             listOf("--pr", "12", "--revision", explicit) to explicit,
             listOf("--revision", head) to head,
         )) {
             Mockito.`when`(evidence.snapshot(repository, revision)).thenReturn(GitEvidenceSnapshot(revision, emptyMap()))
             for (explicitAddress in listOf(true, false)) {
                 Mockito.clearInvocations(evidence, pullRequests)
-                val output = check(*options.toTypedArray(), explicitAddress = explicitAddress)
+                val mismatch = "--pr" in options && revision != head
+                val output = check(*options.toTypedArray(), explicitAddress = explicitAddress, expectedExitCode = if (mismatch) 1 else 0)
                 assertTrue(output.contains("git_tree_read: VERIFIED"), output)
+                if ("--pr" in options && "--revision" in options) {
+                    val expected = if (mismatch) "FAILED — 입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다."
+                        else "VERIFIED — 입력한 커밋이 PR의 현재 커밋과 같습니다."
+                    assertTrue(output.contains("pull_request_revision: $expected"), output)
+                } else assertFalse(output.contains("pull_request_revision:"), output)
                 Mockito.verify(evidence).snapshot(repository, revision)
                 if ("--pr" in options) {
                     assertTrue(output.contains("pull_request_read: VERIFIED"), output)

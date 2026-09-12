@@ -58,6 +58,12 @@ class ConnectionDiagnostics(
             pr?.let {
                 checks += ConnectionCheck("pull_request_publication", if (it.fork) DiagnosticStatus.FAILED else DiagnosticStatus.VERIFIED,
                     if (it.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR 원본 저장소와 병합 대상 저장소가 같습니다.")
+                if (ref != null) {
+                    val matches = ref == it.headRevision
+                    checks += ConnectionCheck("pull_request_revision", if (matches) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED,
+                        if (matches) "입력한 커밋이 PR의 현재 커밋과 같습니다."
+                        else "입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다.")
+                }
             }
         } else checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
         val evidenceRevision = ref ?: pr?.headRevision

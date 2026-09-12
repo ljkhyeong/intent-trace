@@ -56,7 +56,8 @@ internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: Stri
         if (result == null) append("<p class=\"empty\">저장소를 입력하면 연결 상태를 확인합니다.</p>") else {
             append("<p>${stamp(result.checkedAt)}</p><ul class=\"records\">")
             val names = mapOf("authentication" to "사용자 인증", "repository_read" to "저장소 읽기", "repository_write" to "저장소 쓰기",
-                "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
+                "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "pull_request_revision" to "PR 커밋 일치",
+                "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
             result.checks.forEach { check ->
                 val status = when (check.status) {
                     DiagnosticStatus.VERIFIED -> "확인 완료"; DiagnosticStatus.FAILED -> "확인 실패"
