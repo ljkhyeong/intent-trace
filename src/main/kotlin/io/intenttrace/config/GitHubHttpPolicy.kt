@@ -30,6 +30,8 @@ object GitHubRateLimit {
 
 @Configuration
 class GitHubHttpPolicy {
+    private val repositoryPermissionPath = Regex("/repos/[^/]+/[^/]+/collaborators/[^/]+/permission")
+
     @Bean
     fun githubApiRestClient(builder: RestClient.Builder, properties: GitHubProperties): RestClient = builder
         .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
@@ -45,7 +47,7 @@ class GitHubHttpPolicy {
             }
             val operation = when {
                 request.uri.path == "/user" -> "user"
-                request.uri.path == "/user/repos" -> "repository_access"
+                repositoryPermissionPath.matches(request.uri.path) -> "repository_access"
                 request.uri.path.contains("/check-runs") -> "check_run"
                 request.uri.path.contains("/pulls/") -> "pull_request"
                 request.uri.path.contains("/issues/") -> "request_context"
