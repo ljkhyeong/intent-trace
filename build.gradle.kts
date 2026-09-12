@@ -37,6 +37,7 @@ dependencies {
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+	testImplementation("com.tngtech.archunit:archunit:1.5.0")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -55,9 +56,20 @@ tasks.withType<Test>().configureEach {
 }
 
 val postgresTestClass = "**/PostgresRepositorySmokeTest.class"
+val architectureTestClass = "**/ArchitectureTest.class"
+
+val architectureTest by tasks.registering(Test::class) {
+	description = "Controller·MCP, application, domain의 의존 규칙을 검사합니다."
+	group = "verification"
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	include(architectureTestClass)
+}
 
 tasks.test {
+	dependsOn(architectureTest)
 	exclude(postgresTestClass)
+	exclude(architectureTestClass)
 }
 
 tasks.register<Test>("focusedTest") {

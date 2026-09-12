@@ -1,3 +1,26 @@
 [mcp_servers.intent-trace]
 url = "http://127.0.0.1:8080/mcp"
 bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
+
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/scripts/feedback.py" hook'
+timeout = 180
+statusMessage = "검사 시작 커밋 기록"
+
+[[hooks.PostToolUse]]
+matcher = "^(apply_patch|Bash)$"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/scripts/feedback.py" hook'
+timeout = 180
+statusMessage = "변경 파일 검사"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/scripts/feedback.py" hook'
+timeout = 180
+statusMessage = "전체 diff와 구조 규칙 검사"

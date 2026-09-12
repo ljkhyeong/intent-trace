@@ -64,6 +64,9 @@ jobs:
       - name: 테스트 결과 집계 코드 확인
         run: python3 scripts/test_test_summary.py
 
+      - name: 에이전트 검증 루프 확인
+        run: python3 scripts/test_feedback.py
+
       - name: 플러그인 검증
         env:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
