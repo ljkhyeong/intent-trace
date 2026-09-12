@@ -7,10 +7,9 @@ import kotlinx.serialization.json.Json
 internal object IntentTraceResponseParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(body: String): List<ChangeIntentRecord> = decode<List<ChangeIntentResponse>>(body)
-        .map(ChangeIntentResponse::toRecord)
+    fun parse(body: String): List<ChangeIntentRecord> = decode(body)
 
-    fun parseRecord(body: String): ChangeIntentRecord = decode<ChangeIntentResponse>(body).toRecord()
+    fun parseRecord(body: String): ChangeIntentRecord = decode(body)
 
     fun parsePage(body: String): ChangeRecordPage = decode(body)
 
@@ -30,38 +29,3 @@ private data class HealthResponse(val status: String)
 
 @Serializable
 private data class LoginResponse(val actor: CreatedByResponse)
-
-@Serializable
-private data class ChangeIntentResponse(
-    val id: String,
-    val title: String,
-    val requestSummary: String,
-    val status: String,
-    val createdBy: CreatedByResponse,
-    val decisions: List<ChangeDecision>,
-    val codeAnchors: List<ChangeCodeAnchor>,
-    val verifications: List<ChangeVerification>,
-    val openQuestions: List<String>,
-    val repositoryKey: String,
-    val targetRevision: String?,
-    val supersededBy: String? = null,
-    val baseRevision: String? = null,
-    val derivedFromRecordId: String? = null,
-) {
-    fun toRecord(): ChangeIntentRecord = ChangeIntentRecord(
-        id = id,
-        title = title,
-        requestSummary = requestSummary,
-        status = status,
-        authorLogin = createdBy.login,
-        decisions = decisions,
-        codeAnchors = codeAnchors,
-        verifications = verifications,
-        openQuestions = openQuestions,
-        repositoryKey = repositoryKey,
-        targetRevision = targetRevision,
-        supersededBy = supersededBy,
-        baseRevision = baseRevision,
-        derivedFromRecordId = derivedFromRecordId,
-    )
-}

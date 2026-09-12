@@ -51,7 +51,7 @@ internal open class IntentTraceResultDialog(
             add(JPanel(BorderLayout()).apply {
                 add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
                     val selection = JComboBox(records.map {
-                        "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.authorLogin}"
+                        "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.createdBy.login}"
                     }.toTypedArray()).apply {
                         renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
                         preferredSize = Dimension(320, preferredSize.height)

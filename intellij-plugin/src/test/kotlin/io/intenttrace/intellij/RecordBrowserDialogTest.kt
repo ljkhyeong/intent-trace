@@ -74,7 +74,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     fun testOriginalAndReplacementRecordsOpenIndependentlyOnRequest() {
         val draft = ChangeIntentRecord(
             id = recordId, title = "후속 기록", requestSummary = "변경 과정 확인", status = "DRAFT",
-            authorLogin = "developer", decisions = emptyList(), codeAnchors = emptyList(),
+            createdBy = CreatedByResponse("developer"), decisions = emptyList(), codeAnchors = emptyList(),
             verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
             targetRevision = null, supersededBy = null, derivedFromRecordId = "original-id",
         )
@@ -104,7 +104,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     fun testCodeLinkUsesSelectedSideAndItsRevision() {
         val record = ChangeIntentRecord(
             id = recordId, title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",
-            authorLogin = "developer", decisions = emptyList(),
+            createdBy = CreatedByResponse("developer"), decisions = emptyList(),
             codeAnchors = listOf(
                 ChangeCodeAnchor("src/Before.kt", 1, 2, CodeSide.BASE),
                 ChangeCodeAnchor("src/After.kt", 3, 4, CodeSide.TARGET),
@@ -140,7 +140,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     fun testWebRecordOpensOnlyOnRequestAndDoesNotRequireACommit() {
         val draft = ChangeIntentRecord(
             id = recordId, title = "비공개 초안", requestSummary = "웹에서 변경 이력 확인", status = "DRAFT",
-            authorLogin = "developer", decisions = emptyList(), codeAnchors = emptyList(),
+            createdBy = CreatedByResponse("developer"), decisions = emptyList(), codeAnchors = emptyList(),
             verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
             targetRevision = null, supersededBy = null,
         )

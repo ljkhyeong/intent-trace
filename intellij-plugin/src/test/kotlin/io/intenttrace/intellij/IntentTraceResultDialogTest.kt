@@ -16,7 +16,7 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
             title = "같은 제목의 기록",
             requestSummary = "현재 줄에서 상세 기록을 연다.",
             status = "SUPERSEDED",
-            authorLogin = "developer",
+            createdBy = CreatedByResponse("developer"),
             decisions = emptyList(),
             codeAnchors = listOf(ChangeCodeAnchor(lookup.relativePath, 10, 15)),
             verifications = emptyList(),

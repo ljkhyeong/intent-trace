@@ -25,7 +25,7 @@ internal object IntentTraceTextRenderer {
             if (index > 0) appendLine().appendLine("────────────────────────────────────────")
             appendLine()
             appendLine(record.title)
-            appendLine("상태: ${status(record.status)} · 작성자: @${record.authorLogin}")
+            appendLine("상태: ${status(record.status)} · 작성자: @${record.createdBy.login}")
             appendLine("기록: ${record.id}")
             appendLine()
             appendLine("요청")
