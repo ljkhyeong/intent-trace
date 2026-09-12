@@ -46,16 +46,9 @@ class GitHubOAuthController(
     @GetMapping("/start")
     fun start(@RequestParam(required = false) returnTo: String?): ResponseEntity<Void> {
         val start = flow.start(returnTo)
-        val stateCookie = ResponseCookie.from(STATE_COOKIE, start.state)
-            .httpOnly(true)
-            .secure(properties.userAuthorization.secureCookie)
-            .sameSite("Lax")
-            .path(GITHUB_OAUTH_CALLBACK_PATH)
-            .maxAge(properties.userAuthorization.stateTtl)
-            .build()
         return secure(ResponseEntity.status(HttpStatus.FOUND))
             .location(start.authorizationUri)
-            .header(HttpHeaders.SET_COOKIE, stateCookie.toString())
+            .header(HttpHeaders.SET_COOKIE, stateCookie(start.state, properties.userAuthorization.stateTtl))
             .build()
     }
 
@@ -67,7 +60,7 @@ class GitHubOAuthController(
         @CookieValue(name = STATE_COOKIE, required = false) cookieState: String?,
         response: HttpServletResponse,
     ): ResponseEntity<String> {
-        response.addHeader(HttpHeaders.SET_COOKIE, expiredStateCookie())
+        response.addHeader(HttpHeaders.SET_COOKIE, stateCookie("", Duration.ZERO))
         val completion = flow.complete(code, state, cookieState, error)
         val issued = completion.session
         completion.returnTo?.let {
@@ -80,12 +73,12 @@ class GitHubOAuthController(
             .body(successPage(issued))
     }
 
-    private fun expiredStateCookie(): String = ResponseCookie.from(STATE_COOKIE, "")
+    private fun stateCookie(value: String, maxAge: Duration): String = ResponseCookie.from(STATE_COOKIE, value)
         .httpOnly(true)
         .secure(properties.userAuthorization.secureCookie)
         .sameSite("Lax")
         .path(GITHUB_OAUTH_CALLBACK_PATH)
-        .maxAge(Duration.ZERO)
+        .maxAge(maxAge)
         .build()
         .toString()
 

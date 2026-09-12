@@ -68,6 +68,9 @@ class GitHubOAuthSessionIntegrationTest(
         assertNotNull(state)
         assertTrue(stateCookie.isHttpOnly)
         assertFalse(stateCookie.secure)
+        assertEquals("/auth/github/callback", stateCookie.path)
+        assertEquals("Lax", stateCookie.getAttribute("SameSite"))
+        assertEquals(600, stateCookie.maxAge)
 
         val callback = mockMvc.get("/auth/github/callback") {
             param("code", "authorization-code")
@@ -79,6 +82,13 @@ class GitHubOAuthSessionIntegrationTest(
             header { string("Referrer-Policy", "no-referrer") }
             content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
         }.andReturn()
+        val expiredState = callback.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        assertEquals("", expiredState.value)
+        assertEquals(0, expiredState.maxAge)
+        assertEquals(stateCookie.path, expiredState.path)
+        assertEquals(stateCookie.isHttpOnly, expiredState.isHttpOnly)
+        assertEquals(stateCookie.secure, expiredState.secure)
+        assertEquals(stateCookie.getAttribute("SameSite"), expiredState.getAttribute("SameSite"))
         val body = callback.response.contentAsString
         val sessionToken = Regex("its_[A-Za-z0-9_-]{40,}").find(body)?.value
         assertNotNull(sessionToken)
