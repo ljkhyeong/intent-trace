@@ -669,3 +669,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubHttpPolicyTest'`: 5개 통과. 추가한 200·403·404·429 사례 4개가 수정 전 실패하는 것을 확인했다. 수정 후 권한 처리 결과·대기 시간과 작업·결과 태그를 검증했고 저장소·사용자·토큰은 태그에 포함되지 않는다. 로그는 `/tmp/intent-trace-github-metrics-before.log`, `/tmp/intent-trace-github-metrics-focused.log`다.
 - `./gradlew test bootJar`: 서버 199개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 13:31 KST이며 로그는 `/tmp/intent-trace-github-metrics-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - API 계약·인증·권한 규칙·DB·배포 파일·의존성은 변경하지 않았다. 독립 IntelliJ·Zed·Compose·k3s 검증은 반복하지 않았다. 실제 GitHub 호출·게시·웹훅 전송·이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 브라우저 로그인 재시도
+
+- 시작 리비전 `f01c1b2`, 코드 검증 대상은 `67f58ef`다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 브라우저 로그인 실패 후 `다시 로그인`이 도구용 토큰 발급으로 바뀌던 문제를 수정했다. 쿠키와 state로 확인한 서버 보관 복귀 주소를 오류에 함께 전달하고 새 로그인 링크에 사용한다. 이전 state는 재사용하지 않으며 callback 입력의 복귀 주소도 사용하지 않는다.
+- `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubOAuthFlowServiceTest' --tests '*RecordBrowserIntegrationTest'`: 24개 통과. 승인 취소·code 누락·사용자 조회 장애·호출 제한의 재시도 후 동일 검색 주소와 브라우저 쿠키, 기존 상태 코드·Retry-After, 만료·재사용 거부를 확인했다. 수정 전 재현 4개 실패는 `/tmp/intent-trace-oauth-retry-before.log`, 수정 후 결과는 `/tmp/intent-trace-oauth-retry-focused.log`에 있다.
+- `./gradlew test bootJar`: 서버 205개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 13:52 KST이며 로그는 `/tmp/intent-trace-oauth-retry-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다. 공유 인증 테스트 도구의 변경을 사용하는 기록 화면 테스트도 함께 수정했다.
+- DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않아 독립 검증을 반복하지 않았다. 실제 브라우저·GitHub 로그인·게시·웹훅 전송·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
