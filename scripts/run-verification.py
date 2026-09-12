@@ -5,7 +5,6 @@ import argparse
 import datetime
 import hashlib
 import json
-import os
 import re
 import shlex
 import subprocess
@@ -77,7 +76,7 @@ def main() -> int:
         require_clean(arguments.revision)
         snapshot = hashlib.sha256(git("-c", "core.quotePath=true", "ls-tree", "-r", "--full-tree", arguments.revision)).hexdigest()
         started = now()
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=os.environ.copy())
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         digest = hashlib.sha256()
         with process.stdout:
             while chunk := process.stdout.read(65536):

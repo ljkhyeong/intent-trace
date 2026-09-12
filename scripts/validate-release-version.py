@@ -106,10 +106,8 @@ def validate_intellij_plugin(root: pathlib.Path, version: str) -> pathlib.Path:
 
 
 def write_checksum(path: pathlib.Path) -> pathlib.Path:
-    digest = hashlib.sha256()
     with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
+        digest = hashlib.file_digest(source, "sha256")
     checksum = path.with_name(f"{path.name}.sha256")
     checksum.write_text(f"{digest.hexdigest()}  {path.name}\n", encoding="utf-8")
     return checksum
