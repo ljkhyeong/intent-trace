@@ -31,6 +31,8 @@ import io.intenttrace.record.application.ChangeRecordOwnershipException
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.application.GitHubContextService
+import io.intenttrace.record.application.GitHubContextNotFoundException
+import io.intenttrace.record.application.GitHubContextPermissionException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ContentDisposition
@@ -245,6 +247,14 @@ class RecordBrowserController(
 
     @ExceptionHandler(ChangeRecordNotFoundException::class, ChangeRecordOwnershipException::class, RepositoryAccessDeniedException::class)
     fun unavailable(): ResponseEntity<String> = browserResponse(pages.error("기록이 없거나 열람 권한이 없습니다."), 404)
+
+    @ExceptionHandler(GitHubContextNotFoundException::class)
+    fun githubContextNotFound(exception: GitHubContextNotFoundException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), 404)
+
+    @ExceptionHandler(GitHubContextPermissionException::class)
+    fun githubContextPermission(exception: GitHubContextPermissionException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), 403)
 
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
     fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)

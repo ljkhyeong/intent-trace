@@ -1,6 +1,8 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.IntentTraceApplication
+import io.intenttrace.config.GitHubRateLimitException
+import io.intenttrace.publication.application.GitHubApiException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.application.*
 import io.intenttrace.identity.domain.ActorIdentity
@@ -52,6 +54,28 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             .andExpect { status { isBadRequest() } }
         mvc.post(endpoint) { header("Authorization", "Bearer $token") }.andExpect { status { isMethodNotAllowed() } }
         assertEquals(calls, gateway.calls.get())
+    }
+
+    @Test
+    fun `자료 없음과 권한 거부는 재조회 안내 없이 반환하고 일시 장애는 재조회를 유지한다`() {
+        val token = session()
+        val cookie = Cookie(BROWSER_SESSION_COOKIE, session(SessionChannel.BROWSER))
+        for ((code, message) in listOf(403 to "GitHub 자료 조회가 거부됐습니다", 404 to "GitHub 자료가 없거나 열람할 수 없습니다",
+            502 to "GitHub", 429 to "12초 후")) {
+            val query = "?repositoryKey=acme/intent-trace&number=$code"
+            mvc.get("/api/v1/github/request-context$query") { header("Authorization", "Bearer $token") }.andExpect {
+                status { isEqualTo(code) }; jsonPath("$.detail") { value(containsString(message)) }
+            }
+            val page = mvc.get("/records/github$query") { cookie(cookie) }.andExpect {
+                status { isEqualTo(code) }; header { string("Cache-Control", "no-store") }
+                content { string(containsString(message)) }
+                if (code == 429) header { string("Retry-After", "12") }
+            }.andReturn().response.contentAsString
+            assertEquals(code in setOf(429, 502), page.contains(">다시 조회</a>"))
+        }
+        mvc.get("/api/v1/github/request-context?repositoryKey=acme/intent-trace&number=7") {
+            header("Authorization", "Bearer $token")
+        }.andExpect { status { isOk() } }
     }
 
     @Test
@@ -161,6 +185,11 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 const runs = result.structuredContent ?? JSON.parse(result.content.find(c => c.type === 'text').text);
                 assert.equal(runs.nextPage, 2);
                 assert.equal(runs.snapshotVerified, false);
+                for (const [number, message] of [[403, 'GitHub 자료 조회가 거부됐습니다'], [404, 'GitHub 자료가 없거나 열람할 수 없습니다']]) {
+                    const failure = await client.callTool({ name: 'get_github_request_context', arguments: { repositoryKey: 'acme/intent-trace', number } });
+                    assert.equal(failure.isError, true);
+                    assert.ok(failure.content.some(item => item.type === 'text' && item.text.includes(message)));
+                }
             } finally { await client.close(); }
         """.trimIndent()
         val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
@@ -195,6 +224,12 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val calls = AtomicInteger()
         override fun request(repository: GitHubRepository, number: Int): GitHubRequestContent {
             calls.incrementAndGet()
+            when (number) {
+                403 -> throw GitHubContextPermissionException()
+                404 -> throw GitHubContextNotFoundException()
+                429 -> throw GitHubRateLimitException(12)
+                502 -> throw GitHubApiException("GitHub 자료를 조회하지 못했습니다.")
+            }
             val issue = number == 8
             return GitHubRequestContent(if (issue) GitHubRequestKind.ISSUE else GitHubRequestKind.PULL_REQUEST, "<script>자료 확인</script>",
                 "secret=remote-secret\n/Users/owner/project\n" + "검토할 내용 ".repeat(400),

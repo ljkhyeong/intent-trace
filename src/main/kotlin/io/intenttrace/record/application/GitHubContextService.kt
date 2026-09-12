@@ -9,6 +9,10 @@ import java.time.Instant
 
 enum class GitHubRequestKind { ISSUE, PULL_REQUEST }
 
+class GitHubContextNotFoundException : RuntimeException("GitHub 자료가 없거나 열람할 수 없습니다. 저장소·이슈·PR 주소와 GitHub App 권한을 확인해 주세요.")
+
+class GitHubContextPermissionException : RuntimeException("GitHub 자료 조회가 거부됐습니다. GitHub App의 Issues·Pull requests·Actions 읽기 권한과 저장소 접근을 확인해 주세요.")
+
 data class GitHubRequestContent(
     val kind: GitHubRequestKind, val title: String, val body: String?, val url: String, val updatedAt: Instant,
 )
