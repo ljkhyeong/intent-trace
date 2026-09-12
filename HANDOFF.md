@@ -2,73 +2,27 @@
 
 ## 현재 구현
 
-- IntentTrace 개발 version 0.8.0-SNAPSHOT, 최신 공개 release 0.7.0, Kotlin 2.3.21, Java 21, Spring Boot 4.1.1, Spring AI 2.0.1
-- H2 기본 저장소와 PostgreSQL 프로필
-- Flyway 초기 스키마
-- Flyway V2 GitHub 게시 이력, V3 GitHub 작성자 subject, V4 저장소 키, V5 코드 경로 정규화와 V6 미사용 기준 revision 제거 스키마
-- 변경 의도 생성·확인·공개·대체·라인 조회
-- 저장소·파일·상태별 공개 목록과 내 비공개 기록함, 생성 시각·UUID 순서의 페이지 조회
-- 팀 공유용 Markdown 출력
-- PR HEAD 커밋 검증과 neutral GitHub Check Run 게시·재시도 갱신
-- GitHub 응답의 head·base 저장소 확인과 Fork PR 게시 거부
-- 저장소별 GitHub App installation token 자동 발급·만료 전 갱신·401 복구
-- GitHub user access token 인증과 저장소별 READER·CONTRIBUTOR·MAINTAINER 역할 판정
-- GitHub Web Application Flow와 callback `state`·cookie·TTL·일회성 검증
-- GitHub access·refresh token 메모리 보관과 만료 전 token 쌍 자동 갱신
-- SHA-256 digest로 조회하는 `its_` 로컬 세션과 Codex MCP 인증
-- 현재 `its_` 세션 폐기, 사용자별 활성 세션 기본 5개 상한과 오래된 세션 자동 폐기
-- PostgreSQL·Caddy HTTPS 기반 단일 인스턴스 Docker Compose
-- 외부 container digest 고정과 전체 Git commit 기반 app image tag·rollback 절차
-- 비root·읽기 전용 app container와 분리된 data·edge network
-- PostgreSQL 17 migration·JDBC·backup·restore 왕복과 GitHub Actions 검증
-- GitHub Actions commit SHA 고정, 중복 실행 취소와 Dependabot 정기 갱신
-- 초안 작성자 소유권과 저장소 권한 기반 팀 공개 조회
-- 브라우저 기록 열람·로그인 복귀·로그아웃과 8시간 전용 세션
-- REST·MCP·브라우저의 제목·요청·판단 키워드 검색
-- Zed Agent용 공식 MCP SDK 중계기·설정 생성·연결 점검·세션 토큰 입력 도구
-- 실제 Spring 서버와 stdio MCP 초기화·도구 목록·진단 호출 통합 검증
-- Flyway V10 후속 초안의 원본 공개 기록 연결과 검증·확인 상태 초기화
-- 고유한 동일 blob 이름 변경과 원본 코드 조각의 줄 이동 추적
-- PR별 게시·시도 기록 목록과 현재 HEAD 비교, 연결·권한·설정 진단
-- 새 GitHub JWT 형식 설치 token 전체 제거, 요청 안의 권한·Git 객체 조회 재사용
-- 이전 기록별 확인 불가 사유·처리 완료 여부·실패한 기록 재조회
-- 관리자용 App 키 서명·원격 인증·설치·실제 발급 범위·권한 사전 점검
-- 원본·후속 기록 비교와 브라우저 PR 기록·연결 진단 화면
-- JSONC 설정 미리보기·등록·갱신과 실제 Zed 1.18.1의 도구 승인·조회·세션 폐기·재연결 확인
-- Streamable HTTP MCP 도구 24개, 줄 조회의 최상위 `items` 객체 응답
-- Zed 초기화·도구 호출·연결 점검의 안전한 오류 분류와 호출 제한 대기 시간 전달
-- 웹 파일·줄 조회와 실패 후보 재조회, 별도 코드 근거 확인
-- 웹의 코드 확인 불가 사유와 본인 폐기 기록·파일·팀 작성자 필터
-- 과거 조회의 기본 30초·40회 HTTP 제한, 근거 순서별 중단·재개
-- Zed 의존성 포함 설치 패키지와 버전별 설치·업데이트·등록 자료 생성
-- 토큰 입력 보호 실패·취소 시 실행 중단과 잠금 파일 기준 배포 의존성 준비·생성 기준 해시
-- 과거 조회 최소 7회 설정과 근거를 처리하지 못한 재개의 `resumeBlocked`·원인 확인 안내
-- 웹 본인 연결 조회·선택·전체 종료와 현재 연결 로그아웃
-- 비교의 추가·삭제·출처·상대 순서 변경 표시와 중복 항목의 전체 내용 확인
-- Flyway V11 기록 변경 이력과 기록 저장의 원자성, 작성자 전체·팀 공개 작업 조회
-- 초안 수정·확인 취소·폐기, 최초 내용 해시 멱등성, 저장소별 내 초안·팀 공개 요약 목록
-- MCP 기록 대체와 Markdown의 후속 기록 링크
-- Flyway V9 게시 시도 이력, 게시 결과 조회·응답 유실 복구·기존 Check Run 대체 안내
-- 내 세션 목록과 선택·전체 폐기, 갱신 도중 폐기 처리
-- GitHub 호출 제한 429·Retry-After와 기능별 Micrometer 지표
-- Flyway V7 최초 생성 내용 해시와 목록 조회 인덱스, V8 코드 근거 BASE·TARGET과 실행 결과 출처
-- GitHub 코드 해시 확인과 이전 커밋의 동일 파일·관련 기록 조회
-- 로컬 실행 도구의 종료 코드·시각·출력 해시 수집과 변경 파일 감지
-- REST·MCP 공통 생성 입력 검증과 전체 Git commit 값 객체
-- GitHub token·private key·client secret의 안전한 문자열 표현
-- Codex 기록 사용·저장소 개발 스킬
-- Codex 조회 스킬의 정확한 줄·기록함·파일 이력 분기, 페이지·상세·대체 기록 조회 안내
-- Codex에서 사용자 요청에 따른 공개 기록 대체와 결과 불확실 시 재조회 안내
-- IntentTrace 저장소 전용 개발 스킬
-- 화면·Markdown·MCP·Zed·문서의 문구 개선안 52개 반영과 모바일 안내의 단어 단위 줄바꿈
-- IntelliJ 2025.3+ 현재 줄 공개 변경 의도 조회와 PasswordSafe 세션 저장
-- IntelliJ에서 기존 GitHub 승인 페이지 열기와 PasswordSafe 세션의 서버 폐기·삭제
-- IntelliJ 공용 서버 주소 설정, 재시작 없는 주소 적용과 인증 정보 없는 연결 확인
-- IntelliJ 기록함과 파일 이력, 전체 커밋·당시 코드·대체 기록 탐색
-- IntelliJ 기록함 조회 실패 시 마지막 성공 필터 복원과 기존 목록·선택·페이지 유지
-- tag와 프로젝트 version을 확인한 뒤 서버 JAR·IntelliJ ZIP·SHA-256 파일을 함께 발행하는 GitHub Actions
-- Apache License 2.0과 Hope HTML의 MIT·OFL-1.1 제3자 라이선스 고지
-- SECURITY 정책과 0.6.0 변경 이력
+- 기록 생성·수정·작성자 확인·공개·폐기·대체와 후속 초안, 변경 이력을 지원한다.
+- 기록함 검색·페이지 조회, 원본 비교, Git 코드 해시 확인과 이름 변경·줄 이동 조회를 제공한다.
+- GitHub 사용자·저장소 권한을 확인하고 세션을 메모리에 보관한다. 사용자 승인 폐기 웹훅과 본인 세션 종료를 지원한다.
+- PR 게시·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
+- 웹·REST·MCP, Codex·IntelliJ·Zed에서 사용한다. 클라이언트별 범위는 [README](README.md#주요-기능)를 따른다.
+- H2 개발 환경과 PostgreSQL 운영 프로필, Compose·k3s 배포 설정을 준비했다. 운영 설정과 배포는 사용자가 수행한다.
+
+버전은 [서버 빌드](build.gradle.kts), [MCP 설정](src/main/resources/application.properties), [Codex 플러그인](.codex-plugin/plugin.json), [IntelliJ](intellij-plugin/gradle.properties), [Zed](clients/zed/package.json)를 기준으로 확인한다. 도구 목록은 [README의 MCP 도구](README.md#mcp-도구), 배포 파일 확인은 [릴리스 절차](docs/operations/release.md)를 따른다.
+
+## 최근 검증
+
+2026-09-12 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
+
+| 대상 | 검증한 코드 | 결과·상세 인계 |
+| --- | --- | --- |
+| 서버·MCP | `2afaa2b` | [서버 245개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-연결-진단의-pr-커밋-일치-확인) |
+| IntelliJ | `e10b373` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-intellij-비공개-기록-범위-안내). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
+| Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
+
+[남은 작업](#다음-작업-후보)과 [현재 제한](#현재-제한)을 먼저 확인한다. 아래 날짜별 결과는 당시 검증이며 현재 코드의 검증으로 간주하지 않는다.
 
 ## 작업 규칙
 
@@ -847,3 +801,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 추가 전 통합 테스트 2개 실패로 진단 누락을 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest' --tests '*RecordBrowserIntegrationTest'`: 19개 통과. 표준 MCP 중계 연결에서 일치·불일치·대문자 커밋·PR/커밋 생략과 종료 코드를 확인했다. `./gradlew test bootJar`: 서버 245개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 22:05 KST이며 로그는 `/tmp/intent-trace-diagnostic-revision-before.log`, `/tmp/intent-trace-diagnostic-revision-focused.log`, `/tmp/intent-trace-diagnostic-revision-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
 - `npm test --prefix clients/zed`에서 Node 11개가 통과하고 로컬 서버·npm 접근 제한으로 4개가 실패했다. 권한을 적용해 `node --test --test-name-pattern='인증 실패 응답|연결 후 인증과|연결 점검 초기화 실패|배포 패키지는' test/connection.test.mjs test/package.test.mjs`를 `clients/zed`에서 재실행해 4개 통과를 확인했다. `python3 scripts/test-zed-launcher.py` 3개도 통과했다. 로그는 `/tmp/intent-trace-diagnostic-revision-node.log`, `/tmp/intent-trace-diagnostic-revision-node-retry.log`, `/tmp/intent-trace-diagnostic-revision-launcher.log`다. 같은 검증은 로컬 서버·npm 캐시 접근이 가능한 권한으로 실행한다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·IntelliJ·Zed 실행 코드·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE 검사와 Zed 배포 패키지 재생성은 생략했다. 실제 GitHub 게시·Zed 앱 조작·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 현재 상태와 검증 안내 정리
+
+- 시작 리비전은 `d2143b8`이다. 오래된 버전·도구 수 표기를 기준 파일 링크로 바꾸고 현재 구현 목록을 67개에서 6개로 줄였다. 최근 검증의 코드 리비전·결과·제한과 상세 인계 링크를 앞에 배치했다. 기존 작업 규칙과 날짜별 이력은 원문을 보존했다.
+- 새 소개의 로컬 경로·제목 링크 14개와 기존 이력 보존을 확인했다. 서버 `2afaa2b`, IntelliJ `e10b373`, Zed 실행 코드 `ec00793` 이후 관련 파일 변경이 없고 저장된 XML 결과가 상세 인계와 일치함을 확인했다. 문서만 바꿔 동작 테스트·빌드는 반복하지 않았다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다.
+- 게시 결과 조회·응답 유실 복구·PR 목록 조회에서는 추가 수정이 필요한 오류를 확인하지 못했다. 운영 설정·게시·배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
