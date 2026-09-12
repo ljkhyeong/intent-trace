@@ -792,3 +792,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `06408f9`, 검증 대상 코드는 `09feee4`다. MCP 중계기가 0.12.0을 고정해 전달하던 부분을 제거하고 CLI·MCP가 설치된 `package.json` 버전을 함께 사용한다. `--version`·`-V`는 주소·세션 없이 버전을 표시한다. 서버 버전과는 별개다.
 - 수정 전 테스트 2개 실패로 명령 누락과 버전 불일치를 재현했다. `npm test --prefix clients/zed`: Node 15개·Python 실행기 3개 통과. 임시 패키지의 버전을 바꿔 저장소 밖의 설치 명령·MCP에도 반영되는지 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:30 KST이며 로그는 `/tmp/intent-trace-zed-version-before.log`, `/tmp/intent-trace-zed-version-all.log`, `/tmp/intent-trace-zed-version-bridge.log`다.
 - `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 생성했고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-version-package.log`다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ 코드는 변경하지 않아 전체 서버·DB·IDE 검증과 JAR 빌드는 생략했다. 실제 Zed 설정·외부 게시·운영 배포는 변경하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 변경 전후 코드의 경로 연결 정규화
+
+- 시작 리비전은 `ee8b7e6`, 검증 대상 코드는 `27ef0d4`다. 공통 생성·수정 서비스가 경로를 정규화한 뒤 `relatedPath`의 반대쪽 코드 근거를 확인한다. `./`·중복 `/`·끝 `/` 표기 차이로 정상 연결이 거부되던 문제를 수정했다. 연결 대상 누락·같은 side 연결은 계속 거부한다.
+- 수정 전 신규 테스트 1개 실패로 재현했다. 생성·수정 후 DB 경로, 표기가 다른 재요청의 기존 기록 재사용, 잘못된 수정 시 원본 보존을 확인했다. `./gradlew focusedTest --tests '*ChangeRecordFacadeIntegrationTest' --tests '*RecordEvidenceIntegrationTest' --tests '*DraftManagementIntegrationTest'`: 18개 통과. `./gradlew test bootJar`: 서버 235개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:36 KST이며 로그는 `/tmp/intent-trace-related-path-before.log`, `/tmp/intent-trace-related-path-focused.log`, `/tmp/intent-trace-related-path-server.log`다. 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB 구조·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 조회·게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
