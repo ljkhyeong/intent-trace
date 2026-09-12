@@ -625,3 +625,11 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `python3 scripts/test_feedback.py` 8개, `python3 scripts/test_test_summary.py` 3개 통과. 새 파일 공백·구문 오류, stage와 작업 파일의 불일치, 삭제·이름 변경, 읽기 도구의 실패 검사 반복 방지, 종료 실패의 한 차례 연장, 훅 JSON 입출력을 확인했다. CI에 검증 루프 테스트를 추가했다.
 - 변경한 개발 스킬의 `quick_validate.py`, 플러그인 구조, 문서 로컬 링크 검사를 통과했다. `feedback.py finish --base da5960c`와 전체 diff 검토를 수행했고 이후 문서 변경도 확인했다. 현재 결과와 로그는 `build/feedback/manual/`에 있다.
 - Codex CLI 0.144.5에서 hooks 기능을 확인하고 프로젝트 설정을 등록했다. 자동 실행에는 CLI `/hooks`에서 새 정의의 신뢰 승인이 필요하다. 실제 Codex 훅 자동 호출·원격 CI는 실행하지 않았으며 JSON 모의 이벤트와 동일 수동 명령으로 검증했다. 제품 동작·DB·IntelliJ·Zed 구현은 변경하지 않았다.
+
+## 2026-09-12 IntelliJ 설정의 로그인 확인
+
+- 시작 리비전 `6cfa4e1`, 기존 미추적 파일은 `Codex 이미지 2026년 9월 12일 오전 11_42_32.png`이며 수정하거나 커밋하지 않았다. 코드 검증 대상은 `f4b061d`다.
+- 설정의 `로그인 확인`은 입력한 서버에 대응하는 PasswordSafe 또는 환경 변수 세션으로 기존 `GET /api/v1/me/sessions`를 호출해 GitHub 계정을 표시한다. 주소·세션은 저장하지 않으며 PasswordSafe 조회와 HTTP 요청은 UI thread 밖에서 실행한다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 44개, 실패·오류·건너뜀 0개다. 로컬 HTTP 응답으로 계정 표시, 세션 누락·잘못된 형식의 요청 차단, 401·403·404·잘못된 응답·429 안내와 원문 비노출을 확인했다.
+- 결과 시각은 2026-09-12 12:05 KST, 로그는 `/tmp/intent-trace-intellij-login.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 파일 작성 직후 `feedback.py files`와 종료 전 `feedback.py finish --base 6cfa4e1`을 통과하고 전체 `review.diff`를 검토했다. 서버 코드·API 계약·DB·Zed·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·실제 GitHub 로그인·게시·배포는 수행하지 않았다.

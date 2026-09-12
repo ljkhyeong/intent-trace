@@ -27,6 +27,7 @@
 - 서버 주소는 IDE 공용 로컬 설정으로 둔다. IntelliJ `SimplePersistentStateComponent`와 `BaseState`로 정규화한 주소만 저장하고 `RoamingType.DISABLED`로 동기화에서 제외한다. 프로젝트 파일에서 자격 증명의 전송 대상을 바꿀 수 없게 한다. 설정 화면은 `BoundConfigurable`과 Kotlin UI DSL로 구성한다.
 - PasswordSafe 세션은 서버 주소별로 보관하며 주소 변경 시 복사하거나 삭제하지 않는다. 환경 변수 세션은 현재 서버가 `INTENT_TRACE_URL`의 서버(미설정 시 기본 서버)와 같을 때만 사용한다.
 - 연결 확인은 입력 중인 주소로 기존 `GET /actuator/health`를 호출하며 인증 정보를 읽거나 전달하지 않는다. HTTP 200과 JSON `status: UP`만 성공으로 표시하고, 설정 저장이나 로그인·저장소 권한·서버 신원 확인으로 해석하지 않는다.
+- `로그인 확인`은 버튼을 누르면 입력 중인 서버의 PasswordSafe 또는 해당 서버에 대응하는 환경 변수 세션으로 `GET /api/v1/me/sessions`를 호출한다. 서버가 확인한 `actor.login`만 표시하며 주소·세션을 저장하거나 바꾸지 않는다. 세션이 없으면 연결 방법을 안내하고 HTTP 요청하지 않는다. 저장소 권한은 기존 기록 조회에서 확인한다. PasswordSafe 조회와 HTTP 요청은 같은 modal task 안에서 처리한다.
 - 플러그인의 승인 시작 액션은 정규화한 server URL의 `/auth/github/start`만 시스템 브라우저로 연다. OAuth callback과 token 교환은 서버가 계속 담당한다.
 - 연결 해제 액션은 PasswordSafe에서 읽은 `its_` token으로 서버의 `DELETE /api/v1/session`을 먼저 호출하고 성공한 뒤 자격 증명을 삭제한다. 이미 만료된 session의 `401`은 삭제 가능한 상태로 처리하고, 서버 장애 때는 token을 유지해 다시 시도할 수 있게 한다. 환경 변수 token은 폐기하거나 삭제하지 않고 연결이 남아 있음을 안내한다.
 - PasswordSafe와 HTTP 요청은 UI thread 밖에서 실행한다. 현재 줄 조회는 background task, 기록함의 명시적 조회와 연결 확인은 SDK의 modal progress task를 사용한다. 별도 스레드·상태 동기화 계층은 만들지 않는다.
