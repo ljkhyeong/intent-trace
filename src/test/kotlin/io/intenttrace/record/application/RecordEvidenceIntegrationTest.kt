@@ -218,7 +218,7 @@ class RecordEvidenceIntegrationTest(
             blobCalls++
             return when (sha) {
             "f".repeat(40) -> "바뀐 코드\n".toByteArray()
-            "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes
+            "d".repeat(40) -> "추가한 줄\n".toByteArray() + bytes + "// ".toByteArray() + bytes
             else -> bytes
         }
         }
