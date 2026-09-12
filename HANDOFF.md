@@ -17,7 +17,7 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `e3dcd75` | [서버 245개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-스냅샷의-미사용-값과-목록-복사-제거) |
+| 서버·MCP | `29d4977` | [서버 245개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-oauth-상태-쿠키-설정-통합) |
 | PostgreSQL | `8da47c8` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-기록-요약과-저장소-키-중복-처리-제거) |
 | IntelliJ | `69eda59` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-intellij-기록-응답-모델-중복-제거). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
@@ -843,3 +843,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `01cc4ba`, 구현 커밋은 `e6e3e5e`다. 릴리스 체크섬의 직접 읽기 루프를 `hashlib.file_digest`로 바꾸고, 검증 명령의 불필요한 환경변수 복사와 `os` import를 제거했다. 실행 코드는 3줄 줄었다. 릴리스 문서는 개발 지침과 같은 Python 3.11 이상을 명시하며 CI는 기존 3.13을 사용한다.
 - `./gradlew focusedTest --tests '*GitEvidenceScriptTest' --tests '*SensitiveTextRedactorTest'` 14개와 `python3 scripts/test_validate_release_version.py` 2개가 통과했다. 기존 릴리스 테스트는 JAR·ZIP 내용과 체크섬 전체를 비교하도록 보완했다. 별도 임시 저장소에서 부모 환경 상속·stdout/stderr 해시·종료 코드 7 유지·원문 미노출도 확인했다. 로컬 Python은 3.14.7, 결과 시각은 2026-09-12 23:12 KST다. 로그는 `/tmp/intent-trace-python-stdlib-{files,focused,release,environment}.log`다.
 - 목록·변경 이력·게시·외부 응답 모델도 점검했으며 추가로 제거할 뚜렷한 중복은 찾지 못했다. 서버·DB·IDE·Zed 제품 코드와 의존성은 바뀌지 않아 전체 테스트·패키지 빌드는 반복하지 않았다. 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용하며 기존 미추적 PNG를 보존했다. 원격 푸시·릴리스 발행·운영 배포는 하지 않았다.
+
+## 2026-09-12 OAuth 상태 쿠키 설정 통합
+
+- 시작 리비전은 `a769b71`, 구현 커밋은 `29d4977`이다. OAuth 상태 쿠키의 발급·만료 설정을 기존 함수 한 곳으로 모아 제품 코드 7줄을 줄였다. 쿠키 값과 유효기간만 인자로 받고 이름·경로·HttpOnly·Secure·SameSite 설정을 함께 관리한다. 로그인 성공·실패 처리와 세션 정책은 유지했다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*GitHubOAuthSessionIntegrationTest' --tests '*GitHubOAuthFlowServiceTest'` 13개가 통과했다. 기존 통합 테스트에서 발급 유효기간과 만료 응답의 빈 값·유효기간 0·경로·보안 설정 보존을 확인했다. 최종 `./gradlew test bootJar`는 서버 245개·ArchUnit 4개가 모두 통과했고 표준 MCP SDK 연결도 포함한다. 결과 시각은 2026-09-12 23:18 KST, 로그는 `/tmp/intent-trace-oauth-cookie-{files,focused,server}.log`다. 실행 JAR은 `build/libs/intent-trace.jar`다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·IntelliJ·Zed 코드와 배포 설정은 변경하지 않아 독립 테스트·패키지 빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 운영 배포는 하지 않았다.
