@@ -80,7 +80,13 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
 
     fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null): String = layout(record.title, actor, buildString {
         val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
-        append("<a class=\"back-link\" href=\"${html(backUrl)}\">${if (searchUrl == null) "${html(record.repositoryKey)} 기록 목록" else "검색 결과로 돌아가기"}</a>")
+        val backLabel = when {
+            searchUrl == null -> "${html(record.repositoryKey)} 기록 목록"
+            backUrl.substringBefore('?') == "/records/history" -> "파일·줄 조회로 돌아가기"
+            backUrl.substringBefore('?') == "/records/pull-requests" -> "PR 기록으로 돌아가기"
+            else -> "검색 결과로 돌아가기"
+        }
+        append("<a class=\"back-link\" href=\"${html(backUrl)}\">$backLabel</a>")
         append("<header class=\"record-heading\"><span class=\"status\">${record.status.label}</span><h1>${html(record.title)}</h1></header>")
         record.derivedFromRecordId?.let { append("<aside class=\"notice\">이 기록의 <a href=\"${html(recordUrl(it, searchUrl))}\">원본 공개 기록 읽기</a> · <a href=\"${html(recordUrl(record.id, searchUrl, "comparison"))}\">원본과 비교</a></aside>") }
         record.supersededBy?.let { append("<aside class=\"notice\">이 기록은 새 기록으로 대체됐습니다. <a href=\"${html(recordUrl(it, searchUrl))}\">새 기록 읽기</a></aside>") }
@@ -161,6 +167,12 @@ internal fun url(path: String, vararg values: Pair<String, String?>): String = U
 
 internal fun recordUrl(id: UUID, searchUrl: String?, section: String? = null, vararg controls: Pair<String, Any>): String =
     UriComponentsBuilder.fromUriString(searchUrl ?: "/records")
+        .apply {
+            when (build().path) {
+                "/records/history" -> replaceQueryParam("from", "history")
+                "/records/pull-requests" -> replaceQueryParam("from", "pull-requests")
+            }
+        }
         .replacePath("/records/$id${section?.let { "/$it" }.orEmpty()}")
         .apply { controls.forEach { (key, value) -> replaceQueryParam(key, value) } }
         .build().toUriString()

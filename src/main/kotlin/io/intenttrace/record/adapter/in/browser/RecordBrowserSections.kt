@@ -13,7 +13,8 @@ import io.intenttrace.record.application.ItemChange
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
 
-internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?): String =
+internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?,
+    searchUrl: String? = null): String =
     layout("PR 변경 기록", actor, buildString {
         append("<header class=\"page-heading\"><h1>PR 변경 기록</h1><p>현재 PR 커밋과 게시 기록을 함께 확인하세요.</p></header>")
         append("""<form action="/records/pull-requests" class="search-form" method="get">
@@ -36,7 +37,7 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
                     null -> if (item.publication != null) "게시 완료" else "게시 결과 없음"
                 }
                 append("<li><div class=\"record-summary\"><span class=\"status\">${if (item.matchesCurrentHead) "현재 커밋과 일치" else "PR 최신 커밋과 다름"}</span>")
-                append("<h2><a href=\"/records/${item.record.id}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
+                append("<h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
                 if (item.publication != null) append("<p class=\"muted\">마지막으로 확인한 게시: ${stamp(item.publication.publishedAt)}</p>")
                 append("</div></li>")
             }

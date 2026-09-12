@@ -116,7 +116,7 @@ class RecordBrowserController(
         require(repository != null || (cursor == null && retryRecordId == null)) { "먼저 조회 조건을 입력해 주세요." }
         pages.history(it.actor, repository, ref, file, line, repository?.let { repo ->
             history.find(repo, requireNotNull(ref), requireNotNull(file), requireNotNull(line), cursor, retryRecordId = retryRecordId)
-        })
+        }, returnTo(request))
     }
 
     @GetMapping("/{id}/evidence")
@@ -168,7 +168,7 @@ class RecordBrowserController(
         require((repository == null) == (pullNumber == null)) { "저장소와 PR 번호를 함께 입력해 주세요." }
         pages.pullRequests(it.actor, repository?.key, pullNumber, repository?.let { repo ->
             overview.overview(GitHubPullRequestTarget(repo.canonicalOwner, repo.canonicalName, requireNotNull(pullNumber)), cursor)
-        })
+        }, returnTo(request))
     }
 
     @GetMapping("/github")
@@ -210,8 +210,12 @@ class RecordBrowserController(
 
     private fun searchUrl(request: HttpServletRequest): String? {
         val query = request.queryString ?: return null
-        val builder = UriComponentsBuilder.fromPath("/records").query(query)
-        val searchParameters = setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        val (path, searchParameters) = when (request.getParameter("from")) {
+            "history" -> "/records/history" to setOf("repositoryKey", "revision", "path", "line", "cursor", "retryRecordId")
+            "pull-requests" -> "/records/pull-requests" to setOf("repositoryKey", "pullNumber", "cursor")
+            else -> "/records" to setOf("repositoryKey", "q", "scope", "status", "path", "authorId", "cursor")
+        }
+        val builder = UriComponentsBuilder.fromPath(path).query(query)
         builder.build().queryParams.keys.filterNot { it in searchParameters }.forEach { builder.replaceQueryParam(it) }
         return builder.build().takeIf { it.queryParams.isNotEmpty() }?.toUriString()
     }

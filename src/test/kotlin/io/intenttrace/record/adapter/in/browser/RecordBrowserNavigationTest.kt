@@ -81,16 +81,22 @@ class RecordBrowserNavigationTest {
 
     @Test
     fun `이전 작업 링크는 검색 커서와 이력 조회 위치를 함께 유지한다`() {
-        val searchUrl = url("/records", "repositoryKey" to summary.repositoryKey,
-            "q" to "요청 & + %", "cursor" to "search-cursor")
         val result = RecordActivities(summary.id, ActivityVisibility.AUTHOR, emptyList(), 12, true)
-        val body = pages.activities(actor, result, searchUrl)
-        val previous = link(body, "이전 작업 더 보기")
-        val back = link(body, "기록으로 돌아가기")
-        assertEquals("/records/${summary.id}/activities", previous.path)
-        assertEquals("${URI(searchUrl).rawQuery}&beforeVersion=12", previous.rawQuery)
-        assertEquals("/records/${summary.id}", back.path)
-        assertEquals(URI(searchUrl).rawQuery, back.rawQuery)
+        val sources = listOf(
+            url("/records", "repositoryKey" to summary.repositoryKey, "q" to "요청 & + %", "cursor" to "search-cursor") to "",
+            url("/records/history", "repositoryKey" to summary.repositoryKey, "revision" to queryRevision,
+                "path" to sourcePath, "line" to "3", "retryRecordId" to summary.id.toString()) to "&from=history",
+            url("/records/pull-requests", "repositoryKey" to summary.repositoryKey, "pullNumber" to "27", "cursor" to "pr-cursor") to "&from=pull-requests",
+        )
+        for ((source, marker) in sources) {
+            val body = pages.activities(actor, result, source)
+            val previous = link(body, "이전 작업 더 보기")
+            val back = link(body, "기록으로 돌아가기")
+            assertEquals("/records/${summary.id}/activities", previous.path)
+            assertEquals("${URI(source).rawQuery}$marker&beforeVersion=12", previous.rawQuery)
+            assertEquals("/records/${summary.id}", back.path)
+            assertEquals("${URI(source).rawQuery}$marker", back.rawQuery)
+        }
     }
 
     private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
