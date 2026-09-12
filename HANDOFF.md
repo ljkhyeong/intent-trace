@@ -755,3 +755,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `fb58995`, 검증 대상 코드는 `a3fabd5`다. `revoke_my_session`의 UUID 변환 오류에서 입력값·원인 예외를 제거했다. 도구 설명에 목록의 연결 ID를 사용하도록 명시했다. 빈 문자열·잘못된 ID는 연결을 종료하지 않고, ID 생략만 현재 연결 종료로 처리한다.
 - 수정 전 신규 SDK 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 17개가 통과했다. 실제 Spring 서버에 stdio·표준 SDK로 연결해 오류 응답의 입력값 미노출, 기존 세션 보존, 선택·반복·현재 연결 종료를 확인했다. `./gradlew test bootJar`: 서버 230개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:09 KST이며 로그는 `/tmp/intent-trace-session-id-before.log`, `/tmp/intent-trace-session-id-focused.log`, `/tmp/intent-trace-session-id-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트 구현·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IDE 패키지 검증을 생략했다. 외부 GitHub 호출이나 사용자 세션 변경은 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 점검 주소 생략
+
+- 시작 리비전은 `3083cb5`, 검증 대상 코드는 `d4d5134`다. `check owner/repo [--pr 번호] [--revision 커밋]`에서 서버 주소를 생략하면 `INTENT_TRACE_MCP_URL`, 없으면 기본 로컬 서버를 사용한다. 직접 입력한 주소가 우선하며 주소 검증·세션 전달·서버 진단은 기존 경로를 사용한다. 도움말과 설치·사용 안내를 갱신했다.
+- 주소 생략 오류를 Node 테스트 1개 실패로 재현한 뒤 수정했다. `npm test --prefix clients/zed`: Node 14개·Python 실행기 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 3개 통과, 실패·오류·건너뜀 0개다. 주소 입력·생략 양쪽에서 PR HEAD·명시 커밋 전달과 주소 우선순위를 확인했다. 결과 시각은 2026-09-12 19:17 KST이며 로그는 `/tmp/intent-trace-zed-check-address-before.log`, `/tmp/intent-trace-zed-check-address-all.log`, `/tmp/intent-trace-zed-check-address-bridge.log`다.
+- 설치 테스트에서 저장소 밖의 패키지 명령으로 주소 없는 저장소·PR 진단을 확인했다. `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 만들었고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-check-address-package.log`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·IntelliJ·의존성·배포 설정은 변경하지 않아 전체 서버·PostgreSQL·IDE 검증과 JAR 재빌드를 반복하지 않았다. 실제 사용자 설정·외부 게시·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
