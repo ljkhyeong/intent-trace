@@ -17,8 +17,8 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `5e5c094` | [서버 248개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화) |
-| PostgreSQL | `8da47c8` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-기록-요약과-저장소-키-중복-처리-제거) |
+| 서버·MCP | `60c4bfc` | [서버 248개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-db-시간-변환을-표준-api로-정리) |
+| PostgreSQL | `60c4bfc` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-db-시간-변환을-표준-api로-정리) |
 | IntelliJ | `5e5c094` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
@@ -856,3 +856,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 지역 검사 후 `./gradlew focusedTest --tests '*GitHubHttpPolicyTest' --tests '*GitHubUserRestClientTest'` 24개, `./gradlew test bootJar`의 서버 248개·ArchUnit 4개가 통과했다. 미래·과거·잘못된 날짜의 대기 시간과 기존 오류 분류를 확인했다. 서버 결과 시각은 2026-09-12 23:32 KST이며 표준 MCP SDK 연결도 포함한다.
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`는 53개 테스트와 ZIP 빌드·구조 검사를 통과했다. 기존 저장 테스트에서 잘못된 토큰을 거부한 뒤 정상 세션이 보존되는지 확인했다. 결과 시각은 2026-09-12 23:33 KST다. 로그는 `/tmp/intent-trace-standard-api-{files,focused,server,intellij}.log`, 빌드 파일은 `build/libs/intent-trace.jar`와 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 시작 커밋 기준 전체 diff·구조 검사를 적용한다. DB·Zed 실행 코드·의존성·설정은 바뀌지 않아 별도 PostgreSQL·Node 테스트는 반복하지 않았다. 실제 IDE 설치·GitHub 호출·원격 푸시·운영 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-09-12 DB 시간 변환을 표준 API로 정리
+
+- 시작 리비전은 `1be4784`, 구현 커밋은 `60c4bfc`다. 기록·게시 이력 저장소에 중복된 `toDatabaseTime` 함수 두 개를 제거하고 `Instant.atOffset(ZoneOffset.UTC)`로 바꿨다. 목록 커서와 변경 이력도 같은 API로 맞췄다. UTC·`OffsetDateTime`·선택 시각의 `null` 처리는 유지하며 제품 코드는 5줄 줄었다. 추가로 살펴본 목록·커서·캐시·응답 변환에서 제거할 뚜렷한 중복 검증은 찾지 못했다.
+- 지역 검사 후 `./gradlew focusedTest --tests '*ChangeRecordFacadeIntegrationTest'` 8개가 통과했다. `scripts/verify-postgres.sh`는 임시 PostgreSQL에서 5개 테스트와 백업·복구 후 기록 15건·변경 이력 34건의 일치를 확인했다. 최종 `./gradlew test bootJar`는 서버 248개·ArchUnit 4개가 통과했고 표준 MCP SDK 연결과 JAR 빌드도 포함한다. 결과 시각은 2026-09-12 23:38 KST, 로그는 `/tmp/intent-trace-jdbc-time-{files,focused,postgres,server}.log`다. 기존 테스트를 사용했으며 새 테스트는 추가하지 않았다.
+- 시작 커밋 기준 전체 diff·구조 검사를 적용한다. SQL·스키마·클라이언트·의존성·설정은 변경하지 않아 IntelliJ·Node 독립 테스트와 클라이언트 패키지 빌드는 반복하지 않았다. 서버 JAR은 `build/libs/intent-trace.jar`로 갱신했다. 기존 미추적 PNG를 보존했고 원격 푸시·운영 DB 변경·배포는 하지 않았다.
