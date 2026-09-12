@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | 서버·MCP | `e3dcd75` | [서버 245개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-스냅샷의-미사용-값과-목록-복사-제거) |
 | PostgreSQL | `8da47c8` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-기록-요약과-저장소-키-중복-처리-제거) |
-| IntelliJ | 동작 `e10b373` · 소개 `f8e9ec4` | [53개 통과](#2026-09-12-intellij-비공개-기록-범위-안내), [한국어 소개 ZIP 빌드·구조 검사](#2026-09-12-저장소와-플러그인-소개-한국어-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| IntelliJ | `69eda59` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-intellij-기록-응답-모델-중복-제거). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
 
@@ -830,3 +830,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 기존 Git 해시 테스트가 실제 스냅샷 객체를 거쳐 Git 명령 결과와 비교하도록 바꿨다. 초기 지역 컴파일에서 삭제 필드를 복사하던 브라우저 테스트 응답이 발견돼 정리했고, 재컴파일 후 관련 `focusedTest` 22개가 통과했다.
 - 최종 `./gradlew test bootJar`는 서버 245개·ArchUnit 4개 통과와 JAR 빌드를 마쳤다. 결과 시각은 2026-09-12 22:54 KST, 로그는 `/tmp/intent-trace-snapshot-simplify-{files,files-retry,focused,server}.log`다. 표준 MCP SDK 연결도 전체 테스트에 포함하며 성능 개선 폭은 측정하지 않았다.
 - SQL·DB·외부 API·IntelliJ·Zed 실행 코드는 변경하지 않았다. PostgreSQL·IDE·Node 독립 테스트는 반복하지 않았다. 시작 커밋 기준 최종 diff·구조 검사를 적용하고 기존 미추적 PNG를 보존했다. 원격 푸시와 배포는 하지 않았다.
+
+## 2026-09-12 IntelliJ 기록 응답 모델 중복 제거
+
+- 시작 리비전은 `9287a7a`, 구현 커밋은 `69eda59`다. 기록 상세의 중복 DTO와 필드 복사를 제거하고, 기존 목록 조회처럼 JSON 응답을 화면 모델로 직접 읽도록 했다. 작성자는 공통 `CreatedByResponse`를 사용한다. 제품 코드가 35줄 줄었으며 응답 필드·선택값 기본값·형식 오류 안내는 유지했다.
+- 지역 검사 후 `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`가 성공했다. 기존 테스트 53개가 모두 통과했고 생략된 선택 필드, 잘못된 응답, 기록 조회·코드 이동·화면 표시를 확인했다. 결과 시각은 2026-09-12 23:04 KST, 로그는 `/tmp/intent-trace-ide-model-{files,test}.log`다. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이며 실제 IDE에는 설치하지 않았다.
+- 시작 커밋 기준 최종 diff 검사를 적용한다. 서버·DB·Zed·의존성·설정은 변경하지 않아 해당 테스트·빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했으며 원격 푸시와 배포는 하지 않았다.
