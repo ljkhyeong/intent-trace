@@ -780,3 +780,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `7e7b749`, 검증 대상 코드는 `d58faa5`다. `run-verification.py`가 실행 전후 상태 조회에 `--ignore-submodules=none`을 지정한다. `.gitmodules`나 로컬 Git 설정이 숨긴 서브모듈 변경도 확인하며, 실행 전 변경이 있으면 명령을 시작하지 않고 실행 후 변경이 있으면 검증 JSON을 내보내지 않는다.
 - 수정 전 신규 테스트 1개가 실패했고 수정 후 관련 `focusedTest` 8개가 통과했다. 로컬 임시 저장소에서 서브모듈의 수정·미추적 파일을 실행 전후 네 경우로 확인했다. `./gradlew test`: 서버 234개·ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 전체 결과 시각은 2026-09-12 19:54 KST이며 로그는 `/tmp/intent-trace-submodule-verification-before.log`, `/tmp/intent-trace-submodule-verification-focused.log`, `/tmp/intent-trace-submodule-verification-server.log`다.
 - 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버 실행 코드·DB·클라이언트·의존성·배포 설정은 변경하지 않아 JAR·패키지 재빌드와 별도 PostgreSQL·IDE 검증은 생략했다. 실제 GitHub 조회·게시·운영 배포와 사용자 Git 설정은 변경하지 않았다. 기존 미추적 PNG는 보존했으며 작업 변경은 커밋했다.
+
+## 2026-09-12 릴리스 MCP 테스트 의존성 준비
+
+- 시작 리비전은 `5255e76`, 수정 리비전은 `d0ac0b3`이다. 태그 릴리스에서 서버 테스트 전에 일반 CI와 같은 Node.js 22와 잠금 파일 기준 Zed 의존성을 준비한다. 로컬 릴리스 문서에도 최초 설치와 재설치 조건을 명시했다.
+- 시작 리비전의 추적 파일만 임시 폴더에 복사해 `./gradlew --no-daemon test --tests io.intenttrace.connection.ZedBridgeIntegrationTest --tests io.intenttrace.record.application.GitHubContextIntegrationTest`를 실행했다. 설치 전 MCP SDK 누락으로 3개 실패·2개 건너뜀을 재현했다. `npm ci --prefix clients/zed --ignore-scripts` 후 같은 테스트 10개와 ArchUnit 4개가 통과했고 실패·오류·건너뜀은 0개다. 로컬 Node.js는 25.4.0이며 결과 시각은 2026-09-12 20:20 KST다. 로그는 `/tmp/intent-trace-release-before.log`, `/tmp/intent-trace-release-install.log`, `/tmp/intent-trace-release-after.log`다.
+- 워크플로 YAML 구문, 일반 CI와 준비 단계 일치, 서버 테스트 전 설치 순서를 확인했다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·클라이언트 코드와 의존성 파일은 그대로여서 전체 서버 234개·ArchUnit 4개의 직전 성공 결과를 재사용하고 JAR·패키지는 다시 만들지 않았다. 실제 GitHub Actions·태그 발행·운영 배포는 실행하지 않았다. 기존 미추적 PNG는 보존했다.
