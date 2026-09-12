@@ -115,7 +115,7 @@ GitHub 호출 제한은 `429`와 `Retry-After` 초 단위 값으로 반환한다
 
 애플리케이션은 Micrometer에 다음 지표를 수집한다. 저장소·사용자·token·원문 요청·코드 경로는 label에 넣지 않는다.
 
-- `intenttrace.github.request`: GitHub 작업 종류와 결과별 호출 수·응답 헤더까지의 지연. `outcome=rate_limited`로 호출 제한을 구분한다.
+- `intenttrace.github.request`: GitHub 작업 종류와 결과별 호출 수·응답 헤더까지의 지연. 저장소 단건 권한 조회는 `operation=repository_access`, App 설치·토큰 발급은 `operation=installation`으로 구분한다. `outcome=rate_limited`는 호출 제한이다.
 - `intenttrace.record.operation`: 생성·수정·확인 취소·폐기·확인·공개·대체의 성공 수. 같은 생성 요청의 재시도는 새 생성으로 집계하지 않는다.
 - `intenttrace.publication.attempt`: 게시·대체 안내별 성공·실패·결과 미확인 수.
 

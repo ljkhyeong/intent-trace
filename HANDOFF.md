@@ -662,3 +662,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `KUBECONFORM=build/tools/kubeconform/kubeconform bash scripts/validate-k3s.sh`: Kubernetes 1.35 스키마 검사 11개와 설정 변경 시나리오 4개 통과. 앱 설정·비밀값은 앱만, DB 설정·비밀번호는 앱과 DB 모두에 반영된다. 공용 ConfigMap·Secret을 다시 참조하는 오류를 임시 파일에 각각 넣어 검사 실패도 확인했다. 로그는 `/tmp/intent-trace-k3s-settings-validation.log`다. kubectl 1.36.1/Kustomize 5.8.1과 kubeconform 0.8.0을 사용했다.
 - 기존 `.env.secrets`가 임시 예시와 같은지 확인한 뒤 GitHub 값만 남기고 DB 예시는 `.env.database.secrets`로 옮겼다. 두 파일 모두 Git 제외·권한 0600이며 실제 자격 증명은 없다. 기존 운영값 이동과 처음 분리 적용 시 앱·DB 교체는 [k3s 안내](docs/operations/k3s-deployment.md)에 명시했다.
 - 서버 소스·테스트·애플리케이션 설정·의존성은 변경하지 않았다. 앞선 서버 195개·ArchUnit 4개와 JAR 빌드 결과를 재사용하고, IntelliJ·Zed·Compose 검증도 반복하지 않았다. Docker 이미지 빌드·실제 클러스터 적용·GitHub App 설정·실제 웹훅·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 GitHub 권한 조회 지표 분류
+
+- 시작 리비전 `91ad060`, 코드 검증 대상은 `a7cb08f`다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 권한 조회 API를 단건 조회로 바꾼 뒤 지표가 예전 `/user/repos` 경로를 사용하던 누락을 수정했다. 현재 권한 조회는 `operation=repository_access`로 집계한다.
+- `./gradlew focusedTest --tests '*GitHubHttpPolicyTest'`: 5개 통과. 추가한 200·403·404·429 사례 4개가 수정 전 실패하는 것을 확인했다. 수정 후 권한 처리 결과·대기 시간과 작업·결과 태그를 검증했고 저장소·사용자·토큰은 태그에 포함되지 않는다. 로그는 `/tmp/intent-trace-github-metrics-before.log`, `/tmp/intent-trace-github-metrics-focused.log`다.
+- `./gradlew test bootJar`: 서버 199개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 13:31 KST이며 로그는 `/tmp/intent-trace-github-metrics-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- API 계약·인증·권한 규칙·DB·배포 파일·의존성은 변경하지 않았다. 독립 IntelliJ·Zed·Compose·k3s 검증은 반복하지 않았다. 실제 GitHub 호출·게시·웹훅 전송·이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
