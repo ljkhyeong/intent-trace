@@ -63,7 +63,7 @@ class ChangeIntentHistoryService(
                 throw ChangeRecordNotFoundException(id)
             }
             return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
-                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version)
+                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version, record.publishedAt)
         }
         val page = if (resume != null) {
             val current = summary(resume.record.id)
