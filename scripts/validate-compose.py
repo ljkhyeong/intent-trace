@@ -11,9 +11,7 @@ def fail(message: str) -> None:
 
 def network_names(service: dict) -> set[str]:
     networks = service.get("networks", {})
-    if isinstance(networks, dict):
-        return set(networks)
-    if isinstance(networks, list):
+    if isinstance(networks, (dict, list)):
         return set(networks)
     fail("Compose service의 networks 형식을 확인할 수 없습니다.")
 

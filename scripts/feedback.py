@@ -121,9 +121,9 @@ def hook(root, payload, directory):
         return {}
     if state is None:
         return {"systemMessage": "검사 시작 커밋이 없습니다. feedback.py finish --base <작업 시작 커밋>으로 검사하세요."}
-    current = snapshot(root, state["base"])
     try:
         if event == "PostToolUse":
+            current = snapshot(root, state["base"])
             names = sorted(name for name in current.keys() | state["files"].keys()
                            if current.get(name, "missing") != state["files"].get(name, "missing"))
             if not names:
