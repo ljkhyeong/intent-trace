@@ -5,7 +5,6 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 interface GitHubAccessTokenProvider {
@@ -26,7 +25,7 @@ class CachingGitHubAccessTokenProvider(
     override fun token(target: GitHubPullRequestTarget): String {
         properties.token.trim().takeIf { it.isNotEmpty() }?.let { return it }
 
-        val key = target.repositoryKey.lowercase(Locale.ROOT)
+        val key = target.repositoryKey
         tokens[key]?.takeIf(::isUsable)?.let { return it.value }
         return synchronized(locks.computeIfAbsent(key) { Any() }) {
             tokens[key]?.takeIf(::isUsable)?.value
@@ -38,8 +37,7 @@ class CachingGitHubAccessTokenProvider(
         if (properties.token.isNotBlank()) {
             return false
         }
-        val key = target.repositoryKey.lowercase(Locale.ROOT)
-        tokens.computeIfPresent(key) { _, current -> current.takeUnless { it.value == rejectedToken } }
+        tokens.computeIfPresent(target.repositoryKey) { _, current -> current.takeUnless { it.value == rejectedToken } }
         return true
     }
 

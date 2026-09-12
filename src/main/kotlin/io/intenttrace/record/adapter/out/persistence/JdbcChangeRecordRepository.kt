@@ -70,21 +70,8 @@ class JdbcChangeRecordRepository(
                 "limit" to pageable.pageSize + 1,
                 "offset" to pageable.offset,
             ),
-        ) { row, _ ->
-            ChangeRecordSummary(
-                id = UUID.fromString(row.getString("id")),
-                repositoryKey = row.getString("repository_key"),
-                title = row.getString("title"),
-                requestSummary = row.getString("request_summary"),
-                version = row.getLong("version"),
-                status = ChangeRecordStatus.valueOf(row.getString("status")),
-                targetRevision = row.getString("target_revision"),
-                createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
-                createdAt = row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
-                publishedAt = row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
-                supersededBy = row.getString("superseded_by")?.let(UUID::fromString),
-            )
-        }
+            changeRecordSummaryRowMapper,
+        )
         return SliceImpl(rows.take(pageable.pageSize), pageable, rows.size > pageable.pageSize)
     }
 

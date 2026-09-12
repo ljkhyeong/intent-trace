@@ -15,7 +15,7 @@ class CachingGitHubAccessTokenProviderTest {
     private val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
 
     @Test
-    fun `installation token을 재사용하고 만료 여유 시간에 들어오면 갱신한다`() {
+    fun `저장소 대소문자와 관계없이 토큰을 재사용하고 만료와 거부 시 갱신한다`() {
         val clock = MutableClock(Instant.parse("2026-08-28T00:00:00Z"))
         var issued = 0
         val provider = CachingGitHubAccessTokenProvider(
@@ -30,11 +30,13 @@ class CachingGitHubAccessTokenProviderTest {
         )
 
         assertEquals("token-1", provider.token(target))
-        assertEquals("token-1", provider.token(target))
+        assertEquals("token-1", provider.token(target.copy(owner = "ACME", repository = "Intent-Trace")))
 
         clock.current = clock.instant().plus(Duration.ofMinutes(56))
         assertEquals("token-2", provider.token(target))
         assertEquals(2, issued)
+        assertEquals(true, provider.invalidate(target.copy(owner = "ACME"), "token-2"))
+        assertEquals("token-3", provider.token(target))
     }
 
     @Test
