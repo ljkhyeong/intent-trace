@@ -19,6 +19,7 @@
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
 - 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 가장 오래된 것을 폐기한다.
+- 새 세션 발급은 기존 세션의 GitHub 응답을 기다리지 않는다. 잠금이 사용 중이면 만료 정리를 다음 발급으로 미룬다. 사용자별 상한으로 폐기할 때는 활성 상태를 먼저 해제해, 진행 중인 토큰 갱신이 오래된 세션을 복구하지 못하게 한다.
 - `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` token은 IntentTrace가 발급한 session이 아니므로 이 API로 폐기하지 않는다.
 - access token 만료 5분 전부터 세션별 잠금 안에서 갱신을 한 번 수행하고, 새 access·refresh token을 함께 저장한다.
 - 갱신 요청이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재로그인을 안내한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
