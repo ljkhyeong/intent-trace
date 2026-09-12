@@ -74,7 +74,10 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
                     "- **$state** ${inlineCode(verification.command)} — ${plainText(verification.summary)}",
                 )
                 val origin = if (verification.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구에서 수집한 결과" else "클라이언트가 제출함"
-                appendLine("  - 출처: $origin / 출력 해시: ${inlineCode(verification.outputDigest)}")
+                appendLine("  - 종료 코드: ${inlineCode(verification.exitCode.toString())} / 출처: $origin")
+                appendLine("  - 실행 시각(UTC): ${inlineCode(verification.startedAt.toString())} → ${inlineCode(verification.finishedAt.toString())}")
+                appendLine("  - 검증 스냅샷 해시: ${inlineCode(verification.snapshotDigest)}")
+                appendLine("  - 출력 해시: ${inlineCode(verification.outputDigest)}")
             }
         }
         appendLine()
