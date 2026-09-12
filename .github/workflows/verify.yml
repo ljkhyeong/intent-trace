@@ -81,6 +81,17 @@ jobs:
       - name: Compose 경계 검증
         run: python3 scripts/validate-compose.py .env.team.example
 
+      - name: k3s 배포 파일 검증
+        run: |
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl -o "$RUNNER_TEMP/kubectl"
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl.sha256 -o "$RUNNER_TEMP/kubectl.sha256"
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/kubectl" | sha256sum --check
+          curl --fail --silent --show-error --location https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz -o "$RUNNER_TEMP/kubeconform.tar.gz"
+          echo "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883  $RUNNER_TEMP/kubeconform.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/kubeconform.tar.gz" -C "$RUNNER_TEMP" kubeconform
+          chmod +x "$RUNNER_TEMP/kubectl" "$RUNNER_TEMP/kubeconform"
+          PATH="$RUNNER_TEMP:$PATH" bash scripts/validate-k3s.sh
+
       - name: Caddy 설정 검증
         run: docker compose --env-file .env.team.example run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
