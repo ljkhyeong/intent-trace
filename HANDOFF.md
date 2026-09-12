@@ -683,3 +683,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*InMemoryGitHubUserSessionStoreTest'`: 17개 통과. GitHub 갱신을 대기시킨 상태에서 다른 사용자와 같은 사용자의 새 발급이 완료되는지 확인했다. 같은 사용자라면 오래된 세션을 폐기하고 진행 중이던 갱신도 세션을 복구하지 못한다. 수정 전 두 사례의 대기 실패는 `/tmp/intent-trace-session-lock-before.log`, 수정 후 결과는 `/tmp/intent-trace-session-lock-focused.log`에 있다.
 - `./gradlew test bootJar`: 서버 207개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 13:59 KST이며 로그는 `/tmp/intent-trace-session-lock-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 호출·로그인·게시·웹훅·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 GitHub PR 응답 오류 분류
+
+- 시작 리비전 `cc954f6`, 코드 검증 대상은 `0ff0e40`이다. 사용자·App PR 클라이언트에서 저장소명·HEAD 파싱 실패를 `GitHubApiException`으로 변환했다. 잘못된 외부 응답은 REST에서 `502`로 처리하고 연결 진단은 해당 점검 실패를 표시한다. 기존 값 검증과 Fork·저장소 불일치 처리는 유지했다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다.
+- `./gradlew focusedTest --tests '*GitHubUserPullRequestClientTest' --tests '*GitHubRestClientTest'`: 23개 통과. 두 클라이언트의 base·head 저장소명과 HEAD 형식 오류, 응답 원문 미노출을 검증했다. 수정 전 오류 분류 실패 5건과 기존 HEAD 안내 문구 차이는 `/tmp/intent-trace-pr-response-before.log`, 수정 후 결과는 `/tmp/intent-trace-pr-response-focused.log`에 있다.
+- `./gradlew test bootJar`: 서버 212개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:07 KST이며 로그는 `/tmp/intent-trace-pr-response-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 호출·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
