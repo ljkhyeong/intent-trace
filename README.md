@@ -325,7 +325,7 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 
 1. IntelliJ의 `Tools > IntentTrace GitHub 승인 시작`을 실행합니다. 또는 브라우저에서 서버의 `/auth/github/start`를 직접 엽니다.
 2. GitHub 로그인 완료 화면에 한 번 표시되는 `its_` 세션 토큰을 복사합니다.
-3. IntelliJ의 `Tools > IntentTrace 세션 연결`에 토큰을 입력합니다. 토큰은 IntelliJ PasswordSafe에 보관합니다.
+3. IntelliJ의 `Tools > IntentTrace 세션 연결`에 토큰을 입력합니다. 서버에서 계정을 확인한 뒤 PasswordSafe에 저장하고 GitHub 계정을 표시합니다. 세션 만료나 서버 장애로 확인하지 못하면 기존 저장 세션을 유지합니다.
 4. 커밋된 파일에서 줄을 선택한 뒤 편집기 우클릭 메뉴 또는 `Tools > 현재 줄 변경 의도 조회`를 실행합니다. 결과 창에서 기록을 고르고 `선택 기록 열기`를 누르면 상세에서 원래 커밋·당시 코드·원본·대체 기록을 확인할 수 있습니다.
 5. 저장소 파일을 선택하고 `Tools > IntentTrace 기록함 열기`에서 팀 공개 기록·내 비공개 기록·상태·현재 파일 필터를 고른 뒤 `조회`합니다. 기록을 선택하면 같은 상세 화면을 엽니다.
 

@@ -633,3 +633,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 44개, 실패·오류·건너뜀 0개다. 로컬 HTTP 응답으로 계정 표시, 세션 누락·잘못된 형식의 요청 차단, 401·403·404·잘못된 응답·429 안내와 원문 비노출을 확인했다.
 - 결과 시각은 2026-09-12 12:05 KST, 로그는 `/tmp/intent-trace-intellij-login.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 파일 작성 직후 `feedback.py files`와 종료 전 `feedback.py finish --base 6cfa4e1`을 통과하고 전체 `review.diff`를 검토했다. 서버 코드·API 계약·DB·Zed·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·실제 GitHub 로그인·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 세션 연결 실패 시 기존 세션 보존
+
+- 시작 리비전 `34a2254`, 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 코드 검증 대상은 `99cb116`이다. 세션 연결 시 입력한 토큰으로 계정을 확인한 뒤 PasswordSafe에 저장하고 GitHub 계정을 표시한다. 확인에 실패하면 기존 저장 세션을 유지한다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 47개, 실패·오류·건너뜀 0개다. 로컬 HTTP 서버와 메모리 자격 증명 저장소로 확인 전 기존 값 유지, 성공 후 해당 서버의 값 교체, 인증 거부·호출 제한·서버 오류·잘못된 응답에서 기존 값 보존을 확인했다. 다른 서버의 저장 세션과 환경 변수 세션도 유지했다.
+- 결과 시각은 2026-09-12 12:38 KST, 로그는 `/tmp/intent-trace-session-connect.log`다. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 파일별 지역 검사와 `feedback.py finish --base 34a2254`의 전체 diff 검토를 적용했다. 서버 코드·API 계약·DB·Zed·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·실제 GitHub 로그인·게시·배포는 수행하지 않았다.
