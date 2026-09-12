@@ -4,6 +4,7 @@ import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.AuthenticatedMcpIntegrationTest
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubPullRequestReader
@@ -24,6 +25,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 @SpringBootTest(
@@ -47,6 +49,59 @@ class ZedBridgeIntegrationTest(
         assertTrue(output.contains("MCP 연결 성공"), output)
         assertTrue(output.contains("repository_read: VERIFIED"), output)
         Mockito.verifyNoInteractions(evidence, pullRequests)
+    }
+
+    @Test
+    fun `세션 종료는 잘못된 ID를 노출하거나 다른 연결을 종료하지 않고 ID 생략만 현재 연결을 종료한다`() {
+        val now = Instant.now()
+        fun issue() = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
+            "ghu_zed-session-test", now.plusSeconds(3600), "ghr_zed-session-test", now.plusSeconds(7200),
+        ))
+        val current = issue()
+        val other = issue()
+        val otherId = sessions.resolve(other.sessionToken).sessionId
+        val script = """
+            import assert from 'node:assert/strict';
+            import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+            import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+            const client = new Client({ name: 'session-revocation-test', version: '1' });
+            const transport = new StdioClientTransport({ command: process.execPath,
+                args: ['intent-trace.mjs', 'serve', 'http://127.0.0.1:$port/mcp'],
+                env: { INTENT_TRACE_SESSION_TOKEN: process.env.INTENT_TRACE_SESSION_TOKEN }, stderr: 'pipe' });
+            transport.stderr?.resume();
+            const call = (name, args = {}) => client.callTool({ name, arguments: args });
+            const data = result => {
+                assert.notEqual(result.isError, true);
+                return result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
+            };
+            const ids = async () => data(await call('list_my_sessions')).sessions.map(item => item.id).sort();
+            try {
+                await client.connect(transport);
+                const before = await ids();
+                for (const sessionId of ['its_' + 'x'.repeat(43), 'ghu_private-marker', '/Users/example/private', '']) {
+                    const result = await call('revoke_my_session', { sessionId });
+                    assert.equal(result.isError, true);
+                    assert.ok(JSON.stringify(result).includes('연결 ID는 UUID 형식이어야 합니다.'));
+                    if (sessionId) assert.ok(!JSON.stringify(result).includes(sessionId));
+                    assert.deepEqual(await ids(), before);
+                }
+                assert.equal(data(await call('revoke_my_session', { sessionId: '$otherId' })).revokedCount, 1);
+                assert.equal(data(await call('revoke_my_session', { sessionId: '$otherId' })).revokedCount, 0);
+                assert.deepEqual(await ids(), before.filter(id => id !== '$otherId'));
+                assert.equal(data(await call('revoke_my_session')).revokedCount, 1);
+            } finally { await client.close(); }
+        """.trimIndent()
+        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
+            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = current.sessionToken }.start()
+        val finished = process.waitFor(30, TimeUnit.SECONDS)
+        if (!finished) {
+            process.descendants().forEach { it.destroyForcibly() }
+            process.destroyForcibly()
+        }
+        assertTrue(finished, "세션 종료 검증이 30초 안에 끝나야 합니다.")
+        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(current.sessionToken) }
+        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(other.sessionToken) }
     }
 
     @Test

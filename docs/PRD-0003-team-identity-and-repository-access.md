@@ -81,6 +81,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - `DELETE /api/v1/me/sessions/current`, `DELETE /api/v1/me/sessions/{id}`, `DELETE /api/v1/me/sessions`로 현재 연결·선택 연결·본인의 전체 연결을 폐기한다. 결과는 `revokedCount`다. 다른 사용자의 ID나 이미 없는 ID는 0을 반환해 소유권 정보를 노출하지 않는다.
 - 직접 `ghu_` 인증에는 현재 로컬 세션 ID가 없으므로 현재 연결 폐기는 `400`이다. 본인의 목록과 선택·전체 로컬 세션 폐기는 가능하다. GitHub App 승인 자체를 취소하는 기능은 아니다.
 - MCP는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`다. token을 도구 인자로 받지 않는다.
+- `revoke_my_session`의 `sessionId`는 목록에서 확인한 UUID다. 잘못된 형식은 입력값과 원인 예외를 포함하지 않는 오류로 반환하고 연결을 종료하지 않는다. 빈 문자열은 잘못된 ID이며, 인자를 생략한 경우에만 현재 연결을 종료한다.
 - 폐기 후의 새 인증은 거부한다. token 갱신 중 폐기해도 세션을 다시 활성화하지 않는다. 이미 인증을 끝내 처리 중인 요청의 작업을 취소하지는 않는다.
 - GitHub 호출 제한은 REST·MCP 인증 경로에서도 `429`와 `Retry-After`로 안내한다. 도구 실행 중 제한은 오류 메시지에도 대기 시간을 담는다.
 

@@ -16,8 +16,14 @@ class MySessionTools(private val sessions: MySessionService) {
 
     @McpTool(name = "revoke_my_session", description = "사용자가 종료를 요청한 내 IntentTrace 연결을 종료합니다. ID 생략 시 현재 연결을 종료합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true, idempotentHint = true, openWorldHint = false))
-    fun revoke(@McpToolParam(description = "목록에서 확인한 내 세션 ID, 생략 시 현재 연결", required = false) sessionId: String? = null): SessionRevocation =
-        sessions.revoke(sessionId?.let(UUID::fromString))
+    fun revoke(@McpToolParam(description = "list_my_sessions에서 확인한 연결 ID(UUID). 생략하면 현재 연결을 종료하며 토큰은 입력하지 않습니다.", required = false) sessionId: String? = null): SessionRevocation {
+        val id = sessionId?.let {
+            try { UUID.fromString(it) } catch (_: IllegalArgumentException) {
+                throw IllegalArgumentException("연결 ID는 UUID 형식이어야 합니다.")
+            }
+        }
+        return sessions.revoke(id)
+    }
 
     @McpTool(name = "revoke_all_my_sessions", description = "사용자가 전체 연결 종료를 요청했을 때 내 모든 IntentTrace 연결을 종료합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = true, idempotentHint = true, openWorldHint = false))
