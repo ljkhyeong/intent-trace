@@ -14,6 +14,13 @@ internal class IntentTraceApiClient {
         }
     }
 
+    fun checkLogin(server: IntentTraceServer, sessionToken: String?): String {
+        val token = sessionToken ?: throw IntentTraceUsageException(
+            "저장된 세션이 없습니다. Tools > IntentTrace 세션 연결에서 토큰을 저장해 주세요.",
+        )
+        return IntentTraceResponseParser.parseLogin(get(server.mySessionsUri(), token, sessionCheck = true))
+    }
+
     fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): List<ChangeIntentRecord> =
         IntentTraceResponseParser.parse(get(server.lookupUri(lookup), sessionToken))
 
@@ -48,7 +55,7 @@ internal class IntentTraceApiClient {
         }
     }
 
-    private fun get(uri: URI, sessionToken: String?): String {
+    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false): String {
         sessionToken?.let(::requireSessionToken)
         return execute {
             HttpRequests.request(uri.toString())
@@ -71,8 +78,10 @@ internal class IntentTraceApiClient {
                         else -> throw IntentTraceClientException(when {
                             sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
                             status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
-                            status == 403 -> "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
-                            status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
+                            status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
+                                else "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
+                            status == 404 -> if (sessionCheck) "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요."
+                                else "해당 IntentTrace 기록을 찾을 수 없습니다."
                             status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
                             else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
                         })

@@ -27,6 +27,8 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
 
     fun sessionUri(): URI = URI.create("$baseUri/api/v1/session")
 
+    fun mySessionsUri(): URI = URI.create("$baseUri/api/v1/me/sessions")
+
     fun recordUri(id: String): URI = URI.create("$baseUri/api/v1/change-records/${UUID.fromString(id)}")
 
     fun webRecordUri(id: String): URI = URI.create("$baseUri/records/${UUID.fromString(id)}")

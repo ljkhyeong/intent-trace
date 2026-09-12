@@ -18,6 +18,61 @@ import kotlin.test.assertTrue
 
 class IntentTraceApiClientTest {
     @Test
+    fun `로그인 확인은 내 세션 API에 토큰을 보내고 서버가 확인한 GitHub 계정을 반환한다`() {
+        val method = AtomicReference<String>()
+        val authorization = AtomicReference<String>()
+        withServer(path = "/api/v1/me/sessions", handler = { exchange ->
+            method.set(exchange.requestMethod)
+            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+            val body = """{"actor":{"subject":"github:42","login":"developer"},"authentication":"LOCAL_SESSION","sessions":[]}""".toByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }) { server ->
+            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+            assertEquals("developer", IntentTraceApiClient().checkLogin(endpoint, token))
+        }
+        assertEquals("GET", method.get())
+        assertEquals("Bearer $token", authorization.get())
+    }
+
+    @Test
+    fun `로그인 확인에서 세션이 없거나 형식이 틀리면 서버에 요청하지 않는다`() {
+        val calls = AtomicInteger()
+        withServer(path = "/", handler = { exchange ->
+            calls.incrementAndGet()
+            exchange.sendResponseHeaders(200, -1)
+            exchange.close()
+        }) { server ->
+            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+            for (session in listOf(null, "ghu_not-an-intent-trace-session")) {
+                assertFailsWith<IntentTraceUsageException> { IntentTraceApiClient().checkLogin(endpoint, session) }
+            }
+        }
+        assertEquals(0, calls.get())
+    }
+
+    @Test
+    fun `로그인 실패는 기록 조회 오류와 구분하고 응답 원문을 숨긴다`() {
+        for ((status, message) in mapOf(
+            401 to "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요.",
+            403 to "로그인 정보를 확인할 권한이 없습니다.",
+            404 to "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요.",
+            200 to "IntentTrace 조회 응답 형식을 확인할 수 없습니다.",
+        )) {
+            withServer(path = "/api/v1/me/sessions", handler = { exchange ->
+                val body = """{"error":"test-private-response-marker"}""".toByteArray()
+                exchange.sendResponseHeaders(status, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }) { server ->
+                val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+                val error = assertFailsWith<IntentTraceClientException> { IntentTraceApiClient().checkLogin(endpoint, token) }
+                assertEquals(message, error.message)
+                assertFalse(error.stackTraceToString().contains("test-private-response-marker"))
+            }
+        }
+    }
+
+    @Test
     fun `연결 확인은 세션 없이 health를 조회하고 UP 상태만 성공으로 처리한다`() {
         val authorization = AtomicReference<String>()
         for (status in listOf("UP", "DOWN")) {
@@ -198,6 +253,7 @@ class IntentTraceApiClientTest {
                 val operations = listOf<() -> Unit>(
                     { lookup(server) },
                     { api.checkConnection(endpoint) },
+                    { api.checkLogin(endpoint, token) },
                     { api.revokeSession(endpoint, token) },
                 )
                 operations.forEachIndexed { index, operation ->

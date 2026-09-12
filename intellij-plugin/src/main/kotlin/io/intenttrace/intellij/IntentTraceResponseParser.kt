@@ -16,6 +16,8 @@ internal object IntentTraceResponseParser {
 
     fun parseHealth(body: String): String = decode<HealthResponse>(body).status
 
+    fun parseLogin(body: String): String = decode<LoginResponse>(body).actor.login
+
     private inline fun <reified T> decode(body: String): T = try {
         json.decodeFromString<T>(body)
     } catch (_: SerializationException) {
@@ -25,6 +27,9 @@ internal object IntentTraceResponseParser {
 
 @Serializable
 private data class HealthResponse(val status: String)
+
+@Serializable
+private data class LoginResponse(val actor: CreatedByResponse)
 
 @Serializable
 private data class ChangeIntentResponse(
