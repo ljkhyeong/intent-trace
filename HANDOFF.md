@@ -640,3 +640,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 47개, 실패·오류·건너뜀 0개다. 로컬 HTTP 서버와 메모리 자격 증명 저장소로 확인 전 기존 값 유지, 성공 후 해당 서버의 값 교체, 인증 거부·호출 제한·서버 오류·잘못된 응답에서 기존 값 보존을 확인했다. 다른 서버의 저장 세션과 환경 변수 세션도 유지했다.
 - 결과 시각은 2026-09-12 12:38 KST, 로그는 `/tmp/intent-trace-session-connect.log`다. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
 - 파일별 지역 검사와 `feedback.py finish --base 34a2254`의 전체 diff 검토를 적용했다. 서버 코드·API 계약·DB·Zed·의존성은 변경하지 않아 해당 검증을 반복하지 않았다. 실제 IDE 화면 조작·플러그인 설치·실제 GitHub 로그인·게시·배포는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 세션 삭제 결과 안내
+
+- 시작 리비전 `86eb0c9`, 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 코드 검증 대상은 `964f71e`다. 저장 세션이 없거나 만료돼도 서버에서 폐기했다고 안내하던 오류를 수정했다. 완료 문구는 로컬 삭제 여부를 표시하고 환경 변수 세션이 남으면 계속 사용된다고 안내한다.
+- `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure` 통과. IntelliJ 테스트 50개, 실패·오류·건너뜀 0개다. 저장 세션이 없을 때 요청 0건, 204·401 응답 후 로컬 삭제, 다른 서버·환경 변수 세션 유지, 429·503 응답 시 저장 세션 보존을 로컬 HTTP·메모리 저장소로 검증했다.
+- 결과 시각은 2026-09-12 12:50 KST, 로그는 `/tmp/intent-trace-session-disconnect.log`다. ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`이다.
+- 파일별 지역 검사와 `feedback.py finish --base 86eb0c9`의 전체 diff 검토를 적용했다. 서버·API·DB·Zed·의존성은 변경하지 않아 관련 검증을 반복하지 않았다. 실제 IDE 화면·플러그인 설치·실제 세션 폐기·게시·배포는 수행하지 않았다.
