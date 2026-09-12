@@ -46,14 +46,14 @@ intellijPlatform {
         name = "IntentTrace"
         version = project.version.toString()
         description = """
-            IntentTrace displays change intent, personal drafts and file history with links to original commits and verification evidence.
-            현재 줄의 변경 의도, 팀 공개 기록과 내 비공개 기록을 조회하고 원래 커밋·코드 근거·검증을 확인합니다.
+            <p>IntentTrace / JetBrains IntelliJ IDEA / Git</p>
+            <p>현재 줄의 변경 의도, 팀 공개 기록과 내 비공개 기록을 조회하고 원래 커밋·코드 근거·검증을 확인합니다.</p>
         """.trimIndent()
         ideaVersion {
             sinceBuild = "253"
         }
         vendor {
-            name = "IntentTrace contributors"
+            name = "IntentTrace 기여자"
             url = "https://github.com/ljkhyeong/intent-trace"
         }
     }
