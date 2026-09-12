@@ -45,6 +45,7 @@ out/
 .env*
 !.env.example
 !.env.team.example
+!deploy/k3s/.env.database.example
 backups/
 intent-trace.private-key.pem
 *.private-key.pem

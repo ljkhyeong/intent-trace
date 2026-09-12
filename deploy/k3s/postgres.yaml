@@ -35,17 +35,17 @@ spec:
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
-                  name: intent-trace-config
+                  name: intent-trace-database-config
                   key: INTENT_TRACE_DATABASE_NAME
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: intent-trace-secrets
+                  name: intent-trace-database-secrets
                   key: INTENT_TRACE_DATABASE_USERNAME
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: intent-trace-secrets
+                  name: intent-trace-database-secrets
                   key: INTENT_TRACE_DATABASE_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata

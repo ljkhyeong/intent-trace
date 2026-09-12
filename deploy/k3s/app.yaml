@@ -35,6 +35,10 @@ spec:
                 name: intent-trace-config
             - secretRef:
                 name: intent-trace-secrets
+            - configMapRef:
+                name: intent-trace-database-config
+            - secretRef:
+                name: intent-trace-database-secrets
           resources:
             requests:
               cpu: 250m

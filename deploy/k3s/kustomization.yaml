@@ -10,10 +10,16 @@ configMapGenerator:
   - name: intent-trace-config
     envs:
       - config.env
+  - name: intent-trace-database-config
+    envs:
+      - database.env
 secretGenerator:
   - name: intent-trace-secrets
     envs:
       - .env.secrets
+  - name: intent-trace-database-secrets
+    envs:
+      - .env.database.secrets
 images:
   - name: intent-trace
     newName: intent-trace
