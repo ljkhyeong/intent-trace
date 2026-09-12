@@ -210,6 +210,8 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 테스트 결과 수집' -- ./gradlew test
 ```
 
+결과 JSON의 명령·요약에서는 비밀값과 개인 경로를 제거합니다. 따옴표 안의 비밀값, JWT·PEM 키, `--password 값` 같은 옵션도 포함합니다. 실제 실행 인자와 출력 해시는 유지합니다.
+
 서버 코드 확인에는 [별도 읽기 권한](#github-app-권한)이 필요합니다. 이 권한이 없어도 저장된 기록은 조회할 수 있습니다. 코드 확인은 테스트 실행 자체를 증명하지 않습니다.
 
 ## API

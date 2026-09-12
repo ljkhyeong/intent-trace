@@ -64,6 +64,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - `GET /api/v1/change-records/history`와 `find_related_change_intent`는 저장소·조회 커밋·경로·줄과 선택 커서를 받는다. 후보 기록은 기본 5개, 최대 20개씩 탐색한다.
 - 결과의 `EXACT_REVISION`은 근거 커밋·줄 일치, `ANCESTOR_UNCHANGED_FILE`은 조상 커밋과 동일 blob 확인, `RELATED_UNVERIFIED`는 현재 줄과 내용의 일치를 확인하지 않은 관련 후보다. 다른 커밋의 검증 결과는 파일 내용이 같아도 현재 커밋의 검증으로 사용하지 않는다.
 - `scripts/run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령과 인자>`는 실제 명령을 실행하고 검증 JSON을 표준 출력으로 반환한다. 원문 출력은 메모리에서 해시만 계산하고 버린다. 명령과 요약의 비밀값·개인 경로를 제거한다.
+- 명령은 인자별로 정제한 뒤 표시용 문자열로 합친다. 이스케이프된 따옴표 안의 비밀값·JWT·PEM 키와 `--password 값`, `--client-secret=값` 같은 비밀값 옵션을 제거한다. 실행에 전달하는 인자와 원문 출력의 해시는 변경하지 않는다.
 - 실행 전후 HEAD가 같고 Git이 보고하는 수정·미추적 파일이 없어야 한다. 변경되면 저장 가능한 검증 JSON을 반환하지 않는다. Git이 무시하는 파일, 실행 도중 변경 후 복원, 빌드 환경 전체의 동일성까지 증명하지는 않는다.
 
 ## 공개 기록에서 후속 초안 만들기

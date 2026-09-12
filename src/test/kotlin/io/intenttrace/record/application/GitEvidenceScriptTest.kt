@@ -93,6 +93,33 @@ class GitEvidenceScriptTest {
     }
 
     @Test
+    fun `실행 인자는 유지하고 결과 JSON의 명령과 요약에서 비밀값을 제거한다`() {
+        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJleGFtcGxlIn0.signatureValue123"
+        val secrets = listOf(
+            """secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값""",
+            "--password", "ARGUMENT_VALUE_ONLY_FOR_TEST",
+            "--client-secret=ASSIGNMENT_VALUE_ONLY_FOR_TEST", jwt,
+            "Bearer", "BEARER_VALUE_ONLY_FOR_TEST",
+        )
+        val summary = """{"password": "prefix\"SUMMARY_ONLY_FOR_TEST", "label": "검증 완료"}"""
+        val result = runCommand(listOf("python3", script, revision, "--summary", summary, "--", "python3", "-c",
+            "import sys; sys.stdout.write('\\n'.join(sys.argv[1:]))") + secrets)
+        assertEquals(0, result.exitCode)
+        val json = tools.jackson.module.kotlin.jacksonObjectMapper().readTree(result.output)
+        assertEquals(0, json.get("exitCode").asInt())
+        assertEquals("LOCAL_RUNNER_REPORTED", json.get("source").asText())
+        assertEquals(sha256(secrets.joinToString("\n")), json.get("outputDigest").asText())
+        assertEquals(runEvidence("snapshot", revision).output.trim(), json.get("snapshotDigest").asText())
+        assertTrue(json.get("summary").asText().contains("검증 완료"))
+        assertTrue(json.get("command").asText().contains("label=남길값"))
+        for (secret in listOf("TAIL_ONLY_FOR_TEST", "ARGUMENT_VALUE_ONLY_FOR_TEST", "ASSIGNMENT_VALUE_ONLY_FOR_TEST",
+            "SUMMARY_ONLY_FOR_TEST", "BEARER_VALUE_ONLY_FOR_TEST", jwt)) {
+            assertFalse(result.output.contains(secret))
+        }
+    }
+
+    @Test
     fun `비교할 수 없는 큰 줄 번호는 해시 없이 실패한다`() {
         val overflow = "9223372036854775808"
         for (start in listOf("1", overflow)) {
