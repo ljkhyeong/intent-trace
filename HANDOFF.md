@@ -697,3 +697,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*GitHubEvidenceClientTest' --tests '*RecordEvidenceIntegrationTest'`: 14개 통과. 잘못된 응답 네 사례를 수정 전에 재현하고 정상 비교 상태·원문 미노출·시간 제한·취소·이력 조회를 확인했다. 로그는 `/tmp/intent-trace-evidence-response-before.log`, `/tmp/intent-trace-evidence-response-focused.log`다.
 - `./gradlew test bootJar`: 서버 220개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:12 KST이며 로그는 `/tmp/intent-trace-evidence-response-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 저장소 조회·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 세션 종료 대기와 인증 중 만료 처리
+
+- 시작 리비전 `6dc6cba`, 코드 검증 대상은 `cbe0b24`다. 현재 연결 종료의 세션 잠금 대기를 제거하고 모든 종료 경로에서 기존 활성 상태 해제·조건부 삭제를 재사용한다. 인증 응답을 받은 뒤 만료도 확인하며, 인증·목록·정리의 만료 조건을 하나로 모았다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다.
+- `./gradlew focusedTest --tests '*InMemoryGitHubUserSessionStoreTest'`: 20개 통과. 현재·브라우저·선택·전체 폐기가 진행 중인 갱신을 기다리지 않고 해당 인증을 거부하는지 확인했다. 가상 시계로 GitHub 사용자 조회 중 브라우저 세션의 8시간 만료를 재현했다. 수정 전 두 실패는 `/tmp/intent-trace-session-expiry-before.log`, 수정 후 결과는 `/tmp/intent-trace-session-expiry-focused.log`에 있다.
+- `./gradlew test bootJar`: 서버 223개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:21 KST이며 로그는 `/tmp/intent-trace-session-expiry-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
+- API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 로그인·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
