@@ -737,3 +737,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `npm test --prefix clients/zed`: Node 테스트 13개와 Python 실행기 테스트 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결·진단 테스트 2개 통과. 끝 쉼표를 허용하는 JSONC의 항목 위치별 삭제, 미리보기, 반복 적용, 파일 없음, 비밀값 미출력과 설치된 명령을 확인했다. 결과 시각은 2026-09-12 18:41 KST이며 로그는 `/tmp/intent-trace-zed-remove-all.log`, `/tmp/intent-trace-zed-remove-bridge.log`다.
 - `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 SHA-256·빌드 정보를 생성했고 체크섬이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-remove-package.log`다.
 - 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ·의존성·배포 설정은 변경하지 않았다. 실제 사용자 Zed 설정·서버 세션은 변경하지 않았고 외부 패키지 게시·운영 배포는 수행하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 GitHub 자료 조회 오류 구분
+
+- 시작 리비전은 `19d631b`, 검증 대상 코드는 `f12af2a`다. 이슈·PR·CI 조회의 GitHub 403은 조회 거부(403), 404·410은 자료 없음·열람 불가(404)로 전달한다. 브라우저는 주소·App 권한을 확인하도록 안내하고 재조회 버튼을 표시하지 않는다. 호출 제한에 해당하는 403은 기존 공통 처리에서 429·대기 시간으로 전달한다. 일시 장애의 502·재조회와 MCP의 원인별 안내를 유지한다.
+- `./gradlew focusedTest --tests '*GitHubContextClientTest' --tests '*GitHubContextIntegrationTest'`: 관련 테스트 10개 통과. `./gradlew test bootJar`: 서버 228개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개다. 표준 MCP SDK로 실제 서버의 오류 안내를 확인했다. 전체 결과 시각은 2026-09-12 18:52 KST이며 로그는 `/tmp/intent-trace-context-errors-focused.log`, `/tmp/intent-trace-context-errors-server.log`, 실행 파일은 `build/libs/intent-trace.jar`다.
+- 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. DB·클라이언트·의존성·배포 설정은 변경하지 않아 별도 PostgreSQL·IntelliJ·Zed 패키지 검증을 반복하지 않았다. 실제 GitHub 자료 조회·게시와 운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
