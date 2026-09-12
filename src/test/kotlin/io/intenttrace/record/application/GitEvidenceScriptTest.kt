@@ -93,6 +93,38 @@ class GitEvidenceScriptTest {
     }
 
     @Test
+    fun `Git 설정에 숨겨진 서브모듈 변경도 검증 실행 전후에 거부한다`(@TempDir source: Path) {
+        runGit("-C", source.toString(), "init")
+        Files.writeString(source.resolve("tracked.txt"), "original\n")
+        runGit("-C", source.toString(), "add", ".")
+        runGit("-C", source.toString(), "-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local",
+            "commit", "-m", "서브모듈 파일 추가")
+        runGit("-c", "protocol.file.allow=always", "submodule", "add", source.toString(), "module")
+        runGit("config", "-f", ".gitmodules", "submodule.module.ignore", "all")
+        runGit("add", ".")
+        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "서브모듈 추가")
+        runGit("config", "diff.ignoreSubmodules", "all")
+        val revision = runGit("rev-parse", "HEAD").output.trim()
+        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+        val marker = repository.resolve("module/executed")
+        for (file in listOf("tracked.txt", "untracked.txt")) {
+            val changed = repository.resolve("module/$file")
+            for (before in listOf(true, false)) {
+                if (before) Files.writeString(changed, "changed\n")
+                assertTrue(runGit("status", "--porcelain", "--untracked-files=all").output.isEmpty())
+                val result = runCommand(listOf("python3", script, revision, "--summary", "서브모듈 변경 감지", "--",
+                    "python3", "-c", "from pathlib import Path; Path('module/executed').touch(); Path('module/$file').write_text('changed\\n')"))
+                assertEquals(2, result.exitCode, result.output)
+                assertTrue(result.output.contains("커밋하지 않은 변경"), result.output)
+                assertFalse(result.output.contains("\"snapshotDigest\""), result.output)
+                assertEquals(!before, Files.exists(marker), "기존 변경이 있으면 검증 명령을 실행하지 않아야 합니다.")
+                Files.deleteIfExists(marker)
+                if (file == "tracked.txt") Files.writeString(changed, "original\n") else Files.deleteIfExists(changed)
+            }
+        }
+    }
+
+    @Test
     fun `실행 인자는 유지하고 결과 JSON의 명령과 요약에서 비밀값을 제거한다`() {
         val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
         val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJleGFtcGxlIn0.signatureValue123"

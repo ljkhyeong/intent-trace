@@ -204,7 +204,7 @@ scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/F
 
 `snapshot`은 저장소 트리, `anchor`는 지정한 코드 줄의 SHA-256을 계산합니다. 줄 범위는 `1 ≤ 시작 줄 ≤ 끝 줄 ≤ 10,000,000`입니다. 계산 규칙과 `core.quotePath=false`로 만든 [기존 해시의 재현 방법](docs/ADR-0001-evidence-bound-change-record.md#기존-스냅샷-해시-재현)은 설계 문서를 참고하세요.
 
-검증을 실행하며 결과를 수집하려면 다음 도구를 사용합니다. 실행 전후 HEAD가 같고 수정·미추적 파일이 없어야 하며, 표준 출력에는 원문 대신 검증 JSON만 나옵니다. 검증 명령의 실패 종료 코드도 그대로 전달합니다.
+검증을 실행하며 결과를 수집하려면 다음 도구를 사용합니다. 실행 전후 HEAD가 같고 서브모듈을 포함해 수정·미추적 파일이 없어야 하며, 표준 출력에는 원문 대신 검증 JSON만 나옵니다. 검증 명령의 실패 종료 코드도 그대로 전달합니다.
 
 ```bash
 python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 테스트 결과 수집' -- ./gradlew test

@@ -24,7 +24,7 @@ def git(*arguments: str) -> bytes:
 def require_clean(revision: str) -> None:
     if git("rev-parse", "HEAD").decode().strip() != revision:
         raise ValueError("현재 HEAD와 검증할 커밋이 다릅니다.")
-    if git("status", "--porcelain", "--untracked-files=all"):
+    if git("status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none"):
         raise ValueError("커밋하지 않은 변경 또는 추적하지 않는 파일이 있어 검증을 현재 커밋에 연결할 수 없습니다.")
 
 
