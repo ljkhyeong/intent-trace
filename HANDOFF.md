@@ -786,3 +786,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `5255e76`, 수정 리비전은 `d0ac0b3`이다. 태그 릴리스에서 서버 테스트 전에 일반 CI와 같은 Node.js 22와 잠금 파일 기준 Zed 의존성을 준비한다. 로컬 릴리스 문서에도 최초 설치와 재설치 조건을 명시했다.
 - 시작 리비전의 추적 파일만 임시 폴더에 복사해 `./gradlew --no-daemon test --tests io.intenttrace.connection.ZedBridgeIntegrationTest --tests io.intenttrace.record.application.GitHubContextIntegrationTest`를 실행했다. 설치 전 MCP SDK 누락으로 3개 실패·2개 건너뜀을 재현했다. `npm ci --prefix clients/zed --ignore-scripts` 후 같은 테스트 10개와 ArchUnit 4개가 통과했고 실패·오류·건너뜀은 0개다. 로컬 Node.js는 25.4.0이며 결과 시각은 2026-09-12 20:20 KST다. 로그는 `/tmp/intent-trace-release-before.log`, `/tmp/intent-trace-release-install.log`, `/tmp/intent-trace-release-after.log`다.
 - 워크플로 YAML 구문, 일반 CI와 준비 단계 일치, 서버 테스트 전 설치 순서를 확인했다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·클라이언트 코드와 의존성 파일은 그대로여서 전체 서버 234개·ArchUnit 4개의 직전 성공 결과를 재사용하고 JAR·패키지는 다시 만들지 않았다. 실제 GitHub Actions·태그 발행·운영 배포는 실행하지 않았다. 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 버전 조회와 MCP 버전 일치
+
+- 시작 리비전은 `06408f9`, 검증 대상 코드는 `09feee4`다. MCP 중계기가 0.12.0을 고정해 전달하던 부분을 제거하고 CLI·MCP가 설치된 `package.json` 버전을 함께 사용한다. `--version`·`-V`는 주소·세션 없이 버전을 표시한다. 서버 버전과는 별개다.
+- 수정 전 테스트 2개 실패로 명령 누락과 버전 불일치를 재현했다. `npm test --prefix clients/zed`: Node 15개·Python 실행기 3개 통과. 임시 패키지의 버전을 바꿔 저장소 밖의 설치 명령·MCP에도 반영되는지 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결 테스트 4개 통과, 실패·오류·건너뜀 0개다. 결과 시각은 2026-09-12 20:30 KST이며 로그는 `/tmp/intent-trace-zed-version-before.log`, `/tmp/intent-trace-zed-version-all.log`, `/tmp/intent-trace-zed-version-bridge.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 체크섬·빌드 정보를 생성했고 SHA-256이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-version-package.log`다. 지역 검사와 시작 리비전 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ 코드는 변경하지 않아 전체 서버·DB·IDE 검증과 JAR 빌드는 생략했다. 실제 Zed 설정·외부 게시·운영 배포는 변경하지 않았고 기존 미추적 PNG는 보존했다.
