@@ -34,6 +34,16 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Node.js 22 준비
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/zed/package-lock.json
+
+      - name: Zed 연결 도구 준비
+        run: npm ci --prefix clients/zed --ignore-scripts
+
       - name: 서버 테스트와 실행 JAR 생성
         run: ./gradlew --no-daemon test bootJar
 

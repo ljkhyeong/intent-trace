@@ -28,6 +28,12 @@ IntentTrace는 서버 실행 JAR과 IntelliJ 설치 ZIP을 같은 버전과 Git 
 
 ## 2. 로컬 검증
 
+Java 21, Node.js 22 이상, Python 3을 준비한다. 서버 테스트가 Zed 연결 도구를 사용하므로 새 체크아웃에서는 먼저 의존성을 설치한다. 이후에는 의존성 파일이 바뀌었거나 설치 폴더가 없을 때만 다시 설치한다.
+
+```bash
+npm ci --prefix clients/zed --ignore-scripts
+```
+
 ```bash
 ./gradlew test bootJar
 ./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
@@ -62,7 +68,7 @@ git tag -a v0.7.0 -m "릴리스: v0.7.0"
 git push origin v0.7.0
 ```
 
-`.github/workflows/release.yml`은 태그가 프로젝트 버전과 정확히 같은지 확인하고 서버·플러그인을 다시 검증한다. 검증에 성공하면 네 개의 파일을 GitHub Release에 첨부한다. 개발용 `-SNAPSHOT` 버전이나 다른 버전의 태그는 발행하지 않는다.
+`.github/workflows/release.yml`은 일반 CI와 같은 Node.js 버전과 잠금 파일로 Zed 의존성을 준비하고 서버·플러그인을 검증한다. 태그와 프로젝트 버전도 정확히 일치하면 네 개의 파일을 GitHub Release에 첨부한다. 개발용 `-SNAPSHOT` 버전이나 다른 버전의 태그는 발행하지 않는다.
 
 ## 4. 발행 후 확인
 
