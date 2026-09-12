@@ -1,6 +1,6 @@
 # IntentTrace Zed 연결 도구
 
-IntentTrace 서버의 변경 기록을 Zed Agent에서 사용하는 MCP 연결 도구다. Node.js 22 이상이 필요하다. `launch`에는 Python 3와 Zed CLI도 필요하다.
+IntentTrace 서버의 변경 기록을 Zed 에이전트에서 사용하는 MCP 연결 도구다. Node.js 22 이상이 필요하다. `launch`에는 Python 3와 Zed CLI도 필요하다.
 
 ## 배포 파일 설치
 
@@ -12,7 +12,7 @@ npm install --prefix ~/.local/share/intent-trace --ignore-scripts --offline /배
 ~/.local/share/intent-trace/node_modules/.bin/intent-trace-zed configure --apply
 ```
 
-팀 서버는 미리보기와 `--apply` 명령 모두 `configure` 뒤에 같은 HTTPS `/mcp` 주소를 넣는다. 미리보기는 주소를 저장하지 않는다. 두 명령을 실행하기 전에 `INTENT_TRACE_MCP_URL` 환경 변수로 주소를 지정해도 된다. 명령 인자의 주소가 환경 변수보다 우선하며, 둘 다 없으면 로컬 서버를 사용한다. 설정에는 token을 저장하지 않는다.
+팀 서버는 미리보기와 `--apply` 명령 모두 `configure` 뒤에 같은 HTTPS `/mcp` 주소를 넣는다. 미리보기는 주소를 저장하지 않는다. 두 명령을 실행하기 전에 `INTENT_TRACE_MCP_URL` 환경 변수로 주소를 지정해도 된다. 명령 인자의 주소가 환경 변수보다 우선하며, 둘 다 없으면 로컬 서버를 사용한다. 설정에는 토큰을 저장하지 않는다.
 
 IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 종료하고 실행한다.
 
@@ -42,5 +42,5 @@ npm uninstall --prefix ~/.local/share/intent-trace --ignore-scripts intent-trace
 
 - macOS·Linux: 위 설치·실행 명령을 사용한다. Linux 검증은 저장소 CI에서 수행한다.
 - Windows: Node로 연결 도구를 실행하고 `--settings`로 Zed 설정을 지정할 수 있다. `launch`는 PATH의 `python`을 사용한다. Windows 실제 Zed 앱 실행은 확인하지 않았다.
-- Agent의 MCP 도구 연결을 지원한다. 편집기 인라인 메뉴와 자동 기록 수집은 제공하지 않는다.
+- 에이전트의 MCP 도구 연결을 지원한다. 편집기 인라인 메뉴와 자동 기록 수집은 제공하지 않는다.
 - 서버 재시작·세션 만료 후에는 다시 로그인한다. 레지스트리의 비밀 입력 항목을 등록해도 IntentTrace의 OAuth가 자동 연동되지는 않는다.

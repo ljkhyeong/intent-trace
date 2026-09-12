@@ -3,14 +3,14 @@
   "version": "0.12.3-SNAPSHOT",
   "description": "AI 코드의 요청·구현 결정·관련 코드·검증 결과를 작성자 확인 후 공유하는 플러그인",
   "author": {
-    "name": "IntentTrace contributors"
+    "name": "IntentTrace 기여자"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Intent Trace",
     "shortDescription": "코드 변경 이유와 검증 결과를 기록합니다.",
     "longDescription": "AI 코드의 요청·구현 결정·관련 코드·검증 결과를 커밋에 연결하고, 작성자가 확인한 기록만 팀에 공개합니다.",
-    "developerName": "IntentTrace contributors",
+    "developerName": "IntentTrace 기여자",
     "category": "Productivity",
     "capabilities": [],
     "defaultPrompt": [
