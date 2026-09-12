@@ -655,3 +655,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `KUBECONFORM=build/tools/kubeconform/kubeconform bash scripts/validate-k3s.sh`에서 9개 리소스가 Kubernetes 1.35 스키마 검사를 통과했다. kubectl 1.36.1/Kustomize 5.8.1, kubeconform 0.8.0을 사용했고 다운로드 체크섬을 확인했다. 로그는 `/tmp/intent-trace-k3s-validation.log`다. `python3 scripts/validate-compose.py .env.team.example`도 통과했다.
 - `deploy/k3s/.env.secrets`는 Git 제외·권한 0600인 임시 예시다. 실제 자격 증명은 없고 웹훅 secret은 기본적으로 비워 수신을 막는다. 운영자가 바꿀 값과 절차는 [k3s 배포 준비](docs/operations/k3s-deployment.md)에 있다. 앱 1개·Recreate, PostgreSQL PVC, Traefik HTTPS, 상태 확인과 CI 스키마 검증을 준비했다.
 - 파일별 검사와 `feedback.py finish --base 4a835cc`의 전체 diff 검토를 적용했다. Docker 이미지 빌드·실제 k3s 적용·공유기·DNS·TLS·GitHub App 설정·실제 웹훅 전송·원격 CI는 수행하지 않았다. DB 스키마·IntelliJ·Zed 구현은 변경하지 않아 해당 독립 검증을 반복하지 않았다.
+
+## 2026-09-12 k3s 앱·DB 설정 분리
+
+- 시작 리비전 `8e5c1c6`, 배포 코드 검증 대상은 `2571289`다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다. GitHub callback 주소만 바꿔도 PostgreSQL 배포가 변경되는 문제를 재현하고 앱·DB의 ConfigMap과 Secret을 분리했다.
+- `KUBECONFORM=build/tools/kubeconform/kubeconform bash scripts/validate-k3s.sh`: Kubernetes 1.35 스키마 검사 11개와 설정 변경 시나리오 4개 통과. 앱 설정·비밀값은 앱만, DB 설정·비밀번호는 앱과 DB 모두에 반영된다. 공용 ConfigMap·Secret을 다시 참조하는 오류를 임시 파일에 각각 넣어 검사 실패도 확인했다. 로그는 `/tmp/intent-trace-k3s-settings-validation.log`다. kubectl 1.36.1/Kustomize 5.8.1과 kubeconform 0.8.0을 사용했다.
+- 기존 `.env.secrets`가 임시 예시와 같은지 확인한 뒤 GitHub 값만 남기고 DB 예시는 `.env.database.secrets`로 옮겼다. 두 파일 모두 Git 제외·권한 0600이며 실제 자격 증명은 없다. 기존 운영값 이동과 처음 분리 적용 시 앱·DB 교체는 [k3s 안내](docs/operations/k3s-deployment.md)에 명시했다.
+- 서버 소스·테스트·애플리케이션 설정·의존성은 변경하지 않았다. 앞선 서버 195개·ArchUnit 4개와 JAR 빌드 결과를 재사용하고, IntelliJ·Zed·Compose 검증도 반복하지 않았다. Docker 이미지 빌드·실제 클러스터 적용·GitHub App 설정·실제 웹훅·원격 CI는 수행하지 않았다.

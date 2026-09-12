@@ -11,7 +11,7 @@ IntentTrace는 로컬 H2 실행과 PostgreSQL 연결 profile을 제공하지만 
 ## 결정
 
 - 한 host의 Docker Compose에서 PostgreSQL, IntentTrace app 하나와 Caddy 하나를 실행한다.
-- 홈서버 k3s에는 앱 Deployment 1개와 `Recreate` 전략, PostgreSQL StatefulSet·PVC, Traefik Ingress를 제공한다. Kustomize의 ConfigMap·Secret 생성기로 환경값을 주입한다. 실제 이미지 빌드·DNS·공유기·인증서·클러스터 적용은 운영자가 수행한다. [k3s 준비 안내](operations/k3s-deployment.md)를 따른다.
+- 홈서버 k3s에는 앱 Deployment 1개와 `Recreate` 전략, PostgreSQL StatefulSet·PVC, Traefik Ingress를 제공한다. Kustomize의 ConfigMap·Secret 생성기로 앱·DB 환경값을 나누어 주입한다. GitHub 설정 변경은 앱만 교체하고 DB 설정 변경은 양쪽을 교체한다. 실제 이미지 빌드·DNS·공유기·인증서·클러스터 적용은 운영자가 수행한다. [k3s 준비 안내](operations/k3s-deployment.md)를 따른다.
 - readiness에는 DB 상태를 포함하고 liveness는 프로세스 상태만 확인한다. DB 장애로 요청을 받지 못해도 앱 재시작을 반복하지 않는다.
 - Compose에서는 Caddy만 host의 80·443에 연결한다. app과 PostgreSQL에는 host port를 열지 않는다.
 - Compose의 PostgreSQL과 app은 외부 통신이 차단된 `data` network를 공유한다. app과 Caddy는 GitHub API와 ACME에 나갈 수 있는 `edge` network를 공유한다.
