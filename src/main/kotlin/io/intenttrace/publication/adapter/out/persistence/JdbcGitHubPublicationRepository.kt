@@ -11,7 +11,6 @@ import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
-import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -69,7 +68,7 @@ class JdbcGitHubPublicationRepository(
                 publication.checkRunId,
                 publication.checkRunUrl,
                 publication.contentDigest,
-                publication.publishedAt.toDatabaseTime(),
+                publication.publishedAt.atOffset(ZoneOffset.UTC),
             )
         } catch (_: DuplicateKeyException) {
             if (update(publication) != 1) {
@@ -95,7 +94,7 @@ class JdbcGitHubPublicationRepository(
             publication.checkRunId,
             publication.checkRunUrl,
             publication.contentDigest,
-            publication.publishedAt.toDatabaseTime(),
+            publication.publishedAt.atOffset(ZoneOffset.UTC),
             publication.changeRecordId.toString(),
             repository.canonicalOwner,
             repository.canonicalName,
@@ -117,6 +116,4 @@ class JdbcGitHubPublicationRepository(
         contentDigest = resultSet.getString("content_digest"),
         publishedAt = resultSet.getObject("published_at", OffsetDateTime::class.java).toInstant(),
     )
-
-    private fun Instant.toDatabaseTime(): OffsetDateTime = OffsetDateTime.ofInstant(this, ZoneOffset.UTC)
 }

@@ -48,7 +48,7 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
         }
         query.cursor?.let {
             conditions += "(r.created_at < :createdAt or (r.created_at = :createdAt and r.id < :cursorId))"
-            parameters["createdAt"] = OffsetDateTime.ofInstant(it.createdAt, ZoneOffset.UTC)
+            parameters["createdAt"] = it.createdAt.atOffset(ZoneOffset.UTC)
             parameters["cursorId"] = it.id.toString()
         }
         return jdbc.query(

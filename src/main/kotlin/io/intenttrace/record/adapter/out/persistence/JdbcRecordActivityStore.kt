@@ -22,7 +22,7 @@ class JdbcRecordActivityStore(private val jdbc: JdbcTemplate) : RecordActivitySt
             values (?, ?, ?, ?, ?, ?, ?, ?)""",
             activity.recordId.toString(), activity.operation.name, activity.actorSubject, activity.previousVersion,
             activity.version, activity.previousStatus?.name, activity.status.name,
-            OffsetDateTime.ofInstant(activity.occurredAt, ZoneOffset.UTC))
+            activity.occurredAt.atOffset(ZoneOffset.UTC))
     }
 
     override fun list(recordId: UUID, authorView: Boolean, beforeVersion: Long?, limit: Int): List<RecordActivity> {

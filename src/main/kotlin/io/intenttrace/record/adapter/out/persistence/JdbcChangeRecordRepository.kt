@@ -157,9 +157,9 @@ class JdbcChangeRecordRepository(
             record.status.name,
             record.createdBy.login,
             record.createdBy.subject,
-            record.createdAt.toDatabaseTime(),
-            record.confirmedAt?.toDatabaseTime(),
-            record.publishedAt?.toDatabaseTime(),
+            record.createdAt.atOffset(ZoneOffset.UTC),
+            record.confirmedAt?.atOffset(ZoneOffset.UTC),
+            record.publishedAt?.atOffset(ZoneOffset.UTC),
             record.supersededBy?.toString(),
             record.version,
             record.creationDigest,
@@ -185,8 +185,8 @@ class JdbcChangeRecordRepository(
             """.trimIndent(),
             record.targetRevision,
             record.status.name,
-            record.confirmedAt?.toDatabaseTime(),
-            record.publishedAt?.toDatabaseTime(),
+            record.confirmedAt?.atOffset(ZoneOffset.UTC),
+            record.publishedAt?.atOffset(ZoneOffset.UTC),
             record.supersededBy?.toString(),
             record.version,
             record.creationDigest,
@@ -325,8 +325,8 @@ class JdbcChangeRecordRepository(
                 index,
                 verification.command,
                 verification.exitCode,
-                verification.startedAt.toDatabaseTime(),
-                verification.finishedAt.toDatabaseTime(),
+                verification.startedAt.atOffset(ZoneOffset.UTC),
+                verification.finishedAt.atOffset(ZoneOffset.UTC),
                 verification.snapshotDigest,
                 verification.outputDigest,
                 verification.summary,
@@ -401,8 +401,6 @@ class JdbcChangeRecordRepository(
         verifications = emptyList(),
         openQuestions = emptyList(),
     )
-
-    private fun Instant.toDatabaseTime(): OffsetDateTime = OffsetDateTime.ofInstant(this, ZoneOffset.UTC)
 
     private fun ResultSet.getNullableInstant(column: String): Instant? =
         getObject(column, OffsetDateTime::class.java)?.toInstant()
