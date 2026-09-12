@@ -265,22 +265,22 @@
 1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-4. GitHub App webhook으로 사용자 승인·설치 제거와 권한 변경을 반영한다.
+4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
 
 ## 현재 제한
 
 - 사용자 token 쌍과 `its_` 세션은 메모리 전용이라 재시작과 다중 인스턴스 간에 유지되지 않는다.
-- 승인 폐기 webhook은 없다. 웹·REST·MCP에서 본인 세션을 조회·폐기할 수 있다. 연결 이름은 기기를 추정하지 않고 브라우저·Agent/API 채널로 구분한다.
+- 서명을 확인한 GitHub 사용자 승인 폐기 webhook은 해당 사용자의 모든 메모리 세션을 종료한다. 웹·REST·MCP에서도 본인 세션을 조회·폐기할 수 있다. 연결 이름은 기기를 추정하지 않고 브라우저·Agent/API 채널로 구분한다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
-- GitHub 사용자 인증은 요청마다 확인한다. 저장소 권한은 같은 인증 요청 안에서만 재사용하며 새 요청에서는 다시 확인한다. 요청 간 캐시와 webhook 무효화는 없다.
+- GitHub 사용자 인증은 요청마다 확인한다. 저장소 권한은 같은 인증 요청 안에서만 재사용하며 새 요청에서는 다시 확인한다. 저장소 권한의 요청 간 캐시는 없다.
 - V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
 - 서버 코드 확인은 별도 요청에서 GitHub 객체를 읽으며 `Contents: read` 권한이 필요하다. 결과는 저장하지 않고 호출 시 계산한다. 일부 트리·2 MiB 초과 blob은 확인하지 않는다.
 - 코드 이동은 동일 blob의 고유한 이름 변경 또는 원본·현재 파일에서 고유한 전체 줄 조각에 한정한다. 수정·이름 변경 동시 발생과 중복 조각은 자동 연결하지 않는다. 조회는 후보 단위 페이지이며 빈 결과에서도 다음 커서가 있을 수 있다.
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
-- Fork PR Check Run과 GitHub webhook은 아직 지원하지 않는다.
+- Fork PR Check Run과 GitHub App 설치·권한 변경 webhook은 아직 지원하지 않는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
 - IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
@@ -711,3 +711,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew focusedTest --tests '*PublishChangeRecordToGitHubTest'`: 9개 통과. 동시 게시 테스트는 공통 서비스에서 같은 기록·서로 다른 PR의 중복 생성 방지와 응답 유실 복구를 확인한다. 게시 이력이 없는 대체 안내의 불필요한 PR 조회를 수정 전에 재현했다. 로그는 `/tmp/intent-trace-publication-flow-before.log`, `/tmp/intent-trace-publication-flow-focused.log`다.
 - `./gradlew test bootJar`: 서버 224개와 ArchUnit 4개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 14:28 KST이며 로그는 `/tmp/intent-trace-publication-flow-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - API 계약·DB·배포 파일·의존성·IntelliJ·Zed 구현은 변경하지 않았다. 해당 독립 검증과 실제 GitHub 조회·게시·브라우저 조작·Docker 이미지 빌드·운영 설정·배포·원격 CI는 수행하지 않았다.
+
+## 2026-09-12 IntelliJ 기록 검색과 폐기 기록 조회
+
+- 시작 리비전은 `e817291`, 코드 검증 대상은 `027a1a5`다. IntelliJ 기록함에 제목·요청·결정 검색과 내 폐기 기록 필터를 추가했다. 기존 커서 API를 사용하며 이전·다음·새로고침의 검색 조건과 실패 시 페이지 위치를 유지한다. 사용 안내를 갱신하고 위의 웹훅 미지원 설명에서 이미 구현한 사용자 승인 폐기를 제외했다.
+- `./gradlew -p intellij-plugin test`: 51개 통과, 실패·오류·건너뜀 0개. 결과 시각은 2026-09-12 18:09 KST다. HTTP 검색어·커서 인코딩, 검색 초기화, 실패한 페이지 이동, 새로고침의 선택 유지와 폐기 필터를 확인했다. 로그는 `/tmp/intent-trace-record-search-intellij.log`다.
+- `./gradlew -p intellij-plugin buildPlugin verifyPluginStructure` 통과. 설치 ZIP은 `intellij-plugin/build/distributions/intent-trace-intellij-0.12.3-SNAPSHOT.zip`, 로그는 `/tmp/intent-trace-record-search-package.log`다.
+- 파일별 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 기존 미추적 PNG는 수정하거나 커밋하지 않았다. 서버·DB·Zed·배포 설정은 변경하지 않아 PR #21의 성공한 검증을 재사용한다. 실제 IntelliJ 설치·화면 확인과 운영 배포는 수행하지 않았다.
