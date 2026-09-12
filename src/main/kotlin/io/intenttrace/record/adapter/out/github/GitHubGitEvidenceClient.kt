@@ -34,7 +34,7 @@ class GitHubGitEvidenceClient(
         val ref = GitRevision.parse(revision).value
         val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
-        val tree = get(repository, "/git/trees/${GitRevision.parse(commit.tree.sha).value}?recursive=1", TreeResponse::class.java, budget)
+        val tree = get(repository, "/git/trees/${parseResponseRevision(commit.tree.sha)}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
         val entries = tree.tree.associateBy({ it.path }, { GitTreeEntry(it.path, it.mode, it.type, it.sha) })
@@ -43,7 +43,7 @@ class GitHubGitEvidenceClient(
             if (it.mode !in setOf("100644", "100755", "120000", "160000", "040000") || it.type !in setOf("blob", "commit", "tree")) {
                 throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
             }
-            GitRevision.parse(it.sha)
+            parseResponseRevision(it.sha)
         }
         return GitEvidenceSnapshot(ref, entries)
     }
@@ -65,7 +65,17 @@ class GitHubGitEvidenceClient(
     override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean {
         if (ancestor == descendant) return true
         val result = get(repository, "/compare/${GitRevision.parse(ancestor).value}...${GitRevision.parse(descendant).value}?per_page=1", CompareResponse::class.java, budget)
-        return result.status == "ahead" || result.status == "identical"
+        return when (result.status) {
+            "ahead", "identical" -> true
+            "behind", "diverged" -> false
+            else -> throw GitHubApiException("GitHub 커밋 비교 결과를 확인할 수 없습니다.")
+        }
+    }
+
+    private fun parseResponseRevision(value: String): String = try {
+        GitRevision.parse(value).value
+    } catch (_: IllegalArgumentException) {
+        throw GitHubApiException("GitHub 코드 응답의 객체 해시 형식이 올바르지 않습니다.")
     }
 
     private fun <T> get(repository: GitHubRepository, suffix: String, type: Class<T>, budget: EvidenceReadBudget?): T = try {
