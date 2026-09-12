@@ -9,6 +9,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -82,10 +83,11 @@ class GitHubUserRestClientTest {
         server.verify()
     }
 
-    @Test
-    fun `접근할 수 없는 저장소의 404 응답은 역할 없음으로 반환한다`() {
+    @ParameterizedTest
+    @EnumSource(HttpStatus::class, names = ["FORBIDDEN", "NOT_FOUND"])
+    fun `접근이 거부되거나 찾을 수 없는 저장소는 역할 없음으로 반환한다`(status: HttpStatus) {
         server.expect(requestTo("https://api.github.test/repos/acme/private/collaborators/lim/permission"))
-            .andRespond(withStatus(HttpStatus.NOT_FOUND))
+            .andRespond(withStatus(status).body("test-private-response-marker"))
 
         assertNull(client.repositoryRole("user-token", actor, GitHubRepository("acme", "private")))
         server.verify()

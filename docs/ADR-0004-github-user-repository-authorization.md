@@ -13,7 +13,7 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - `ghu_`로 시작하는 GitHub App user access token을 REST·MCP Bearer 자격 증명으로 사용한다.
 - 매 요청에서 GitHub `/user`를 호출해 사용자 숫자 ID와 현재 login을 확인한다.
 - `github:<user-id>`를 안정적인 작성자 subject, login을 표시값으로 저장한다.
-- `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 대상 저장소의 최고 유효 권한만 조회하고, `permission`과 `role_name`을 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다. `none`과 404는 권한 없음으로 처리한다.
+- `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 대상 저장소의 최고 유효 권한만 조회하고, `permission`과 `role_name`을 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다. `none`과 일반 403·404는 접근 거부로 처리한다. 호출 제한 헤더가 있는 403과 429는 공통 HTTP 처리에서 먼저 분류해 대기 시간을 안내한다. 401은 인증 실패, 5xx는 연동 장애로 유지한다. [GitHub 오류 안내](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api)를 따른다.
 - 권한 응답의 숫자 사용자 ID가 `/user`로 확인한 현재 사용자 subject와 일치할 때만 결과를 사용한다. login은 단건 조회 경로와 표시값에만 사용한다.
 - 읽기 작업은 `READER`, 기록 생성·관리·GitHub 게시는 `CONTRIBUTOR` 이상을 요구한다.
 - 비공개 상태는 작성자만 조회하며, `PUBLISHED`와 `SUPERSEDED`도 익명 공개하지 않고 저장소 읽기 권한이 있는 팀원에게만 공개한다.
