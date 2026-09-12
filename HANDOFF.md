@@ -730,3 +730,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `44e9d49`, 코드 검증 대상은 `8088857`이다. 파일·줄 조회와 PR 기록에서 상세·원본·비교·코드 확인·변경 이력을 거쳐도 원래 조건과 커서로 복귀한다. 실패 기록 재조회 ID도 유지한다. 복귀 화면과 인자는 화면별로 제한하고 별도 탐색 상태는 저장하지 않는다.
 - 브라우저 관련 `focusedTest` 17개, `./gradlew test bootJar`의 서버 226개와 ArchUnit 4개 통과. 실패·오류·건너뜀은 0개이며 전체 결과 시각은 2026-09-12 18:29 KST다. 로그는 `/tmp/intent-trace-browser-return-focused.log`와 `/tmp/intent-trace-browser-return-server.log`, 실행 JAR은 `build/libs/intent-trace.jar`다.
 - 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. DB·의존성·클라이언트·배포 설정은 변경하지 않았다. IntelliJ 52개와 설치 ZIP 검증은 직전 결과를 재사용한다. 실제 GitHub 로그인·운영 배포는 수행하지 않았고 기존 미추적 PNG는 보존했다.
+
+## 2026-09-12 Zed 연결 설정 제거
+
+- 시작 리비전은 `6338784`, 코드 검증 대상은 `4ebe8b7`이다. `unconfigure [--settings 설정파일] [--apply]`로 연결 제거 미리보기와 적용을 제공한다. IntentTrace 항목과 구분 쉼표만 편집해 다른 연결·인접 주석·파일 권한을 유지한다. 설정이 없으면 파일을 쓰지 않고 서버 주소·세션 없이 실행한다. 등록·제거 옵션은 Node 기본 파서를 사용한다.
+- `npm test --prefix clients/zed`: Node 테스트 13개와 Python 실행기 테스트 3개 통과. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`: 실제 Spring 연결·진단 테스트 2개 통과. 끝 쉼표를 허용하는 JSONC의 항목 위치별 삭제, 미리보기, 반복 적용, 파일 없음, 비밀값 미출력과 설치된 명령을 확인했다. 결과 시각은 2026-09-12 18:41 KST이며 로그는 `/tmp/intent-trace-zed-remove-all.log`, `/tmp/intent-trace-zed-remove-bridge.log`다.
+- `node scripts/package-zed.mjs`로 `build/zed-release/intent-trace-zed-0.12.2.tgz`와 SHA-256·빌드 정보를 생성했고 체크섬이 일치했다. 생성 로그는 `/tmp/intent-trace-zed-remove-package.log`다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ·의존성·배포 설정은 변경하지 않았다. 실제 사용자 Zed 설정·서버 세션은 변경하지 않았고 외부 패키지 게시·운영 배포는 수행하지 않았다. 기존 미추적 PNG는 보존했다.
