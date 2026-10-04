@@ -5,7 +5,7 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget

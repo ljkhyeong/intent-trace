@@ -1,5 +1,6 @@
 package io.intenttrace.publication.adapter.out.github
 
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.*
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.domain.GitHubRepository

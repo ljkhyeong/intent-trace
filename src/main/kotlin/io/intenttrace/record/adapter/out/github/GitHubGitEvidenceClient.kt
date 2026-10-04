@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.application.EvidenceReadBudget
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import java.net.http.HttpClient

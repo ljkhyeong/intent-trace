@@ -6,7 +6,7 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.adapter.out.github.GitHubGitEvidenceClient
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest

@@ -1,7 +1,7 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 
 enum class EvidenceUnavailableReason(val message: String) {
     SIZE_LIMIT("파일 또는 응답이 지원 크기를 초과했습니다."),

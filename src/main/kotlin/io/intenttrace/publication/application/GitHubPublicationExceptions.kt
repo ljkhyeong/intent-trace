@@ -16,5 +16,3 @@ class GitHubCredentialConfigurationException :
 
 class GitHubPublicationContentTooLargeException :
     RuntimeException("GitHub Check Run에 게시할 Markdown이 65,535자를 초과합니다.")
-
-open class GitHubApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

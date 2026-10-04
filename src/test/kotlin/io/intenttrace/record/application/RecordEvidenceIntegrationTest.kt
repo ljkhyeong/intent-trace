@@ -23,7 +23,7 @@ import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.GitHubRateLimitException
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

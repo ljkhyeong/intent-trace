@@ -1,5 +1,6 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
@@ -27,7 +28,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.TeamChangeRecordService
 import org.mockito.Mockito.mock

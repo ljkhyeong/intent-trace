@@ -2,7 +2,7 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.connection.application.ConnectionDiagnostics
 import io.intenttrace.publication.application.PullRequestOverviewService
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.application.EvidenceUnavailableException

@@ -6,7 +6,7 @@ import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.application.*
 import io.intenttrace.record.domain.GitRevision
 import org.springframework.beans.factory.annotation.Qualifier

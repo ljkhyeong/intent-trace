@@ -2,7 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.application.*
 import io.intenttrace.identity.domain.ActorIdentity

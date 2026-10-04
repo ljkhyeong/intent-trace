@@ -4,7 +4,7 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.LocalGitHubUserSessionRequiredException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
 import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException

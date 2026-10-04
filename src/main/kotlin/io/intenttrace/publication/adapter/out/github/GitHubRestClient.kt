@@ -1,6 +1,6 @@
 package io.intenttrace.publication.adapter.out.github
 
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.identity.domain.GitHubRepository
@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
 import java.net.URI
 
@@ -201,19 +200,6 @@ class GitHubRestClient(
         private const val CHECK_RUN_PATH = "/repos/{owner}/{repository}/check-runs/{checkRunId}"
         private const val CHECK_RUN_PAGE_SIZE = 100
         private const val MAX_CHECK_RUN_PAGES = 10
-    }
-}
-
-internal fun <T> safeCall(operation: String, ifNotFound: (() -> T)? = null, call: () -> T): T {
-    try {
-        return call()
-    } catch (exception: RestClientResponseException) {
-        if (ifNotFound != null && exception.statusCode == HttpStatus.NOT_FOUND) {
-            return ifNotFound()
-        }
-        throw GitHubApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
-    } catch (_: RestClientException) {
-        throw GitHubApiException("GitHub $operation 요청을 완료하지 못했습니다.")
     }
 }
 

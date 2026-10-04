@@ -5,7 +5,7 @@ import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestSnapshot

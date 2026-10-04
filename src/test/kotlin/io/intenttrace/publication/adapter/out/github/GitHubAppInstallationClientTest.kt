@@ -8,7 +8,7 @@ import java.time.Clock
 import java.time.ZoneOffset
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubHttpPolicy
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
