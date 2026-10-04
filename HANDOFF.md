@@ -17,8 +17,8 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `ad3b998` | [서버 250개·ArchUnit 4개 통과, JAR 빌드](#2026-10-05-중복-코드-정리) |
-| PostgreSQL | `ad3b998` | [저장·조회 5개 통과, 백업·복구 확인](#2026-10-05-중복-코드-정리) |
+| 서버·MCP | `f7a3c99` | [서버 251개·ArchUnit 4개 통과, JAR 빌드](#2026-10-05-리팩터링-검토와-구조-정리) |
+| PostgreSQL | `f7a3c99` | [저장·조회 5개 통과, 백업·복구 확인](#2026-10-05-리팩터링-검토와-구조-정리) |
 | IntelliJ | `ad3b998` | [53개 통과, ZIP 빌드·구조 검사](#2026-10-05-중복-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `ad3b998` | [Node 15개·Python 3개 통과](#2026-10-05-중복-코드-정리) |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
@@ -883,3 +883,10 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew test bootJar`에서 서버 250개·ArchUnit 4개, `scripts/verify-postgres.sh`에서 PostgreSQL 5개와 백업·복구 후 기록 15건·변경 이력 34건 일치, IntelliJ `test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 53개와 ZIP 구조 검사, `npm test --prefix clients/zed`에서 Node 15개·Python 3개가 통과했다. 저장된 Check Run 대체 테스트를 조회·수정 404까지 넓혀 리팩터링 전 코드에서 먼저 통과시켰고, 수정 요청에 `head_sha`가 없는지 확인한다. `git-evidence.sh`·`restore-postgres.sh`는 잘못된 인자 8가지에서 바꾸기 전과 같은 오류 출력·종료 코드를 확인했다. 결과 시각은 2026-10-05 00:25~00:31 KST다. 새 테스트 클래스는 추가하지 않았다.
 - 테스트의 복제된 `MutableClock`을 공용 파일로 옮기고 지원 중단 API 3종을 교체해 서버·IntelliJ 컴파일 경고가 없다. 의도적으로 중복한 커밋 검증(`GitRevision.parse`)과 변경 폭에 비해 효과가 작은 Python `fail()` 치환·게시 저장 재구성은 반영하지 않았다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 검증 결과 수집·릴리스 도구와 `feedback.py`는 바뀌지 않아 해당 테스트는 반복하지 않았다. 새 세션에서 `intent-trace-flows`·`intent-trace-handoff` 스킬 로드와 명령 주입을 확인했다. 실제 IDE 설치·GitHub 호출·원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 리팩터링 검토와 구조 정리
+
+- 시작 리비전은 `c94be01`, 구현 커밋은 `d218b7e`(검토 반영)·`4e21dd2`·`e71278e`·`04cd0ba`·`f7a3c99`다. 직전 리팩터링 세 커밋을 독립 검토해 제품 동작 변화는 찾지 못했고, 수정 요청의 `head_sha` 생략 검사가 null 값도 통과시키는 테스트 결함을 확인했다. 검사를 `doesNotHaveJsonPath`로 바꿔 `@JsonInclude`를 지운 변형에서 실패하는 것을 확인했고, 목록에서 찾은 Check Run 수정이 404면 새로 만들지 않는 경로를 테스트로 고정했다.
+- `GitHubApiException`을 config로 옮겨 record·publication application의 순환 의존을 없애고, 게시 어댑터의 공용 `safeCall`과 기록 요약 행 매퍼를 별도 파일로 옮겼다. 검증 결과의 현재성, 작성자 전용 상태, 저장되는 작성자 식별자 `github:<id>`를 도메인 한 곳에 두고 활동 이력 범위를 Boolean 대신 `ActivityVisibility`로 전달한다. 세션 저장소는 코드 변경 없이 별도 파일로 옮겨 `GitHubUserOAuth.kt`가 371줄에서 209줄이 됐다. 이전 기록 조회는 후보 구성(`HistoryCandidates`)과 근거 일치 판정(`AnchorMatcher`)을 분리해 `find`가 94줄에서 42줄이 됐다. 새 파일의 선언 때문에 제품 코드는 전체 64줄 늘었다.
+- `./gradlew test bootJar`에서 서버 251개·ArchUnit 4개, `scripts/verify-postgres.sh`에서 PostgreSQL 5개와 백업·복구 후 기록 15건·변경 이력 34건 일치를 확인했다. 원격 조회 횟수와 시간·호출 한도 중단·재개를 검사하는 `RecordEvidenceIntegrationTest`도 통과했다. 결과 시각은 2026-10-05 01:04 KST다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 토큰 접두사·마스킹 정규식 통합, 게시 `publish`·`syncSupersession`의 enum 통합, 세션 `resolve`의 중복 정리, application 순환을 막는 ArchUnit 규칙 추가는 보안 정규식·동시성 코드 변경이나 문서·fixture 추가가 필요해 이번 범위에서 제외했다. IntelliJ·Zed·스크립트는 바뀌지 않아 해당 테스트는 반복하지 않았다. 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
