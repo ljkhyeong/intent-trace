@@ -13,15 +13,10 @@ import git4idea.repo.GitRepository
 internal data class RepositoryFileContext(val repositoryKey: String, val relativePath: String)
 
 internal object CurrentLineContextResolver {
-    fun history(project: Project, file: VirtualFile): RepositoryFileContext {
-        val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
-            ?: throw IntentTraceUsageException("현재 파일이 Git 저장소에 포함되어 있지 않습니다.")
-        return fileContext(repository, file)
-    }
+    fun history(project: Project, file: VirtualFile): RepositoryFileContext = fileContext(gitRepository(project, file), file)
 
     fun resolve(project: Project, editor: Editor, file: VirtualFile): LineLookup {
-        val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
-            ?: throw IntentTraceUsageException("현재 파일이 Git 저장소에 포함되어 있지 않습니다.")
+        val repository = gitRepository(project, file)
         val changes = ChangeListManager.getInstance(project)
         if (
             FileDocumentManager.getInstance().isFileModified(file) ||
@@ -39,6 +34,10 @@ internal object CurrentLineContextResolver {
             line = editor.caretModel.logicalPosition.line + 1,
         )
     }
+
+    private fun gitRepository(project: Project, file: VirtualFile): GitRepository =
+        GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
+            ?: throw IntentTraceUsageException("현재 파일이 Git 저장소에 포함되어 있지 않습니다.")
 
     private fun fileContext(repository: GitRepository, file: VirtualFile): RepositoryFileContext {
         val relativePath = VfsUtilCore.getRelativePath(file, repository.root, '/')

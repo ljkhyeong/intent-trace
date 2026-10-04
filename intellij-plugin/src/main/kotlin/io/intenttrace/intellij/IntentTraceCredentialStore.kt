@@ -11,9 +11,7 @@ internal class IntentTraceCredentialStore(
     private val environmentUrl: () -> String? = { System.getenv(IntentTraceServer.URL_ENV) },
     private val environmentToken: () -> String? = { System.getenv(IntentTraceApiClient.TOKEN_ENV) },
 ) {
-    fun load(server: IntentTraceServer): String? {
-        return loadStored(server) ?: environmentSession(server)
-    }
+    fun load(server: IntentTraceServer): String? = loadStored(server) ?: environmentSession(server)
 
     fun loadStored(server: IntentTraceServer): String? = credentialStore.getPassword(attributes(server))
         ?.takeIf(IntentTraceApiClient::validSessionToken)

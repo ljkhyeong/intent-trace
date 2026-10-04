@@ -39,24 +39,13 @@ internal open class IntentTraceResultDialog(
     }
 
     override fun createCenterPanel(): JComponent {
-        val textArea = JBTextArea(text).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            border = JBUI.Borders.empty(12)
-            caretPosition = 0
-        }
         return JPanel(BorderLayout()).apply {
-            add(JBScrollPane(textArea), BorderLayout.CENTER)
+            add(readOnlyTextPane(text), BorderLayout.CENTER)
             add(JPanel(BorderLayout()).apply {
                 add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                    val selection = JComboBox(records.map {
+                    val selection = plainComboBox(records.map {
                         "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.createdBy.login}"
-                    }.toTypedArray()).apply {
-                        renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
-                        preferredSize = Dimension(320, preferredSize.height)
-                        isEnabled = records.isNotEmpty()
-                    }
+                    }).apply { isEnabled = records.isNotEmpty() }
                     add(JLabel("기록"))
                     add(selection)
                     add(JButton("선택 기록 열기").apply {
@@ -78,4 +67,17 @@ internal open class IntentTraceResultDialog(
     }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
+}
+
+internal fun readOnlyTextPane(text: String): JComponent = JBScrollPane(JBTextArea(text).apply {
+    isEditable = false
+    lineWrap = true
+    wrapStyleWord = true
+    border = JBUI.Borders.empty(12)
+    caretPosition = 0
+})
+
+internal fun plainComboBox(items: List<String>): JComboBox<String> = JComboBox(items.toTypedArray()).apply {
+    renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
+    preferredSize = Dimension(320, preferredSize.height)
 }

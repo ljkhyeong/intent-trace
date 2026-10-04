@@ -72,10 +72,7 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
             val uri = runCatching { URI(candidate) }
                 .getOrElse { throw IntentTraceUsageException("IntentTrace 서버 주소가 URL 형식이 아닙니다.") }
             val scheme = uri.scheme?.lowercase()
-            val host = uri.host?.lowercase()
-            if (host == null) {
-                throw IntentTraceUsageException("서버 주소에서 호스트를 확인할 수 없습니다.")
-            }
+            val host = uri.host?.lowercase() ?: throw IntentTraceUsageException("서버 주소에서 호스트를 확인할 수 없습니다.")
             val loopbackHttp = scheme == "http" && host.removeSurrounding("[", "]") in LOOPBACK_HOSTS
             if (scheme != "https" && !loopbackHttp) {
                 throw IntentTraceUsageException("HTTPS 주소를 사용하세요. HTTP는 localhost·루프백 주소에서만 사용할 수 있습니다.")
@@ -89,8 +86,7 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
             if (uri.port !in -1..65535 || uri.port == 0) {
                 throw IntentTraceUsageException("서버 포트가 올바르지 않습니다.")
             }
-            val normalized = URI(scheme, null, host, uri.port, null, null, null)
-            return IntentTraceServer(normalized)
+            return IntentTraceServer(URI(scheme, null, host, uri.port, null, null, null))
         }
     }
 }

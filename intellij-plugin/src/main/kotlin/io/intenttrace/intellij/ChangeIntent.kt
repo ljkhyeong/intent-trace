@@ -25,12 +25,7 @@ internal data class ChangeIntentRecord(
     }
 }
 
-internal enum class RecordListScope(private val label: String) {
-    TEAM("팀 공개 기록"),
-    MINE("내 비공개 기록");
-
-    override fun toString(): String = label
-}
+internal enum class RecordListScope { TEAM, MINE }
 
 internal data class RecordListQuery(
     val repositoryKey: String,

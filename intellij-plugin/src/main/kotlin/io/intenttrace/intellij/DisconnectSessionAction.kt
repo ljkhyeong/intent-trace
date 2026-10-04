@@ -1,40 +1,14 @@
 package io.intenttrace.intellij
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.DumbAwareAction
-import com.intellij.openapi.ui.Messages
 
-class DisconnectSessionAction : DumbAwareAction() {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class DisconnectSessionAction : IntentTraceAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val server = try {
-            IntentTraceServer.current()
-        } catch (exception: IntentTraceUserException) {
-            return Messages.showErrorDialog(project, exception.message, "IntentTrace")
+        val server = currentServerOrShowError(project) ?: return
+        queueSessionTask(project, "IntentTrace 세션 삭제", "IntentTrace 세션을 삭제하지 못했습니다.") {
+            disconnectSession(server, IntentTraceCredentialStore())
         }
-
-        object : Task.Backgroundable(project, "IntentTrace 세션 삭제", false) {
-            private lateinit var message: String
-
-            override fun run(indicator: ProgressIndicator) {
-                message = disconnectSession(server, IntentTraceCredentialStore())
-            }
-
-            override fun onSuccess() {
-                Messages.showInfoMessage(project, message, "IntentTrace")
-            }
-
-            override fun onThrowable(error: Throwable) {
-                val detail = (error as? IntentTraceUserException)?.message
-                    ?: "IntentTrace 세션을 삭제하지 못했습니다."
-                Messages.showErrorDialog(project, detail, "IntentTrace")
-            }
-        }.queue()
     }
 }
 

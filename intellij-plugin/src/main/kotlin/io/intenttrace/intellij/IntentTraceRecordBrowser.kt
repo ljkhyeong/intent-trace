@@ -10,7 +10,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -220,21 +219,13 @@ internal open class RecordHistoryDialog(
                 addActionListener { browse { webRecordUri } }
             })
         }, BorderLayout.NORTH)
-        add(JBScrollPane(JBTextArea(IntentTraceTextRenderer.renderHistory(record)).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            border = JBUI.Borders.empty(12)
-            caretPosition = 0
-        }), BorderLayout.CENTER)
+        add(readOnlyTextPane(IntentTraceTextRenderer.renderHistory(record)), BorderLayout.CENTER)
         add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
             add(JButton("원래 커밋 열기").apply {
                 isEnabled = record.targetRevision != null
                 addActionListener { browse { GitHubEvidenceLinks.commit(record) } }
             })
-            val anchors = JComboBox(record.codeAnchors.map { it.label }.toTypedArray())
-            anchors.renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
-            anchors.preferredSize = Dimension(320, anchors.preferredSize.height)
+            val anchors = plainComboBox(record.codeAnchors.map { it.label })
             add(anchors)
             val openCode = JButton("당시 코드 열기").apply {
                 addActionListener {
