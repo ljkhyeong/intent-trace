@@ -146,7 +146,7 @@ class GitHubRestClient(
             client.patch()
                 .uri(CHECK_RUN_PATH, command.target.owner, command.target.repository, checkRunId)
                 .headers { it.setBearerAuth(token) }
-                .body(checkRunRequest(command))
+                .body(checkRunRequest(command, headSha = null))
                 .retrieve()
                 .body(CheckRunResponse::class.java)
         }
@@ -165,7 +165,7 @@ class GitHubRestClient(
         }
     }
 
-    private fun checkRunRequest(command: UpsertGitHubCheckRunCommand, headSha: String? = null) = CheckRunRequest(
+    private fun checkRunRequest(command: UpsertGitHubCheckRunCommand, headSha: String?) = CheckRunRequest(
         name = CHECK_NAME,
         headSha = headSha,
         externalId = command.externalId,

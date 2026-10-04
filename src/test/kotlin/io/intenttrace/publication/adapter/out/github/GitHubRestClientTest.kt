@@ -98,7 +98,7 @@ class GitHubRestClientTest {
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
             .andExpect(method(HttpMethod.PATCH))
             .andExpect(content().json("""{"name":"IntentTrace / 변경 의도","external_id":"$externalId","status":"completed","conclusion":"neutral"}""", JsonCompareMode.LENIENT))
-            .andExpect(jsonPath("$.head_sha").doesNotExist())
+            .andExpect(jsonPath("$.head_sha").doesNotHaveJsonPath())
             .andRespond(
                 withSuccess(
                     """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
@@ -199,6 +199,24 @@ class GitHubRestClientTest {
         val result = client.upsertCheckRun(command(externalId).copy(knownCheckRunId = 55))
 
         assertEquals(55L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `목록에서 찾은 Check Run 수정이 404면 새로 만들지 않고 실패한다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request -> assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path) }
+            .andRespond(withSuccess(
+                """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}]}""",
+                MediaType.APPLICATION_JSON,
+            ))
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andRespond(withStatus(HttpStatus.NOT_FOUND))
+
+        val exception = assertFailsWith<GitHubApiException> { client.upsertCheckRun(command(externalId)) }
+
+        assertEquals("GitHub Check Run 수정 요청이 실패했습니다. HTTP 404", exception.message)
         server.verify()
     }
 
