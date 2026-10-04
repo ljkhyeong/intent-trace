@@ -205,7 +205,7 @@ data class ChangeRecordResponse(
                     snapshotDigest = it.snapshotDigest,
                     outputDigest = it.outputDigest,
                     summary = it.summary,
-                    current = it.isCurrentFor(record) && (queryRevision == null || record.targetRevision == queryRevision.lowercase()),
+                    current = it.isCurrentFor(record, queryRevision),
                     source = it.source,
                 )
             },

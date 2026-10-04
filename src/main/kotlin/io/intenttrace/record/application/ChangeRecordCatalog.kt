@@ -3,6 +3,7 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
@@ -91,7 +92,7 @@ class ChangeRecordCatalogService(
         val key = GitHubRepository.parse(repositoryKey).key
         val actor = access.requireReader(key)
         val allowed = when (scope) {
-            RecordScope.MINE, RecordScope.MY_DRAFTS -> setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
+            RecordScope.MINE, RecordScope.MY_DRAFTS -> AUTHOR_ONLY_STATUSES
             RecordScope.TEAM -> TEAM_VISIBLE_STATUSES
         }
         require(status == null || status in allowed) { "조회 범위에 맞지 않는 기록 상태입니다." }
@@ -100,7 +101,7 @@ class ChangeRecordCatalogService(
         val items = catalog.search(
             RecordCatalogQuery(
                 key, statuses,
-                if (scope != RecordScope.TEAM) actor.subject else authorId?.let { "github:$it" },
+                if (scope != RecordScope.TEAM) actor.subject else authorId?.let(ActorIdentity::githubSubject),
                 normalizedPath, cursor?.let(RecordCursor::parse), limit + 1, keyword, pullNumber,
             ),
         )

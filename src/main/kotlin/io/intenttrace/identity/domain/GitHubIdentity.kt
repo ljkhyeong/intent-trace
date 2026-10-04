@@ -11,11 +11,18 @@ data class ActorIdentity(
         require(login.isNotBlank() && login.length <= 120) { "작성자 login 형식이 올바르지 않습니다." }
     }
 
+    // JSON 응답에 필드가 늘지 않도록 속성 대신 함수로 둔다.
+    fun githubUserIdOrNull(): Long? = subject.removePrefix(GITHUB_SUBJECT_PREFIX).toLongOrNull()
+
     companion object {
+        private const val GITHUB_SUBJECT_PREFIX = "github:"
+
         fun github(userId: Long, login: String): ActorIdentity {
             require(userId > 0) { "GitHub 사용자 ID는 1 이상이어야 합니다." }
-            return ActorIdentity("github:$userId", login)
+            return ActorIdentity(githubSubject(userId), login)
         }
+
+        fun githubSubject(userId: Long): String = "$GITHUB_SUBJECT_PREFIX$userId"
     }
 }
 

@@ -21,7 +21,7 @@ data class RecordActivity(
 
 interface RecordActivityStore {
     fun append(activity: RecordActivity)
-    fun list(recordId: UUID, authorView: Boolean, beforeVersion: Long?, limit: Int): List<RecordActivity>
+    fun list(recordId: UUID, visibility: ActivityVisibility, beforeVersion: Long?, limit: Int): List<RecordActivity>
     fun hasCreation(recordId: UUID): Boolean
 }
 
@@ -43,11 +43,10 @@ class RecordActivityService(
     fun list(recordId: UUID, beforeVersion: Long? = null): RecordActivities {
         require(beforeVersion == null || beforeVersion >= 0) { "이력 조회 버전은 0 이상이어야 합니다." }
         val record = records.get(recordId)
-        val authorView = record.createdBy.subject == current.require().actor.subject
-        val page = activities.list(recordId, authorView, beforeVersion, 51)
+        val visibility = if (record.createdBy.subject == current.require().actor.subject) ActivityVisibility.AUTHOR else ActivityVisibility.TEAM
+        val page = activities.list(recordId, visibility, beforeVersion, 51)
         val items = page.take(50)
-        return RecordActivities(recordId, if (authorView) ActivityVisibility.AUTHOR else ActivityVisibility.TEAM,
-            items, if (page.size > 50) items.last().version else null,
-            if (authorView) activities.hasCreation(recordId) else null)
+        return RecordActivities(recordId, visibility, items, if (page.size > 50) items.last().version else null,
+            if (visibility == ActivityVisibility.AUTHOR) activities.hasCreation(recordId) else null)
     }
 }

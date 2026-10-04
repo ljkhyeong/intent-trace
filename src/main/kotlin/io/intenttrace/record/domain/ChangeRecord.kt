@@ -125,6 +125,8 @@ enum class ChangeRecordStatus {
 }
 
 val TEAM_VISIBLE_STATUSES: Set<ChangeRecordStatus> = setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+val AUTHOR_ONLY_STATUSES: Set<ChangeRecordStatus> =
+    setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
 
 data class Decision(
     val summary: String,
@@ -179,5 +181,6 @@ data class VerificationRun(
         require(SHA_256.matches(outputDigest)) { "검증 결과에는 SHA-256 출력 해시가 필요합니다." }
     }
 
-    fun isCurrentFor(record: ChangeRecord): Boolean = snapshotDigest == record.snapshotDigest
+    fun isCurrentFor(record: ChangeRecord, queryRevision: String? = null): Boolean =
+        snapshotDigest == record.snapshotDigest && (queryRevision == null || record.targetRevision == queryRevision.lowercase())
 }

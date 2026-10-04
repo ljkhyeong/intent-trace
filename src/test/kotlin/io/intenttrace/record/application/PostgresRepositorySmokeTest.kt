@@ -86,8 +86,8 @@ class PostgresRepositorySmokeTest(
             emptyList(), emptyList(), published.id), actor)
         assertEquals(published.id, facade.get(successor.id).derivedFromRecordId)
         assertEquals(listOf(RecordOperation.PUBLISH, RecordOperation.CONFIRM, RecordOperation.CREATE),
-            activities.list(published.id, true, null, 50).map { it.operation })
-        assertEquals(listOf(RecordOperation.PUBLISH), activities.list(published.id, false, null, 50).map { it.operation })
+            activities.list(published.id, ActivityVisibility.AUTHOR, null, 50).map { it.operation })
+        assertEquals(listOf(RecordOperation.PUBLISH), activities.list(published.id, ActivityVisibility.TEAM, null, 50).map { it.operation })
 
         val updateTarget = GitHubPullRequestTarget("ACME", "INTENT-TRACE", 12)
         val updatePublication = GitHubPublication(

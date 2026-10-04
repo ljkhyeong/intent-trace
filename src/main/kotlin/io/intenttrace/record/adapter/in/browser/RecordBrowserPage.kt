@@ -4,6 +4,7 @@ import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
+import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
@@ -43,7 +44,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 append("<a href=\"$link\" ${if (option == scope) "aria-current=\"page\"" else ""}>${if (option == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</a>")
             }
             append("</nav>")
-            val statuses = if (scope == RecordScope.MINE) listOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
+            val statuses = if (scope == RecordScope.MINE) AUTHOR_ONLY_STATUSES.toList()
                 else TEAM_VISIBLE_STATUSES.toList()
             append("""
                 <form action="/records" method="get" class="search-form record-search">
@@ -55,7 +56,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 ${if (scope == RecordScope.TEAM) "<label>작성자 GitHub ID<input name=\"authorId\" type=\"number\" min=\"1\" step=\"1\" value=\"${authorId ?: ""}\" placeholder=\"숫자 ID · 선택\"></label>" else ""}
                 <button type="submit">검색</button></form>
             """.trimIndent())
-            val myAuthorId = actor.subject.removePrefix("github:").toLongOrNull()
+            val myAuthorId = actor.githubUserIdOrNull()
             if (scope == RecordScope.TEAM && myAuthorId != null) {
                 val mineOnly = authorId == myAuthorId
                 val link = url("/records", "repositoryKey" to repository, "q" to q, "path" to path,
