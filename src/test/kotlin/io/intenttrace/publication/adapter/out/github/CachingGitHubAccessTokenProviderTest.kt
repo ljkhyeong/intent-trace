@@ -1,5 +1,6 @@
 package io.intenttrace.publication.adapter.out.github
 
+import io.intenttrace.MutableClock
 import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -7,8 +8,6 @@ import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.assertEquals
 
 class CachingGitHubAccessTokenProviderTest {
@@ -32,7 +31,7 @@ class CachingGitHubAccessTokenProviderTest {
         assertEquals("token-1", provider.token(target))
         assertEquals("token-1", provider.token(target.copy(owner = "ACME", repository = "Intent-Trace")))
 
-        clock.current = clock.instant().plus(Duration.ofMinutes(56))
+        clock.advance(Duration.ofMinutes(56))
         assertEquals("token-2", provider.token(target))
         assertEquals(2, issued)
         assertEquals(true, provider.invalidate(target.copy(owner = "ACME"), "token-2"))
@@ -49,15 +48,5 @@ class CachingGitHubAccessTokenProviderTest {
 
         assertEquals("fixed-token", provider.token(target))
         assertEquals(false, provider.invalidate(target, "fixed-token"))
-    }
-
-    private class MutableClock(
-        var current: Instant,
-    ) : Clock() {
-        override fun instant(): Instant = current
-
-        override fun getZone(): ZoneId = ZoneOffset.UTC
-
-        override fun withZone(zone: ZoneId): Clock = this
     }
 }

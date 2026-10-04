@@ -42,20 +42,14 @@ class IntentTraceTools(
     @McpTool(name = "create_successor_draft", description = "내 공개 기록의 구현 결정으로 새 초안을 만듭니다. 새 스냅샷 해시와 관련 코드가 필요하며 검증 결과와 확인 상태는 복사하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = false))
     fun successor(@McpToolParam(description = "원본 공개 기록 UUID", required = true) recordId: String,
-                  @McpToolParam(description = "새 requestId·snapshotDigest·codeAnchors와 선택 baseRevision", required = true) request: SuccessorDraftRequest): ChangeRecordResponse {
-        val violations = validator.validate(request)
-        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
-        return ChangeRecordResponse.from(records.createSuccessor(parseChangeRecordId(recordId), request.toCommand()))
-    }
+                  @McpToolParam(description = "새 requestId·snapshotDigest·codeAnchors와 선택 baseRevision", required = true) request: SuccessorDraftRequest): ChangeRecordResponse =
+        validated(request).let { ChangeRecordResponse.from(records.createSuccessor(parseChangeRecordId(recordId), it.toCommand())) }
 
     @McpTool(name = "revise_change_record", description = "작성자의 DRAFT 내용만 수정합니다. 요청 ID와 저장소는 유지합니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))
     fun revise(@McpToolParam(description = "기록 UUID", required = true) recordId: String,
-               @McpToolParam(description = "현재 버전과 수정할 전체 내용", required = true) request: ReviseChangeRecordRequest): ChangeRecordResponse {
-        val violations = validator.validate(request)
-        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
-        return ChangeRecordResponse.from(records.revise(parseChangeRecordId(recordId), request.expectedVersion, request.content.toCommand()))
-    }
+               @McpToolParam(description = "현재 버전과 수정할 전체 내용", required = true) request: ReviseChangeRecordRequest): ChangeRecordResponse =
+        validated(request).let { ChangeRecordResponse.from(records.revise(parseChangeRecordId(recordId), it.expectedVersion, it.content.toCommand())) }
 
     @McpTool(name = "reopen_change_record", description = "작성자의 비공개 기록 확인을 취소해 초안으로 돌립니다. 다시 확인해야 공개할 수 있습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = false, openWorldHint = false))
@@ -83,11 +77,7 @@ class IntentTraceTools(
     fun create(
         @McpToolParam(description = "작성자가 검토할 기록 초안", required = true)
         request: CreateChangeRecordRequest,
-    ): ChangeRecordResponse {
-        val violations = validator.validate(request)
-        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
-        return ChangeRecordResponse.from(records.create(request.toCommand()))
-    }
+    ): ChangeRecordResponse = ChangeRecordResponse.from(records.create(validated(request).toCommand()))
 
     @McpTool(
         name = "get_change_record",
@@ -214,6 +204,12 @@ class IntentTraceTools(
         line: Int,
     ): ChangeIntentLookup = ChangeIntentLookup(records.findIntent(repositoryKey, revision, path, line)
         .map { ChangeRecordResponse.from(it, revision) })
+
+    private fun <T : Any> validated(request: T): T {
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) throw ConstraintViolationException(violations)
+        return request
+    }
 }
 
 data class ChangeIntentLookup(val items: List<ChangeRecordResponse>)

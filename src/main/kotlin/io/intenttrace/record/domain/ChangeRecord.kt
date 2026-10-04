@@ -6,6 +6,8 @@ import java.time.Instant
 import java.util.UUID
 
 const val MAX_CODE_ANCHOR_LINE = 10_000_000L
+const val SHA_256_PATTERN = "^[0-9a-fA-F]{64}$"
+val SHA_256 = Regex(SHA_256_PATTERN)
 
 data class ChangeRecord(
     val id: UUID,
@@ -35,7 +37,7 @@ data class ChangeRecord(
     )
 
     fun requireSuccessorSource(actor: ActorIdentity) {
-        check(status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED) {
+        check(status in TEAM_VISIBLE_STATUSES) {
             "공개하거나 대체된 기록에서만 후속 초안을 만들 수 있습니다."
         }
         check(actor.subject == createdBy.subject) { "작성자만 후속 초안을 만들 수 있습니다." }
@@ -122,6 +124,8 @@ enum class ChangeRecordStatus {
     DISCARDED,
 }
 
+val TEAM_VISIBLE_STATUSES: Set<ChangeRecordStatus> = setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+
 data class Decision(
     val summary: String,
     val rationale: String?,
@@ -153,10 +157,6 @@ data class CodeAnchor(
         }
         require(SHA_256.matches(contentHash)) { "코드 근거에는 SHA-256 해시가 필요합니다." }
     }
-
-    companion object {
-        private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")
-    }
 }
 
 enum class CodeSide { BASE, TARGET }
@@ -180,8 +180,4 @@ data class VerificationRun(
     }
 
     fun isCurrentFor(record: ChangeRecord): Boolean = snapshotDigest == record.snapshotDigest
-
-    companion object {
-        private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")
-    }
 }

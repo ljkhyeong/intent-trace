@@ -99,7 +99,7 @@ class GitHubWebhookIntegrationTest(
     @Test
     fun `본문 상한과 비밀값 미설정은 수신을 거부한다`() {
         issue(42, SessionChannel.CLIENT)
-        send(" ".repeat(1_048_577)).andExpect { status { isPayloadTooLarge() } }
+        send(" ".repeat(1_048_577)).andExpect { status { isContentTooLarge() } }
         val disabled = GitHubWebhookController(GitHubProperties(), mapper, authorization)
         val request = MockHttpServletRequest("POST", "/webhooks/github").apply {
             setContent(revoked.toByteArray())

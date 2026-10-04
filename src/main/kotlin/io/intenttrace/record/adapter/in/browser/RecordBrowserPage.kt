@@ -8,6 +8,7 @@ import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationSource
 import org.springframework.http.CacheControl
 import org.springframework.http.MediaType
@@ -43,7 +44,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             }
             append("</nav>")
             val statuses = if (scope == RecordScope.MINE) listOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
-                else listOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+                else TEAM_VISIBLE_STATUSES.toList()
             append("""
                 <form action="/records" method="get" class="search-form record-search">
                 <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required maxlength="255" autocapitalize="none" spellcheck="false"></label>
@@ -79,7 +80,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         })
 
     fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null): String = layout(record.title, actor, buildString {
-        val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
+        val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.status in TEAM_VISIBLE_STATUSES) "TEAM" else "MINE", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
         val backLabel = when {
             searchUrl == null -> "${html(record.repositoryKey)} 기록 목록"
             backUrl.substringBefore('?') == "/records/history" -> "파일·줄 조회로 돌아가기"
@@ -177,7 +178,6 @@ internal fun recordUrl(id: UUID, searchUrl: String?, section: String? = null, va
         .apply { controls.forEach { (key, value) -> replaceQueryParam(key, value) } }
         .build().toUriString()
 
-private val ChangeRecord.isPrivate: Boolean get() = status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
 internal val ChangeRecordStatus.label: String get() = when (this) {
     ChangeRecordStatus.DRAFT -> "초안"
     ChangeRecordStatus.AUTHOR_CONFIRMED -> "작성자 확인"

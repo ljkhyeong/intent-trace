@@ -4,6 +4,7 @@ import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -91,7 +92,7 @@ class ChangeRecordCatalogService(
         val actor = access.requireReader(key)
         val allowed = when (scope) {
             RecordScope.MINE, RecordScope.MY_DRAFTS -> setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
-            RecordScope.TEAM -> setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+            RecordScope.TEAM -> TEAM_VISIBLE_STATUSES
         }
         require(status == null || status in allowed) { "조회 범위에 맞지 않는 기록 상태입니다." }
         require(scope == RecordScope.TEAM || authorId == null) { "내 초안 목록에는 다른 작성자 필터를 지정할 수 없습니다." }

@@ -15,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.client.match.MockRestRequestMatchers.content
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
+import org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath
 import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
@@ -97,6 +98,7 @@ class GitHubRestClientTest {
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
             .andExpect(method(HttpMethod.PATCH))
             .andExpect(content().json("""{"name":"IntentTrace / 변경 의도","external_id":"$externalId","status":"completed","conclusion":"neutral"}""", JsonCompareMode.LENIENT))
+            .andExpect(jsonPath("$.head_sha").doesNotExist())
             .andRespond(
                 withSuccess(
                     """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
@@ -222,16 +224,28 @@ class GitHubRestClientTest {
         server.verify()
     }
 
-    @Test
-    fun `저장된 Check Run ID가 다른 기록이면 목록에서 올바른 실행을 다시 찾는다`() {
+    @ParameterizedTest
+    @ValueSource(strings = ["다른 기록", "조회 404", "수정 404"])
+    fun `저장된 Check Run을 쓸 수 없으면 목록에서 올바른 실행을 다시 찾는다`(case: String) {
         val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
-        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
-            .andRespond(
+        val known = server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andExpect(method(HttpMethod.GET))
+        if (case == "조회 404") {
+            known.andRespond(withStatus(HttpStatus.NOT_FOUND))
+        } else {
+            val knownExternalId = if (case == "다른 기록") "intent-trace:다른-기록" else externalId
+            known.andRespond(
                 withSuccess(
-                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"intent-trace:다른-기록"}""",
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"$knownExternalId"}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
+        }
+        if (case == "수정 404") {
+            server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND))
+        }
         server.expect { request ->
             assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
         }.andRespond(

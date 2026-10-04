@@ -9,6 +9,7 @@ import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.SHA_256
 import io.intenttrace.record.domain.VerificationRun
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.dao.DuplicateKeyException
@@ -250,9 +251,5 @@ class ChangeRecordFacade(
 
     private fun redact(value: String, maxLength: Int, field: String): String = redactor.redact(value).also {
         require(it.length <= maxLength) { "비밀값 제거 후 $field 길이는 ${maxLength}자 이하여야 합니다." }
-    }
-
-    companion object {
-        private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")
     }
 }

@@ -1,5 +1,6 @@
 package io.intenttrace.identity.application
 
+import io.intenttrace.MutableClock
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
@@ -12,8 +13,6 @@ import java.net.URI
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -115,17 +114,5 @@ class GitHubOAuthFlowServiceTest {
         override fun revokeBrowser(sessionToken: String) = error("사용하지 않는 테스트 경로")
 
         override fun revoke(localSessionId: String) = error("사용하지 않는 테스트 경로")
-    }
-
-    private class MutableClock(private var current: Instant) : Clock() {
-        override fun instant(): Instant = current
-
-        override fun getZone(): ZoneId = ZoneOffset.UTC
-
-        override fun withZone(zone: ZoneId): Clock = this
-
-        fun advance(duration: Duration) {
-            current = current.plus(duration)
-        }
     }
 }

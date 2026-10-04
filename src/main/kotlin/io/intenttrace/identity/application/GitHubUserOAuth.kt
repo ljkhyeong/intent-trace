@@ -54,15 +54,8 @@ class GitHubOAuthStart(
     override fun toString(): String = "GitHubOAuthStart(state=[보호됨], authorizationUri=[보호됨])"
 }
 
-class IssuedGitHubUserSession(
-    val actor: ActorIdentity,
-    val sessionToken: String,
-    val accessExpiresAt: Instant,
-    val refreshExpiresAt: Instant,
-) {
-    override fun toString(): String =
-        "IssuedGitHubUserSession(actor=$actor, sessionToken=[보호됨], " +
-            "accessExpiresAt=$accessExpiresAt, refreshExpiresAt=$refreshExpiresAt)"
+class IssuedGitHubUserSession(val actor: ActorIdentity, val sessionToken: String) {
+    override fun toString(): String = "IssuedGitHubUserSession(actor=$actor, sessionToken=[보호됨])"
 }
 
 enum class SessionChannel { CLIENT, BROWSER }
@@ -210,12 +203,7 @@ class InMemoryGitHubUserSessionStore(
         val sessionToken = "$prefix${SecureTokens.random()}"
         val expiresAt = if (channel == SessionChannel.BROWSER) minOf(now.plus(BROWSER_SESSION_TTL), tokens.refreshExpiresAt) else tokens.refreshExpiresAt
         sessions[TokenDigests.sha256(sessionToken)] = StoredSession(actor, tokens, UUID.randomUUID(), now, channel, expiresAt)
-        IssuedGitHubUserSession(
-            actor = actor,
-            sessionToken = sessionToken,
-            accessExpiresAt = tokens.accessExpiresAt,
-            refreshExpiresAt = tokens.refreshExpiresAt,
-        )
+        IssuedGitHubUserSession(actor, sessionToken)
     }
 
     override fun resolve(sessionToken: String): GitHubUserSession {

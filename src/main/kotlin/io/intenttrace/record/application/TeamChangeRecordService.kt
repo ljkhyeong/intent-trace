@@ -3,7 +3,7 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
-import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import org.springframework.data.domain.Slice
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -33,9 +33,7 @@ class TeamChangeRecordService(
     fun get(recordId: UUID): ChangeRecord {
         val record = facade.get(recordId)
         val actor = access.requireReader(record.repositoryKey)
-        if (!record.isTeamVisible() && actor.subject != record.createdBy.subject) {
-            throw ChangeRecordOwnershipException()
-        }
+        if (record.status !in TEAM_VISIBLE_STATUSES) requireOwner(record, actor)
         return record
     }
 
@@ -95,9 +93,6 @@ class TeamChangeRecordService(
             throw ChangeRecordOwnershipException()
         }
     }
-
-    private fun ChangeRecord.isTeamVisible(): Boolean =
-        status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED
 
     private data class OwnedContributorRecord(
         val record: ChangeRecord,

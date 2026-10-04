@@ -14,6 +14,7 @@ import io.intenttrace.record.domain.VerificationSource
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import io.intenttrace.record.domain.MAX_CODE_ANCHOR_LINE
+import io.intenttrace.record.domain.SHA_256_PATTERN
 import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.VerificationRun
 import jakarta.validation.Valid
@@ -33,7 +34,7 @@ data class CreateChangeRecordRequest(
     val repositoryKey: String,
     @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN)
     val baseRevision: String? = null,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val snapshotDigest: String,
     @field:NotBlank @field:Size(max = 200)
     val title: String,
@@ -88,7 +89,7 @@ data class CodeAnchorRequest(
     val startLine: Int,
     @field:Min(1) @field:Max(MAX_CODE_ANCHOR_LINE)
     val endLine: Int,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val contentHash: String,
     val side: CodeSide = CodeSide.TARGET,
     @field:Size(max = 1000) val relatedPath: String? = null,
@@ -102,9 +103,9 @@ data class VerificationRequest(
     val exitCode: Int,
     val startedAt: Instant,
     val finishedAt: Instant,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val snapshotDigest: String,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val outputDigest: String,
     @field:NotBlank @field:Size(max = 2000)
     val summary: String,
@@ -126,7 +127,7 @@ data class ConfirmChangeRecordRequest(
     val expectedVersion: Long,
     @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN)
     val immutableRevision: String,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val currentSnapshotDigest: String,
 ) {
     fun toCommand(recordId: UUID): ConfirmChangeRecordCommand = ConfirmChangeRecordCommand(
@@ -139,7 +140,7 @@ data class ConfirmChangeRecordRequest(
 
 data class PublishChangeRecordRequest(
     val expectedVersion: Long,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$")
+    @field:Pattern(regexp = SHA_256_PATTERN)
     val currentSnapshotDigest: String,
 ) {
     fun toCommand(recordId: UUID): PublishChangeRecordCommand =
@@ -231,7 +232,7 @@ data class VerificationResponse(
 data class SuccessorDraftRequest(
     @field:NotBlank @field:Size(max = 120) val requestId: String,
     @field:Pattern(regexp = FULL_GIT_REVISION_PATTERN) val baseRevision: String? = null,
-    @field:Pattern(regexp = "^[0-9a-fA-F]{64}$") val snapshotDigest: String,
+    @field:Pattern(regexp = SHA_256_PATTERN) val snapshotDigest: String,
     @field:NotEmpty @field:Size(max = 100) val codeAnchors: List<@Valid CodeAnchorRequest>,
 ) {
     fun toCommand() = SuccessorDraftCommand(

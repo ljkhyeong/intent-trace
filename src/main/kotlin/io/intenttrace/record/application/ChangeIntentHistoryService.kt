@@ -3,10 +3,10 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.ChangeRecord
-import io.intenttrace.record.domain.ChangeRecordStatus
 import java.util.UUID
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.stereotype.Service
 
@@ -59,7 +59,7 @@ class ChangeIntentHistoryService(
         fun load(id: UUID): ChangeRecord = loadedRecords.getOrPut(id) { facade.get(id) }
         fun summary(id: UUID): ChangeRecordSummary {
             val record = load(id)
-            if (record.repositoryKey != repository.key || record.status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)) {
+            if (record.repositoryKey != repository.key || record.status !in TEAM_VISIBLE_STATUSES) {
                 throw ChangeRecordNotFoundException(id)
             }
             return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
