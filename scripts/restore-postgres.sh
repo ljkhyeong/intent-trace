@@ -1,12 +1,8 @@
 #!/bin/sh
 set -eu
 
-usage() {
-    printf '%s\n' '사용법: scripts/restore-postgres.sh <backup.dump> --confirm-replace' >&2
-}
-
 if [ "$#" -ne 2 ] || [ "$2" != "--confirm-replace" ]; then
-    usage
+    printf '%s\n' '사용법: scripts/restore-postgres.sh <backup.dump> --confirm-replace' >&2
     exit 1
 fi
 

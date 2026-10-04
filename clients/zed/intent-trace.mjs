@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { BridgeFailure } from './errors.mjs';
 
 export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
+const serverEntry = url => ({ command: process.execPath, args: [script, 'serve', url.href], env: {} });
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
   config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
@@ -98,9 +98,7 @@ async function main() {
     } catch {
       throw new Error(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    const entry = mode === 'configure'
-      ? { command: process.execPath, args: [script, 'serve', endpoint(parsed.positionals[0]).href], env: {} }
-      : undefined;
+    const entry = mode === 'configure' ? serverEntry(endpoint(parsed.positionals[0])) : undefined;
     return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
@@ -108,9 +106,7 @@ async function main() {
   if (positionals.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   const url = endpoint(address);
   if (mode === 'config') {
-    console.log(JSON.stringify({ context_servers: { 'intent-trace': {
-      command: process.execPath, args: [script, 'serve', url.href], env: {},
-    } } }, null, 2));
+    console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) } }, null, 2));
     return;
   }
   sessionToken();

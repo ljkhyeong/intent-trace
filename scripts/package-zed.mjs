@@ -77,8 +77,7 @@ try {
   await writeFile(join(staging, 'build-info.json'), JSON.stringify(buildInfo, null, 2) + '\n');
   await writeFile(join(staging, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
   await mkdir(output, { recursive: true });
-  const npm = 'npm';
-  const packed = spawnSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: staging, encoding: 'utf8' });
+  const packed = spawnSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { cwd: staging, encoding: 'utf8' });
   if (packed.status !== 0) throw new Error('패키지를 만들지 못했습니다. npm 실행과 출력 폴더 권한을 확인하세요.');
   const { filename } = JSON.parse(packed.stdout)[0];
   const digest = createHash('sha256').update(await readFile(join(output, filename))).digest('hex');
