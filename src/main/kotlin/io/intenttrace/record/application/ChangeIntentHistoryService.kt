@@ -3,6 +3,7 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.ChangeRecord
+import io.intenttrace.record.domain.CodeAnchor
 import java.util.UUID
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.GitRevision
@@ -55,74 +56,22 @@ class ChangeIntentHistoryService(
         // 이름이 바뀐 기록도 찾도록 저장소 후보를 제한된 페이지 단위로 살핀다.
         val queryDigest = HistoryResumeCursor.queryDigest(repository.key, queryRevision, normalizedPath, line)
         val resume = cursor?.takeIf { it.startsWith("h1.") }?.let { HistoryResumeCursor.parse(it, queryDigest) }
-        val loadedRecords = mutableMapOf<UUID, ChangeRecord>()
-        fun load(id: UUID): ChangeRecord = loadedRecords.getOrPut(id) { facade.get(id) }
-        fun summary(id: UUID): ChangeRecordSummary {
-            val record = load(id)
-            if (record.repositoryKey != repository.key || record.status !in TEAM_VISIBLE_STATUSES) {
-                throw ChangeRecordNotFoundException(id)
-            }
-            return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
-                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version, record.publishedAt)
+        val candidates = HistoryCandidates(repository.key)
+        val page = when {
+            resume != null -> candidates.resumePage(resume)
+            retryRecordId == null -> catalog.list(repository.key, cursor = cursor, limit = limit)
+            else -> ChangeRecordPage(listOf(candidates.summary(retryRecordId)), null)
         }
-        val page = if (resume != null) {
-            val current = summary(resume.record.id)
-            require(current.createdAt == resume.record.createdAt && resume.anchorIndex < load(current.id).codeAnchors.size) { "재개할 기록과 근거를 확인해 주세요." }
-            val tail = if (resume.remainingCandidates > 1) catalog.list(repository.key, cursor = resume.record.encode(), limit = resume.remainingCandidates - 1).items else emptyList()
-            val candidates = listOf(current) + tail
-            ChangeRecordPage(candidates, if (resume.hasMore) candidates.last().let { RecordCursor(it.createdAt, it.id).encode() } else null)
-        } else if (retryRecordId == null) catalog.list(repository.key, cursor = cursor, limit = limit) else ChangeRecordPage(listOf(summary(retryRecordId)), null)
-        val reads = GitEvidenceReads(repository, gateway, budget)
+        val matcher = AnchorMatcher(GitEvidenceReads(repository, gateway, budget), queryRevision, normalizedPath, line)
         val failures = mutableListOf<HistoryCandidateFailure>()
-        val target by lazy { reads.snapshot(queryRevision) }
-        val targetEntry by lazy { target.entries[normalizedPath]?.takeIf { it.type == "blob" } }
-        val targetBytes by lazy { targetEntry?.let { reads.blob(it.sha) } }
         val items = mutableListOf<HistoricalIntent>()
         for ((candidateIndex, summary) in page.items.withIndex()) {
-            val record = load(summary.id)
+            val record = candidates.load(summary.id)
             val startAnchor = if (candidateIndex == 0) resume?.anchorIndex ?: 0 else 0
             for (anchorIndex in startAnchor until record.codeAnchors.size) {
                 try {
                     budget.checkpoint()
-                    val anchor = record.codeAnchors[anchorIndex]
-                    val item = run {
-                        val source = (if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision) ?: return@run null
-                        val samePath = anchor.relativePath == normalizedPath
-                        var match = IntentMatch.RELATED_UNVERIFIED
-                        var range: IntRange? = null
-                        if (source == queryRevision) {
-                            if (!samePath) return@run null
-                            if (line in anchor.startLine..anchor.endLine) {
-                                match = IntentMatch.EXACT_REVISION
-                                range = anchor.startLine..anchor.endLine
-                            }
-                        } else {
-                            val old = reads.snapshot(source)
-                            val entry = old.entries[anchor.relativePath]?.takeIf { it.type == "blob" }
-                            val renamed = !samePath && entry != null && entry.sha == targetEntry?.sha &&
-                                normalizedPath !in old.entries && anchor.relativePath !in target.entries &&
-                                old.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null &&
-                                target.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null
-                            if (!samePath && !renamed) return@run null
-                            if (entry != null && targetEntry != null && reads.isAncestor(source, queryRevision)) {
-                                val oldBytes = reads.blob(entry.sha)
-                                if (GitEvidenceDigest.lines(oldBytes, anchor.startLine, anchor.endLine) == anchor.contentHash) {
-                                    if (entry.sha == targetEntry?.sha && line in anchor.startLine..anchor.endLine) {
-                                        range = anchor.startLine..anchor.endLine
-                                        match = if (renamed) IntentMatch.ANCESTOR_RENAMED_FILE else IntentMatch.ANCESTOR_UNCHANGED_FILE
-                                    } else if (samePath) {
-                                        range = targetBytes?.let { LineRelocation.find(oldBytes, it, anchor.startLine, anchor.endLine) }
-                                            ?.takeIf { line in it }
-                                        if (range != null) match = if (range.first == anchor.startLine) IntentMatch.ANCESTOR_UNCHANGED_LINES else IntentMatch.ANCESTOR_MOVED_LINES
-                                    }
-                                }
-                            }
-                            if (renamed && match == IntentMatch.RELATED_UNVERIFIED) return@run null
-                        }
-                        HistoricalIntent(summary, source, anchor.side, match,
-                            match == IntentMatch.EXACT_REVISION && record.targetRevision == queryRevision,
-                            anchor.relativePath, anchor.startLine, anchor.endLine, range?.first, range?.last)
-                    }
+                    val item = matcher.match(summary, record, record.codeAnchors[anchorIndex])
                     budget.checkpoint()
                     item?.let(items::add)
                 } catch (failure: EvidenceUnavailableException) {
@@ -137,6 +86,84 @@ class ChangeIntentHistoryService(
             }
         }
         return ChangeIntentHistory(queryRevision, normalizedPath, items, page.nextCursor, page.items.size, failures)
+    }
+
+    /** 한 번의 조회에서 같은 기록을 다시 읽지 않고, 재개 커서의 후보 페이지를 다시 만든다. */
+    private inner class HistoryCandidates(private val repositoryKey: String) {
+        private val loaded = mutableMapOf<UUID, ChangeRecord>()
+
+        fun load(id: UUID): ChangeRecord = loaded.getOrPut(id) { facade.get(id) }
+
+        fun summary(id: UUID): ChangeRecordSummary {
+            val record = load(id)
+            if (record.repositoryKey != repositoryKey || record.status !in TEAM_VISIBLE_STATUSES) {
+                throw ChangeRecordNotFoundException(id)
+            }
+            return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
+                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version, record.publishedAt)
+        }
+
+        fun resumePage(resume: HistoryResumeCursor): ChangeRecordPage {
+            val current = summary(resume.record.id)
+            require(current.createdAt == resume.record.createdAt && resume.anchorIndex < load(current.id).codeAnchors.size) { "재개할 기록과 근거를 확인해 주세요." }
+            val tail = if (resume.remainingCandidates > 1) catalog.list(repositoryKey, cursor = resume.record.encode(), limit = resume.remainingCandidates - 1).items else emptyList()
+            val candidates = listOf(current) + tail
+            return ChangeRecordPage(candidates, if (resume.hasMore) candidates.last().let { RecordCursor(it.createdAt, it.id).encode() } else null)
+        }
+    }
+}
+
+/** 기록의 코드 근거가 조회한 커밋·파일·줄과 어떻게 이어지는지 판정한다. 조회 커밋의 원격 자료는 처음 필요할 때 읽는다. */
+private class AnchorMatcher(
+    private val reads: GitEvidenceReads,
+    private val queryRevision: String,
+    private val path: String,
+    private val line: Int,
+) {
+    private val target by lazy { reads.snapshot(queryRevision) }
+    private val targetEntry by lazy { target.entries[path]?.takeIf { it.type == "blob" } }
+    private val targetBytes by lazy { targetEntry?.let { reads.blob(it.sha) } }
+
+    fun match(summary: ChangeRecordSummary, record: ChangeRecord, anchor: CodeAnchor): HistoricalIntent? {
+        val source = (if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision) ?: return null
+        val (match, range) = (if (source == queryRevision) sameRevision(anchor) else ancestor(source, anchor)) ?: return null
+        return HistoricalIntent(summary, source, anchor.side, match,
+            match == IntentMatch.EXACT_REVISION && record.targetRevision == queryRevision,
+            anchor.relativePath, anchor.startLine, anchor.endLine, range?.first, range?.last)
+    }
+
+    private fun sameRevision(anchor: CodeAnchor): Pair<IntentMatch, IntRange?>? {
+        if (anchor.relativePath != path) return null
+        return if (line in anchor.startLine..anchor.endLine) IntentMatch.EXACT_REVISION to anchor.startLine..anchor.endLine
+            else IntentMatch.RELATED_UNVERIFIED to null
+    }
+
+    private fun ancestor(source: String, anchor: CodeAnchor): Pair<IntentMatch, IntRange?>? {
+        val samePath = anchor.relativePath == path
+        val old = reads.snapshot(source)
+        val entry = old.entries[anchor.relativePath]?.takeIf { it.type == "blob" }
+        val renamed = !samePath && entry != null && entry.sha == targetEntry?.sha &&
+            path !in old.entries && anchor.relativePath !in target.entries &&
+            old.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null &&
+            target.entries.values.singleOrNull { it.type == "blob" && it.sha == entry.sha } != null
+        if (!samePath && !renamed) return null
+        var match = IntentMatch.RELATED_UNVERIFIED
+        var range: IntRange? = null
+        if (entry != null && targetEntry != null && reads.isAncestor(source, queryRevision)) {
+            val oldBytes = reads.blob(entry.sha)
+            if (GitEvidenceDigest.lines(oldBytes, anchor.startLine, anchor.endLine) == anchor.contentHash) {
+                if (entry.sha == targetEntry?.sha && line in anchor.startLine..anchor.endLine) {
+                    range = anchor.startLine..anchor.endLine
+                    match = if (renamed) IntentMatch.ANCESTOR_RENAMED_FILE else IntentMatch.ANCESTOR_UNCHANGED_FILE
+                } else if (samePath) {
+                    range = targetBytes?.let { LineRelocation.find(oldBytes, it, anchor.startLine, anchor.endLine) }
+                        ?.takeIf { line in it }
+                    if (range != null) match = if (range.first == anchor.startLine) IntentMatch.ANCESTOR_UNCHANGED_LINES else IntentMatch.ANCESTOR_MOVED_LINES
+                }
+            }
+        }
+        if (renamed && match == IntentMatch.RELATED_UNVERIFIED) return null
+        return match to range
     }
 }
 
