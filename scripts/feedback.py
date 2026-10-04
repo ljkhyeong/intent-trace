@@ -153,7 +153,7 @@ def main(arguments=None):
     files.add_argument("paths", nargs="+")
     final = modes.add_parser("finish", help="작업 전체 diff와 구조 규칙 검사")
     final.add_argument("--base", required=True, help="작업 시작 커밋")
-    modes.add_parser("hook", help="Codex 훅의 JSON 입력 처리")
+    modes.add_parser("hook", help="Codex·Claude Code 훅의 JSON 입력 처리")
     args = parser.parse_args(arguments)
     payload = json.load(sys.stdin) if args.mode == "hook" else None
     key = hashlib.sha256(payload["session_id"].encode()).hexdigest()[:20] if payload else "manual"

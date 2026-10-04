@@ -319,6 +319,25 @@ MCP `find_change_intent`는 `{ "items": [...] }`, REST `/lookup`은 배열을 �
 
 [GPT-6 Astra 가이드](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)의 지시 충돌·재확인·검증 범위 권고에 따라 중복 규칙과 모든 문서를 매번 읽는 절차를 정리했습니다. 세션 시작 훅을 제거해 일반 코드 작업마다 기록 생성을 제안하지 않습니다.
 
+## Claude Code
+
+Claude Code는 루트 `CLAUDE.md`의 `@AGENTS.md` 가져오기로 Codex와 같은 [AGENTS.md](AGENTS.md)를 읽습니다. 작업 규칙은 AGENTS.md에만 씁니다.
+
+- `.claude/settings.json`: Codex와 같은 `scripts/feedback.py` 훅으로 파일 수정 후 지역 검사와 종료 전 전체 diff 검사 실행
+- `.claude/skills/intent-trace`, `.claude/skills/intent-trace-flows`: Codex 사용·개발 스킬을 기준으로 Claude Code의 연결·훅 차이 안내
+- `.claude/skills/intent-trace-handoff`, `.claude/skills/intent-trace-docs`: 작업 마무리와 HANDOFF 검증 기록, PRD·ADR·검토 문서 작성
+- `.claude/skills/intent-trace-release`: `/intent-trace-release <버전>`으로만 실행하는 릴리스 절차
+
+Claude Code는 `.mcp.json`의 `bearer_token_env_var`를 읽지 않습니다. 같은 이름의 로컬 범위 서버를 추가하면 프로젝트 설정 대신 사용합니다. 작은따옴표로 감싸 토큰 대신 환경 변수 참조를 저장합니다.
+
+```bash
+claude mcp add --transport http --scope local intent-trace http://127.0.0.1:8080/mcp \
+  --header 'Authorization: Bearer ${INTENT_TRACE_SESSION_TOKEN}'
+claude mcp list
+```
+
+`claude mcp get`은 확장된 토큰 값을 출력하므로 공유 화면이나 기록에 남기지 않습니다.
+
 ## IntelliJ 플러그인
 
 Java 21에서 플러그인 설치 ZIP을 만듭니다. 기본 빌드는 IntelliJ IDEA 2025.3.2 SDK를 내려받으므로 첫 실행에 시간이 걸릴 수 있습니다.

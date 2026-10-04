@@ -10,6 +10,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 - 홈서버 k3s의 앱 1개·PostgreSQL PVC·Traefik Ingress, 임시 환경 예시와 배포 파일 검증
 - IntelliJ 설정에서 저장 세션의 유효 여부와 GitHub 계정을 확인하는 로그인 확인
 - 파일 수정 후 지역 검사와 종료 전 전체 diff·ArchUnit 구조 검사를 실행하는 Codex 훅과 공통 명령
+- 같은 검사 훅, Codex 스킬 기준의 사용·개발 스킬, 작업 마무리·문서·릴리스 스킬을 담은 Claude Code 프로젝트 설정
 - 웹 조회의 GitHub 일시 장애·호출 제한 화면에서 같은 조건과 페이지로 다시 조회
 - IntelliJ 기록 상세에서 같은 서버의 웹 기록으로 이동해 변경 이력·원본 비교·Markdown 저장 사용
 - Zed 연결 점검 명령의 PR 번호·커밋 지정과 PR 현재 커밋 읽기 확인

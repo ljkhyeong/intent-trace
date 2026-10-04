@@ -29,7 +29,7 @@ Markdown·CSS·YAML 등 별도 구문 검사가 없는 파일은 공백만 검�
 
 규칙은 `src/test/kotlin/io/intenttrace/architecture/ArchitectureTest.kt` 한 곳에서 관리한다. import 문만 찾는 정규식 검사 대신 필드·생성자·메서드·상속 등 실제 클래스 의존을 검사한다.
 
-## Codex 자동 실행
+## Codex·Claude Code 자동 실행
 
 프로젝트의 `.codex/config.toml`에 [공식 command hook](https://learn.chatgpt.com/docs/hooks)을 등록한다. 추가 모델 호출이나 유료 서비스는 사용하지 않는다.
 
@@ -40,6 +40,10 @@ Markdown·CSS·YAML 등 별도 구문 검사가 없는 파일은 공백만 검�
 상태는 세션 ID의 해시로 구분하고 동시 훅 검사는 잠금으로 직렬 실행한다. 셸에서 직접 실행한 Gradle과 훅 검사를 겹치지 않도록 수정·검증을 순서대로 실행한다. Python 3.11 이상과 macOS·Linux 환경을 사용한다.
 
 Codex CLI의 `/hooks`에서 새 훅의 정의를 검토하고 신뢰 승인한 뒤 자동 실행된다. 이는 공식 훅 보안 절차이며 설정을 저장하는 것만으로 승인되지 않는다. 새 설정을 불러오지 않은 세션이나 훅 미지원 도구에서는 같은 수동 명령을 사용한다. 이때 시작 커밋을 현재 HEAD로 바꾸어 이전 변경을 누락하지 않는다. 훅은 모든 파일 저장을 감시하는 데몬이 아니며 IDE에서 직접 저장한 파일도 종료 전 전체 diff에 포함해 검사한다.
+
+Claude Code는 `.claude/settings.json`에 같은 명령을 [command hook](https://code.claude.com/docs/en/hooks)으로 등록한다. `PostToolUse`는 `Edit`·`Write`·`MultiEdit`·`NotebookEdit`·`Bash` 뒤에 실행하며 서브에이전트의 도구 호출에도 적용된다. 종료 검사의 통과 메시지는 사용자에게만 표시되므로 에이전트는 최종 응답 전에 `finish`를 직접 실행하고 `review.diff`를 읽는다.
+
+두 도구 모두 종료 검사가 통과하면 다음 요청의 기준을 그때의 HEAD로 바꾼다. 여러 요청에 걸친 작업은 처음 기록한 시작 커밋으로 `finish`를 실행한다.
 
 ## 결과와 Gradle 증분 실행
 
