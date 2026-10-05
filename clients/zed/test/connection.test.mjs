@@ -198,3 +198,11 @@ test('대기 시간 형식을 제한하고 시간 초과는 변경 상태 확인
   for (const input of ['-1', '1e2', 'Infinity', '99999999', token]) assert.equal(retryAfterSeconds(input), undefined);
   assert.match(safeFailure({ code: -32001 }).message, /다시 보내기 전에 기록·게시 상태/);
 });
+
+test('진단 도구 오류는 서버 안내를 한 줄로 정리하고 제어 문자를 지운다', async () => {
+  const { toolErrorText } = await import('../bridge.mjs');
+  const text = toolErrorText({ isError: true, content: [{ type: 'text', text: '전체 Git 커밋 ID는\n40자\u001b[31m 또는 64자 16진수여야 합니다.' }] });
+  assert.equal(text, '전체 Git 커밋 ID는 40자 [31m 또는 64자 16진수여야 합니다.');
+  assert.equal(toolErrorText({ isError: true, content: [{ type: 'text', text: 'x'.repeat(600) }] }).length, 500);
+  assert.match(toolErrorText({ isError: true, content: [] }), /저장소·커밋·PR 번호를 확인하세요/);
+});

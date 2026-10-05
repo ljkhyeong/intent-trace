@@ -75,6 +75,14 @@ class ZedBridgeIntegrationTest(
     }
 
     @Test
+    fun `연결 점검은 서버가 거부한 입력을 연결 실패 대신 서버 안내로 표시한다`() {
+        val output = check("--revision", "main", expectedExitCode = 1)
+        assertTrue(output.contains("IntentTrace 연결 점검: 전체 Git 커밋 ID는 40자 또는 64자 16진수여야 합니다."), output)
+        assertFalse(output.contains("INTENT_TRACE_ERROR"), output)
+        Mockito.verifyNoInteractions(evidence, pullRequests)
+    }
+
+    @Test
     fun `세션 종료는 잘못된 ID를 노출하거나 다른 연결을 종료하지 않고 ID 생략만 현재 연결을 종료한다`() {
         val now = Instant.now()
         fun issue() = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
