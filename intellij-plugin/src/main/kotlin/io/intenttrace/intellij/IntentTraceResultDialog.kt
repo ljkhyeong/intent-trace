@@ -74,13 +74,14 @@ internal open class IntentTraceResultDialog(
     override fun createActions(): Array<Action> = arrayOf(okAction)
 }
 
-internal fun readOnlyTextPane(text: String): JComponent = JBScrollPane(JBTextArea(text).apply {
+internal fun readOnlyTextPane(text: String): JComponent = JBScrollPane(readOnlyTextArea(text).apply { caretPosition = 0 })
+
+internal fun readOnlyTextArea(text: String = ""): JBTextArea = JBTextArea(text).apply {
     isEditable = false
     lineWrap = true
     wrapStyleWord = true
     border = JBUI.Borders.empty(12)
-    caretPosition = 0
-})
+}
 
 internal fun plainComboBox(items: List<String>): JComboBox<String> = JComboBox(items.toTypedArray()).apply {
     renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }

@@ -59,7 +59,7 @@ class LineHistoryDialogTest : LightPlatformTestCase() {
     }
 
     private fun history(items: List<HistoricalIntent>, nextCursor: String?, stopReason: String? = null,
-        failures: List<HistoryFailure> = emptyList()) = ChangeIntentHistory(lookup.revision, lookup.relativePath, items, nextCursor,
+        failures: List<HistoryFailure> = emptyList()) = ChangeIntentHistory(items, nextCursor,
             items.size + failures.size, failures, stopReason, stopReason == null && failures.isEmpty(), false)
 
     private fun item(id: String) = HistoricalIntent(

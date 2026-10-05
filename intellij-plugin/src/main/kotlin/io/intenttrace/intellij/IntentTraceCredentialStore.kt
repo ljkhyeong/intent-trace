@@ -13,6 +13,9 @@ internal class IntentTraceCredentialStore(
 ) {
     fun load(server: IntentTraceServer): String? = loadStored(server) ?: environmentSession(server)
 
+    fun require(server: IntentTraceServer): String = load(server)
+        ?: throw IntentTraceUsageException("IntentTrace 세션이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.")
+
     fun loadStored(server: IntentTraceServer): String? = credentialStore.getPassword(attributes(server))
         ?.takeIf(IntentTraceApiClient::validSessionToken)
 

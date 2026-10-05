@@ -4,8 +4,6 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
-import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -62,12 +60,7 @@ internal open class LineHistoryDialog(
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
 ) : DialogWrapper(project, true) {
     private val webHistoryUri = server.webHistoryUri(lookup)
-    private val text = JBTextArea().apply {
-        isEditable = false
-        lineWrap = true
-        wrapStyleWord = true
-        border = JBUI.Borders.empty(12)
-    }
+    private val text = readOnlyTextArea()
     private val selection = plainComboBox(emptyList())
     private val open = JButton("선택 기록 열기")
     private val next = JButton()

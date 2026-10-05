@@ -1,6 +1,7 @@
 package io.intenttrace.intellij
 
 import com.intellij.util.io.HttpRequests
+import com.intellij.util.io.RequestBuilder
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
@@ -39,62 +40,56 @@ internal class IntentTraceApiClient {
 
     fun revokeSession(server: IntentTraceServer, sessionToken: String) {
         requireSessionToken(sessionToken)
-        execute {
-            HttpRequests.delete(server.currentSessionUri().toString(), null)
-                .connectTimeout(5_000)
-                .readTimeout(10_000)
-                .followRedirects(false)
-                .throwStatusCodeException(false)
-                .tuner { connection -> connection.setRequestProperty("Authorization", "Bearer $sessionToken") }
-                .connect { request ->
-                    when (val status = (request.connection as HttpURLConnection).responseCode) {
-                        200, 401 -> Unit
-                        429 -> throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
-                        in 500..599 -> throw IntentTraceClientException(
-                            "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
-                        )
-                        else -> throw IntentTraceClientException("IntentTrace 세션 폐기 요청이 거부됐습니다. HTTP $status")
-                    }
-                }
+        send(HttpRequests.delete(server.currentSessionUri().toString(), null), sessionToken) { _, status ->
+            when (status) {
+                200, 401 -> Unit
+                in 500..599 -> throw IntentTraceClientException("IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.")
+                else -> throw IntentTraceClientException("IntentTrace 세션 폐기 요청이 거부됐습니다. HTTP $status")
+            }
         }
     }
 
     private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false, readTimeout: Int = 10_000): String {
         sessionToken?.let(::requireSessionToken)
-        return execute {
-            HttpRequests.request(uri.toString())
-                .connectTimeout(5_000)
-                .readTimeout(readTimeout)
-                .followRedirects(false)
-                .throwStatusCodeException(false)
-                .accept("application/json")
-                .tuner { connection -> sessionToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") } }
-                .connect { request ->
-                    when (val status = (request.connection as HttpURLConnection).responseCode) {
-                        200 -> {
-                            val bytes = request.inputStream.readNBytes(MAX_RESPONSE_BYTES + 1)
-                            if (bytes.size > MAX_RESPONSE_BYTES) {
-                                throw IntentTraceClientException("IntentTrace 조회 응답이 허용 크기를 초과했습니다.")
-                            }
-                            bytes.toString(StandardCharsets.UTF_8)
-                        }
-                        429 -> throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
-                        else -> throw IntentTraceClientException(when {
-                            // Spring 상태 확인은 UP이 아니면 503으로 응답한다.
-                            sessionToken == null && status == 503 -> "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
-                            sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
-                            status == 400 -> "IntentTrace가 조회 조건을 거부했습니다. 검색어 길이와 파일 경로·커밋 형식을 확인해 주세요."
-                            status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
-                            // 기록 ID 조회의 권한 없음은 서버가 404로 숨기므로 403은 저장소 단위 거부다.
-                            status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
-                                else "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다."
-                            status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
-                            status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
-                            else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
-                        })
+        return send(HttpRequests.request(uri.toString()).accept("application/json"), sessionToken, readTimeout) { request, status ->
+            when (status) {
+                200 -> {
+                    val bytes = request.inputStream.readNBytes(MAX_RESPONSE_BYTES + 1)
+                    if (bytes.size > MAX_RESPONSE_BYTES) {
+                        throw IntentTraceClientException("IntentTrace 조회 응답이 허용 크기를 초과했습니다.")
                     }
+                    bytes.toString(StandardCharsets.UTF_8)
                 }
+                else -> throw IntentTraceClientException(when {
+                    // Spring 상태 확인은 UP이 아니면 503으로 응답한다.
+                    sessionToken == null && status == 503 -> "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
+                    sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
+                    status == 400 -> "IntentTrace가 조회 조건을 거부했습니다. 검색어 길이와 파일 경로·커밋 형식을 확인해 주세요."
+                    status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
+                    // 기록 ID 조회의 권한 없음은 서버가 404로 숨기므로 403은 저장소 단위 거부다.
+                    status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
+                        else "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다."
+                    status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
+                    status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
+                    else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
+                })
+            }
         }
+    }
+
+    /** 연결 제한·redirect 금지·세션 헤더·호출 제한 안내를 모든 요청에 같게 적용한다. 오류 본문은 읽지 않는다. */
+    private fun <T> send(builder: RequestBuilder, sessionToken: String?, readTimeout: Int = 10_000,
+        onStatus: (HttpRequests.Request, Int) -> T): T = execute {
+        builder.connectTimeout(5_000)
+            .readTimeout(readTimeout)
+            .followRedirects(false)
+            .throwStatusCodeException(false)
+            .tuner { connection -> sessionToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") } }
+            .connect { request ->
+                val status = (request.connection as HttpURLConnection).responseCode
+                if (status == 429) throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
+                onStatus(request, status)
+            }
     }
 
     private fun rateLimitMessage(retryAfter: String?): String {

@@ -1,45 +1,31 @@
 package io.intenttrace.intellij
 
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.Messages
 
 class DisconnectSessionAction : IntentTraceAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val server = currentServerOrShowError(project) ?: return
-        object : Task.Backgroundable(project, "IntentTrace 세션 삭제", false) {
-            private var message: String? = null
-            private var serverFailure: String? = null
-
-            override fun run(indicator: ProgressIndicator) {
-                try {
-                    message = disconnectSession(server, IntentTraceCredentialStore())
-                } catch (error: IntentTraceRateLimitException) {
-                    throw error
-                } catch (error: IntentTraceClientException) {
-                    // 서버가 없어졌거나 응답하지 않아도 사용자가 고르면 이 PC의 토큰만 지울 수 있게 한다.
-                    serverFailure = error.message
-                }
+        val failure = "IntentTrace 세션을 삭제하지 못했습니다."
+        queueTask(project, "IntentTrace 세션 삭제", failure, {
+            try {
+                Result.success(disconnectSession(server, IntentTraceCredentialStore()))
+            } catch (error: IntentTraceRateLimitException) {
+                throw error
+            } catch (error: IntentTraceClientException) {
+                // 서버가 없어졌거나 응답하지 않아도 사용자가 고르면 이 PC의 토큰만 지울 수 있게 한다.
+                Result.failure(error)
             }
-
-            override fun onSuccess() {
-                message?.let { return Messages.showInfoMessage(project, it, "IntentTrace") }
-                val failure = serverFailure ?: return
-                val choice = Messages.showYesNoDialog(project, localDeletionPrompt(server, failure), "IntentTrace",
-                    "이 PC에서만 삭제", "취소", Messages.getWarningIcon())
-                if (choice == Messages.YES) {
-                    queueSessionTask(project, "IntentTrace 로컬 세션 삭제", "IntentTrace 세션을 삭제하지 못했습니다.") {
-                        forgetLocalSession(server, IntentTraceCredentialStore())
-                    }
-                }
+        }) { result ->
+            val serverFailure = result.exceptionOrNull()?.message
+                ?: return@queueTask Messages.showInfoMessage(project, result.getOrThrow(), "IntentTrace")
+            val choice = Messages.showYesNoDialog(project, localDeletionPrompt(server, serverFailure), "IntentTrace",
+                "이 PC에서만 삭제", "취소", Messages.getWarningIcon())
+            if (choice == Messages.YES) {
+                queueSessionTask(project, "IntentTrace 로컬 세션 삭제", failure) { forgetLocalSession(server, IntentTraceCredentialStore()) }
             }
-
-            override fun onThrowable(error: Throwable) {
-                Messages.showErrorDialog(project, (error as? IntentTraceUserException)?.message ?: "IntentTrace 세션을 삭제하지 못했습니다.", "IntentTrace")
-            }
-        }.queue()
+        }
     }
 }
 

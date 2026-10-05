@@ -1,8 +1,5 @@
 <idea-plugin>
-    <id>io.intenttrace.lineintent</id>
-    <name>IntentTrace</name>
-    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace 기여자</vendor>
-
+    <!-- id·이름·버전·설명·제공자는 build.gradle.kts의 pluginConfiguration이 빌드 때 채운다. -->
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
 

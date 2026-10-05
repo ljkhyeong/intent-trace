@@ -18,12 +18,13 @@ internal data class LineLookup(
         require(relativePath.isNotBlank() && !relativePath.startsWith('/'))
         require(line > 0)
     }
-
-    private companion object {
-        val REPOSITORY_KEY = Regex("^[a-z0-9_.-]+/[a-z0-9_.-]+$")
-        val FULL_REVISION = Regex("^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
-    }
 }
+
+/** 서버가 정규화한 소문자 owner/repository다. */
+internal val REPOSITORY_KEY = Regex("^[a-z0-9_.-]+/[a-z0-9_.-]+$")
+
+/** SHA-1·SHA-256 전체 커밋 ID다. */
+internal val FULL_REVISION = Regex("^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 internal class IntentTraceServer private constructor(val baseUri: URI) {
     fun authorizationStartUri(): URI = URI.create("$baseUri/auth/github/start")

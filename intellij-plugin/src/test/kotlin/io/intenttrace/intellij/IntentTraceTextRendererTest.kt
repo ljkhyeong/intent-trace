@@ -68,7 +68,7 @@ class IntentTraceTextRendererTest {
     @Test
     fun `이전 커밋 결과는 일치 방식과 원본 커밋을 보여 주고 과거 검증을 현재 검증으로 표시하지 않는다`() {
         val lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12)
-        val view = LineHistoryView.of(ChangeIntentHistory("a".repeat(40), lookup.relativePath, listOf(HistoricalIntent(
+        val view = LineHistoryView.of(ChangeIntentHistory(listOf(HistoricalIntent(
             ChangeRecordSummary("record-1", "이전 기록", "PUBLISHED", "b".repeat(40), CreatedByResponse("developer"), "2026-10-01T00:00:00Z"),
             "b".repeat(40), CodeSide.BASE, "ANCESTOR_MOVED_LINES", false, "src/Old.kt", 4, 6, 10, 12,
         )), "h1.next", 3, listOf(HistoryFailure("record-2", "REVISION_NOT_FOUND")), "CALL_LIMIT", false, false))

@@ -18,16 +18,17 @@ internal fun currentServerOrShowError(project: Project): IntentTraceServer? = tr
     null
 }
 
-internal fun queueSessionTask(project: Project, title: String, failure: String, work: () -> String) {
+/** [work]를 백그라운드에서 실행한다. 사용자 안내 오류는 그대로, 그 밖의 오류는 [failure]로 표시한다. */
+internal fun <T : Any> queueTask(project: Project, title: String, failure: String, work: () -> T, onSuccess: (T) -> Unit) {
     object : Task.Backgroundable(project, title, false) {
-        private lateinit var message: String
+        private lateinit var result: T
 
         override fun run(indicator: ProgressIndicator) {
-            message = work()
+            result = work()
         }
 
         override fun onSuccess() {
-            Messages.showInfoMessage(project, message, "IntentTrace")
+            if (!project.isDisposed) onSuccess(result)
         }
 
         override fun onThrowable(error: Throwable) {
@@ -35,3 +36,6 @@ internal fun queueSessionTask(project: Project, title: String, failure: String, 
         }
     }.queue()
 }
+
+internal fun queueSessionTask(project: Project, title: String, failure: String, work: () -> String) =
+    queueTask(project, title, failure, work) { Messages.showInfoMessage(project, it, "IntentTrace") }

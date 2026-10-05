@@ -100,8 +100,6 @@ internal data class ConnectionCheck(val name: String, val status: String, val me
 
 @Serializable
 internal data class ChangeIntentHistory(
-    val queryRevision: String,
-    val path: String,
     val items: List<HistoricalIntent>,
     val nextCursor: String? = null,
     val scannedRecords: Int,

@@ -49,18 +49,12 @@ internal object CurrentLineContextResolver {
         } catch (_: ExecutionException) {
             throw IntentTraceUsageException("IDE의 변경 목록 갱신이 끝나지 않았습니다. 잠시 후 다시 조회해 주세요.")
         }
-        val changed = ReadAction.compute<Boolean, RuntimeException> {
-            FileDocumentManager.getInstance().isFileModified(file) ||
-                ChangeListManager.getInstance(project).getStatus(file) != FileStatus.NOT_CHANGED
-        }
-        return FreshLineState(repository.currentRevision?.lowercase(), changed)
+        return FreshLineState(repository.currentRevision?.lowercase(), ReadAction.compute<Boolean, RuntimeException> { fileChanged(project, file) })
     }
 
     /** 편집기에서 계산한 조회 조건이 다시 읽은 상태와 다르면 잘못된 줄로 조회하지 않는다. */
     fun requireUnchanged(lookup: LineLookup, state: FreshLineState) {
-        if (state.fileChanged) {
-            throw IntentTraceUsageException("현재 파일에 커밋되지 않은 변경이 있습니다. HEAD 기준 줄을 조회하려면 먼저 커밋해 주세요.")
-        }
+        if (state.fileChanged) throw IntentTraceUsageException(UNCOMMITTED_CHANGE)
         if (state.revision != lookup.revision) {
             throw IntentTraceUsageException("조회를 시작한 뒤 Git HEAD가 바뀌었습니다. 편집기에 새 커밋이 반영된 뒤 다시 조회해 주세요.")
         }
@@ -68,13 +62,7 @@ internal object CurrentLineContextResolver {
 
     fun resolve(project: Project, editor: Editor, file: VirtualFile): LineLookup {
         val repository = gitRepository(project, file)
-        val changes = ChangeListManager.getInstance(project)
-        if (
-            FileDocumentManager.getInstance().isFileModified(file) ||
-            changes.getStatus(file) != FileStatus.NOT_CHANGED
-        ) {
-            throw IntentTraceUsageException("현재 파일에 커밋되지 않은 변경이 있습니다. HEAD 기준 줄을 조회하려면 먼저 커밋해 주세요.")
-        }
+        if (fileChanged(project, file)) throw IntentTraceUsageException(UNCOMMITTED_CHANGE)
         val revision = repository.currentRevision?.lowercase()
             ?: throw IntentTraceUsageException("현재 Git HEAD 커밋을 확인할 수 없습니다.")
         val context = fileContext(repository, file)
@@ -85,6 +73,10 @@ internal object CurrentLineContextResolver {
             line = editor.caretModel.logicalPosition.line + 1,
         )
     }
+
+    private fun fileChanged(project: Project, file: VirtualFile): Boolean =
+        FileDocumentManager.getInstance().isFileModified(file) ||
+            ChangeListManager.getInstance(project).getStatus(file) != FileStatus.NOT_CHANGED
 
     private fun gitRepository(project: Project, file: VirtualFile): GitRepository =
         GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(file)
@@ -105,4 +97,5 @@ internal object CurrentLineContextResolver {
         ?: throw IntentTraceUsageException("GitHub origin에서 owner/repository를 확인할 수 없습니다.")
 
     private const val STATUS_WAIT_SECONDS = 10
+    private const val UNCOMMITTED_CHANGE = "현재 파일에 커밋되지 않은 변경이 있습니다. HEAD 기준 줄을 조회하려면 먼저 커밋해 주세요."
 }
