@@ -56,3 +56,13 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 - 생성기는 `package.json`과 `package-lock.json`을 임시 폴더에 복사하고 `npm ci --ignore-scripts`로 운영 의존성을 설치한다. 개발 폴더의 `node_modules`는 사용하거나 변경하지 않는다. 설치 스크립트·의존성 감사 호출을 끄고, 준비 실패 시 배포 파일 생성을 중단한다. 잠금 파일과 선언이 다르면 임의로 갱신하지 않는다. [npm ci 문서](https://docs.npmjs.com/cli/v11/commands/npm-ci/)
 - 생성에는 npm 레지스트리 또는 필요한 항목이 있는 캐시가 필요하다. 완성된 패키지는 오프라인으로 설치할 수 있다. 운영체제별 선택 의존성이 달라 패키지 내용과 해시가 다를 수 있다.
 - 패키지 안의 `build-info.json`에 패키지 이름·버전·입력 잠금 파일 SHA-256을 넣는다. 옆의 `.tgz.build.json`에는 같은 정보와 압축 파일 SHA-256을 기록한다. 계정·개인 경로·인증 정보는 넣지 않는다. 이 정보는 생성 기준을 확인하는 용도이며 배포자 서명은 아니다.
+
+## 편집기 hover 언어 서버
+
+- Zed 확장은 편집기 UI를 그릴 수 없어 보조 언어 서버 `intent-trace`를 등록하고 `textDocument/hover`만 제공한다. 확장은 Rust(`zed_extension_api` 0.7.0, `wasm32-wasip2`)로 작성한다. Zed 게시 규칙에 따라 언어 서버를 포함하지 않는다. `lsp.intent-trace.binary` 설정이 있으면 그 명령을, 없으면 PATH의 `intent-trace-zed lsp`를 실행한다. 확장 문구는 게시 규칙에 따라 영어로 쓰고 hover 본문은 한국어다. [Zed 확장 게시 조건](https://zed.dev/docs/extensions/publishing/prerequisites)
+- 언어 서버는 같은 Node 패키지의 `lsp` 명령이며 `vscode-languageserver`를 사용한다. 표준 출력은 LSP 통신에만 쓴다. `configure`는 MCP 연결과 함께 `lsp.intent-trace` 실행 명령과 서버 주소를 저장하고 `unconfigure`는 둘 다 제거한다.
+- 조회 전에 Git으로 HEAD·저장소·상대 경로를 계산한다. 원격 주소 해석은 IntelliJ와 같은 규칙이다. 저장하지 않았거나 커밋되지 않은 파일은 서버를 호출하지 않는다.
+- 서버는 REST 요청마다 GitHub 권한을 확인한다. 그래서 `GET /api/v1/change-records?scope=TEAM&path=…&limit=1`로 파일에 공개 기록이 있는지 먼저 확인해 5분 캐시하고, 있을 때만 `GET /api/v1/change-records/lookup`을 1분 캐시로 호출한다. 403 저장소는 5분간 조용히 건너뛴다. 그 밖의 실패는 30초 또는 `Retry-After` 동안 같은 안내를 재사용한다.
+- 토큰은 `INTENT_TRACE_SESSION_TOKEN`으로만 받는다. redirect를 따르지 않고 응답은 4M 문자까지만 해석한다. 기록 문구는 Markdown 문법으로 해석되지 않게 escape하고 오류 원문은 표시하지 않는다.
+- 코드 렌즈는 문서 전체의 렌즈를 한 번에 요청해 줄마다 조회가 필요하므로 보류한다. 웹 화면을 여는 code action은 Zed가 `window/showDocument`의 `external`을 지원하지 않아 보류한다.
+- 새 기록이 hover에 보이기까지 최대 5분이 걸리고, 다른 언어 서버와 hover가 함께 표시되는지는 실제 Zed에서 확인해야 한다.

@@ -66,6 +66,7 @@ Claude Code는 `.claude/settings.json`에 같은 명령을 [command hook](https:
 - 같은 작업 폴더에서 Gradle 실행을 겹치지 않는다. 실행 중인 명령의 결과를 기다리고, 입력을 수정한 뒤 다음 검증을 시작한다.
 - PostgreSQL 검증은 Docker가 배정한 빈 로컬 포트를 사용한다. 고정 포트가 필요한 경우에만 `INTENT_TRACE_POSTGRES_SMOKE_PORT`를 지정한다. 다른 작업의 DB를 종료해 포트를 확보하지 않는다.
 - `npm ci --prefix clients/zed --ignore-scripts`는 의존성이 없거나 `package.json`·잠금 파일이 바뀌었을 때 실행한다. 일반 Zed 수정은 `npm test --prefix clients/zed`로 확인한다. 배포 패키지의 빈 캐시 설치 검증은 별도 배포 절차를 따른다.
+- Zed 확장(`clients/zed/extension`)을 바꾸면 rustup 또는 Docker `rust:1-slim`에서 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`를 실행한다. CI의 `Zed 확장 검증` 작업과 같다.
 - 전체 서버 테스트에서 `ZedBridgeIntegrationTest`가 통과했다면 같은 코드·환경에서 따로 반복하지 않는다. 건너뛴 경우에는 의존성을 준비한 뒤 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`로 확인한다.
 - 문서·스킬 수정에는 해당 구조·링크 검사만 실행한다. 검증기 자체를 바꾸지 않았다면 공식 검사와 로컬 대체 검사를 둘 다 반복할 필요가 없다.
 

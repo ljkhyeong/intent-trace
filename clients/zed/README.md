@@ -48,5 +48,5 @@ npm uninstall --prefix ~/.local/share/intent-trace --ignore-scripts intent-trace
 
 - macOS·Linux: 위 설치·실행 명령을 사용한다. Linux 검증은 저장소 CI에서 수행한다.
 - Windows: Node로 연결 도구를 실행하고 `--settings`로 Zed 설정을 지정할 수 있다. `launch`는 PATH의 `python`을 사용한다. Windows 실제 Zed 앱 실행은 확인하지 않았다.
-- 에이전트의 MCP 도구 연결을 지원한다. 편집기 인라인 메뉴와 자동 기록 수집은 제공하지 않는다.
+- 에이전트의 MCP 도구 연결을 지원한다. 별도 Zed 확장을 설치하면 `lsp` 명령이 커밋된 줄의 hover에 공개 기록 요약을 표시한다. 확장은 저장소의 `clients/zed/extension`을 개발용으로 설치한다. 자동 기록 수집은 제공하지 않는다.
 - 서버 재시작·세션 만료 후에는 다시 로그인한다. 레지스트리의 비밀 입력 항목을 등록해도 IntentTrace의 OAuth가 자동 연동되지는 않는다.

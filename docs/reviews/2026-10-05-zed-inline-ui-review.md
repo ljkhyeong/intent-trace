@@ -4,7 +4,7 @@
 
 기준 커밋: `cc05a4b4c1d833be5965be1f86553841cdcdf0e3`
 
-상태: 제안. 구현하지 않았다. Zed 기능은 2026-10-05 공개 문서와 변경 이력으로 확인했고 실제 Zed에서 시제품을 실행하지 않았다.
+상태: 1번 hover를 미출시로 반영했다([사용 안내](../clients/zed.md#편집기-hover), [ADR-0010](../ADR-0010-zed-mcp-and-connection-diagnostics.md#편집기-hover-언어-서버)). 편집 중·미커밋 파일은 안내 대신 hover를 표시하지 않도록 바꿨다. 실제 Zed 앱 확인과 Zed 확장 저장소 등록은 하지 않았다.
 
 ## 우선순위
 

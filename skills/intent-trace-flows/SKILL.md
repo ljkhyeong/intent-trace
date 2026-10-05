@@ -44,7 +44,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | Flyway·JDBC·백업·복구 | `scripts/verify-postgres.sh`, 백업 스크립트 수정 시 `python3 scripts/test_backup_postgres.py` |
 | Codex 플러그인·스킬 | `scripts/validate-plugin.sh`, 스킬 frontmatter·문서 링크·사용 조건 확인. `quick_validate.py`가 설치되어 있으면 변경한 스킬에 실행 |
 | IntelliJ | `./gradlew -p intellij-plugin test`, 패키지·설정 변경 시 `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`도 실행 |
-| Zed·MCP 연결 | 의존성이 없거나 명세가 바뀌면 `npm ci --prefix clients/zed --ignore-scripts`. `npm test --prefix clients/zed`와 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`. 서버 전체 검증에서 연결 테스트가 통과했다면 별도 실행 생략 |
+| Zed·MCP 연결·hover | 의존성이 없거나 명세가 바뀌면 `npm ci --prefix clients/zed --ignore-scripts`. `npm test --prefix clients/zed`와 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`. 서버 전체 검증에서 연결 테스트가 통과했다면 별도 실행 생략. `clients/zed/extension`을 바꾸면 [검증 절차](../../docs/development/verification.md)의 cargo 검사 |
 | Compose | `python3 scripts/validate-compose.py .env.team.example`, Caddy 수정 시 운영 문서의 설정 검증 |
 | 릴리스 버전·패키지 | [릴리스 절차](../../docs/operations/release.md)의 해당 검사 |
 

@@ -35,6 +35,16 @@ node scripts/package-zed.mjs --output build/zed-publication \
 
 `server.json`은 `INTENT_TRACE_SESSION_TOKEN`을 필수 비밀 입력으로 선언하고 실제 값은 포함하지 않는다. `INTENT_TRACE_MCP_URL`은 선택 주소이며 기본값은 로컬 `/mcp`다. 설치 도구가 비밀 입력을 파일에 보관한다면 직접 환경 변수를 전달하는 기존 Zed 연결 방식을 사용한다. IntentTrace의 GitHub 로그인은 MCP 표준 OAuth 자동 로그인과 별개다.
 
+## Zed 확장 등록 자료
+
+`clients/zed/extension`은 hover 언어 서버를 등록하는 Zed 확장이다. Zed 확장 저장소 등록은 아직 하지 않았다. 등록할 때는 [Zed 게시 안내](https://zed.dev/docs/extensions/publishing/publishing-guide)를 따른다.
+
+- 이 저장소가 공개되어 있어야 하고, Zed 확장 저장소에는 HTTPS 서브모듈로 추가한다. `extensions.toml`에는 `path = "clients/zed/extension"`과 `extension.toml`의 `version`을 같은 값으로 적는다.
+- 확장 폴더에 Apache-2.0 `LICENSE`를 둔다. 저장소 루트의 라이선스만으로는 인정되지 않는다.
+- 확장 ID에 `zed`·`extension`을 넣지 않고 사용자 문구는 영어로 쓴다. 언어 서버는 포함하지 않고 사용자 환경의 `intent-trace-zed`를 찾는다.
+- 제출 전에 등록할 커밋으로 Zed에서 개발용 확장을 설치해 직접 확인한다.
+- CI의 `Zed 확장 검증` 작업은 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`를 실행한다.
+
 ## 검증
 
 `npm test --prefix clients/zed`에는 아래 패키지 검증이 포함된다. GitHub Actions의 기존 Node 22·Linux 작업도 같은 테스트를 실행한다.
