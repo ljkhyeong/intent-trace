@@ -20,7 +20,8 @@
 | 서버·MCP | `b7ac92a` | [서버 264개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
 | PostgreSQL | `b7ac92a` | [저장·조회 8개 통과, 백업·복구 확인](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
 | IntelliJ | `9f2896f` | [61개 통과, ZIP 빌드·구조 검사](#2026-10-05-프로젝트-점검과-불필요한-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
-| Zed 연결 도구 | `b7ac92a` | [Node 16개·Python 4개 통과, 실제 서버 점검 테스트는 서버 검증에 포함](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
+| Zed 연결 도구 | `5b2c11b` | [Node 21개·Python 4개, 실제 서버 연결·hover 통합 7개 통과](#2026-10-05-zed-편집기-hover-구현) |
+| Zed hover 확장 | `5b2c11b` | [wasm32-wasip2 빌드·clippy·형식 검사 통과](#2026-10-05-zed-편집기-hover-구현). 실제 Zed 앱 설치·hover 확인과 확장 저장소 등록은 미실행 |
 | Zed 배포 패키지 | `df139d7` | [임시 폴더에 패키지·체크섬 생성, 잘못된 인자 거부 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 저장소의 배포 폴더는 다시 만들지 않음 |
 | 검증 결과 수집·릴리스 도구 | `df139d7` | [실행 도구 출력 해시는 서버 테스트로 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 릴리스 도구는 [`e6e3e5e` 결과](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) 이후 변경 없음 |
 | Git 근거·검증 루프 | `f7d03cd` | [검증 루프 9개 통과, 시간 예산 초과 안내 확인](#2026-10-05-남은-검토-항목-반영). Git 근거 스크립트는 [`ad3b998` 결과](#2026-10-05-중복-코드-정리) 이후 변경 없음 |
@@ -222,7 +223,7 @@
 
 2026-10-05 [추가·개선 기능 검토](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다([검증](#2026-10-05-추가개선-기능-검토-반영)). 같은 날 P2의 기록별 게시 PR 목록, GitHub App 설치 변경 웹훅, IntelliJ 저장소 연결 진단·이전 커밋 조회도 반영했다([검증](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가)). 남은 11·12번도 반영했다([검증](#2026-10-05-남은-검토-항목-반영)).
 
-1. Zed 편집기 인라인 UI는 [검토](docs/reviews/2026-10-05-zed-inline-ui-review.md) 결과 언어 서버 hover를 P2로 제안했다. Zed 확장에 UI API가 없어 Rust 확장·언어 서버 의존성 추가 여부를 정한 뒤 구현한다.
+1. Zed 편집기 hover를 [검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)대로 구현했다([검증](#2026-10-05-zed-편집기-hover-구현)). 실제 Zed 앱에서 개발용 확장을 설치해 hover 표시와 다른 언어 서버 hover와의 공존을 확인한 뒤, 저장소 공개 여부를 정해 [Zed 확장 저장소에 등록](docs/clients/zed-distribution.md#zed-확장-등록-자료)한다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 실제 GitHub PR의 Files changed 화면에서 코드 줄 주석 표시를 확인한다. 선택 게시와 중복 방지는 로컬 HTTP 계약으로만 검증했다.
 4. IntelliJ의 조회 전 Git 상태 재확인·이 PC 세션 삭제와 이전 커밋 조회·저장소 진단을 실제 IDE에서 확인한다. 자동 테스트는 상태 비교·로컬 삭제·화면 모델까지만 검증했다. 확인 항목은 [릴리스 전 확인](docs/operations/release.md#1-릴리스-전-확인)에 정리했다.
@@ -245,7 +246,7 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
 - IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
 - 현재 두 개의 alignment HTML만 저장소에 유지하며 새 HTML은 GitHub Release나 별도 보관소에 둔다.
-- Zed Agent MCP 연결을 구현했다. 인라인 IDE 메뉴와 자동 기록 수집은 없다. 실제 Zed 1.18.1에서 로컬 테스트 응답을 사용해 앱 연결·도구 승인·공개 기록 조회·세션 폐기 후 오류·새 세션 재연결을 확인했다. 실제 GitHub 사용자 승인은 확인하지 않았다.
+- Zed Agent MCP 연결과 커밋된 줄의 hover 확장을 구현했다. hover 확장은 개발용 설치만 지원하고 실제 Zed 앱에서는 확인하지 않았다. 자동 기록 수집은 없다. 실제 Zed 1.18.1에서 로컬 테스트 응답을 사용해 앱 연결·도구 승인·공개 기록 조회·세션 폐기 후 오류·새 세션 재연결을 확인했다. 실제 GitHub 사용자 승인은 확인하지 않았다.
 - 일반 연결 진단은 게시 설정 존재만 확인한다. 관리자용 별도 사전 점검은 App 키·설치·실제 발급 범위·권한을 확인한다. 고정 token은 미확인으로 남기며 실제 Check Run 성공까지 보장하지 않는다.
 - 기록 변경·게시 시도 이력을 저장한다. 인증·운영 전체 감사 로그와 자동 보존 정책은 없다. 수집 이전 이력과 과거 본문은 복원하지 않는다.
 - Micrometer 지표는 수집하지만 외부 수집기와 대시보드는 별도 연결해야 한다.
@@ -934,3 +935,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `fdf1098`, 문서 커밋은 `cc05a4b`(IntelliJ 수동 확인 목록)·`0e37c21`(Zed 인라인 UI 검토)다. 제품 코드는 바꾸지 않았다. [릴리스 전 확인](docs/operations/release.md#1-릴리스-전-확인)에 저장소 연결 진단, 조회 전 Git 상태 재확인, 20건 초과 안내, 이전 커밋 조회, `이 PC에서만 삭제`, 기록함 필터 팝업 확인 항목을 추가했다. [Zed 인라인 UI 검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)는 Zed 공개 문서 기준으로 확장 UI API가 없음을 확인하고 언어 서버 hover를 P2로 제안했다. 코드 렌즈와 웹 열기 code action은 보류했다.
 - `b7ac92a` 코드로 만든 `build/libs/intent-trace.jar`를 임시 H2 DB로 실행했다. 기준 스키마 V1이 적용되고 `/actuator/health`가 `UP`이었다. `/records`와 CSS는 200, 세션 없는 MCP와 `ghu_` Bearer REST 요청은 401이었다. 결과 시각은 2026-10-05 16:13 KST다. 문서만 바꿔 서버·IDE 테스트는 반복하지 않았고 문서 링크와 지역 검사만 확인했다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. Zed 시제품 실행, 실제 IDE 확인, GitHub 게시는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 Zed 편집기 hover 구현
+
+- 시작 리비전은 `631fdab`, 구현 커밋은 `fbf384e`·`5b2c11b`, 문서 커밋은 `d5f2c5b`다. [Zed 인라인 UI 검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)의 1번을 반영했다. Rust Zed 확장 `clients/zed/extension`(`zed_extension_api` 0.7.0)이 보조 언어 서버 `intent-trace`를 등록한다. 확장은 언어 서버를 포함하지 않고 `configure`가 저장한 `lsp.intent-trace.binary`나 PATH의 `intent-trace-zed lsp`를 실행한다. 연결 도구의 `lsp` 명령(`vscode-languageserver` 10.1.2)은 hover만 제공한다. Git으로 HEAD·origin·상대 경로를 구하고, 저장하지 않았거나 커밋되지 않은 파일은 조회하지 않는다. 기존 목록 API로 파일 단위 공개 기록 여부를 5분 캐시한 뒤 `/lookup`을 1분 캐시로 호출한다. 403 저장소는 조용히 건너뛰고 세션 만료·호출 제한·장애는 안내 후 30초 또는 `Retry-After` 동안 다시 부르지 않는다. 기록 문구는 Markdown escape한다. `configure`·`unconfigure`가 `lsp.intent-trace`도 관리하고 배포 패키지에 `lsp.mjs`를 넣었다. CI에 `Zed 확장 검증` 작업을 추가했다. 검토 문서와 달리 편집 중·미커밋 파일은 안내 대신 hover를 표시하지 않는다. 제품·도구 코드는 294줄 추가·27줄 삭제, 테스트는 213줄 추가·4줄 삭제다.
+- `npm test --prefix clients/zed`에서 Node 21개·Python 4개가 통과했다(2026-10-05 16:35 KST). 원격 주소 해석, 미커밋·미추적 판정, Markdown escape, 파일·줄 캐시, 편집 중 파일, 호출 제한 대기, 세션 없는 시작 거부, 설정 등록·제거, 배포 패키지의 `lsp.mjs` 로드를 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`에서 7개가 통과했다(16:35 KST). 이 중 새 테스트는 실제 Spring 서버에 공개 기록을 만들고 임시 Git 저장소의 커밋된 줄에서 hover로 조회한다. Docker `rust:1-slim`에서 CI와 같은 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`가 통과했다. 서버 제품 코드는 바꾸지 않아 전체 서버·PostgreSQL·IntelliJ 검증은 반복하지 않았다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. 최종 검토에서 언어 서버의 미사용 주입 인자를 지웠다. 실제 Zed 앱 설치·hover 확인, Zed 확장 저장소 등록, 원격 푸시·PR 생성은 하지 않았다. 원격 푸시는 이 세션의 자동 승인 정책에서 거부됐다. 기존 미추적 PNG를 보존했다.
