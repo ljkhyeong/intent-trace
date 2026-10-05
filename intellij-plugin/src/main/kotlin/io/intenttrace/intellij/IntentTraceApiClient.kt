@@ -76,10 +76,14 @@ internal class IntentTraceApiClient {
                         }
                         429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         else -> throw IntentTraceClientException(when {
+                            // Spring 상태 확인은 UP이 아니면 503으로 응답한다.
+                            sessionToken == null && status == 503 -> "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
                             sessionToken == null -> "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status"
+                            status == 400 -> "IntentTrace가 조회 조건을 거부했습니다. 검색어 길이와 파일 경로·커밋 형식을 확인해 주세요."
                             status == 401 -> "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요."
+                            // 기록 ID 조회의 권한 없음은 서버가 404로 숨기므로 403은 저장소 단위 거부다.
                             status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
-                                else "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다."
+                                else "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다."
                             status == 404 -> if (sessionCheck) "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요."
                                 else "해당 IntentTrace 기록을 찾을 수 없습니다."
                             status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."

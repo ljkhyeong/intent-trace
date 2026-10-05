@@ -78,7 +78,7 @@ internal open class RecordBrowserDialog(
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
     private val keyword = JBTextField(28).apply {
-        emptyText.text = "제목·요청·결정 검색 (최대 200자)"
+        emptyText.text = "제목·요청·결정 검색 (최대 ${MAX_KEYWORD_LENGTH}자)"
         addActionListener { search() }
     }
     private var previousQueries = emptyList<RecordListQuery>()
@@ -148,9 +148,15 @@ internal open class RecordBrowserDialog(
 
     private fun search() {
         val selected = filter.selectedItem as RecordFilter
+        val text = keyword.text.trim()
+        // 서버의 400 응답 대신 입력 위치에서 바로 안내하고 입력값은 고칠 수 있게 남긴다.
+        if (text.length > MAX_KEYWORD_LENGTH) {
+            Messages.showErrorDialog(project, "검색어는 ${MAX_KEYWORD_LENGTH}자 이하로 입력해 주세요.", "IntentTrace")
+            return
+        }
         reload(RecordListQuery(
             context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status,
-            keyword = keyword.text.trim().takeIf { it.isNotEmpty() },
+            keyword = text.takeIf { it.isNotEmpty() },
         ))
     }
 
@@ -184,6 +190,10 @@ internal open class RecordBrowserDialog(
             "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
+    }
+
+    private companion object {
+        const val MAX_KEYWORD_LENGTH = 200
     }
 }
 

@@ -118,7 +118,8 @@ class IntentTraceApiClientTest {
                 val exception = assertFailsWith<IntentTraceClientException> {
                     IntentTraceApiClient().checkConnection(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"))
                 }
-                assertEquals("IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
+                assertEquals(if (status == 503) "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
+                    else "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
                 assertEquals(0, redirectedRequests.get())
                 assertFalse(exception.stackTraceToString().contains("test-private-response-marker"))
             }
@@ -200,7 +201,8 @@ class IntentTraceApiClientTest {
     fun `오류는 상태 코드로 안내하고 redirect를 따라가지 않는다`() {
         val messages = mapOf(
             401 to "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요.",
-            403 to "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다.",
+            400 to "IntentTrace가 조회 조건을 거부했습니다. 검색어 길이와 파일 경로·커밋 형식을 확인해 주세요.",
+            403 to "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다.",
             404 to "해당 IntentTrace 기록을 찾을 수 없습니다.",
             503 to "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
             302 to "IntentTrace 조회 요청이 거부됐습니다. HTTP 302",

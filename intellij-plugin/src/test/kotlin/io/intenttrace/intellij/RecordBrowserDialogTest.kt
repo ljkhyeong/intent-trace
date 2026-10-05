@@ -2,6 +2,9 @@ package io.intenttrace.intellij
 
 import com.intellij.testFramework.LightPlatformTestCase
 import com.intellij.openapi.components.service
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.TestDialog
+import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.UIUtil
 import com.sun.net.httpserver.HttpServer
@@ -379,6 +382,33 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             assertNull(requests.last().keyword)
             assertEquals("", keyword.text)
         } finally {
+            dialog.close(0)
+        }
+    }
+
+    fun testLongKeywordIsRejectedBeforeRequestAndKeepsInput() {
+        val context = RepositoryFileContext("team/repository", "src/App.kt")
+        val requests = mutableListOf<RecordListQuery>()
+        val messages = mutableListOf<String>()
+        var centerPanel: JComponent? = null
+        val previousDialog = TestDialogManager.setTestDialog(TestDialog { message -> messages.add(message); Messages.OK })
+        val dialog = object : RecordBrowserDialog(project, context, RecordListQuery(context.repositoryKey),
+            ChangeRecordPage(emptyList(), null), server, { requests.add(it); ChangeRecordPage(emptyList(), null) }) {
+            override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+        }
+        try {
+            val keyword = requireNotNull(UIUtil.findComponentOfType(requireNotNull(centerPanel), JTextField::class.java))
+            keyword.text = "가".repeat(201)
+            keyword.postActionEvent()
+            assertEmpty(requests)
+            assertEquals(listOf("검색어는 200자 이하로 입력해 주세요."), messages)
+            assertEquals(201, keyword.text.length)
+
+            keyword.text = " ${"가".repeat(200)} "
+            keyword.postActionEvent()
+            assertEquals("가".repeat(200), requests.single().keyword)
+        } finally {
+            TestDialogManager.setTestDialog(previousDialog)
             dialog.close(0)
         }
     }
