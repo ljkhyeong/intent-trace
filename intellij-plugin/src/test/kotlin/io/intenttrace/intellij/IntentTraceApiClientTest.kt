@@ -24,7 +24,7 @@ class IntentTraceApiClientTest {
         withServer(path = "/api/v1/me/sessions", handler = { exchange ->
             method.set(exchange.requestMethod)
             authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-            val body = """{"actor":{"subject":"github:42","login":"developer"},"authentication":"LOCAL_SESSION","sessions":[]}""".toByteArray()
+            val body = """{"actor":{"subject":"github:42","login":"developer"},"sessions":[]}""".toByteArray()
             exchange.sendResponseHeaders(200, body.size.toLong())
             exchange.responseBody.use { it.write(body) }
         }) { server ->

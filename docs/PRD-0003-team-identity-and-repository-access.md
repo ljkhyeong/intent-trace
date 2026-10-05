@@ -76,7 +76,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 
 ## 내 로컬 세션 관리
 
-- `GET /api/v1/me/sessions`는 현재 사용자·인증 방식과 본인의 세션 ID·생성·최근 사용·만료 시각을 반환한다. token·digest는 반환하지 않으며 응답을 캐시하지 않는다.
+- `GET /api/v1/me/sessions`는 현재 사용자와 본인의 세션 ID·생성·최근 사용·만료 시각을 반환한다. token·digest는 반환하지 않으며 응답을 캐시하지 않는다.
 - `DELETE /api/v1/me/sessions/current`, `DELETE /api/v1/me/sessions/{id}`, `DELETE /api/v1/me/sessions`로 현재 연결·선택 연결·본인의 전체 연결을 폐기한다. 결과는 `revokedCount`다. 다른 사용자의 ID나 이미 없는 ID는 0을 반환해 소유권 정보를 노출하지 않는다.
 - MCP는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`다. token을 도구 인자로 받지 않는다.
 - `revoke_my_session`의 `sessionId`는 목록에서 확인한 UUID다. 잘못된 형식은 입력값과 원인 예외를 포함하지 않는 오류로 반환하고 연결을 종료하지 않는다. 빈 문자열은 잘못된 ID이며, 인자를 생략한 경우에만 현재 연결을 종료한다.
