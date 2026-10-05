@@ -51,11 +51,11 @@ export async function lineContext(file) {
 }
 
 /** 기존 REST 조회를 `its_` 세션으로 호출한다. 오류 본문과 토큰은 결과에 넣지 않는다. */
-export function createApi(url, token, fetchImpl = fetch) {
+function createApi(url, token) {
   async function get(path, parameters) {
     const target = new URL(path, url);
     for (const [name, value] of Object.entries(parameters)) target.searchParams.set(name, String(value));
-    const response = await fetchImpl(target, {
+    const response = await fetch(target, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
@@ -111,9 +111,9 @@ function failureText(failure) {
 }
 
 /** Zed hover에 현재 줄의 공개 기록 요약을 표시하는 언어 서버다. 표준 입출력은 LSP 통신에만 쓴다. */
-export function serveLanguageServer(url, token, { api = createApi(url, token), context = lineContext, now = Date.now,
-  input = process.stdin, output = process.stdout } = {}) {
-  const connection = createConnection(input, output);
+export function serveLanguageServer(url, token) {
+  const connection = createConnection(process.stdin, process.stdout);
+  const api = createApi(url, token);
   const edited = new Set();
   const files = new Map();
   const lines = new Map();
@@ -121,10 +121,10 @@ export function serveLanguageServer(url, token, { api = createApi(url, token), c
   let blocked;
   const cached = (cache, key, ttl, load) => {
     const entry = cache.get(key);
-    if (entry && entry.until > now()) return entry.value;
+    if (entry && entry.until > Date.now()) return entry.value;
     if (cache.size > 1_000) cache.clear();
     return load().then(value => {
-      cache.set(key, { until: now() + ttl, value });
+      cache.set(key, { until: Date.now() + ttl, value });
       return value;
     });
   };
@@ -141,9 +141,9 @@ export function serveLanguageServer(url, token, { api = createApi(url, token), c
   connection.onHover(async ({ textDocument, position }) => {
     // 저장하지 않았거나 커밋되지 않은 변경이 있으면 HEAD 기준 줄과 달라 조회하지 않는다.
     if (edited.has(textDocument.uri) || !textDocument.uri.startsWith('file:')) return null;
-    const target = await context(fileURLToPath(textDocument.uri));
-    if (!target || (denied.get(target.repositoryKey) ?? 0) > now()) return null;
-    if (blocked && blocked.until > now()) return hover(blocked.message);
+    const target = await lineContext(fileURLToPath(textDocument.uri));
+    if (!target || (denied.get(target.repositoryKey) ?? 0) > Date.now()) return null;
+    if (blocked && blocked.until > Date.now()) return hover(blocked.message);
     const line = position.line + 1;
     try {
       if (!await cached(files, `${target.repositoryKey}\0${target.relativePath}`, FILE_TTL, () => api.fileHasRecords(target))) return null;
@@ -154,13 +154,12 @@ export function serveLanguageServer(url, token, { api = createApi(url, token), c
       const failure = safeFailure(error);
       // 권한이 없는 저장소는 hover마다 안내하지 않고 잠시 조회를 멈춘다.
       if (failure.details.code === 'ACCESS_DENIED') {
-        denied.set(target.repositoryKey, now() + FILE_TTL);
+        denied.set(target.repositoryKey, Date.now() + FILE_TTL);
         return null;
       }
-      blocked = { until: now() + Math.max(failure.details.retryAfterSeconds ?? 0, FAILURE_SECONDS) * 1000, message: failureText(failure) };
+      blocked = { until: Date.now() + Math.max(failure.details.retryAfterSeconds ?? 0, FAILURE_SECONDS) * 1000, message: failureText(failure) };
       return hover(blocked.message);
     }
   });
   connection.listen();
-  return connection;
 }
