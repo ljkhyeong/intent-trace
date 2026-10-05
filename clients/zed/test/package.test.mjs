@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cp, mkdtemp, readFile, readdir, realpath, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -30,7 +30,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     await mkdir(join(fixture, 'scripts'));
     await cp(builder, join(fixture, 'scripts/package-zed.mjs'));
     await cp(join(dirname(builder), 'zed-with-intent-trace.py'), join(fixture, 'scripts/zed-with-intent-trace.py'));
-    for (const name of ['package.json', 'package-lock.json', 'intent-trace.mjs', 'bridge.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
+    for (const name of ['package.json', 'package-lock.json', 'intent-trace.mjs', 'bridge.mjs', 'lsp.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
       await cp(new URL(`../${name}`, import.meta.url), join(source, name));
     }
     // 다음 배포에서도 CLI·MCP가 소스에 고정한 버전 대신 설치된 패키지 버전을 사용해야 한다.
@@ -59,6 +59,7 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     const entry = configured.context_servers['intent-trace'];
     assert.ok(entry.args[0].startsWith(await realpath(install)));
     assert.deepEqual(entry.env, {});
+    assert.deepEqual(configured.lsp['intent-trace'].binary.arguments.slice(1, 2), ['lsp']);
     const settings = join(directory, 'settings.json');
     run(bin, ['configure', '--settings', settings, '--apply']);
     assert.ok((await readFile(settings, 'utf8')).includes(await realpath(install)));
@@ -70,6 +71,8 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     const packageDirectory = join(install, 'node_modules/intent-trace-zed');
     assert.ok((await readdir(packageDirectory)).includes('zed-with-intent-trace.py'));
     assert.ok(!(await readdir(packageDirectory)).includes('test'));
+    // 설치한 패키지에서 hover 언어 서버 모듈과 의존성을 불러올 수 있어야 한다.
+    run(process.execPath, ['-e', `import(${JSON.stringify(pathToFileURL(join(packageDirectory, 'lsp.mjs')).href)})`]);
     const lockfile = await readFile(join(source, 'package-lock.json'));
     const buildInfo = JSON.parse(await readFile(join(packageDirectory, 'build-info.json'), 'utf8'));
     assert.equal(buildInfo.lockfileSha256, createHash('sha256').update(lockfile).digest('hex'));

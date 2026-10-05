@@ -8,13 +8,16 @@ import { BridgeFailure, UsageError } from './errors.mjs';
 export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
 const serverEntry = url => ({ command: process.execPath, args: [script, 'serve', url.href], env: {} });
+// Zed 확장은 lsp.intent-trace.binary가 있으면 이 명령으로 hover 언어 서버를 실행한다.
+const languageServerEntry = url => ({ binary: { path: process.execPath, arguments: [script, 'lsp', url.href] } });
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
-  config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
-  configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
+  config: 'config [MCP 주소]\n  Zed에 등록할 MCP 연결·hover 언어 서버 설정을 출력합니다. 파일은 변경하지 않습니다.',
+  configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  MCP 연결·hover 언어 서버 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
   unconfigure: 'unconfigure [--settings 설정파일] [--apply]\n  IntentTrace 연결 제거를 미리 봅니다. --apply를 지정하면 설정에서 제거합니다.',
   check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. 저장소만 입력할 수 있으며 PR·커밋 옵션에는 저장소가 필요합니다.',
   serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
+  lsp: 'lsp [MCP 주소]\n  Zed 편집기 hover에 커밋된 현재 줄의 공개 기록 요약을 표시하는 언어 서버를 실행합니다.',
   launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
 };
 
@@ -22,7 +25,7 @@ function printHelp(mode) {
   console.log(mode ? `사용법: intent-trace-zed ${commandUsage[mode]}`
     : `사용법: intent-trace-zed <명령> [옵션]\n\n${Object.values(commandUsage).join('\n\n')}`);
   console.log('\nMCP 주소는 INTENT_TRACE_MCP_URL 환경 변수, 없으면 http://127.0.0.1:8080/mcp를 사용합니다.');
-  console.log('check·serve에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
+  console.log('check·serve·lsp에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
   console.log('--version 또는 -V로 설치된 연결 도구의 버전을 확인합니다.');
 }
 
@@ -99,18 +102,20 @@ async function main() {
     } catch {
       throw new UsageError(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    const entry = mode === 'configure' ? serverEntry(endpoint(parsed.positionals[0])) : undefined;
-    return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
+    const url = mode === 'configure' ? endpoint(parsed.positionals[0]) : undefined;
+    return configure(parsed.values.settings ?? defaultSettingsPath(), url ? [serverEntry(url), languageServerEntry(url)] : [undefined, undefined], parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
   if (positionals.length > (mode === 'check' ? 2 : 1)) throw new UsageError('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   const url = endpoint(address);
   if (mode === 'config') {
-    console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) } }, null, 2));
+    console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) }, lsp: { 'intent-trace': languageServerEntry(url) } }, null, 2));
     return;
   }
-  sessionToken();
+  const token = sessionToken();
+  // 언어 서버는 표준 출력을 LSP 통신에만 쓴다.
+  if (mode === 'lsp') return (await import('./lsp.mjs')).serveLanguageServer(url, token);
   const bridge = await import('./bridge.mjs');
   if (mode === 'serve') await bridge.serve(url);
   else await bridge.check(script, url, repositoryKey, diagnostic);

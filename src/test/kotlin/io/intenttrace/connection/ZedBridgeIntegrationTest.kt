@@ -38,6 +38,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.issueTestSession
+import io.intenttrace.record.application.PublishChangeRecordCommand
+import io.intenttrace.record.application.publish
+import org.junit.jupiter.api.io.TempDir
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
@@ -238,6 +241,64 @@ class ZedBridgeIntegrationTest(
                 } else Mockito.verifyNoInteractions(pullRequests)
             }
         }
+    }
+
+    @Test
+    fun `Zed hover 언어 서버는 커밋된 줄의 공개 기록을 실제 서버에서 조회한다`(@TempDir directory: Path) {
+        assumeTrue(Files.exists(Path.of("clients/zed/node_modules/vscode-languageserver")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
+        fun git(vararg args: String): String {
+            val process = ProcessBuilder("git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args)
+                .directory(directory.toFile()).redirectErrorStream(true).start()
+            assertTrue(process.waitFor(30, TimeUnit.SECONDS))
+            return process.inputStream.bufferedReader().readText().trim().also { assertEquals(0, process.exitValue(), it) }
+        }
+        git("init", "-q")
+        git("remote", "add", "origin", "https://github.com/acme/intent-trace.git")
+        val file = Files.writeString(directory.resolve("Hover.kt"), "fun hover() {}\nval line = 2\n")
+        git("add", ".")
+        git("commit", "-q", "-m", "hover")
+        val actor = ActorIdentity.github(42, "lim")
+        val draft = records.create(CreateChangeRecordCommand(
+            UUID.randomUUID().toString(), "acme/intent-trace", null, "a".repeat(64), "Zed hover 기록", "편집기에서 현재 줄 기록을 본다.",
+            listOf(Decision("언어 서버 hover를 쓴다.", null, PurposeSource.STATED_BY_USER)),
+            listOf(CodeAnchor("Hover.kt", null, 2, 2, "b".repeat(64))), emptyList(), emptyList(),
+        ), actor)
+        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, git("rev-parse", "HEAD"), draft.snapshotDigest), actor)
+        records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest), actor)
+        val script = """
+            import assert from 'node:assert/strict';
+            import { spawn } from 'node:child_process';
+            import { pathToFileURL } from 'node:url';
+            import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-languageserver/node';
+            const child = spawn(process.execPath, ['intent-trace.mjs', 'lsp', 'http://127.0.0.1:$port/mcp'], { stdio: ['pipe', 'pipe', 'inherit'] });
+            const client = createMessageConnection(new StreamMessageReader(child.stdout), new StreamMessageWriter(child.stdin));
+            client.listen();
+            const uri = pathToFileURL(process.env.HOVER_FILE).href;
+            const hover = line => client.sendRequest('textDocument/hover', { textDocument: { uri }, position: { line, character: 0 } });
+            try {
+                await client.sendRequest('initialize', { processId: null, rootUri: null, capabilities: {} });
+                client.sendNotification('initialized', {});
+                client.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId: 'kotlin', version: 1, text: '' } });
+                const found = await hover(1);
+                assert.match(found.contents.value, /Zed hover 기록/);
+                assert.ok(found.contents.value.includes('http://127.0.0.1:$port/records/${draft.id}'), found.contents.value);
+                assert.equal(await hover(0), null);
+                await client.sendRequest('shutdown');
+                client.sendNotification('exit');
+            } finally { client.dispose(); child.kill(); }
+        """.trimIndent()
+        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
+            .redirectErrorStream(true).apply {
+                environment()["INTENT_TRACE_SESSION_TOKEN"] = sessions.issueTestSession(actor, "ghu_zed-hover-test")
+                environment()["HOVER_FILE"] = file.toString()
+            }.start()
+        val finished = process.waitFor(30, TimeUnit.SECONDS)
+        if (!finished) {
+            process.descendants().forEach { it.destroyForcibly() }
+            process.destroyForcibly()
+        }
+        assertTrue(finished, "hover 검증이 30초 안에 끝나야 합니다.")
+        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
     }
 
     private fun check(vararg options: String, explicitAddress: Boolean = true, expectedExitCode: Int = 0): String {

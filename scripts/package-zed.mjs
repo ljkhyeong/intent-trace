@@ -41,7 +41,7 @@ try {
   const installed = spawnSync('npm', ['ci', '--ignore-scripts', '--omit=dev', '--include=optional', '--include=peer', '--install-strategy=hoisted', '--no-audit', '--no-fund', '--logs-max=0'], { cwd: staging, encoding: 'utf8' });
   if (installed.status !== 0) throw new Error('잠금 파일로 배포 의존성을 설치하지 못했습니다. package.json·package-lock.json 일치 여부와 npm 연결을 확인하세요.');
   // 실행에 필요한 파일만 복사한다. 사용자 설정과 프로젝트 문서는 패키지에 넣지 않는다.
-  for (const name of ['intent-trace.mjs', 'bridge.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
+  for (const name of ['intent-trace.mjs', 'bridge.mjs', 'lsp.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
     await cp(join(source, name), join(staging, name));
   }
   await cp(join(root, 'scripts/zed-with-intent-trace.py'), join(staging, 'zed-with-intent-trace.py'));
