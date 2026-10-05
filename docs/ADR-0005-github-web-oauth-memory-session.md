@@ -18,7 +18,7 @@
 - authorize 요청에는 PKCE `S256` code challenge를 포함한다. callback은 query와 cookie의 `state`, TTL, 일회성 사용 여부를 모두 확인한 뒤 client ID·client secret·정확한 redirect URI·code verifier로 code를 교환한다.
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
-- 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 가장 오래된 것을 폐기한다.
+- 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 새 session과 같은 채널(`BROWSER`·`CLIENT`)의 가장 오래된 것을 먼저 폐기한다. 같은 채널이 없으면 가장 오래된 session을 폐기한다. 8시간 브라우저 로그인을 반복해도 오래 쓰는 `its_` 도구 연결이 밀려나지 않는다.
 - 새 세션 발급은 기존 세션의 GitHub 응답을 기다리지 않는다. 잠금이 사용 중이면 만료 정리를 다음 발급으로 미룬다. 사용자별 상한으로 폐기할 때는 활성 상태를 먼저 해제해, 진행 중인 토큰 갱신이 오래된 세션을 복구하지 못하게 한다.
 - `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` token은 IntentTrace가 발급한 session이 아니므로 이 API로 폐기하지 않는다.
 - access token 만료 5분 전부터 세션별 잠금 안에서 갱신을 한 번 수행하고, 새 access·refresh token을 함께 저장한다.

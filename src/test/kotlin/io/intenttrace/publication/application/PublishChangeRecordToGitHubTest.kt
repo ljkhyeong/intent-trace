@@ -186,6 +186,19 @@ class PublishChangeRecordToGitHubTest {
     }
 
     @Test
+    fun `GitHub에 쓰기 전 PR 조회 실패는 결과 미확인이 아닌 실패로 남긴다`() {
+        val tracking = MemoryTracking()
+        gateway.headFailure = GitHubApiException("GitHub Pull Request 조회 요청이 실패했습니다. HTTP 404")
+
+        val failure = assertFailsWith<PullRequestUnavailableException> { teamPublisher(tracking).publish(PublishChangeRecordToGitHubCommand(record.id, target)) }
+
+        assertTrue(failure.message.orEmpty().startsWith("GitHub Pull Request 조회 요청이 실패했습니다. HTTP 404"))
+        assertEquals(PublicationAttemptStatus.FAILED, tracking.statuses.values.single())
+        assertEquals("PULL_REQUEST_UNAVAILABLE", tracking.codes.values.single())
+        assertTrue(gateway.commands.isEmpty())
+    }
+
+    @Test
     fun `게시 이력이 없는 대체 안내는 GitHub 조회 전에 거부한다`() {
         val superseded = record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = UUID.randomUUID())
 
@@ -219,9 +232,13 @@ class PublishChangeRecordToGitHubTest {
 
     private class MemoryTracking : GitHubPublicationTracking {
         val statuses = linkedMapOf<UUID, PublicationAttemptStatus>()
+        val codes = linkedMapOf<UUID, String?>()
         override fun start(recordId: UUID, target: GitHubPullRequestTarget, operation: PublicationOperation): UUID =
             UUID.randomUUID().also { statuses[it] = PublicationAttemptStatus.IN_PROGRESS }
-        override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) { statuses[attemptId] = status }
+        override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) {
+            statuses[attemptId] = status
+            codes[attemptId] = failureCode
+        }
         override fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt> = emptyList()
         override fun latest(recordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, PublicationAttempt> = emptyMap()
     }
@@ -234,12 +251,14 @@ class PublishChangeRecordToGitHubTest {
         val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
         var lastCommand: UpsertGitHubCheckRunCommand? = null
         var failAfterCreate = false
+        var headFailure: GitHubApiException? = null
         var creations = 0
         var beforeUpsert: () -> Unit = {}
         @Volatile private var checkRun: GitHubCheckRun? = null
 
         override fun getHeadRevision(target: GitHubPullRequestTarget): String {
             headRequests.incrementAndGet()
+            headFailure?.let { throw it }
             return headRevision
         }
 

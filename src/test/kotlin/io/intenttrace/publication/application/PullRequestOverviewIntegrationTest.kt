@@ -99,14 +99,25 @@ class PullRequestOverviewIntegrationTest(
         assertEquals(DiagnosticStatus.VERIFIED, checks.getValue("repository_read").status)
         assertEquals(DiagnosticStatus.NOT_CHECKED, checks.getValue("git_tree_read").status)
         assertEquals(DiagnosticStatus.NOT_CONFIGURED, checks.getValue("publication_credentials").status)
+
+        val moved = diagnostics.diagnose("acme/overview", pullNumber = MOVED_PULL_NUMBER).checks.associateBy { it.name }
+        assertEquals(DiagnosticStatus.FAILED, moved.getValue("pull_request_read").status)
+        assertContains(moved.getValue("pull_request_read").message, "병합 대상 저장소")
+        assertEquals(DiagnosticStatus.NOT_CHECKED, moved.getValue("git_tree_read").status)
+        assertEquals(DiagnosticStatus.NOT_CONFIGURED, moved.getValue("publication_credentials").status)
     }
 
     @TestConfiguration
     class Configuration {
         @Bean @Primary fun pullRequestReader() = object : GitHubPullRequestReader {
-            override fun read(target: GitHubPullRequestTarget) = PullRequestSnapshot(head, false)
+            override fun read(target: GitHubPullRequestTarget) =
+                if (target.pullNumber == MOVED_PULL_NUMBER) throw GitHubRepositoryMismatchException(target.repositoryKey, "acme/renamed")
+                else PullRequestSnapshot(head, false)
         }
     }
 
-    companion object { private val head = "2".repeat(40) }
+    companion object {
+        private val head = "2".repeat(40)
+        private const val MOVED_PULL_NUMBER = 77
+    }
 }

@@ -7,6 +7,7 @@ import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubPullRequestReader
+import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
@@ -39,6 +40,9 @@ class ConnectionDiagnostics(
             true
         } catch (_: RepositoryAccessDeniedException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요.")
+            false
+        } catch (_: GitHubRepositoryMismatchException) {
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "PR의 병합 대상 저장소가 입력한 저장소와 다릅니다. 저장소 이름 변경이나 이전 여부를 확인하세요.")
             false
         } catch (failure: EvidenceUnavailableException) {
             checks += ConnectionCheck(name, DiagnosticStatus.FAILED, failure.reason.message)

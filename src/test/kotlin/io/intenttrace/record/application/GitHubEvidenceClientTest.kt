@@ -12,10 +12,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
+import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -102,6 +104,26 @@ class GitHubEvidenceClientTest {
         assertEquals("a\n", client.blob(repository, blob).toString(Charsets.UTF_8))
         server.verify()
     }
+
+    @ParameterizedTest
+    @ValueSource(ints = [404, 422])
+    fun `GitHub에 없는 커밋은 일시 장애가 아닌 확인 불가 사유로 구분한다`(status: Int) {
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
+            .andRespond(withStatus(HttpStatus.valueOf(status)))
+        val missing = assertFailsWith<EvidenceUnavailableException> { client.snapshot(repository, revision) }
+        assertEquals(EvidenceUnavailableReason.REVISION_NOT_FOUND, missing.reason)
+        server.verify()
+
+        server.reset()
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
+            .andRespond(withSuccess("""{"sha":"$revision","tree":{"sha":"$tree"}}""", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/trees/$tree?recursive=1"))
+            .andRespond(withStatus(HttpStatus.valueOf(status)))
+        val treeFailure = assertFailsWith<GitHubApiException> { client.snapshot(repository, revision) }
+        assertFalse(treeFailure is EvidenceUnavailableException)
+        server.verify()
+    }
+
     @Test
     fun `중복 경로는 객체 형식 검사보다 먼저 거부한다`() {
         for (mode in listOf("100644", "invalid")) {

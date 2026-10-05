@@ -72,6 +72,31 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @Test
+    fun `상한에서는 새 연결과 같은 종류의 오래된 session부터 폐기한다`() {
+        val limitedStore = InMemoryGitHubUserSessionStore(
+            oauth,
+            users,
+            GitHubProperties(userAuthorization = GitHubUserAuthorizationProperties(maxSessionsPerUser = 2)),
+            clock,
+        )
+        fun issue(suffix: String, channel: SessionChannel): IssuedGitHubUserSession {
+            clock.advance(Duration.ofSeconds(1))
+            return limitedStore.issue(owner, tokens(clock.instant(), suffix, Duration.ofHours(8)), channel)
+        }
+        val firstBrowser = issue("browser-1", SessionChannel.BROWSER)
+        val secondBrowser = issue("browser-2", SessionChannel.BROWSER)
+        // 같은 종류가 없으면 기존처럼 가장 오래된 연결을 폐기한다.
+        val client = issue("client", SessionChannel.CLIENT)
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(firstBrowser.sessionToken) }
+
+        repeat(2) { issue("browser-${it + 3}", SessionChannel.BROWSER) }
+
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(secondBrowser.sessionToken) }
+        assertEquals("ghu_access-client", limitedStore.resolve(client.sessionToken).accessToken)
+        assertEquals(listOf(SessionChannel.BROWSER, SessionChannel.CLIENT), limitedStore.list(owner.subject).map { it.channel })
+    }
+
+    @Test
     fun `만료가 가까우면 token 쌍을 한 번 갱신한다`() {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
         clock.advance(Duration.ofMinutes(1))

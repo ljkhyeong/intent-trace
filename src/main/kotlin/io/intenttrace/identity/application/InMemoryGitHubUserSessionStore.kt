@@ -26,7 +26,7 @@ class InMemoryGitHubUserSessionStore(
         val now = Instant.now(clock)
         require(now.isBefore(tokens.accessExpiresAt)) { "이미 만료된 GitHub token은 session에 넣을 수 없습니다." }
         removeExpiredSessions(now)
-        removeOldestSessionsAtLimit(actor)
+        removeOldestSessionsAtLimit(actor, channel)
         val prefix = if (channel == SessionChannel.BROWSER) "itb_" else "its_"
         val sessionToken = "$prefix${SecureTokens.random()}"
         val expiresAt = if (channel == SessionChannel.BROWSER) minOf(now.plus(BROWSER_SESSION_TTL), tokens.refreshExpiresAt) else tokens.refreshExpiresAt
@@ -92,10 +92,11 @@ class InMemoryGitHubUserSessionStore(
         }
     }
 
-    private fun removeOldestSessionsAtLimit(actor: ActorIdentity) {
+    private fun removeOldestSessionsAtLimit(actor: ActorIdentity, channel: SessionChannel) {
+        // 같은 종류의 오래된 연결부터 정리해 브라우저 로그인이 도구 연결을 끊지 않게 한다.
         val activeSessions = sessions.entries
             .filter { it.value.actor.subject == actor.subject }
-            .sortedBy { it.value.createdAt }
+            .sortedWith(compareBy({ it.value.channel != channel }, { it.value.createdAt }))
         val removalCount = activeSessions.size - properties.userAuthorization.maxSessionsPerUser + 1
         activeSessions.take(removalCount.coerceAtLeast(0)).forEach { (key, stored) ->
             revoke(key, stored)

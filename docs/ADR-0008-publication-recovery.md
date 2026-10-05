@@ -8,7 +8,7 @@
 
 - 단일 app의 `TeamGitHubPublicationService`가 권한 확인부터 게시 시도·결과 저장까지 같은 기록의 GitHub 게시를 하나의 메모리 잠금으로 직렬 처리한다. 같은 기록을 여러 PR에 게시해도 동일한 `external_id` 생성 경합을 피한다.
 - GitHub 쓰기 전에 게시 시도 ID와 `IN_PROGRESS`를 저장한다. 성공하면 Check Run ID·게시 내용 해시와 `SUCCEEDED`를 남긴다. 원문 본문·외부 오류 본문·자격 증명은 시도 이력에 저장하지 않는다.
-- 코드·권한 설정·PR HEAD 불일치 등 명확한 거부는 `FAILED`, 네트워크나 외부 성공 후 로컬 저장 오류는 `RESULT_UNKNOWN`으로 구분한다. app 시작 시 이전의 `IN_PROGRESS`는 결과 확인이 필요한 상태로 변경한다.
+- 코드·권한 설정·PR HEAD 불일치 등 명확한 거부는 `FAILED`, 네트워크나 외부 성공 후 로컬 저장 오류는 `RESULT_UNKNOWN`으로 구분한다. 설치 토큰 발급을 포함한 PR 조회 단계의 GitHub 실패는 Check Run을 쓰기 전이므로 `FAILED`·`PULL_REQUEST_UNAVAILABLE`로 남긴다. HTTP 응답은 기존 502이며 쓰기 전에 중단했다는 안내를 붙인다. app 시작 시 이전의 `IN_PROGRESS`는 결과 확인이 필요한 상태로 변경한다.
 - 응답 유실은 원래 게시 요청을 다시 실행해 `external_id` 또는 저장된 Check Run ID로 복구한다. 무조건 새 Check Run을 만들지 않는다.
 - 읽기 권한과 초안 소유권을 확인한 뒤 게시 결과와 최근 20개의 시도 이력을 조회한다. 아직 저장하지 못한 결과를 성공으로 추정하지 않는다.
 - 공개 기록 대체는 DB에서 완료한다. 사용자가 GitHub 반영도 요청하면 별도 사용 사례가 기존 Check Run에 대체 안내와 새 기록 링크를 반영한다.

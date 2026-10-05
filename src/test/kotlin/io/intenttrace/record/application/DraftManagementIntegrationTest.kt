@@ -88,7 +88,7 @@ class DraftManagementIntegrationTest(
         records.discard(hidden.id, hidden.version)
         assertEquals(RecordOperation.DISCARD, activities.list(hidden.id).items.first().operation)
         session.actor = other
-        assertFailsWith<ChangeRecordOwnershipException> { activities.list(hidden.id) }
+        assertFailsWith<ChangeRecordNotFoundException> { activities.list(hidden.id) }
     }
 
     @Test
@@ -202,7 +202,7 @@ class DraftManagementIntegrationTest(
         assertEquals(ChangeRecordStatus.PUBLISHED, records.get(original.id).status)
         session.actor = other
         assertFailsWith<ChangeRecordOwnershipException> { records.createSuccessor(original.id, input) }
-        assertFailsWith<ChangeRecordOwnershipException> { records.get(draft.id) }
+        assertFailsWith<ChangeRecordNotFoundException> { records.get(draft.id) }
         session.actor = owner
     }
 

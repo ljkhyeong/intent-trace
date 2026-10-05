@@ -5,6 +5,7 @@ import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.SuccessorDraftRequest
 import io.intenttrace.record.application.ChangeRecordListingService
+import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
@@ -17,12 +18,14 @@ import jakarta.validation.Validator
 import org.springframework.ai.mcp.annotation.McpTool
 import org.springframework.ai.mcp.annotation.McpToolParam
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 @Component
 class IntentTraceTools(
     private val records: TeamChangeRecordService,
     private val validator: Validator,
     private val catalog: ChangeRecordListingService,
+    private val markdownRenderer: ChangeRecordMarkdownRenderer,
 ) {
     @McpTool(name = "list_change_records", description = "팀 공개 기록 또는 내 비공개 기록을 조회합니다. 기본은 커서 조회입니다. MY_DRAFTS·page·size를 쓰면 페이지 번호 조회로 전환되며 cursor·limit·authorId·q와 함께 쓸 수 없습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
@@ -94,6 +97,24 @@ class IntentTraceTools(
         @McpToolParam(description = "변경 의도 기록 UUID", required = true)
         recordId: String,
     ): ChangeRecordResponse = ChangeRecordResponse.from(records.get(parseChangeRecordId(recordId)))
+
+    @McpTool(
+        name = "get_change_record_markdown",
+        description = "기록 한 건을 팀 공유용 Markdown으로 조회합니다. 공개·대체나 GitHub 게시는 하지 않습니다.",
+        generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(
+            readOnlyHint = true,
+            destructiveHint = false,
+            idempotentHint = true,
+            openWorldHint = false,
+        ),
+    )
+    fun markdown(
+        @McpToolParam(description = "변경 의도 기록 UUID", required = true)
+        recordId: String,
+    ): ChangeRecordMarkdown = records.get(parseChangeRecordId(recordId)).let {
+        ChangeRecordMarkdown(it.id, it.version, it.status, markdownRenderer.render(it))
+    }
 
     @McpTool(
         name = "confirm_change_record",
@@ -213,3 +234,10 @@ class IntentTraceTools(
 }
 
 data class ChangeIntentLookup(val items: List<ChangeRecordResponse>)
+
+data class ChangeRecordMarkdown(
+    val recordId: UUID,
+    val version: Long,
+    val status: ChangeRecordStatus,
+    val markdown: String,
+)

@@ -32,7 +32,8 @@ class GitHubGitEvidenceClient(
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
         val ref = GitRevision.parse(revision).value
-        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget)
+        // 저장소 읽기 권한을 확인한 뒤 읽으므로 커밋 조회의 404·422는 GitHub에 없는 커밋이다.
+        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget, EvidenceUnavailableReason.REVISION_NOT_FOUND)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
         val tree = get(repository, "/git/trees/${parseResponseRevision(commit.tree.sha)}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
@@ -78,7 +79,13 @@ class GitHubGitEvidenceClient(
         throw GitHubApiException("GitHub 코드 응답의 객체 해시 형식이 올바르지 않습니다.")
     }
 
-    private fun <T> get(repository: GitHubRepository, suffix: String, type: Class<T>, budget: EvidenceReadBudget?): T = try {
+    private fun <T> get(
+        repository: GitHubRepository,
+        suffix: String,
+        type: Class<T>,
+        budget: EvidenceReadBudget?,
+        notFound: EvidenceUnavailableReason? = null,
+    ): T = try {
         val remaining = budget?.beforeRemoteCall()
         val requestClient = if (remaining == null) client else client.mutate().requestFactory(
             JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(remaining.coerceAtMost(Duration.ofSeconds(10))) },
@@ -87,6 +94,7 @@ class GitHubGitEvidenceClient(
             .headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
+                if (notFound != null && response.statusCode.value() in setOf(404, 422)) throw EvidenceUnavailableException(notFound)
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 코드 조회 실패. HTTP ${response.statusCode.value()}")
                 val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
                 if (bytes.size > MAX_RESPONSE_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)

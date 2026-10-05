@@ -1,5 +1,6 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
@@ -32,8 +33,15 @@ class TeamChangeRecordService(
 
     fun get(recordId: UUID): ChangeRecord {
         val record = facade.get(recordId)
-        val actor = access.requireReader(record.repositoryKey)
-        if (record.status !in TEAM_VISIBLE_STATUSES) requireOwner(record, actor)
+        // ID만으로 읽을 때는 접근할 수 없는 저장소 이름과 다른 작성자 기록의 존재를 드러내지 않는다.
+        try {
+            val actor = access.requireReader(record.repositoryKey)
+            if (record.status !in TEAM_VISIBLE_STATUSES) requireOwner(record, actor)
+        } catch (_: RepositoryAccessDeniedException) {
+            throw ChangeRecordNotFoundException(recordId)
+        } catch (_: ChangeRecordOwnershipException) {
+            throw ChangeRecordNotFoundException(recordId)
+        }
         return record
     }
 

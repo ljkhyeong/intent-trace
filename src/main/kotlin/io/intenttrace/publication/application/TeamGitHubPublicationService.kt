@@ -52,6 +52,7 @@ class TeamGitHubPublicationService(
                     is GitHubPublicationContentTooLargeException -> "CONTENT_TOO_LARGE"
                     is GitHubCredentialMissingException, is GitHubCredentialConfigurationException -> "CREDENTIALS_UNAVAILABLE"
                     is GitHubRateLimitException -> "GITHUB_RATE_LIMITED"
+                    is PullRequestUnavailableException -> "PULL_REQUEST_UNAVAILABLE"
                     is IllegalArgumentException, is IllegalStateException -> "INVALID_RECORD_STATE"
                     else -> "REMOTE_RESULT_UNCONFIRMED"
                 }

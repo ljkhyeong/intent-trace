@@ -44,6 +44,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 | 현재 줄의 기록 | `find_change_intent`: 저장소·전체 커밋·상대 경로·줄 번호, 결과는 `items` |
 | 기록함·파일 이력·검색 | `list_change_records`: 저장소 필수, 팀 기록은 `TEAM`, 본인 비공개 기록은 `MINE`. 파일은 정확한 상대 `path`, 검색은 `q`. `nextCursor`를 다음 요청의 `cursor`로 전달 |
 | 상세·대체 기록 | `get_change_record`: 목록은 요약이므로 설명할 기록은 상세를 읽고 `supersededBy`를 따라감 |
+| 공유용 Markdown | `get_change_record_markdown`: PR 설명·리뷰에 붙일 저장된 기록 본문. 공개·GitHub 게시는 하지 않음 |
 | PR의 기록·이전 커밋 | `list_pull_request_records`: `matchesCurrentHead`와 게시·공개 상태를 함께 확인 |
 | 코드 해시 확인 | `check_change_record_evidence`: `codeVerified=true`는 GitHub 코드와 해시 일치이며 테스트 실행 증명이 아님 |
 | 이전 줄·이름 변경·처리 이력 | [이력 조회와 복구](references/history-and-recovery.md) |

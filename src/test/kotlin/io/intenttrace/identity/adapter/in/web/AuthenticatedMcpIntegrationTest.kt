@@ -97,6 +97,7 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("compare_change_record")) }
             content { string(containsString("check_publication_credentials")) }
             content { string(containsString("list_record_activities")) }
+            content { string(containsString("get_change_record_markdown")) }
         }
         val activityRecord = records.create(CreateChangeRecordRequest(
             requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
@@ -112,6 +113,13 @@ class AuthenticatedMcpIntegrationTest(
             status { isOk() }; content { string(containsString("\"isError\":false")) }
             content { string(containsString("CREATE")) }; content { string(containsString("AUTHOR")) }
         }
+        val markdown = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"get_change_record_markdown","arguments":{"recordId":"${activityRecord.id}"}}}"""
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray.toString(Charsets.UTF_8)
+        assertTrue(markdown.contains("\"isError\":false") && markdown.contains("\"status\":\"DRAFT\""), markdown)
+        assertTrue(markdown.contains("# 변경 의도: 변경 이력 조회"), markdown)
         mockMvc.post("/mcp") {
             header("Authorization", "Bearer ghu_user-token")
             header("Mcp-Session-Id", sessionId)

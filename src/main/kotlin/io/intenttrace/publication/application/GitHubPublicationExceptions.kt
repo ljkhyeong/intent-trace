@@ -1,5 +1,7 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.config.GitHubApiException
+
 class ForkPullRequestUnsupportedException : RuntimeException("Fork PR에는 IntentTrace Check Run을 게시할 수 없습니다.")
 
 class PullRequestRevisionMismatchException(recordRevision: String, pullRequestRevision: String) :
@@ -16,3 +18,7 @@ class GitHubCredentialConfigurationException :
 
 class GitHubPublicationContentTooLargeException :
     RuntimeException("GitHub Check Run에 게시할 Markdown이 65,535자를 초과합니다.")
+
+/** Check Run을 쓰기 전에 PR을 읽지 못한 실패다. 원격 결과를 다시 확인할 필요가 없다. */
+class PullRequestUnavailableException(failure: GitHubApiException) :
+    GitHubApiException("${failure.message} GitHub에 쓰기 전에 중단했습니다. 저장소·PR 번호와 GitHub App 설치를 확인하세요.")

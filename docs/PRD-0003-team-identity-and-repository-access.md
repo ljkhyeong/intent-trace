@@ -44,7 +44,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - GitHub access·refresh token은 메모리에만 두고 DB·URL·cookie·로그·오류 본문·MCP 도구 인자에 저장하거나 노출하지 않는다.
 - GitHub token, private key와 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
-- 사용자별 활성 session은 기본 5개로 제한하고, 새 session 발급 시 상한을 넘는 가장 오래된 session을 폐기한다.
+- 사용자별 활성 session은 기본 5개로 제한하고, 새 session 발급 시 상한을 넘는 가장 오래된 session을 폐기한다. 새 session과 같은 종류(브라우저·도구)의 session을 먼저 폐기해 브라우저 로그인이 도구 연결을 끊지 않게 한다.
 - `DELETE /api/v1/session`은 현재 `its_` session만 폐기한다. `ghu_` 직접 인증은 로컬 session 폐기 대상이 아니다.
 - refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 갱신이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내한다. 사용자 subject가 바뀐 경우에도 세션을 폐기한다.
 - 세션 잠금을 기다리던 요청은 잠금 획득 후 세션이 아직 등록돼 있는지 확인한다. 앞선 요청이 폐기한 세션으로는 token 갱신이나 사용자 조회를 다시 수행하지 않는다.

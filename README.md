@@ -159,7 +159,7 @@ IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로�
 
 토큰 갱신에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내합니다. GitHub 사용자 조회의 일시 장애는 `502`를 반환하며 세션을 유지합니다. 로그인 검증·갱신·대기 요청 제한은 [세션 관리 규칙](docs/ADR-0005-github-web-oauth-memory-session.md)을 참고하세요.
 
-사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 가장 오래된 세션을 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 토큰 요청은 `401`을 반환합니다. 호환용 `ghu_` 토큰은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
+사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 같은 종류(브라우저·도구)의 가장 오래된 세션부터 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 토큰 요청은 `401`을 반환합니다. 호환용 `ghu_` 토큰은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
 
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고 대상 저장소의 권한을 조회합니다. 권한 응답의 사용자 ID가 현재 사용자와 일치해야 합니다. 팀 공개 기록 조회에는 읽기 권한, 본인 기록 생성·관리에는 쓰기 권한이 필요합니다. 권한 없음과 404는 접근 거부로 처리하며, GitHub 공개 저장소도 같은 권한 검사를 거칩니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
@@ -240,7 +240,7 @@ GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 �
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
 - `POST /api/v1/change-records/{id}/discard`: 비공개 기록 폐기
 - `POST /api/v1/change-records`: 비공개 초안 생성
-- `GET /api/v1/change-records/{id}`: 기록 조회
+- `GET /api/v1/change-records/{id}`: 기록 조회. 권한 없는 저장소나 다른 작성자의 비공개 기록은 존재를 드러내지 않고 404
 - `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 커밋 해시 연결
 - `POST /api/v1/change-records/{id}/publish`: 스냅샷 재확인 후 공개
 - `POST /api/v1/change-records/{id}/supersede`: 새 공개 기록으로 대체
@@ -267,7 +267,7 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 | --- | --- |
 | 초안 생성·수정 | `create_change_record`, `revise_change_record` |
 | 확인·공개·폐기·대체 | `confirm_change_record`, `reopen_change_record`, `publish_change_record`, `discard_change_record`, `supersede_change_record` |
-| 기록 조회·검색 | `list_change_records`, `get_change_record`, `find_change_intent`, `find_related_change_intent` |
+| 기록 조회·검색 | `list_change_records`, `get_change_record`, `get_change_record_markdown`, `find_change_intent`, `find_related_change_intent` |
 | 후속 초안·원본 비교 | `create_successor_draft`, `compare_change_record` |
 | 코드 확인·처리 이력 | `check_change_record_evidence`, `list_record_activities` |
 | PR 게시·결과·복구 | `publish_change_record_to_github_pr`, `get_github_publication_status`, `sync_superseded_record_to_github_pr`, `list_pull_request_records` |

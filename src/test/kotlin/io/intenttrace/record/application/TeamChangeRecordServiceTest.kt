@@ -22,6 +22,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class TeamChangeRecordServiceTest {
     private val repository = InMemoryChangeRecordRepository()
@@ -45,9 +46,19 @@ class TeamChangeRecordServiceTest {
         currentSession.actor = teammate
         gateway.role = RepositoryRole.READER
 
-        assertFailsWith<ChangeRecordOwnershipException> {
+        assertFailsWith<ChangeRecordNotFoundException> {
             service.get(repository.record!!.id)
         }
+    }
+
+    @Test
+    fun `저장소 권한이 없으면 ID 조회에서 저장소 이름 대신 기록 없음으로 응답한다`() {
+        repository.record = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        currentSession.actor = teammate
+        gateway.role = null
+
+        val failure = assertFailsWith<ChangeRecordNotFoundException> { service.get(repository.record!!.id) }
+        assertFalse(failure.message.orEmpty().contains(repository.record!!.repositoryKey))
     }
 
     @Test

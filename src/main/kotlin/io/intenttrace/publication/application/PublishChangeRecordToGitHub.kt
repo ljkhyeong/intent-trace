@@ -1,5 +1,6 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
@@ -49,7 +50,11 @@ class PublishChangeRecordToGitHub(
         val previous = publicationRepository.find(record.id, target)
         check(!supersession || previous != null) { "대체 안내를 반영할 GitHub 게시 이력이 없습니다." }
 
-        val pullRequestRevision = gitHubGateway.getHeadRevision(target).lowercase()
+        val pullRequestRevision = try {
+            gitHubGateway.getHeadRevision(target).lowercase()
+        } catch (failure: GitHubApiException) {
+            throw PullRequestUnavailableException(failure)
+        }
         if (!supersession && recordRevision != pullRequestRevision) {
             throw PullRequestRevisionMismatchException(recordRevision, pullRequestRevision)
         }

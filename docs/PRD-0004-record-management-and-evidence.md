@@ -46,7 +46,7 @@
 
 ## MCP
 
-REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`를 제공한다. 중첩 수정 내용에도 생성과 같은 Jakarta 검증을 명시적으로 적용한다.
+REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`를 제공한다. `get_change_record_markdown`은 REST Markdown 출력과 같은 권한·렌더러로 `{recordId, version, status, markdown}`을 반환하며 공개·게시를 수행하지 않는다. 중첩 수정 내용에도 생성과 같은 Jakarta 검증을 명시적으로 적용한다.
 
 ## 완료 기준
 
@@ -91,7 +91,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 ## 후보별 실패와 요청 안의 조회 재사용
 
 - history는 `failures: [{recordId, reason}]`과 `complete`를 반환한다. `complete=true`는 이번 후보 처리가 실패나 중단 없이 끝났다는 뜻이며 저장소 전체 탐색 완료를 뜻하지 않는다.
-- `SIZE_LIMIT`, `TRUNCATED_TREE`, `UNSUPPORTED_OBJECT`가 발생하면 해당 기록의 나머지 코드 확인을 중단하고 `failures`에 사유를 남긴 뒤 다음 후보를 확인한다. 이미 확인한 결과는 유지한다.
+- `SIZE_LIMIT`, `TRUNCATED_TREE`, `UNSUPPORTED_OBJECT`, `REVISION_NOT_FOUND`가 발생하면 해당 기록의 나머지 코드 확인을 중단하고 `failures`에 사유를 남긴 뒤 다음 후보를 확인한다. 이미 확인한 결과는 유지한다.
 - 실패 ID를 같은 조건의 `retryRecordId`로 보내면 해당 공개·대체 기록 한 건을 다시 확인한다. `cursor`와 함께 전달하면 400이며 다른 저장소나 비공개 기록은 404다. 기존의 해당 기록 결과를 재조회 결과로 교체한다. `scannedRecords`는 1이며, 완료되면 `nextCursor`는 null이고 제한으로 중단하면 이어 읽을 커서를 반환한다.
 - 인증 실패·권한 거부·호출 제한·그 밖의 원격 장애는 전체 조회를 중단한다. 호출 제한은 429와 응답의 재시도 대기 시간으로 안내한다.
 - 저장소 권한은 같은 인증 요청 안에서 정규화한 저장소 키로 재사용하고 새 요청에서 다시 확인한다. Git 객체는 조회 한 번의 후보가 공유하는 제한된 메모리 캐시에만 둔다.
@@ -131,7 +131,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 ## 0.12.0 코드 확인 불가와 조회 중단
 
 - 개별 웹 코드 확인은 지원 불가 사유를 HTTP 422로 표시하고 원래 기록으로 돌아갈 수 있게 한다. 코드 불일치·테스트 실패와 구분한다.
-- REST 코드 확인도 지원 불가 시 HTTP 422를 반환한다. ProblemDetail의 `code=EVIDENCE_UNAVAILABLE`, `reason=SIZE_LIMIT|TRUNCATED_TREE|UNSUPPORTED_OBJECT`로 원인을 구분한다. MCP 오류에는 같은 사유 코드와 한국어 안내를 전달한다. 크기·객체 제한을 확인하기 전에는 같은 요청을 반복하지 않는다. 일시적인 GitHub 장애는 기존 502, 호출 제한은 429·`Retry-After`로 처리한다.
+- REST 코드 확인도 지원 불가 시 HTTP 422를 반환한다. ProblemDetail의 `code=EVIDENCE_UNAVAILABLE`, `reason=SIZE_LIMIT|TRUNCATED_TREE|UNSUPPORTED_OBJECT|REVISION_NOT_FOUND`로 원인을 구분한다. `REVISION_NOT_FOUND`는 GitHub에 없는 커밋이며 원격 저장소에 푸시한 뒤 다시 조회한다. MCP 오류에는 같은 사유 코드와 한국어 안내를 전달한다. 크기·객체 제한을 확인하기 전에는 같은 요청을 반복하지 않는다. 일시적인 GitHub 장애는 기존 502, 호출 제한은 429·`Retry-After`로 처리한다.
 - history의 기본 제한은 30초·GitHub 코드 HTTP 호출 40회다. 서버 설정으로 조정하며 개별 호출에도 남은 시간을 적용한다. [코드 확인과 이전 기록 조회](ADR-0007-evidence-check-and-history.md)의 제한을 따른다.
 - `stopReason`이 `TIME_LIMIT`, `CALL_LIMIT`, `CANCELLED`이면 `complete=false`다. 현재 요청에서 처리한 근거 결과와 미완료 근거의 재개 `nextCursor`를 함께 반환한다. 끝나면 `stopReason`은 null이다. `complete`는 현재 후보 처리 상태이며 전체 저장소 탐색 완료를 뜻하지 않는다.
 - 클라이언트는 같은 저장소·커밋·파일·줄과 `cursor`로 계속 조회한다. 중단 응답의 근거 결과에 재개 결과를 추가한다. `scannedRecords`는 이번 요청에서 살펴본 기록 수이므로 같은 기록의 재개 요청까지 합산해 고유 기록 수로 사용하지 않는다.
