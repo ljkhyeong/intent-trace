@@ -63,6 +63,7 @@ class GitHubAppInstallationClientTest {
         val client = GitHubAppInstallationClient(
             client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+            clock = Clock.systemUTC(),
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
@@ -90,6 +91,7 @@ class GitHubAppInstallationClientTest {
         val client = GitHubAppInstallationClient(
             client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+            clock = Clock.systemUTC(),
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andExpect(method(HttpMethod.GET))

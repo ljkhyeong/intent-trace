@@ -5,6 +5,7 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.readJsonWithin
 import io.intenttrace.record.application.EvidenceReadBudget
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import java.net.http.HttpClient
@@ -96,12 +97,9 @@ class GitHubGitEvidenceClient(
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (notFound != null && response.statusCode.value() in setOf(404, 422)) throw EvidenceUnavailableException(notFound)
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 코드 조회 실패. HTTP ${response.statusCode.value()}")
-                val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
-                if (bytes.size > MAX_RESPONSE_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
-                budget?.checkpoint()
-                try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
-                    throw GitHubApiException("GitHub 코드 응답을 해석할 수 없습니다.")
-                }
+                response.readJsonWithin(mapper, type, MAX_RESPONSE_SIZE) {
+                    throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
+                }.also { budget?.checkpoint() }
             } ?: throw GitHubApiException("GitHub 코드 응답이 비어 있습니다.")
     } catch (_: RestClientException) {
         budget?.checkpoint()

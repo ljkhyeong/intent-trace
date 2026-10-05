@@ -29,7 +29,7 @@ fun interface GitHubInstallationTokenIssuer {
 class GitHubAppInstallationClient(
     @Qualifier("githubApiRestClient") private val client: RestClient,
     private val jwtProvider: GitHubAppJwtProvider,
-    private val clock: Clock = Clock.systemUTC(),
+    private val clock: Clock,
 ) : GitHubInstallationTokenIssuer, PublicationCredentialInspector {
     override fun issue(target: GitHubPullRequestTarget): GitHubInstallationAccessToken = safeCall("App installation token 발급") {
         val jwt = jwtProvider.create()

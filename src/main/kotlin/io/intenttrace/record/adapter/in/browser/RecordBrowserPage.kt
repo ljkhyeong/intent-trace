@@ -57,8 +57,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 ${if (scope == RecordScope.TEAM) "<label>작성자 GitHub ID<input name=\"authorId\" type=\"number\" min=\"1\" step=\"1\" value=\"${authorId ?: ""}\" placeholder=\"숫자 ID · 선택\"></label>" else ""}
                 <button type="submit">검색</button></form>
             """.trimIndent())
-            val myAuthorId = actor.githubUserIdOrNull()
-            if (scope == RecordScope.TEAM && myAuthorId != null) {
+            val myAuthorId = actor.githubUserId()
+            if (scope == RecordScope.TEAM) {
                 val mineOnly = authorId == myAuthorId
                 val link = url("/records", "repositoryKey" to repository, "q" to q, "path" to path,
                     "scope" to scope.name, "status" to status?.name, "authorId" to if (mineOnly) null else myAuthorId.toString())

@@ -6,6 +6,7 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.readJsonWithin
 import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestSnapshot
@@ -29,10 +30,8 @@ class GitHubUserPullRequestClient(
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub PR 조회 실패. HTTP ${response.statusCode.value()}")
-                val bytes = response.body.readNBytes(1024 * 1024 + 1)
-                if (bytes.size > 1024 * 1024) throw GitHubApiException("GitHub PR 응답이 허용 크기를 초과했습니다.")
-                val pr = try { mapper.readValue(bytes, UserPullRequestResponse::class.java) } catch (_: RuntimeException) {
-                    throw GitHubApiException("GitHub PR 응답을 해석할 수 없습니다.")
+                val pr = response.readJsonWithin(mapper, UserPullRequestResponse::class.java, 1024 * 1024) {
+                    throw GitHubApiException("GitHub PR 응답이 허용 크기를 초과했습니다.")
                 }
                 try {
                     val base = pr.base.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")

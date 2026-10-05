@@ -20,14 +20,13 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 @Service
 class ChangeRecordFacade(
     private val repository: ChangeRecordRepository,
     private val redactor: SensitiveTextRedactor,
     private val clock: Clock,
-    private val meters: MeterRegistry = SimpleMeterRegistry(),
+    private val meters: MeterRegistry,
 ) {
     fun create(command: CreateChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         validateCreate(command)
@@ -74,10 +73,6 @@ class ChangeRecordFacade(
     fun get(id: UUID): ChangeRecord = repository.findById(id)
         ?: throw ChangeRecordNotFoundException(id)
 
-    fun confirm(command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        return confirm(get(command.recordId), command, actor)
-    }
-
     fun confirm(current: ChangeRecord, command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
         require(current.id == command.recordId) { "확인 명령과 변경 의도 기록이 일치하지 않습니다." }
         requireExpectedVersion(current, command.expectedVersion)
@@ -88,10 +83,6 @@ class ChangeRecordFacade(
             now = recordTime(),
         )
         return saveChange(current, confirmed, actor, RecordOperation.CONFIRM)
-    }
-
-    fun publish(command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        return publish(get(command.recordId), command, actor)
     }
 
     fun publish(current: ChangeRecord, command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {

@@ -2,7 +2,6 @@ package io.intenttrace.publication.application
 
 import io.intenttrace.config.GitHubRateLimitException
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -18,7 +17,7 @@ class TeamGitHubPublicationService(
     private val publisher: PublishChangeRecordToGitHub,
     private val tracking: GitHubPublicationTracking,
     private val publications: GitHubPublicationRepository,
-    private val meters: MeterRegistry = SimpleMeterRegistry(),
+    private val meters: MeterRegistry,
 ) {
     private val locks = Array(64) { ReentrantLock() }
 

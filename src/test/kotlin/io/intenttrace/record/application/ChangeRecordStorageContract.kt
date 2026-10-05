@@ -30,6 +30,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 abstract class ChangeRecordStorageContract {
     @Autowired
@@ -192,7 +193,7 @@ abstract class ChangeRecordStorageContract {
             ),
         )
 
-        val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC))
+        val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC), SimpleMeterRegistry())
         val first = preciseFacade.create(command, actor)
         val retried = storageFacade.create(command, actor)
 

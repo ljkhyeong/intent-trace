@@ -16,13 +16,14 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 class ChangeRecordFacadeTest {
     @Test
     fun `동시에 같은 요청이 저장되면 먼저 저장된 기록을 재사용한다`() {
         val existing = record()
         val repository = DuplicateRequestRepository(existing)
-        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry())
 
         val result = facade.create(command(), actor)
 
@@ -33,7 +34,7 @@ class ChangeRecordFacadeTest {
     @Test
     fun `같은 요청 식별자의 저장 내용이 다르면 충돌로 처리한다`() {
         val repository = DuplicateRequestRepository(record())
-        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry())
 
         val exception = assertFailsWith<ChangeRecordRequestConflictException> {
             facade.create(command().copy(title = "다른 변경 의도"), actor)
@@ -45,7 +46,7 @@ class ChangeRecordFacadeTest {
     @Test
     fun `같은 요청 식별자를 다른 사용자가 재사용하면 충돌로 처리한다`() {
         val repository = DuplicateRequestRepository(record())
-        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry())
 
         assertFailsWith<ChangeRecordRequestConflictException> {
             facade.create(command(), ActorIdentity.github(2, "teammate"))
@@ -55,7 +56,7 @@ class ChangeRecordFacadeTest {
     @Test
     fun `같은 요청 식별자를 다른 저장소가 재사용하면 충돌로 처리한다`() {
         val repository = DuplicateRequestRepository(record())
-        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock)
+        val facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry())
 
         assertFailsWith<ChangeRecordRequestConflictException> {
             facade.create(command().copy(repositoryKey = "acme/other"), actor)

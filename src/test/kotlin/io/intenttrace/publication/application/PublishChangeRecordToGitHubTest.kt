@@ -34,6 +34,7 @@ import io.intenttrace.record.application.TeamChangeRecordService
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import java.util.concurrent.Executors
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
@@ -227,7 +228,7 @@ class PublishChangeRecordToGitHubTest {
     private fun teamPublisher(tracking: MemoryTracking = MemoryTracking()): TeamGitHubPublicationService {
         val records = mock(TeamChangeRecordService::class.java)
         `when`(records.requireOwnedContributor(record.id)).thenReturn(record)
-        return TeamGitHubPublicationService(records, publisher, tracking, publicationRepository)
+        return TeamGitHubPublicationService(records, publisher, tracking, publicationRepository, SimpleMeterRegistry())
     }
 
     private class MemoryTracking : GitHubPublicationTracking {

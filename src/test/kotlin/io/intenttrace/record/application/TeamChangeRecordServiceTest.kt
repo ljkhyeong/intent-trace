@@ -21,13 +21,14 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 class TeamChangeRecordServiceTest {
     private val repository = InMemoryChangeRecordRepository()
     private val currentSession = TestCurrentSession(owner)
     private val gateway = TestGitHubUserAccessGateway(RepositoryRole.CONTRIBUTOR)
     private val service = TeamChangeRecordService(
-        facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock),
+        facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry()),
         access = RepositoryAccessService(currentSession, gateway),
     )
 
