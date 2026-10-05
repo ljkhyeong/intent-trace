@@ -16,8 +16,9 @@ import java.time.Instant
 data class GitHubInstallationAccessToken(
     val value: String,
     val expiresAt: Instant,
+    val installationId: Long,
 ) {
-    override fun toString(): String = "GitHubInstallationAccessToken(value=[보호됨], expiresAt=$expiresAt)"
+    override fun toString(): String = "GitHubInstallationAccessToken(value=[보호됨], expiresAt=$expiresAt, installationId=$installationId)"
 }
 
 fun interface GitHubInstallationTokenIssuer {
@@ -32,11 +33,12 @@ class GitHubAppInstallationClient(
 ) : GitHubInstallationTokenIssuer, PublicationCredentialInspector {
     override fun issue(target: GitHubPullRequestTarget): GitHubInstallationAccessToken = safeCall("App installation token 발급") {
         val jwt = jwtProvider.create()
-        val response = requestToken(jwt, findInstallation(jwt, target.owner, target.repository).id, target.repository)
+        val installationId = findInstallation(jwt, target.owner, target.repository).id
+        val response = requestToken(jwt, installationId, target.repository)
         if (response.token.isBlank()) {
             throw GitHubApiException("GitHub App token 발급 응답에 token이 없습니다.")
         }
-        GitHubInstallationAccessToken(response.token, response.expiresAt)
+        GitHubInstallationAccessToken(response.token, response.expiresAt, installationId)
     }
 
     override fun inspect(repository: GitHubRepository): PublicationCredentialInspection {

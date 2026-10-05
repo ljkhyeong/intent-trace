@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
+import io.intenttrace.publication.application.InstallationTokenCache
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.stereotype.Component
 import java.time.Clock
@@ -18,7 +19,7 @@ class CachingGitHubAccessTokenProvider(
     private val properties: GitHubProperties,
     private val tokenIssuer: GitHubInstallationTokenIssuer,
     private val clock: Clock,
-) : GitHubAccessTokenProvider {
+) : GitHubAccessTokenProvider, InstallationTokenCache {
     private val tokens = ConcurrentHashMap<String, GitHubInstallationAccessToken>()
     private val locks = ConcurrentHashMap<String, Any>()
 
@@ -40,6 +41,9 @@ class CachingGitHubAccessTokenProvider(
         tokens.computeIfPresent(target.repositoryKey) { _, current -> current.takeUnless { it.value == rejectedToken } }
         return true
     }
+
+    override fun evictInstallation(installationId: Long): Int =
+        tokens.entries.count { (key, token) -> token.installationId == installationId && tokens.remove(key, token) }
 
     private fun isUsable(token: GitHubInstallationAccessToken): Boolean =
         Instant.now(clock).plus(properties.app.refreshBeforeExpiry).isBefore(token.expiresAt)

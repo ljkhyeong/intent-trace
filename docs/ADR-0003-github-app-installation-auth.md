@@ -34,6 +34,13 @@ installation token을 환경 변수로 직접 교체하면 한 시간 만료와 
 - 사용자 token을 Check Run 게시 자격 증명으로 사용: 서버 주도 게시 권한과 사람의 요청 인증 책임이 섞이므로 선택하지 않았다. 사용자 행위 인증에는 `ADR-0004`의 별도 user access token을 사용한다.
 - token DB 저장: 여러 인스턴스 공유는 쉽지만 단기 비밀값의 저장·암호화·폐기 책임이 늘어나 현재 범위에서 선택하지 않았다.
 
+## 설치 변경 웹훅
+
+- 발급한 installation token에 설치 ID를 함께 캐시한다. 서명을 확인한 `installation`·`installation_repositories` 웹훅은 동작과 관계없이 `installation.id`로 발급한 토큰을 모두 버린다.
+- 설치 제거·정지 뒤에는 만료 전 토큰으로 게시를 시도하지 않고, 권한 수락이나 저장소 범위 변경 뒤에는 새 범위로 다시 발급한다. 기존 `401` 재발급만으로는 저장소를 뺐다가 다시 추가한 경우 캐시 만료(최대 55분)까지 실패할 수 있었다.
+- 웹훅은 토큰 캐시만 바꾼다. 설치 ID나 이벤트 본문을 저장하지 않고 GitHub를 호출하지 않는다. 고정 token은 캐시를 쓰지 않아 영향이 없다.
+- 웹훅 처리와 동시에 진행 중인 발급은 이전 범위의 토큰을 다시 캐시할 수 있다. 이 경우 기존 `401` 재발급과 만료 갱신이 정리한다. 다중 인스턴스 간 캐시 무효화는 제공하지 않는다.
+
 ## 0.10.0 관리자용 게시 사전 점검
 
 `POST /api/v1/publication-preflight?repositoryKey=owner/repo`와 MCP `check_publication_credentials`는 대상 저장소 MAINTAINER만 실행한다. 키로 JWT 서명, GitHub `/app` 인증 수락, 저장소의 설치 ID 조회, 대상 한 곳으로 제한한 token 발급, 응답의 저장소 목록과 `checks: write`·`pull_requests: read/write`를 순서대로 확인한다.

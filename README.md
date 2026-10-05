@@ -131,7 +131,7 @@ PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub 액�
 
 홈서버 k3s는 [배포 준비 안내](docs/operations/k3s-deployment.md)를 따릅니다. 앱 1개·PostgreSQL PVC·Traefik Ingress와 환경변수 예시를 제공합니다. 이미지 빌드·DNS·공유기·TLS·GitHub App 등록·클러스터 적용은 운영자가 수행합니다.
 
-`POST /webhooks/github`는 GitHub 승인 취소 이벤트를 받아 해당 사용자의 세션을 정리합니다. `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 GitHub App의 Webhook URL·Secret을 설정해야 하며 비밀값을 비워 두면 수신을 거부합니다.
+`POST /webhooks/github`는 GitHub 승인 취소 이벤트를 받아 해당 사용자의 세션을 정리하고, App 설치 제거·권한 변경·저장소 범위 변경 이벤트를 받아 게시용 토큰 캐시를 비웁니다. `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 GitHub App의 Webhook URL·Secret을 설정해야 하며 비밀값을 비워 두면 수신을 거부합니다.
 
 ## 인증과 GitHub 권한
 
@@ -435,7 +435,7 @@ python3 scripts/test_feedback.py
 
 - GitHub App 등록·저장소 설치와 개인 키 교체는 운영자가 해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 웹훅은 사용자 승인 취소만 처리합니다. PR·CI 이벤트의 자동 기록 생성·게시는 제공하지 않습니다.
+- GitHub 웹훅은 사용자 승인 취소와 App 설치 변경만 처리합니다. PR·CI 이벤트의 자동 기록 생성·게시는 제공하지 않습니다.
 - GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 권한 캐시는 없습니다.
 - V3 이전 초안의 작성자는 `legacy:<login>`으로 남으며 현재 GitHub 계정과 자동으로 연결되지 않습니다.
 - 포크에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.

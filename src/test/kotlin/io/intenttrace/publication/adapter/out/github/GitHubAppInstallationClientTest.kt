@@ -116,6 +116,7 @@ class GitHubAppInstallationClientTest {
 
         assertEquals("installation-token", result.value)
         assertEquals(Instant.parse("2026-08-28T01:00:00Z"), result.expiresAt)
+        assertEquals(901, result.installationId)
         assertFalse(result.toString().contains("installation-token"))
         assertTrue(result.toString().contains("[보호됨]"))
         server.verify()

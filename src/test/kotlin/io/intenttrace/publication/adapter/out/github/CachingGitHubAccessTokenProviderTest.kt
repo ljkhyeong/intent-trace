@@ -23,7 +23,7 @@ class CachingGitHubAccessTokenProviderTest {
             ),
             tokenIssuer = GitHubInstallationTokenIssuer {
                 issued += 1
-                GitHubInstallationAccessToken("token-$issued", clock.instant().plus(Duration.ofHours(1)))
+                GitHubInstallationAccessToken("token-$issued", clock.instant().plus(Duration.ofHours(1)), 1)
             },
             clock = clock,
         )
@@ -39,6 +39,31 @@ class CachingGitHubAccessTokenProviderTest {
     }
 
     @Test
+    fun `설치 변경 시 해당 설치에서 발급한 토큰만 버리고 다음 요청에서 다시 발급한다`() {
+        val clock = MutableClock(Instant.parse("2026-08-28T00:00:00Z"))
+        var issued = 0
+        val provider = CachingGitHubAccessTokenProvider(
+            properties = GitHubProperties(app = GitHubAppProperties(refreshBeforeExpiry = Duration.ofMinutes(5))),
+            tokenIssuer = GitHubInstallationTokenIssuer {
+                issued += 1
+                GitHubInstallationAccessToken("token-$issued", clock.instant().plus(Duration.ofHours(1)), if (it.owner == "acme") 7 else 8)
+            },
+            clock = clock,
+        )
+        val other = GitHubPullRequestTarget("partner", "service", 3)
+        assertEquals("token-1", provider.token(target))
+        assertEquals("token-2", provider.token(target.copy(repository = "docs")))
+        assertEquals("token-3", provider.token(other))
+
+        assertEquals(2, provider.evictInstallation(7))
+        assertEquals(0, provider.evictInstallation(7))
+
+        assertEquals("token-3", provider.token(other))
+        assertEquals("token-4", provider.token(target))
+        assertEquals(4, issued)
+    }
+
+    @Test
     fun `고정 token이 있으면 GitHub App 발급을 사용하지 않는다`() {
         val provider = CachingGitHubAccessTokenProvider(
             properties = GitHubProperties(token = "fixed-token"),
@@ -48,5 +73,6 @@ class CachingGitHubAccessTokenProviderTest {
 
         assertEquals("fixed-token", provider.token(target))
         assertEquals(false, provider.invalidate(target, "fixed-token"))
+        assertEquals(0, provider.evictInstallation(7))
     }
 }

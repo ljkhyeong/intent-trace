@@ -14,7 +14,13 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import io.intenttrace.publication.application.GitHubInstallationWebhookService
+import org.mockito.Mockito.clearInvocations
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoMoreInteractions
 import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
@@ -42,6 +48,9 @@ class GitHubWebhookIntegrationTest(
     @Autowired private val mapper: ObjectMapper,
     @Autowired private val authorization: GitHubAuthorizationWebhookService,
 ) {
+    @MockitoSpyBean
+    private lateinit var installations: GitHubInstallationWebhookService
+
     @BeforeEach
     fun clearSessions() {
         management.revokeAll("github:42")
@@ -89,7 +98,7 @@ class GitHubWebhookIntegrationTest(
     @Test
     fun `ping과 지원하지 않는 이벤트는 서명만 확인하고 세션을 유지한다`() {
         issue(42, SessionChannel.CLIENT)
-        for (event in listOf("ping", "installation", "push")) {
+        for (event in listOf("ping", "check_run", "push")) {
             send(revoked, event = event).andExpect { status { isNoContent() } }
         }
         send("""{"action":"unknown","sender":{"id":42}}""").andExpect { status { isNoContent() } }
@@ -97,10 +106,30 @@ class GitHubWebhookIntegrationTest(
     }
 
     @Test
+    fun `설치 변경 이벤트는 설치 ID의 게시 토큰만 버리고 사용자 세션은 유지한다`() {
+        issue(42, SessionChannel.CLIENT)
+        clearInvocations(installations)
+        for ((event, action) in listOf("installation" to "deleted", "installation" to "new_permissions_accepted",
+            "installation_repositories" to "removed")) {
+            send("""{"action":"$action","installation":{"id":7},"sender":{"id":42}}""", event = event)
+                .andExpect { status { isNoContent() }; content { string("") } }
+        }
+        verify(installations, times(3)).installationChanged(7)
+        for (body in listOf("""{"action":"deleted"}""", """{"action":"deleted","installation":{"id":"7"}}""",
+            """{"action":"deleted","installation":{"id":0}}""", """{"installation":{"id":7}}""")) {
+            send(body, event = "installation").andExpect { status { isBadRequest() } }
+        }
+        send("""{"action":"deleted","installation":{"id":7}}""", event = "installation", signature = sign("{}"))
+            .andExpect { status { isUnauthorized() } }
+        verifyNoMoreInteractions(installations)
+        assertEquals(1, management.list("github:42").size)
+    }
+
+    @Test
     fun `본문 상한과 비밀값 미설정은 수신을 거부한다`() {
         issue(42, SessionChannel.CLIENT)
         send(" ".repeat(1_048_577)).andExpect { status { isContentTooLarge() } }
-        val disabled = GitHubWebhookController(GitHubProperties(), mapper, authorization)
+        val disabled = GitHubWebhookController(GitHubProperties(), mapper, authorization, installations)
         val request = MockHttpServletRequest("POST", "/webhooks/github").apply {
             setContent(revoked.toByteArray())
             addHeader("X-Hub-Signature-256", sign(revoked))

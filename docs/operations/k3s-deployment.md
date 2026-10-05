@@ -10,6 +10,7 @@
 | 이슈·PR 내용과 CI 결과 | GitHub Issues·Pull Requests·Actions API | 기존 읽기 API 유지. 별도 수집 서버나 CI 실행 추가 없음 |
 | PR에 변경 기록 표시 | GitHub Checks API | 기존 게시·재시도 구현 유지 |
 | 사용자가 GitHub 승인을 취소한 경우 | `github_app_authorization` 웹훅 | 해당 사용자의 브라우저·도구 세션 즉시 폐기 추가 |
+| App 설치 제거·정지·권한 수락·저장소 범위 변경 | `installation`·`installation_repositories` 웹훅 | 해당 설치에서 발급한 게시용 토큰을 메모리 캐시에서 즉시 폐기 |
 | HTTPS와 요청 전달 | k3s의 Traefik | 표준 Ingress 제공. 인증서와 DNS는 운영자가 설정 |
 | 프로세스·DB 상태 확인 | Spring Boot Actuator | DB 장애는 readiness에만 반영하고 liveness와 분리 |
 
@@ -55,16 +56,18 @@ sudo k3s ctr images import intent-trace.tar
 
 레지스트리를 사용하면 `newName`에 전체 이미지 주소를 넣고 해당 레지스트리의 인증을 k3s에서 준비한다. `IfNotPresent`를 사용하므로 기존 태그의 이미지를 덮어쓰지 않는다.
 
-## GitHub 승인 취소 웹훅
+## GitHub 웹훅
 
-GitHub App의 Webhook URL을 `https://도메인/webhooks/github`로 지정하고 활성화한다. Secret은 서버의 `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 같아야 한다. GitHub App은 [승인 취소 이벤트](https://docs.github.com/en/webhooks/webhook-events-and-payloads#github_app_authorization)를 기본으로 받는다.
+GitHub App의 Webhook URL을 `https://도메인/webhooks/github`로 지정하고 활성화한다. Secret은 서버의 `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 같아야 한다. GitHub App은 [승인 취소](https://docs.github.com/en/webhooks/webhook-events-and-payloads#github_app_authorization)와 [설치](https://docs.github.com/en/webhooks/webhook-events-and-payloads#installation)·[설치 저장소](https://docs.github.com/en/webhooks/webhook-events-and-payloads#installation_repositories) 이벤트를 기본으로 받으므로 이벤트를 따로 구독하지 않는다.
 
-서버는 [GitHub의 서명 규칙](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)에 따라 원본 바이트와 `X-Hub-Signature-256`을 JDK HMAC-SHA256으로 검증한다. 서명 확인 후 `sender.id`에 해당하는 기존 세션을 폐기한다. 표시용 login으로 사용자를 찾지 않으며 원문 본문·서명·비밀값을 저장하지 않는다.
+서버는 [GitHub의 서명 규칙](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)에 따라 원본 바이트와 `X-Hub-Signature-256`을 JDK HMAC-SHA256으로 검증한다. 승인 취소는 서명 확인 후 `sender.id`에 해당하는 기존 세션을 폐기한다. 표시용 login으로 사용자를 찾지 않으며 원문 본문·서명·비밀값을 저장하지 않는다.
+
+`installation`·`installation_repositories` 이벤트는 동작과 관계없이 `installation.id`로 발급한 게시용 토큰을 메모리 캐시에서 버린다. 다음 게시는 새 설치 상태로 토큰을 다시 발급한다. 사용자 세션과 저장된 기록·게시 이력은 바꾸지 않는다. 고정 token을 설정한 서버는 캐시를 쓰지 않으므로 변화가 없다.
 
 | 응답 | 의미 |
 | --- | --- |
-| `204` | 승인 취소 처리 완료 또는 `ping`·지원하지 않는 이벤트 수신 확인 |
-| `400` | 승인 취소 본문이나 숫자 사용자 ID 오류 |
+| `204` | 승인 취소·설치 변경 처리 완료 또는 `ping`·지원하지 않는 이벤트 수신 확인 |
+| `400` | 승인 취소·설치 이벤트 본문이나 숫자 사용자·설치 ID 오류 |
 | `401` | 서명 누락·불일치 |
 | `413` | 본문이 1MiB를 초과함 |
 | `503` | 서버의 웹훅 secret 미설정 |
