@@ -53,6 +53,7 @@ class ChangeRecordMarkdownRendererTest {
                 ),
             ),
             openQuestions = listOf("# 확인할 질문"),
+            creationDigest = "d".repeat(64),
         )
     }
 

@@ -16,7 +16,6 @@
 - 공개 기록의 본문은 수정하지 않고 새 공개 기록으로 대체한다.
 - 모든 수정은 현재 버전을 요구하며 충돌은 `409`로 처리한다.
 - 생성 시 정규화·비밀값 제거를 끝낸 내용의 해시를 보존한다. 같은 요청 ID라도 최초 내용이 다르면 `409`이다. 수정 후 최초 생성 요청을 다시 보내면 기존 ID의 최신 기록을 반환한다.
-- V7 이전 기록은 현재 본문으로 최초 내용 해시를 계산한다. 최초 수정 시 이 값을 보존한다.
 
 ## 기록 목록 계약
 
@@ -123,9 +122,9 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 ## 0.11.0 기록 변경 이력
 
 - `GET /api/v1/change-records/{UUID}/activities`, `list_record_activities`, `/records/{UUID}/activities`에서 같은 이력을 읽는다.
-- 응답은 `recordId`, `visibility`(`AUTHOR`·`TEAM`), `items`, `nextBeforeVersion`, `historyStartsAtCreation`을 포함한다. 선택 `beforeVersion`은 직전 응답의 값을 사용하며 50개씩 버전 내림차순으로 조회한다.
+- 응답은 `recordId`, `visibility`(`AUTHOR`·`TEAM`), `items`, `nextBeforeVersion`, `author`를 포함한다. 선택 `beforeVersion`은 직전 응답의 값을 사용하며 50개씩 버전 내림차순으로 조회한다.
 - 이력은 작업·인증 사용자 subject·이전/이후 버전 및 상태·처리 시각만 보존한다. 본문 이전 버전이나 대화·검증 원문은 저장하지 않는다.
-- 작성자만 전체 작업을 보고 다른 팀원에게는 공개·대체 작업만 표시한다. 수집 이전 작업을 추정해 채우지 않는다. 저장 트랜잭션과 페이지·노출 규칙은 ADR-0011을 따른다.
+- 작성자만 전체 작업을 보고 다른 팀원에게는 공개·대체 작업만 표시한다. 저장 트랜잭션과 페이지·노출 규칙은 ADR-0011을 따른다.
 
 ## 0.12.0 코드 확인 불가와 조회 중단
 

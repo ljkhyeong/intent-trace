@@ -49,7 +49,7 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
         return jdbc.query(
             """
             select r.id, r.title, r.request_summary, r.repository_key, r.target_revision, r.status,
-                   r.created_by_subject, r.created_by, r.created_at, r.superseded_by, r.version, r.published_at
+                   r.created_by_subject, r.created_by_login, r.created_at, r.superseded_by, r.version, r.published_at
             from change_records r where ${conditions.joinToString(" and ")}
             order by r.created_at desc, r.id desc limit :limit
             """.trimIndent(),

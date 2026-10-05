@@ -319,6 +319,7 @@ class PublishChangeRecordToGitHubTest {
             codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 4, "d".repeat(64))),
             verifications = emptyList(),
             openQuestions = emptyList(),
+            creationDigest = "d".repeat(64),
         )
     }
 }

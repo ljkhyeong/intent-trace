@@ -81,7 +81,7 @@ class RecordBrowserNavigationTest {
 
     @Test
     fun `이전 작업 링크는 검색 커서와 이력 조회 위치를 함께 유지한다`() {
-        val result = RecordActivities(summary.id, ActivityVisibility.AUTHOR, emptyList(), 12, true, ActorIdentity.github(42, "lim"))
+        val result = RecordActivities(summary.id, ActivityVisibility.AUTHOR, emptyList(), 12, ActorIdentity.github(42, "lim"))
         val sources = listOf(
             url("/records", "repositoryKey" to summary.repositoryKey, "q" to "요청 & + %", "cursor" to "search-cursor") to "",
             url("/records/history", "repositoryKey" to summary.repositoryKey, "revision" to queryRevision,

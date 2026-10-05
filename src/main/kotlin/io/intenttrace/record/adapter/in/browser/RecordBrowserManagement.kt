@@ -20,7 +20,6 @@ internal fun RecordBrowserPage.sessions(actor: ActorIdentity, result: MySessions
 internal fun RecordBrowserPage.activities(actor: ActorIdentity, result: RecordActivities, searchUrl: String? = null): String = layout("기록 변경 이력", actor, buildString {
     append("<a class=\"back-link\" href=\"${html(recordUrl(result.recordId, searchUrl))}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>기록 변경 이력</h1><p>저장에 성공한 작업과 처리 시각입니다. 이전 본문은 저장하지 않습니다.</p></header>")
     if (result.visibility == ActivityVisibility.TEAM) append("<aside class=\"notice\">팀원에게는 공개·대체 작업만 표시합니다. 비공개 작업 이력은 작성자만 읽습니다.</aside>")
-    if (result.historyStartsAtCreation == false) append("<aside class=\"notice\">이력 수집 전 작업은 저장되어 있지 않습니다.</aside>")
     if (result.items.isEmpty()) append("<p class=\"empty\">표시할 변경 이력이 없습니다.</p>")
     append("<ol class=\"records\">")
     result.items.forEach { activity ->

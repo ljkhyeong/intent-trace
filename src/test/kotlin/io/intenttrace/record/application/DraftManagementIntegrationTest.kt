@@ -77,12 +77,10 @@ class DraftManagementIntegrationTest(
         assertEquals(listOf(RecordOperation.SUPERSEDE, RecordOperation.PUBLISH, RecordOperation.CONFIRM,
             RecordOperation.REVISE, RecordOperation.REOPEN, RecordOperation.CONFIRM, RecordOperation.CREATE), own.items.map { it.operation })
         assertTrue(own.items.all { it.actorSubject == owner.subject })
-        assertEquals(true, own.historyStartsAtCreation)
         session.actor = other
         val team = activities.list(record.id)
         assertEquals(ActivityVisibility.TEAM, team.visibility)
         assertEquals(listOf(RecordOperation.SUPERSEDE, RecordOperation.PUBLISH), team.items.map { it.operation })
-        assertNull(team.historyStartsAtCreation)
         session.actor = owner
         val hidden = records.create(command("private-activity-${UUID.randomUUID()}"))
         records.discard(hidden.id, hidden.version)
@@ -92,7 +90,7 @@ class DraftManagementIntegrationTest(
     }
 
     @Test
-    fun `이력 저장 실패는 본문 갱신을 취소하고 이전 이력이 없는 기록과 페이지를 구분한다`() {
+    fun `이력 저장 실패는 본문 갱신을 취소하고 이력을 버전 페이지로 읽는다`() {
         session.actor = owner
         val input = command("activity-rollback-${UUID.randomUUID()}")
         var record = records.create(input)
@@ -102,12 +100,10 @@ class DraftManagementIntegrationTest(
             assertEquals(record, records.get(record.id))
             assertEquals(1, activities.list(record.id).items.size)
         } finally { jdbc.execute("alter table record_activities drop constraint reject_test_revision") }
-        jdbc.update("delete from record_activities where record_id = ?", record.id.toString())
-        assertEquals(false, activities.list(record.id).historyStartsAtCreation)
         repeat(52) { index -> record = records.revise(record.id, record.version, input.copy(title = "수정 $index")) }
         val first = activities.list(record.id)
         val second = activities.list(record.id, assertNotNull(first.nextBeforeVersion))
-        assertEquals((1L..52L).reversed().toList(), (first.items + second.items).map { it.version })
+        assertEquals((0L..52L).reversed().toList(), (first.items + second.items).map { it.version })
         assertNull(second.nextBeforeVersion)
     }
     @Test

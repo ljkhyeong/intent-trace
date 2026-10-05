@@ -16,6 +16,7 @@ import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Clock
 import java.time.Instant
@@ -25,6 +26,7 @@ import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -192,13 +194,6 @@ abstract class ChangeRecordStorageContract {
 
         val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC))
         val first = preciseFacade.create(command, actor)
-        // 정규화가 없던 이전 저장 방식도 같은 요청으로 인식해야 한다.
-        storageJdbc.update(
-            "update verification_runs set started_at = ?, finished_at = ? where record_id = ?",
-            startedAt.atOffset(ZoneOffset.UTC),
-            startedAt.plusSeconds(1).atOffset(ZoneOffset.UTC),
-            first.id.toString(),
-        )
         val retried = storageFacade.create(command, actor)
 
         assertEquals(first.id, retried.id)
@@ -209,6 +204,20 @@ abstract class ChangeRecordStorageContract {
         assertEquals(confirmed, storageFacade.get(first.id))
         val published = preciseFacade.publish(PublishChangeRecordCommand(first.id, confirmed.version, digest), actor)
         assertEquals(published, storageFacade.get(first.id))
+    }
+
+    @Test
+    fun `스키마는 대문자 저장소 키와 정규화되지 않은 코드 경로를 거부한다`() {
+        val record = published()
+        tracking.start(record.id, GitHubPullRequestTarget("acme", "storage-contract", 1), PublicationOperation.PUBLISH)
+        for (sql in listOf(
+            "update change_records set repository_key = 'ACME/STORAGE' where id = ?",
+            "update code_anchors set relative_path = './src/Storage.kt' where record_id = ?",
+            "update code_anchors set relative_path = 'src//Storage.kt' where record_id = ?",
+            "update github_publication_attempts set repository_key = 'ACME/STORAGE' where change_record_id = ?",
+        )) {
+            assertFailsWith<DataIntegrityViolationException>(sql) { storageJdbc.update(sql, record.id.toString()) }
+        }
     }
 
     @Test

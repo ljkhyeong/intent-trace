@@ -132,6 +132,7 @@ class ChangeRecordLifecycleTest {
         codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 5, "a".repeat(64))),
         verifications = emptyList(),
         openQuestions = emptyList(),
+        creationDigest = "d".repeat(64),
     )
 
     companion object {

@@ -23,7 +23,6 @@ data class RecordActivity(
 interface RecordActivityStore {
     fun append(activity: RecordActivity)
     fun list(recordId: UUID, visibility: ActivityVisibility, beforeVersion: Long?, limit: Int): List<RecordActivity>
-    fun hasCreation(recordId: UUID): Boolean
 }
 
 enum class ActivityVisibility { AUTHOR, TEAM }
@@ -33,7 +32,6 @@ data class RecordActivities(
     val visibility: ActivityVisibility,
     val items: List<RecordActivity>,
     val nextBeforeVersion: Long?,
-    val historyStartsAtCreation: Boolean?,
     val author: ActorIdentity,
 )
 
@@ -49,7 +47,6 @@ class RecordActivityService(
         val visibility = if (record.createdBy.subject == current.require().actor.subject) ActivityVisibility.AUTHOR else ActivityVisibility.TEAM
         val page = activities.list(recordId, visibility, beforeVersion, 51)
         val items = page.take(50)
-        return RecordActivities(recordId, visibility, items, if (page.size > 50) items.last().version else null,
-            if (visibility == ActivityVisibility.AUTHOR) activities.hasCreation(recordId) else null, record.createdBy)
+        return RecordActivities(recordId, visibility, items, if (page.size > 50) items.last().version else null, record.createdBy)
     }
 }

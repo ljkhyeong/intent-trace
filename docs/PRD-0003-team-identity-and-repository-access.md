@@ -57,7 +57,6 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - GitHub 사용자 조회 장애는 자격 증명 실패와 구분해 `502`로 처리한다.
 - 읽기 전용 사용자는 공개 기록을 볼 수 있지만 초안을 만들 수 없다.
 - 다른 팀원은 작성자의 초안을 볼 수 없고 공개 기록만 볼 수 있다.
-- 기존 작성자 문자열은 V3에서 `legacy:<lowercase-login>` subject로 손실 없이 보존된다.
 - Codex MCP 초기화가 환경변수 Bearer token으로 성공한다.
 - 만료된·재사용된·cookie와 다른 OAuth `state`는 code 교환 전에 거부한다.
 - access token 만료 전 갱신과 동시 요청이 refresh token 한 번만 사용한다.

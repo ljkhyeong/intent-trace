@@ -1,7 +1,6 @@
 package io.intenttrace.record.domain
 
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import java.time.Instant
 import java.util.UUID
 
@@ -29,7 +28,7 @@ data class ChangeRecord(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
-    val creationDigest: String? = null,
+    val creationDigest: String,
     val derivedFromRecordId: UUID? = null,
 ) {
     fun content(): ChangeRecordContent = ChangeRecordContent(
@@ -51,7 +50,7 @@ data class ChangeRecord(
             title = content.title, requestSummary = content.requestSummary,
             decisions = content.decisions, codeAnchors = content.codeAnchors,
             verifications = content.verifications, openQuestions = content.openQuestions,
-            creationDigest = creationDigest ?: content().digest(), version = version + 1,
+            version = version + 1,
         )
     }
 
@@ -102,7 +101,7 @@ data class ChangeRecord(
         check(actor.subject == createdBy.subject && actor.subject == replacement.createdBy.subject) {
             "작성자가 만든 기록끼리만 대체할 수 있습니다."
         }
-        check(GitHubRepository.parse(repositoryKey).key == GitHubRepository.parse(replacement.repositoryKey).key) {
+        check(repositoryKey == replacement.repositoryKey) {
             "같은 저장소의 기록으로만 대체할 수 있습니다."
         }
         check(id != replacement.id) { "기록이 자기 자신을 대체할 수 없습니다." }

@@ -103,7 +103,7 @@ class JdbcChangeRecordRepository(
             """
             insert into change_records (
                 id, request_id, repository_key, base_revision, target_revision,
-                snapshot_digest, title, request_summary, status, created_by, created_by_subject,
+                snapshot_digest, title, request_summary, status, created_by_login, created_by_subject,
                 created_at, confirmed_at, published_at, superseded_by, version, creation_digest, derived_from_record_id
             ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
@@ -284,7 +284,7 @@ class JdbcChangeRecordRepository(
         status = ChangeRecordStatus.valueOf(resultSet.getString("status")),
         createdBy = ActorIdentity(
             subject = resultSet.getString("created_by_subject"),
-            login = resultSet.getString("created_by"),
+            login = resultSet.getString("created_by_login"),
         ),
         createdAt = resultSet.getObject("created_at", OffsetDateTime::class.java).toInstant(),
         confirmedAt = resultSet.getObject("confirmed_at", OffsetDateTime::class.java)?.toInstant(),

@@ -29,29 +29,22 @@ data class ChangeRecordContent(
                     output.write(encoded)
                 }
             }
-            if (derivedFromRecordId != null) { text("successor-v1"); text(derivedFromRecordId.toString()) }
-            text(baseRevision); text(snapshotDigest); text(title); text(requestSummary)
+            text(derivedFromRecordId?.toString()); text(baseRevision); text(snapshotDigest); text(title); text(requestSummary)
             output.writeInt(decisions.size)
             decisions.forEach { text(it.summary); text(it.rationale); text(it.source.name) }
             output.writeInt(codeAnchors.size)
             codeAnchors.forEach {
                 text(it.relativePath); text(it.symbolName)
-                output.writeInt(it.startLine); output.writeInt(it.endLine); text(it.contentHash)
+                output.writeInt(it.startLine); output.writeInt(it.endLine); text(it.contentHash); text(it.side.name); text(it.relatedPath)
             }
             output.writeInt(verifications.size)
             verifications.forEach {
                 text(it.command); output.writeInt(it.exitCode)
                 text(it.startedAt.toString()); text(it.finishedAt.toString())
-                text(it.snapshotDigest); text(it.outputDigest); text(it.summary)
+                text(it.snapshotDigest); text(it.outputDigest); text(it.summary); text(it.source.name)
             }
             output.writeInt(openQuestions.size)
             openQuestions.forEach(::text)
-            if (codeAnchors.any { it.side != CodeSide.TARGET || it.relatedPath != null } ||
-                verifications.any { it.source != VerificationSource.CLIENT_REPORTED }) {
-                text("evidence-v2")
-                codeAnchors.forEach { text(it.side.name); text(it.relatedPath) }
-                verifications.forEach { text(it.source.name) }
-            }
         }
         return HexFormat.of().formatHex(digest.digest())
     }

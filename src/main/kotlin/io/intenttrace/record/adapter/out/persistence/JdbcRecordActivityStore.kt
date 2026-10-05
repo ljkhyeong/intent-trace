@@ -41,8 +41,4 @@ class JdbcRecordActivityStore(private val jdbc: JdbcTemplate) : RecordActivitySt
             ChangeRecordStatus.valueOf(row.getString("status")), row.getObject("occurred_at", OffsetDateTime::class.java).toInstant(),
         ) }, *parameters.toTypedArray())
     }
-
-    override fun hasCreation(recordId: UUID): Boolean = jdbc.queryForObject(
-        "select count(*) from record_activities where record_id = ? and operation = 'CREATE'", Long::class.java, recordId.toString(),
-    ) == 1L
 }

@@ -38,6 +38,10 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- 운영 전 정리로 Flyway V1~V11을 기준 스키마 `V1__baseline.sql` 하나로 통합. 이전 버전으로 만든 로컬 H2·PostgreSQL DB는 지우고 새로 만든다. 작성자 로그인 열은 `created_by_login`으로 바꾸고 최초 내용 해시를 필수로 저장
+- 목록 조회의 페이지 번호 방식(`MY_DRAFTS`·`page`·`size`)을 제거하고 커서 조회(`items`·`nextCursor`)만 제공
+- 변경 이력 응답의 `historyStartsAtCreation` 제거. 모든 기록이 생성 작업부터 이력을 남김
+- REST의 Spring MVC 표준 오류(파라미터 검증·누락·형식)도 ProblemDetail로 응답
 - IntelliJ 현재 줄 조회가 요청 전에 파일·Git HEAD·변경 목록을 다시 읽고, 터미널 checkout 직후처럼 편집기 상태와 다르면 조회하지 않음
 - IntelliJ 세션 삭제에서 서버 폐기가 호출 제한 외의 이유로 실패하면 확인 후 이 PC의 저장 세션만 삭제할 수 있음
 - 검증 훅이 165초 예산 안에서 검사를 멈추고 `finish` 직접 실행을 안내해, 훅 제한 시간 초과로 검사가 조용히 빠지지 않음
@@ -143,7 +147,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 | V8 | V10 | 원본 공개 기록 연결 |
 | V9 | V11 | 기록 변경 이력 |
 
-개발 브랜치의 기존 DB는 별도 이관이 필요하다. [기존 DB 업그레이드 절차](docs/operations/team-deployment.md#기존-db-업그레이드)를 따른다.
+이 대응표는 당시 이력이다. 운영 전 정리에서 모든 마이그레이션을 `V1__baseline.sql`로 통합했다([DB 스키마 기준](docs/operations/team-deployment.md#db-스키마-기준)).
 
 ## 0.7.0 - 2026-08-30
 

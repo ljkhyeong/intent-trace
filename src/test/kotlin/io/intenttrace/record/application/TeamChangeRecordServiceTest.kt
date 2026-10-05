@@ -137,6 +137,7 @@ class TeamChangeRecordServiceTest {
         codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
         verifications = emptyList(),
         openQuestions = emptyList(),
+        creationDigest = "d".repeat(64),
     )
 
     private class TestCurrentSession(var actor: ActorIdentity) : CurrentGitHubUserSession {

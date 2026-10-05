@@ -203,10 +203,8 @@ class ChangeRecordFacade(
         actor: ActorIdentity,
         creationDigest: String,
     ): ChangeRecord {
-        if (GitHubRepository.parse(existing.repositoryKey).key != repositoryKey || existing.createdBy.subject != actor.subject) {
-            throw ChangeRecordRequestConflictException()
-        }
-        if ((existing.creationDigest ?: existing.content().digest()) != creationDigest) {
+        // 저장된 저장소 키는 소문자로 정규화돼 있다.
+        if (existing.repositoryKey != repositoryKey || existing.createdBy.subject != actor.subject || existing.creationDigest != creationDigest) {
             throw ChangeRecordRequestConflictException()
         }
         return existing
