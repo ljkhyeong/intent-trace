@@ -2,7 +2,6 @@ package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.SessionChannel
 import io.intenttrace.identity.application.UserSessionManagement
@@ -32,6 +31,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(properties = [
     "spring.datasource.url=jdbc:h2:mem:webhook-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -137,12 +137,8 @@ class GitHubWebhookIntegrationTest(
         assertEquals(1, management.list("github:42").size)
     }
 
-    private fun issue(id: Long, channel: SessionChannel): String = sessions.issue(
-        ActorIdentity.github(id, "user$id"),
-        GitHubUserOAuthTokens("ghu_webhook-$id", clock.instant().plusSeconds(3600),
-            "ghr_webhook-$id", clock.instant().plusSeconds(86400)),
-        channel,
-    ).sessionToken
+    private fun issue(id: Long, channel: SessionChannel): String =
+        sessions.issueTestSession(ActorIdentity.github(id, "user$id"), "ghu_webhook-$id", channel, clock.instant())
 
     private fun send(body: String, event: String = "github_app_authorization", signature: String? = sign(body)) =
         mvc.post("/webhooks/github") {

@@ -22,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.intenttrace.record.domain.draftRecord
 
 class TeamChangeRecordServiceTest {
     private val repository = InMemoryChangeRecordRepository()
@@ -119,27 +120,7 @@ class TeamChangeRecordServiceTest {
         openQuestions = emptyList(),
     )
 
-    private fun draft(actor: ActorIdentity) = ChangeRecord(
-        id = UUID.randomUUID(),
-        requestId = "seeded",
-        repositoryKey = repositoryKey,
-        targetRevision = null,
-        snapshotDigest = "a".repeat(64),
-        title = "초안",
-        requestSummary = "팀 공개 전 기록",
-        status = ChangeRecordStatus.DRAFT,
-        createdBy = actor,
-        createdAt = Instant.parse("2026-08-28T00:00:00Z"),
-        confirmedAt = null,
-        publishedAt = null,
-        supersededBy = null,
-        version = 0,
-        decisions = listOf(Decision("초안으로 둔다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-        creationDigest = "d".repeat(64),
-    )
+    private fun draft(actor: ActorIdentity) = draftRecord(actor, repositoryKey)
 
     private class TestCurrentSession(var actor: ActorIdentity) : CurrentGitHubUserSession {
         override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token", java.util.UUID.randomUUID())

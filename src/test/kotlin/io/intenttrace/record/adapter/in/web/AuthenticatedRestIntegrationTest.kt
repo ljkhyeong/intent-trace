@@ -3,7 +3,6 @@ package io.intenttrace.record.adapter.`in`.web
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
@@ -29,6 +28,7 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertTrue
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedRestIntegrationTest.RestTestConfiguration::class],
@@ -244,14 +244,8 @@ class AuthenticatedRestIntegrationTest(
         header(HttpHeaders.AUTHORIZATION, "Bearer $session")
     }
 
-    private val ownerSession by lazy { issue(ActorIdentity.github(42, "lim"), "ghu_rest-owner") }
-    private val teammateSession by lazy { issue(ActorIdentity.github(84, "teammate"), TEAMMATE_TOKEN) }
-
-    private fun issue(actor: ActorIdentity, accessToken: String): String {
-        val now = Instant.now()
-        return sessions.issue(actor, GitHubUserOAuthTokens(accessToken, now.plusSeconds(3600), accessToken.replace("ghu_", "ghr_"),
-            now.plusSeconds(7200))).sessionToken
-    }
+    private val ownerSession by lazy { sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_rest-owner") }
+    private val teammateSession by lazy { sessions.issueTestSession(ActorIdentity.github(84, "teammate"), TEAMMATE_TOKEN) }
 
     private fun createRequest(requestId: String, decisionSummary: String): String =
         """

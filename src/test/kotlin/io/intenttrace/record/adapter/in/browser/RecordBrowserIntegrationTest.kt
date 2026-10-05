@@ -51,6 +51,7 @@ import io.intenttrace.record.application.confirm
 import io.intenttrace.record.application.publish
 import io.intenttrace.htmlHref
 import io.intenttrace.htmlLink
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class],
@@ -598,11 +599,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     }
 
     // 같은 작성자의 REST 응답과 웹 화면을 비교할 때 쓰는 도구용 세션이다.
-    private val restSession by lazy {
-        val now = java.time.Instant.now()
-        sessionStore.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens("ghu_browser-test", now.plusSeconds(3600),
-            "ghr_browser-test", now.plusSeconds(7200))).sessionToken
-    }
+    private val restSession by lazy { sessionStore.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_browser-test") }
 
     private fun login(returnTo: String): Cookie {
         val start = mvc.get("/auth/github/start") { param("returnTo", returnTo) }.andExpect { status { isFound() } }.andReturn()

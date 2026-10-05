@@ -37,6 +37,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
@@ -85,13 +86,9 @@ class ZedBridgeIntegrationTest(
 
     @Test
     fun `세션 종료는 잘못된 ID를 노출하거나 다른 연결을 종료하지 않고 ID 생략만 현재 연결을 종료한다`() {
-        val now = Instant.now()
-        fun issue() = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
-            "ghu_zed-session-test", now.plusSeconds(3600), "ghr_zed-session-test", now.plusSeconds(7200),
-        ))
-        val current = issue()
-        val other = issue()
-        val otherId = sessions.resolve(other.sessionToken).sessionId
+        val current = sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_zed-session-test")
+        val other = sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_zed-session-test")
+        val otherId = sessions.resolve(other).sessionId
         val script = """
             import assert from 'node:assert/strict';
             import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -124,7 +121,7 @@ class ZedBridgeIntegrationTest(
             } finally { await client.close(); }
         """.trimIndent()
         val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = current.sessionToken }.start()
+            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = current }.start()
         val finished = process.waitFor(30, TimeUnit.SECONDS)
         if (!finished) {
             process.descendants().forEach { it.destroyForcibly() }
@@ -132,8 +129,8 @@ class ZedBridgeIntegrationTest(
         }
         assertTrue(finished, "세션 종료 검증이 30초 안에 끝나야 합니다.")
         assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
-        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(current.sessionToken) }
-        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(other.sessionToken) }
+        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(current) }
+        assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(other) }
     }
 
     @Test

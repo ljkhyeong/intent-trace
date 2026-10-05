@@ -3,7 +3,6 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordContent
-import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
@@ -17,6 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.intenttrace.record.domain.draftRecord
 
 class ChangeRecordFacadeTest {
     @Test
@@ -109,30 +109,10 @@ class ChangeRecordFacadeTest {
             openQuestions = emptyList(),
         )
 
-        private fun record() = ChangeRecord(
-            id = UUID.randomUUID(),
-            requestId = "concurrent-request",
-            repositoryKey = "acme/intent-trace",
-            targetRevision = null,
-            snapshotDigest = "a".repeat(64),
-            title = "동시 요청",
-            requestSummary = "같은 요청을 한 번만 저장한다.",
-            status = ChangeRecordStatus.DRAFT,
-            createdBy = actor,
-            createdAt = Instant.parse("2026-08-29T00:00:00Z"),
-            confirmedAt = null,
-            publishedAt = null,
-            supersededBy = null,
-            version = 0,
-            decisions = listOf(Decision("DB unique 제약으로 판정한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
-            verifications = emptyList(),
-            openQuestions = emptyList(),
-            // 같은 요청의 재시도는 생성 명령과 같은 내용 해시로 판정한다.
-            creationDigest = command().let {
-                ChangeRecordContent(it.baseRevision, it.snapshotDigest, it.title, it.requestSummary, it.decisions, it.codeAnchors,
-                    it.verifications, it.openQuestions, it.derivedFromRecordId).digest()
-            },
-        )
+        // 같은 요청의 재시도는 생성 명령과 같은 내용 해시로 판정한다.
+        private fun record() = command().let {
+            draftRecord(actor).copy(requestId = it.requestId, creationDigest = ChangeRecordContent(it.baseRevision, it.snapshotDigest, it.title,
+                it.requestSummary, it.decisions, it.codeAnchors, it.verifications, it.openQuestions, it.derivedFromRecordId).digest())
+        }
     }
 }

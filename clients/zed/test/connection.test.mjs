@@ -12,12 +12,11 @@ import { retryAfterSeconds, safeFailure } from '../errors.mjs';
 const script = fileURLToPath(new URL('../intent-trace.mjs', import.meta.url));
 const token = `its_${'x'.repeat(43)}`;
 const packageVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const cli = (args, env) => spawnSync(process.execPath, [script, ...args], { env: { ...process.env, ...env }, encoding: 'utf8' });
 
 test('버전은 서버 주소와 세션 없이 패키지 버전으로 표시한다', () => {
   for (const option of ['--version', '-V']) {
-    const result = spawnSync(process.execPath, [script, option], {
-      env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
-    });
+    const result = cli([option], { INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), packageVersion);
     assert.equal(result.stderr, '');
@@ -25,9 +24,9 @@ test('버전은 서버 주소와 세션 없이 패키지 버전으로 표시한�
 });
 
 test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 연결 없이 성공한다', () => {
-  const env = { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' };
+  const env = { INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' };
   for (const mode of ['chek', 'constructor', token]) {
-    const result = spawnSync(process.execPath, [script, mode], { env, encoding: 'utf8' });
+    const result = cli([mode], env);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /알 수 없는 명령/);
     assert.ok(!result.stderr.includes(token));
@@ -35,7 +34,7 @@ test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 �
   }
   for (const args of [[], ['--help'], ['-h'], ['check', '--help'], ['serve', '-h'],
     ['config', '--help'], ['configure', '--help'], ['unconfigure', '--help'], ['check', 'http://127.0.0.1:1/mcp', 'acme/project', '--help']]) {
-    const result = spawnSync(process.execPath, [script, ...args], { env, encoding: 'utf8' });
+    const result = cli(args, env);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /사용법: intent-trace-zed/);
     assert.equal(result.stderr, '');
@@ -47,9 +46,7 @@ test('알 수 없는 명령은 입력 원문 없이 실패하고 도움말은 �
 });
 
 test('설정에 토큰을 넣지 않고 절대 실행 경로를 생성한다', () => {
-  const result = spawnSync(process.execPath, [script, 'config'], {
-    env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: token }, encoding: 'utf8',
-  });
+  const result = cli(['config'], { INTENT_TRACE_SESSION_TOKEN: token });
   assert.equal(result.status, 0);
   const config = JSON.parse(result.stdout).context_servers['intent-trace'];
   assert.equal(config.command, process.execPath);
@@ -57,9 +54,7 @@ test('설정에 토큰을 넣지 않고 절대 실행 경로를 생성한다', (
   assert.deepEqual(config.env, {});
   assert.ok(!result.stdout.includes(token));
   for (const value of ['invalid-session-for-test', token.slice(0, -1), `${token}x`]) {
-    const invalid = spawnSync(process.execPath, [script, 'serve'], {
-      env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: value }, encoding: 'utf8',
-    });
+    const invalid = cli(['serve'], { INTENT_TRACE_SESSION_TOKEN: value });
     assert.equal(invalid.status, 1);
     assert.match(invalid.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
     assert.ok(!invalid.stderr.includes(value));
@@ -83,9 +78,7 @@ test('연결 점검의 잘못된 옵션과 저장소 누락은 연결 전에 입
     [address, 'acme/project', '--pr', '1.5'], [address, 'acme/project', '--pr', '9007199254740992'],
     [address, 'acme/project', '--revision'], [address, 'acme/project', `--${token}`],
   ]) {
-    const result = spawnSync(process.execPath, [script, 'check', ...args], {
-      env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: token }, encoding: 'utf8',
-    });
+    const result = cli(['check', ...args], { INTENT_TRACE_SESSION_TOKEN: token });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /IntentTrace 연결 점검:/);
     assert.ok(!result.stderr.includes(token));
@@ -97,16 +90,12 @@ test('연결 점검의 잘못된 옵션과 저장소 누락은 연결 전에 입
 test('저장소만 입력한 점검은 환경 변수 주소를 사용하고 명시한 주소를 우선한다', () => {
   for (const args of [['acme/project'], ['acme/project', '--pr', '12'],
     ['acme/project', '--revision', 'a'.repeat(40)]]) {
-    const result = spawnSync(process.execPath, [script, 'check', ...args], {
-      env: { ...process.env, INTENT_TRACE_MCP_URL: 'http://127.0.0.1:1/mcp', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
-    });
+    const result = cli(['check', ...args], { INTENT_TRACE_MCP_URL: 'http://127.0.0.1:1/mcp', INTENT_TRACE_SESSION_TOKEN: '' });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
     assert.equal(result.stdout, '');
   }
-  const explicit = spawnSync(process.execPath, [script, 'check', 'http://127.0.0.1:1/mcp', 'acme/project'], {
-    env: { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' }, encoding: 'utf8',
-  });
+  const explicit = cli(['check', 'http://127.0.0.1:1/mcp', 'acme/project'], { INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' });
   assert.equal(explicit.status, 1);
   assert.match(explicit.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
 });

@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import io.intenttrace.htmlLink
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(classes = [IntentTraceApplication::class, GitHubContextIntegrationTest.Configuration::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -200,11 +201,8 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
     }
 
-    private fun session(channel: SessionChannel = SessionChannel.CLIENT): String {
-        val now = Instant.now()
-        return sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens("ghu_context", now.plusSeconds(3600),
-            "ghr_context", now.plusSeconds(7200)), channel).sessionToken
-    }
+    private fun session(channel: SessionChannel = SessionChannel.CLIENT): String =
+        sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_context", channel)
 
     @TestConfiguration
     class Configuration {

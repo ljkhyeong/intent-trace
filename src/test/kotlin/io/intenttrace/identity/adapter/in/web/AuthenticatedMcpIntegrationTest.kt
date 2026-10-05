@@ -2,7 +2,6 @@ package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
@@ -38,6 +37,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.record.application.publish
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
@@ -56,15 +56,8 @@ class AuthenticatedMcpIntegrationTest(
     @Autowired private val sessions: GitHubUserSessionStore,
 ) {
     // REST·MCP는 its_ 세션만 받는다. 테스트 게이트웨이는 세션에 넣은 GitHub 토큰으로 사용자를 정한다.
-    private val userSession by lazy { issue("ghu_user-token") }
-    private val otherSession by lazy { issue("ghu_other-user-token") }
-
-    private fun issue(accessToken: String): String {
-        val now = java.time.Instant.now()
-        val actor = if (accessToken == "ghu_other-user-token") ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
-        return sessions.issue(actor, GitHubUserOAuthTokens(accessToken, now.plusSeconds(3600), accessToken.replace("ghu_", "ghr_"),
-            now.plusSeconds(7200))).sessionToken
-    }
+    private val userSession by lazy { sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_user-token") }
+    private val otherSession by lazy { sessions.issueTestSession(ActorIdentity.github(84, "teammate"), "ghu_other-user-token") }
 
     private val initialize = """
         {"jsonrpc":"2.0","id":1,"method":"initialize","params":{

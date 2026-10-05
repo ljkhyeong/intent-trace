@@ -113,27 +113,7 @@ class ChangeRecordLifecycleTest {
         }
     }
 
-    private fun draft(): ChangeRecord = ChangeRecord(
-        id = UUID.randomUUID(),
-        requestId = "turn-1",
-        repositoryKey = "acme/intent-trace",
-        targetRevision = null,
-        snapshotDigest = digest,
-        title = "변경 의도 기록",
-        requestSummary = "AI 코드의 요청과 검증을 남긴다.",
-        status = ChangeRecordStatus.DRAFT,
-        createdBy = author,
-        createdAt = Instant.parse("2026-08-27T12:00:00Z"),
-        confirmedAt = null,
-        publishedAt = null,
-        supersededBy = null,
-        version = 0,
-        decisions = listOf(Decision("작성자 확인 후 공개한다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 5, "a".repeat(64))),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-        creationDigest = "d".repeat(64),
-    )
+    private fun draft(): ChangeRecord = draftRecord(author)
 
     companion object {
         private val digest = "a".repeat(64)
