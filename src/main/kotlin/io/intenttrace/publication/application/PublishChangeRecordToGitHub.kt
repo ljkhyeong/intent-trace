@@ -4,15 +4,14 @@ import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.application.GitEvidenceDigest
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
-import java.util.HexFormat
 import java.util.UUID
 
 @Service
@@ -79,7 +78,7 @@ class PublishChangeRecordToGitHub(
                 headRevision = recordRevision,
                 checkRunId = checkRun.id,
                 checkRunUrl = checkRun.url,
-                contentDigest = sha256(markdown),
+                contentDigest = GitEvidenceDigest.sha256(markdown.toByteArray(StandardCharsets.UTF_8)),
                 publishedAt = Instant.now(clock),
             ),
         )
@@ -92,10 +91,6 @@ class PublishChangeRecordToGitHub(
         return record.codeAnchors.filter { it.side == CodeSide.TARGET }.take(MAX_CODE_ANNOTATIONS)
             .map { CheckRunAnnotation(it.relativePath, it.startLine, it.endLine, title, message) }
     }
-
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(StandardCharsets.UTF_8))
-        .let(HexFormat.of()::formatHex)
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535

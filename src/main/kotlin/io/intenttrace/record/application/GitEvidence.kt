@@ -23,9 +23,7 @@ interface GitEvidenceGateway {
 }
 
 object GitEvidenceDigest {
-    fun sha256(bytes: ByteArray): String = sha256(bytes, 0, bytes.size)
-
-    private fun sha256(bytes: ByteArray, offset: Int, length: Int): String {
+    fun sha256(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size): String {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(bytes, offset, length)
         return HexFormat.of().formatHex(digest.digest())
