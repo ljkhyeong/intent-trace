@@ -8,7 +8,7 @@ import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import io.intenttrace.record.domain.SHA_256
 import io.intenttrace.record.domain.VerificationRun
 import io.intenttrace.record.domain.requireRepositoryRelativePath
@@ -74,7 +74,6 @@ class ChangeRecordFacade(
         ?: throw ChangeRecordNotFoundException(id)
 
     fun confirm(current: ChangeRecord, command: ConfirmChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        require(current.id == command.recordId) { "확인 명령과 변경 의도 기록이 일치하지 않습니다." }
         requireExpectedVersion(current, command.expectedVersion)
         val confirmed = current.confirm(
             actor = actor,
@@ -86,7 +85,6 @@ class ChangeRecordFacade(
     }
 
     fun publish(current: ChangeRecord, command: PublishChangeRecordCommand, actor: ActorIdentity): ChangeRecord {
-        require(current.id == command.recordId) { "공개 명령과 변경 의도 기록이 일치하지 않습니다." }
         requireExpectedVersion(current, command.expectedVersion)
         val published = current.publish(
             actor = actor,
@@ -138,7 +136,7 @@ class ChangeRecordFacade(
     }
 
     private fun normalize(command: CreateChangeRecordCommand): ChangeRecordContent = ChangeRecordContent(
-        baseRevision = command.baseRevision?.let { GitRevision.parse(it).value },
+        baseRevision = command.baseRevision?.let { requireFullRevision(it) },
         snapshotDigest = command.snapshotDigest.lowercase(),
         title = redact(command.title, 200, "제목"),
         requestSummary = redact(command.requestSummary, 2000, "요청 요약"),
@@ -159,7 +157,7 @@ class ChangeRecordFacade(
 
     fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): LineIntents {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
-        val normalizedRevision = GitRevision.parse(revision).value
+        val normalizedRevision = requireFullRevision(revision)
         val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 

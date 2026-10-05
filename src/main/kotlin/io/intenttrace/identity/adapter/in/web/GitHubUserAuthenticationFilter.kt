@@ -43,12 +43,7 @@ class GitHubUserAuthenticationFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val accessToken = bearerToken(request)
-        if (accessToken == null) {
-            unauthorized(response)
-            return
-        }
-
+        val accessToken = bearerToken(request) ?: return problem(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED)
         try {
             request.setAttribute(SESSION_ATTRIBUTE, sessions.resolve(accessToken))
             filterChain.doFilter(request, response)
@@ -56,11 +51,11 @@ class GitHubUserAuthenticationFilter(
             response.setHeader(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
             problem(response, 429, exception.message ?: "GitHub 호출 제한")
         } catch (_: GitHubUserAuthenticationException) {
-            unauthorized(response)
+            problem(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED)
         } catch (_: GitHubIdentityApiException) {
-            dependencyFailure(response)
+            problem(response, HttpServletResponse.SC_BAD_GATEWAY, DEPENDENCY_FAILURE)
         } catch (_: GitHubOAuthException) {
-            dependencyFailure(response)
+            problem(response, HttpServletResponse.SC_BAD_GATEWAY, DEPENDENCY_FAILURE)
         } finally {
             request.removeAttribute(SESSION_ATTRIBUTE)
         }
@@ -74,14 +69,6 @@ class GitHubUserAuthenticationFilter(
         return token.takeIf { it.startsWith(SESSION_TOKEN_PREFIX) && it.length <= MAX_TOKEN_LENGTH && it.none(Char::isWhitespace) }
     }
 
-    private fun unauthorized(response: HttpServletResponse) {
-        problem(response, HttpServletResponse.SC_UNAUTHORIZED, "GitHub 사용자 인증 실패")
-    }
-
-    private fun dependencyFailure(response: HttpServletResponse) {
-        problem(response, HttpServletResponse.SC_BAD_GATEWAY, "GitHub 사용자 인증 서비스 오류")
-    }
-
     private fun problem(response: HttpServletResponse, status: Int, title: String) {
         response.status = status
         response.characterEncoding = Charsets.UTF_8.name()
@@ -93,6 +80,8 @@ class GitHubUserAuthenticationFilter(
         const val SESSION_ATTRIBUTE = "io.intenttrace.github-user-session"
         private const val BEARER_PREFIX = "Bearer "
         private const val SESSION_TOKEN_PREFIX = "its_"
+        private const val UNAUTHORIZED = "GitHub 사용자 인증 실패"
+        private const val DEPENDENCY_FAILURE = "GitHub 사용자 인증 서비스 오류"
         private const val MAX_TOKEN_LENGTH = 8_192
     }
 }

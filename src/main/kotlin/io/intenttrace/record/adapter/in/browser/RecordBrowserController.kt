@@ -159,12 +159,15 @@ class RecordBrowserController(
         if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 연결을 종료해 주세요."), 403)
         return authenticated(request, "/records/sessions") { session ->
             val currentRevoked = action(session)
-            val result = ResponseEntity.status(303).header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .header(HttpHeaders.LOCATION, if (currentRevoked) "/records" else "/records/sessions")
-            if (currentRevoked) result.header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString())
-            result.body("")
+            seeOther(if (currentRevoked) "/records" else "/records/sessions", clearSession = currentRevoked)
         }
     }
+
+    // 현재 브라우저 세션이 끝났으면 쿠키도 지운다.
+    private fun seeOther(location: String, clearSession: Boolean): ResponseEntity<String> =
+        ResponseEntity.status(303).header(HttpHeaders.LOCATION, location).header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .apply { if (clearSession) header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString()) }
+            .body("")
 
     @GetMapping("/pull-requests")
     fun pullRequests(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
@@ -200,9 +203,7 @@ class RecordBrowserController(
     fun logout(request: HttpServletRequest): ResponseEntity<String> {
         if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 로그아웃해 주세요."), 403)
         request.cookies?.singleOrNull { it.name == BROWSER_SESSION_COOKIE }?.let { sessions.revokeBrowser(it.value) }
-        return ResponseEntity.status(303).header(HttpHeaders.LOCATION, "/records")
-            .header(HttpHeaders.CACHE_CONTROL, "no-store")
-            .header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString()).body("")
+        return seeOther("/records", clearSession = true)
     }
 
     private fun sameOrigin(request: HttpServletRequest): Boolean {
@@ -251,13 +252,9 @@ class RecordBrowserController(
     @ExceptionHandler(ChangeRecordNotFoundException::class, ChangeRecordOwnershipException::class, RepositoryAccessDeniedException::class)
     fun unavailable(): ResponseEntity<String> = browserResponse(pages.error("기록이 없거나 열람 권한이 없습니다."), 404)
 
-    @ExceptionHandler(GitHubContextNotFoundException::class)
-    fun githubContextNotFound(exception: GitHubContextNotFoundException): ResponseEntity<String> =
-        browserResponse(pages.error(exception.message.orEmpty()), 404)
-
-    @ExceptionHandler(GitHubContextPermissionException::class)
-    fun githubContextPermission(exception: GitHubContextPermissionException): ResponseEntity<String> =
-        browserResponse(pages.error(exception.message.orEmpty()), 403)
+    @ExceptionHandler(GitHubContextNotFoundException::class, GitHubContextPermissionException::class)
+    fun githubContextUnavailable(exception: RuntimeException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), if (exception is GitHubContextPermissionException) 403 else 404)
 
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
     fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)

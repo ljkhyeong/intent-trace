@@ -1,17 +1,12 @@
 package io.intenttrace.publication.adapter.out.github
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.readJsonWithin
 import io.intenttrace.publication.application.GitHubPullRequestReader
-import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.record.domain.GitRevision
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -30,30 +25,11 @@ class GitHubUserPullRequestClient(
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub PR 조회 실패. HTTP ${response.statusCode.value()}")
-                val pr = response.readJsonWithin(mapper, UserPullRequestResponse::class.java, 1024 * 1024) {
+                response.readJsonWithin(mapper, PullRequestResponse::class.java, 1024 * 1024) {
                     throw GitHubApiException("GitHub PR 응답이 허용 크기를 초과했습니다.")
-                }
-                try {
-                    val base = pr.base.repo ?: throw GitHubApiException("GitHub PR의 base 저장소를 확인할 수 없습니다.")
-                    if (base.id <= 0) throw GitHubApiException("GitHub PR의 저장소 ID가 올바르지 않습니다.")
-                    val baseKey = GitHubRepository.parse(base.fullName).key
-                    if (baseKey != target.repositoryKey) throw GitHubRepositoryMismatchException(target.repositoryKey, baseKey)
-                    val head = pr.head.repo
-                    // 삭제된 Fork의 head 저장소도 게시할 수 없는 대상으로 표시한다.
-                    PullRequestSnapshot(GitRevision.parse(pr.head.sha).value,
-                        head == null || head.id != base.id || GitHubRepository.parse(head.fullName).key != baseKey)
-                } catch (_: IllegalArgumentException) {
-                    throw GitHubApiException("GitHub PR 응답 형식이 올바르지 않습니다.")
-                }
+                }.toSnapshot(target)
             }
     } catch (_: RestClientException) {
         throw GitHubApiException("GitHub PR 조회를 완료하지 못했습니다.")
     }
 }
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-private data class UserPullRequestResponse(val head: UserPullRequestRef, val base: UserPullRequestRef)
-@JsonIgnoreProperties(ignoreUnknown = true)
-private data class UserPullRequestRef(val sha: String, val repo: UserPullRequestRepository? = null)
-@JsonIgnoreProperties(ignoreUnknown = true)
-private data class UserPullRequestRepository(val id: Long, @JsonProperty("full_name") val fullName: String)

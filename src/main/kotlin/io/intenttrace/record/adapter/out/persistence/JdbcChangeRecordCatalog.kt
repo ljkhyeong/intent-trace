@@ -4,6 +4,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.application.ChangeRecordCatalog
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.RecordCatalogQuery
+import io.intenttrace.record.application.toSummary
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import java.time.ZoneOffset
@@ -48,13 +49,10 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
         }
         return jdbc.query(
             """
-            select r.id, r.title, r.request_summary, r.repository_key, r.target_revision, r.status,
-                   r.created_by_subject, r.created_by_login, r.created_at, r.superseded_by, r.version, r.published_at
-            from change_records r where ${conditions.joinToString(" and ")}
+            select r.* from change_records r where ${conditions.joinToString(" and ")}
             order by r.created_at desc, r.id desc limit :limit
             """.trimIndent(),
             parameters,
-            changeRecordSummaryRowMapper,
-        )
+        ) { row, index -> changeRecordRowMapper.mapRow(row, index).toSummary() }
     }
 }

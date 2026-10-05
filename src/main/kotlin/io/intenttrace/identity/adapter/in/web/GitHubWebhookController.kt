@@ -1,8 +1,9 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GitHubProperties
-import io.intenttrace.identity.application.GitHubAuthorizationWebhookService
-import io.intenttrace.publication.application.GitHubInstallationWebhookService
+import io.intenttrace.identity.application.UserSessionManagement
+import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.publication.application.InstallationTokenCache
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -19,8 +20,8 @@ import javax.crypto.spec.SecretKeySpec
 class GitHubWebhookController(
     private val properties: GitHubProperties,
     private val mapper: ObjectMapper,
-    private val authorization: GitHubAuthorizationWebhookService,
-    private val installations: GitHubInstallationWebhookService,
+    private val sessions: UserSessionManagement,
+    private val installationTokens: InstallationTokenCache,
 ) {
     @PostMapping("/webhooks/github", consumes = ["application/json"])
     fun receive(request: HttpServletRequest): ResponseEntity<Void> {
@@ -40,10 +41,10 @@ class GitHubWebhookController(
         if (!event.isObject || event["action"] == null) return ResponseEntity.badRequest().build()
         if (type == AUTHORIZATION_EVENT) {
             if (event["action"]?.asString() != "revoked") return ResponseEntity.noContent().build()
-            authorization.revoked(positiveId(event["sender"]) ?: return ResponseEntity.badRequest().build())
+            sessions.revokeAll(ActorIdentity.githubSubject(positiveId(event["sender"]) ?: return ResponseEntity.badRequest().build()))
         } else {
             // 설치 이벤트의 모든 동작은 이전 권한·저장소 범위의 토큰을 버린다. 캐시가 비어 있으면 아무것도 바꾸지 않는다.
-            installations.installationChanged(positiveId(event["installation"]) ?: return ResponseEntity.badRequest().build())
+            installationTokens.evictInstallation(positiveId(event["installation"]) ?: return ResponseEntity.badRequest().build())
         }
         return ResponseEntity.noContent().build()
     }

@@ -6,7 +6,7 @@ import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.CodeAnchor
 import java.util.UUID
 import io.intenttrace.record.domain.CodeSide
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.stereotype.Service
@@ -47,7 +47,7 @@ class ChangeIntentHistoryService(
 ) {
     fun find(repositoryKey: String, revision: String, path: String, line: Int, cursor: String? = null, limit: Int = 5, retryRecordId: UUID? = null): ChangeIntentHistory {
         val repository = GitHubRepository.parse(repositoryKey)
-        val queryRevision = GitRevision.parse(revision).value
+        val queryRevision = requireFullRevision(revision)
         val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0 && limit in 1..20) { "줄은 양수이고 이전 기록 조회 크기는 1~20이어야 합니다." }
         val budget = readPolicy.start()
@@ -99,8 +99,7 @@ class ChangeIntentHistoryService(
             if (record.repositoryKey != repositoryKey || record.status !in TEAM_VISIBLE_STATUSES) {
                 throw ChangeRecordNotFoundException(id)
             }
-            return ChangeRecordSummary(record.id, record.title, record.requestSummary, record.repositoryKey,
-                record.targetRevision, record.status, record.createdBy, record.createdAt, record.supersededBy, record.version, record.publishedAt)
+            return record.toSummary()
         }
 
         fun resumePage(resume: HistoryResumeCursor): ChangeRecordPage {

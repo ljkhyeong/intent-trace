@@ -2,7 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.CodeSide
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.stereotype.Service
 import java.security.MessageDigest
 import java.time.Clock
@@ -98,7 +98,7 @@ class RecordEvidenceService(
         val revision = checkNotNull(record.targetRevision) { "전체 커밋을 확인한 기록만 서버 코드 확인을 요청할 수 있습니다." }
         val repository = GitHubRepository.parse(record.repositoryKey)
         val snapshots = mutableMapOf<String, GitEvidenceSnapshot>()
-        fun snapshot(ref: String) = snapshots.getOrPut(ref) { gateway.snapshot(repository, GitRevision.parse(ref).value) }
+        fun snapshot(ref: String) = snapshots.getOrPut(ref) { gateway.snapshot(repository, requireFullRevision(ref)) }
         val target = snapshot(revision)
         val blobs = mutableMapOf<String, ByteArray>()
         val checks = record.codeAnchors.map { anchor ->

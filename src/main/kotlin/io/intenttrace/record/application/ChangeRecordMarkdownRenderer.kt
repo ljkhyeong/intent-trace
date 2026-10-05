@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component
 import java.util.UUID
 
 @Component
-class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = GitHubProperties()) {
+class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
     fun render(record: ChangeRecord): String = buildString {
         appendLine("# 변경 의도: ${plainText(record.title)}")
         appendLine()

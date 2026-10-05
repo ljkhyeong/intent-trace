@@ -1,6 +1,7 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.config.GitHubProperties
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
@@ -17,7 +18,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertFalse
 
 class ChangeRecordMarkdownRendererTest {
-    private val renderer = ChangeRecordMarkdownRenderer()
+    private val renderer = ChangeRecordMarkdownRenderer(GitHubProperties())
 
     private fun record(): ChangeRecord {
         return ChangeRecord(

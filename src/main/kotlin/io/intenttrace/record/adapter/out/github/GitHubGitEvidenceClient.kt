@@ -15,7 +15,7 @@ import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.GitTreeEntry
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -32,7 +32,7 @@ class GitHubGitEvidenceClient(
     private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
-        val ref = GitRevision.parse(revision).value
+        val ref = requireFullRevision(revision)
         // 저장소 읽기 권한을 확인한 뒤 읽으므로 커밋 조회의 404·422는 GitHub에 없는 커밋이다.
         val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget, EvidenceUnavailableReason.REVISION_NOT_FOUND)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
@@ -51,7 +51,7 @@ class GitHubGitEvidenceClient(
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
-        val blob = get(repository, "/git/blobs/${GitRevision.parse(sha).value}", BlobResponse::class.java, budget)
+        val blob = get(repository, "/git/blobs/${requireFullRevision(sha)}", BlobResponse::class.java, budget)
         if (blob.size > MAX_BLOB_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         if (blob.encoding != "base64") throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
         if (blob.sha != sha || blob.size < 0) {
@@ -66,7 +66,7 @@ class GitHubGitEvidenceClient(
 
     override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean {
         if (ancestor == descendant) return true
-        val result = get(repository, "/compare/${GitRevision.parse(ancestor).value}...${GitRevision.parse(descendant).value}?per_page=1", CompareResponse::class.java, budget)
+        val result = get(repository, "/compare/${requireFullRevision(ancestor)}...${requireFullRevision(descendant)}?per_page=1", CompareResponse::class.java, budget)
         return when (result.status) {
             "ahead", "identical" -> true
             "behind", "diverged" -> false
@@ -75,7 +75,7 @@ class GitHubGitEvidenceClient(
     }
 
     private fun parseResponseRevision(value: String): String = try {
-        GitRevision.parse(value).value
+        requireFullRevision(value)
     } catch (_: IllegalArgumentException) {
         throw GitHubApiException("GitHub 코드 응답의 객체 해시 형식이 올바르지 않습니다.")
     }

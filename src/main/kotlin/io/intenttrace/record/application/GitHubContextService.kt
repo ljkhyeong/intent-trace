@@ -2,7 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
@@ -66,7 +66,7 @@ class GitHubContextService(
 
     fun actions(repositoryKey: String, revision: String, page: Int = 1): GitHubActionsResults {
         val repository = GitHubRepository.parse(repositoryKey)
-        val ref = GitRevision.parse(revision).value
+        val ref = requireFullRevision(revision)
         require(page in 1..50) { "Actions 조회 페이지는 1~50이어야 합니다." }
         access.requireReader(repository.key)
         val result = gateway.actions(repository, ref, page)

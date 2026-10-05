@@ -9,7 +9,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.readJsonWithin
 import io.intenttrace.record.application.*
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -43,7 +43,7 @@ class GitHubContextClient(
             if (run.id <= 0 || run.runAttempt <= 0 || !run.repository.fullName.equals(repository.key, ignoreCase = true) || run.headSha != revision) {
                 throw GitHubApiException("GitHub Actions 결과가 요청 저장소·커밋과 다릅니다.")
             }
-            GitHubActionsRun(run.id, run.runAttempt, run.name.orEmpty(), GitRevision.parse(run.headSha).value,
+            GitHubActionsRun(run.id, run.runAttempt, run.name.orEmpty(), requireFullRevision(run.headSha),
                 run.event, run.status, run.conclusion, run.startedAt, run.updatedAt, webUrl(repository, "actions/runs/${run.id}"))
         }
         return GitHubActionsPage(response.totalCount, runs)

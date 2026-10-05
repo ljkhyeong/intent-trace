@@ -4,11 +4,6 @@ import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
 import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import jakarta.validation.Valid
-import jakarta.validation.constraints.Min
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.Pattern
-import jakarta.validation.constraints.Size
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -37,34 +32,18 @@ class GitHubPublicationController(
         publisher.status(PublishChangeRecordToGitHubCommand(recordId, GitHubPullRequestTarget(owner, repository, pullNumber)))
 
     @PostMapping("/github-pull-request/supersession")
-    fun syncSupersession(@PathVariable recordId: UUID, @Valid @RequestBody request: GitHubPublicationRequest): GitHubPublicationResponse =
+    fun syncSupersession(@PathVariable recordId: UUID, @RequestBody request: GitHubPublicationRequest): GitHubPublicationResponse =
         GitHubPublicationResponse.from(publisher.syncSupersession(request.toCommand(recordId)))
 
     @PostMapping("/github-pull-request")
-    fun publish(
-        @PathVariable recordId: UUID,
-        @Valid @RequestBody request: GitHubPublicationRequest,
-    ): GitHubPublicationResponse = GitHubPublicationResponse.from(
-        publisher.publish(request.toCommand(recordId)),
-    )
+    fun publish(@PathVariable recordId: UUID, @RequestBody request: GitHubPublicationRequest): GitHubPublicationResponse =
+        GitHubPublicationResponse.from(publisher.publish(request.toCommand(recordId)))
 }
 
-data class GitHubPublicationRequest(
-    @field:NotBlank @field:Size(max = 100)
-    @field:Pattern(regexp = "^[A-Za-z0-9_.-]+$")
-    val owner: String,
-    @field:NotBlank @field:Size(max = 100)
-    @field:Pattern(regexp = "^[A-Za-z0-9_.-]+$")
-    val repository: String,
-    @field:Min(1)
-    val pullNumber: Int,
-    val codeAnnotations: Boolean = false,
-) {
-    fun toCommand(recordId: UUID): PublishChangeRecordToGitHubCommand = PublishChangeRecordToGitHubCommand(
-        changeRecordId = recordId,
-        target = GitHubPullRequestTarget(owner, repository, pullNumber),
-        codeAnnotations = codeAnnotations,
-    )
+// 저장소·PR 번호 형식은 GitHubPullRequestTarget이 서비스 호출 전에 확인한다.
+data class GitHubPublicationRequest(val owner: String, val repository: String, val pullNumber: Int, val codeAnnotations: Boolean = false) {
+    fun toCommand(recordId: UUID): PublishChangeRecordToGitHubCommand =
+        PublishChangeRecordToGitHubCommand(recordId, GitHubPullRequestTarget(owner, repository, pullNumber), codeAnnotations)
 }
 
 data class GitHubPublicationResponse(

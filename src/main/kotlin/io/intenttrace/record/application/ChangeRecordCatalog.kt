@@ -4,6 +4,7 @@ import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
+import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
@@ -27,6 +28,9 @@ data class ChangeRecordSummary(
     val version: Long,
     val publishedAt: Instant? = null,
 )
+
+fun ChangeRecord.toSummary(): ChangeRecordSummary =
+    ChangeRecordSummary(id, title, requestSummary, repositoryKey, targetRevision, status, createdBy, createdAt, supersededBy, version, publishedAt)
 
 data class ChangeRecordPage(val items: List<ChangeRecordSummary>, val nextCursor: String?)
 

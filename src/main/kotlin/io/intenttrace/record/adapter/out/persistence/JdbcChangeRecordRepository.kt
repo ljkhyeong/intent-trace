@@ -31,13 +31,11 @@ class JdbcChangeRecordRepository(
     private val activities: RecordActivityStore,
     private val namedJdbcTemplate: NamedParameterJdbcTemplate,
 ) : ChangeRecordRepository {
-    private val recordRowMapper = RowMapper<ChangeRecord> { resultSet, _ -> mapRecord(resultSet) }
-
     @Transactional(readOnly = true)
     override fun findById(id: UUID): ChangeRecord? =
         jdbcTemplate.query(
             "select * from change_records where id = ?",
-            recordRowMapper,
+            changeRecordRowMapper,
             id.toString(),
         ).let(::hydrate).firstOrNull()
 
@@ -46,7 +44,7 @@ class JdbcChangeRecordRepository(
         namedJdbcTemplate.query(
             "select * from change_records where id in (:ids) order by id for update",
             mapOf("ids" to ids.map(UUID::toString)),
-            recordRowMapper,
+            changeRecordRowMapper,
         ),
     )
 
@@ -54,7 +52,7 @@ class JdbcChangeRecordRepository(
     override fun findByRequestId(requestId: String): ChangeRecord? =
         jdbcTemplate.query(
             "select * from change_records where request_id = ?",
-            recordRowMapper,
+            changeRecordRowMapper,
             requestId,
         ).let(::hydrate).firstOrNull()
 
@@ -85,7 +83,7 @@ class JdbcChangeRecordRepository(
             order by records.published_at desc, records.id desc
             limit ?
             """.trimIndent(),
-            recordRowMapper,
+            changeRecordRowMapper,
             repositoryKey,
             targetRevision,
             targetRevision,
@@ -138,7 +136,7 @@ class JdbcChangeRecordRepository(
             """
             update change_records
             set target_revision = ?, status = ?, confirmed_at = ?, published_at = ?,
-                superseded_by = ?, version = ?, creation_digest = ?
+                superseded_by = ?, version = ?
             where id = ? and version = ?
             """.trimIndent(),
             record.targetRevision,
@@ -147,7 +145,6 @@ class JdbcChangeRecordRepository(
             record.publishedAt?.atOffset(ZoneOffset.UTC),
             record.supersededBy?.toString(),
             record.version,
-            record.creationDigest,
             record.id.toString(),
             expectedVersion,
         )
@@ -271,8 +268,11 @@ class JdbcChangeRecordRepository(
             { resultSet, _ -> UUID.fromString(resultSet.getString("record_id")) to mapper(resultSet) },
         ).groupBy({ it.first }, { it.second })
     }
+}
 
-    private fun mapRecord(resultSet: ResultSet): ChangeRecord = ChangeRecord(
+/** 본문 행만 읽는다. 하위 항목은 저장소가 따로 채우고 목록 조회는 요약으로 바꿔 쓴다. */
+internal val changeRecordRowMapper = RowMapper<ChangeRecord> { resultSet, _ ->
+    ChangeRecord(
         id = UUID.fromString(resultSet.getString("id")),
         requestId = resultSet.getString("request_id"),
         repositoryKey = resultSet.getString("repository_key"),

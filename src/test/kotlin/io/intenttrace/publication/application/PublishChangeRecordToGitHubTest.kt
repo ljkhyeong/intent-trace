@@ -1,6 +1,7 @@
 package io.intenttrace.publication.application
 
 import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
@@ -41,7 +42,7 @@ class PublishChangeRecordToGitHubTest {
     private val gateway = FakeGitHubGateway(record.targetRevision!!)
     private val publicationRepository = InMemoryGitHubPublicationRepository()
     private val publisher = PublishChangeRecordToGitHub(
-        markdownRenderer = ChangeRecordMarkdownRenderer(),
+        markdownRenderer = ChangeRecordMarkdownRenderer(GitHubProperties()),
         gitHubGateway = gateway,
         publicationRepository = publicationRepository,
         clock = fixedClock,

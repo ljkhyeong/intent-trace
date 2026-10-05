@@ -208,7 +208,7 @@ class InMemoryGitHubUserSessionStoreTest {
         val browser = store.issue(owner, tokens(clock.instant(), "browser", Duration.ofHours(8)), SessionChannel.BROWSER)
         val teammate = ActorIdentity.github(84, "teammate")
         store.issue(teammate, tokens(clock.instant(), "team", Duration.ofHours(8)))
-        val id = store.resolve(first.sessionToken).sessionId!!
+        val id = store.resolve(first.sessionToken).sessionId
         assertEquals(3, store.list(owner.subject).size)
         assertFalse(store.list(owner.subject).toString().contains("ghu_"))
         assertFalse(store.revoke(teammate.subject, id))

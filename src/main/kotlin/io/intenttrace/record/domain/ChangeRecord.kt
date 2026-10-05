@@ -72,10 +72,8 @@ data class ChangeRecord(
         check(status == ChangeRecordStatus.DRAFT) { "초안 상태의 기록만 작성자가 확인할 수 있습니다." }
         check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 확인할 수 있습니다." }
         check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 기록을 확인할 수 없습니다." }
-        val revision = GitRevision.parse(immutableRevision)
-
         return copy(
-            targetRevision = revision.value,
+            targetRevision = requireFullRevision(immutableRevision),
             status = ChangeRecordStatus.AUTHOR_CONFIRMED,
             confirmedAt = now,
             version = version + 1,
