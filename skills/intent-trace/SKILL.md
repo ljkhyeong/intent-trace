@@ -49,7 +49,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 | 코드 해시 확인 | `check_change_record_evidence`: `codeVerified=true`는 GitHub 코드와 해시 일치이며 테스트 실행 증명이 아님 |
 | 이전 줄·이름 변경·처리 이력 | [이력 조회와 복구](references/history-and-recovery.md) |
 
-목록은 커서 방식을 기본으로 쓴다. 기존 `MY_DRAFTS`·`page`·`size` 방식은 `cursor`·`limit`·`authorId`·`q`와 섞지 않는다. `authorId`는 팀 조회 필터로만 사용한다. 본인 폐기 기록은 `MINE`·`status=DISCARDED`로 찾는다. 팀 조회에 본인 비공개 기록을 섞거나, 빈 페이지를 전체 기록 없음으로 설명하지 않는다. 추론·미확인·오래된 검증을 구분해 전달한다. 기록 링크는 `/records/{UUID}`다.
+목록은 `nextCursor`를 다음 요청의 `cursor`로 넘겨 이어 읽는다. `authorId`는 팀 조회 필터로만 사용한다. 본인 폐기 기록은 `MINE`·`status=DISCARDED`로 찾는다. 팀 조회에 본인 비공개 기록을 섞거나, 빈 페이지를 전체 기록 없음으로 설명하지 않는다. 추론·미확인·오래된 검증을 구분해 전달한다. 기록 링크는 `/records/{UUID}`다.
 
 ## 연결과 게시 오류
 

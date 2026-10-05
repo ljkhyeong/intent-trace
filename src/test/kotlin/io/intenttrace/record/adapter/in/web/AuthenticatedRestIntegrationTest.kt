@@ -51,20 +51,12 @@ class AuthenticatedRestIntegrationTest(
                 .replace("acme/intent-trace", repository)
         }.andExpect { status { isCreated() } }.andReturn()
         val id = objectMapper.readTree(created.response.contentAsString).get("id").stringValue()
-        mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS&size=1") {
-            authorized()
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.items[0].id") { value(id) }
-            jsonPath("$.hasNext") { value(false) }
-        }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE&limit=1&path=./src/App.kt") {
             authorized()
         }.andExpect {
             status { isOk() }
             jsonPath("$.items[0].id") { value(id) }
-            jsonPath("$.size") { value(1) }
-            jsonPath("$.hasNext") { value(false) }
+            jsonPath("$.nextCursor") { value(null) }
         }
         mockMvc.get("/api/v1/change-records/$id/github-pull-requests") { authorized() }.andExpect {
             status { isOk() }
@@ -86,12 +78,12 @@ class AuthenticatedRestIntegrationTest(
                     content { string(not(containsString(repository))) }
                 }
             }
-            mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS") {
+            mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE") {
                 authorized()
             }.andExpect {
                 status { isOk() }
                 jsonPath("$.items") { isEmpty() }
-                jsonPath("$.hasNext") { value(false) }
+                jsonPath("$.nextCursor") { value(null) }
             }
             userAccess.role = null
             mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
@@ -104,11 +96,29 @@ class AuthenticatedRestIntegrationTest(
     }
 
     @Test
-    fun `목록 범위와 맞지 않는 상태나 잘못된 페이지 입력은 거부한다`() {
-        for (query in listOf("status=DRAFT", "scope=MY_DRAFTS&status=PUBLISHED", "page=-1", "size=0", "size=51", "path=../App.kt", "page=0&cursor=invalid", "size=10&q=검색", "scope=MY_DRAFTS&limit=10")) {
+    fun `목록 범위와 맞지 않는 상태나 잘못된 커서·크기 입력은 거부한다`() {
+        for (query in listOf("status=DRAFT", "scope=MINE&status=PUBLISHED", "limit=0", "limit=101", "path=../App.kt", "cursor=invalid", "scope=MY_DRAFTS")) {
             mockMvc.get("/api/v1/change-records?repositoryKey=acme/intent-trace&$query") {
                 authorized()
             }.andExpect { status { isBadRequest() } }
+        }
+    }
+
+    @Test
+    fun `파라미터 검증·누락·형식 오류도 ProblemDetail로 응답한다`() {
+        val revision = "a".repeat(40)
+        mockMvc.get("/api/v1/change-records/lookup?repositoryKey=acme/intent-trace&revision=$revision&path=&line=1") { authorized() }
+            .andExpect {
+                status { isBadRequest() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+                jsonPath("$.title") { value("입력값 오류") }
+                jsonPath("$.detail") { value(org.hamcrest.Matchers.startsWith("path: ")) }
+            }
+        for (path in listOf("/api/v1/change-records", "/api/v1/change-records/not-a-uuid")) {
+            mockMvc.get(path) { authorized() }.andExpect {
+                status { isBadRequest() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+            }
         }
     }
 

@@ -12,7 +12,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | 변경 대상 | 읽을 문서 |
 | --- | --- |
 | 기록 생성·확인·공개·대체·후속 초안 | [MVP 요구사항](../../docs/PRD-0001-intent-trace-mvp.md), [기록·스냅샷 규칙](../../docs/ADR-0001-evidence-bound-change-record.md) |
-| 초안 수정·검색·페이지 조회·원본 비교 | [기록 관리 계약](../../docs/PRD-0004-record-management-and-evidence.md), 기존 페이지 번호 방식은 [기록함 계약](../../docs/PRD-0005-record-browser.md) |
+| 초안 수정·검색·목록 조회·원본 비교 | [기록 관리 계약](../../docs/PRD-0004-record-management-and-evidence.md), IntelliJ 기록함은 [기록함 계약](../../docs/PRD-0005-record-browser.md) |
 | 코드 해시 확인·이전 줄 조회·중단 후 재개 | [코드 확인과 이력 조회](../../docs/ADR-0007-evidence-check-and-history.md) |
 | 기록 변경 이력 | [이력 저장과 공개 범위](../../docs/ADR-0011-record-activity-history.md) |
 | GitHub 사용자·저장소 권한 | [팀 접근 요구사항](../../docs/PRD-0003-team-identity-and-repository-access.md), [권한 확인](../../docs/ADR-0004-github-user-repository-authorization.md) |

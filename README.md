@@ -283,12 +283,7 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 
 `repositoryKey`는 필수입니다. `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MINE`은 내 초안·작성자 확인 기록을 조회합니다. `MINE`에서 `status=DISCARDED`를 지정하면 내 폐기 기록을 조회합니다. `path`는 관련 코드의 정확한 상대 경로, `status`는 선택한 범위 안의 상태로 검색합니다.
 
-| 방식 | 입력 | 다음 목록 |
-| --- | --- | --- |
-| 기본 커서 조회 | `cursor`, `limit`(기본 20·최대 100), 선택 `authorId`·`q` | 응답의 `nextCursor`를 다음 요청의 `cursor`에 전달 |
-| 이전 클라이언트의 페이지 번호 조회 | `MY_DRAFTS` 또는 `page`(0부터)·`size`(기본 20·최대 50) | 응답의 `hasNext`를 확인하고 `page`를 1 증가 |
-
-두 방식의 입력은 섞지 않습니다. 페이지 번호 방식은 `items`, `page`, `size`, `hasNext`, `nextCursor` 응답을 유지합니다. 생성 시각·UUID 내림차순으로 조회하며, 조회 사이에 기록을 생성·공개하면 목록이 달라질 수 있습니다.
+목록은 `limit`(기본 20·최대 100)만큼 `items`와 `nextCursor`를 반환합니다. 다음 목록은 `nextCursor`를 `cursor`에 전달하며, 선택 `authorId`·`q`를 함께 쓸 수 있습니다. 생성 시각·UUID 내림차순으로 조회하며, 조회 사이에 기록을 생성·공개하면 목록이 달라질 수 있습니다.
 
 MCP의 `list_change_records(repositoryKey="owner/repository", scope="MINE")`은 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 공개 이력을 찾습니다. 상세는 `get_change_record`로 조회합니다.
 

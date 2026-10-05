@@ -1,6 +1,6 @@
 package io.intenttrace.record.adapter.`in`.web
 
-import io.intenttrace.record.application.ChangeRecordListingService
+import io.intenttrace.record.application.ChangeRecordCatalogService
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.application.TeamChangeRecordService
 import io.intenttrace.record.application.ChangeRecordPage
@@ -29,7 +29,7 @@ import java.util.UUID
 class ChangeRecordController(
     private val records: TeamChangeRecordService,
     private val markdownRenderer: ChangeRecordMarkdownRenderer,
-    private val catalog: ChangeRecordListingService,
+    private val catalog: ChangeRecordCatalogService,
 ) {
     @GetMapping
     fun list(
@@ -39,11 +39,9 @@ class ChangeRecordController(
         @RequestParam(required = false) status: ChangeRecordStatus?,
         @RequestParam(required = false) authorId: Long?,
         @RequestParam(required = false) cursor: String?,
-        @RequestParam(required = false) limit: Int?,
+        @RequestParam(defaultValue = "20") limit: Int,
         @RequestParam(required = false) q: String?,
-        @RequestParam(required = false) page: Int?,
-        @RequestParam(required = false) size: Int?,
-    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit, q, page, size)
+    ): ChangeRecordPage = catalog.list(repositoryKey, scope, path, status, authorId, cursor, limit, q)
 
     @PostMapping("/{recordId}/successor")
     @ResponseStatus(HttpStatus.CREATED)

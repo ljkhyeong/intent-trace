@@ -199,9 +199,7 @@ class AuthenticatedMcpIntegrationTest(
         assertEquals(false, result.get("isError").booleanValue())
         val page = result.get("structuredContent")
         assertEquals(0, page.get("items").size())
-        assertEquals(0, page.get("page").intValue())
-        assertEquals(20, page.get("size").intValue())
-        assertEquals(false, page.get("hasNext").booleanValue())
+        assertTrue(page.get("nextCursor").isNull)
     }
 
     @Test

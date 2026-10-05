@@ -316,9 +316,9 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         mvc.get("/records/${draft.id}") { cookie(cookie) }.andExpect {
             status { isNotFound() }; content { string(containsString("기록이 없거나 열람 권한이 없습니다")) }
         }
-        for (scope in listOf("MINE", "MY_DRAFTS")) {
+        run {
             val search = mvc.get("/records") {
-                cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", scope); param("q", "비공개"); param("status", "DRAFT")
+                cookie(cookie); param("repositoryKey", "acme/browser"); param("scope", "MINE"); param("q", "비공개"); param("status", "DRAFT")
             }.andExpect { status { isOk() } }.andReturn().response.contentAsString
             assertTrue(search.contains(mine.id.toString()))
             assertFalse(search.contains(draft.id.toString()))
@@ -327,7 +327,6 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             assertEquals(2, Regex("<a ").findAll(tabs).count())
             assertEquals(1, Regex("aria-current").findAll(tabs).count())
             assertTrue(tabs.contains("scope=MINE\" aria-current=\"page\">내 비공개 기록"))
-            assertFalse(tabs.contains("MY_DRAFTS"))
             assertTrue(search.contains("name=\"scope\" value=\"MINE\""))
             assertTrue(search.contains("value=\"DRAFT\" selected"))
             assertFalse(search.contains("value=\"PUBLISHED\""))

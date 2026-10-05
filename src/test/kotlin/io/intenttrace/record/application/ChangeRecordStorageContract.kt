@@ -12,6 +12,7 @@ import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -43,6 +44,9 @@ abstract class ChangeRecordStorageContract {
 
     @Autowired
     private lateinit var tracking: GitHubPublicationTracking
+
+    @Autowired
+    private lateinit var storageCatalog: ChangeRecordCatalog
 
     @Test
     fun `게시 정보 일괄 조회는 요청한 기록과 PR의 최신 시도만 반환한다`() {
@@ -125,7 +129,7 @@ abstract class ChangeRecordStorageContract {
     }
 
     @Test
-    fun `파일 이력과 내 초안을 페이지로 조회한다`() {
+    fun `파일 이력과 내 초안을 커서로 이어 조회한다`() {
         val repositoryKey = "acme/history-${UUID.randomUUID()}"
         fun draft(owner: ActorIdentity = actor, path: String = "src/Storage.kt"): ChangeRecord =
             storageFacade.create(
@@ -156,33 +160,25 @@ abstract class ChangeRecordStorageContract {
             Instant.parse("2026-08-30T00:00:00Z").atOffset(ZoneOffset.UTC), repositoryKey,
         )
 
-        val privateQuery = ListChangeRecordsQuery(
-            repositoryKey.uppercase(), ChangeRecordListScope.MY_DRAFTS, "src/./Storage.kt", size = 1,
-        )
-        val first = storageFacade.list(privateQuery, actor)
-        val second = storageFacade.list(privateQuery.copy(page = 1), actor)
-        assertTrue(first.hasNext())
-        assertFalse(second.hasNext())
+        val privateQuery = RecordCatalogQuery(repositoryKey, setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED),
+            actor.subject, "src/Storage.kt", cursor = null, limit = 1)
+        val first = storageCatalog.search(privateQuery).single()
+        val rest = storageCatalog.search(privateQuery.copy(cursor = RecordCursor(first.createdAt, first.id), limit = 2))
         assertEquals(
             listOf(ownDraft.id, ownConfirmed.id).map(UUID::toString).sortedDescending(),
-            (first.content + second.content).map { it.id.toString() },
+            (listOf(first) + rest).map { it.id.toString() },
         )
-        assertTrue(storageFacade.list(privateQuery.copy(page = 2), actor).isEmpty)
-        assertEquals(
-            listOf(ownConfirmed.id),
-            storageFacade.list(privateQuery.copy(status = ChangeRecordStatus.AUTHOR_CONFIRMED), actor).content.map { it.id },
-        )
+        assertEquals(listOf(ownConfirmed.id),
+            storageCatalog.search(privateQuery.copy(statuses = setOf(ChangeRecordStatus.AUTHOR_CONFIRMED), limit = 10)).map { it.id })
 
-        val publicQuery = ListChangeRecordsQuery(repositoryKey, path = "src/Storage.kt")
-        val history = storageFacade.list(publicQuery, ActorIdentity.github(2, "teammate")).content
+        val publicQuery = RecordCatalogQuery(repositoryKey, TEAM_VISIBLE_STATUSES, null, "src/Storage.kt", cursor = null, limit = 10)
+        val history = storageCatalog.search(publicQuery)
         assertEquals(setOf(old.id, replacement.id), history.map { it.id }.toSet())
         assertEquals(2, history.size)
         assertEquals(replacement.id, history.single { it.id == old.id }.supersededBy)
         assertEquals(setOf("b".repeat(40), "c".repeat(40)), history.map { it.targetRevision }.toSet())
-        assertEquals(
-            listOf(replacement.id),
-            storageFacade.list(publicQuery.copy(status = ChangeRecordStatus.PUBLISHED), actor).content.map { it.id },
-        )
+        assertEquals(listOf(replacement.id),
+            storageCatalog.search(publicQuery.copy(statuses = setOf(ChangeRecordStatus.PUBLISHED))).map { it.id })
     }
 
     @Test
