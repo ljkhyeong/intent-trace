@@ -80,6 +80,19 @@ class FeedbackTest(unittest.TestCase):
         (self.root / "old.py").write_text("value = 3\n")
         self.assertIn("hookSpecificOutput", self.event("PostToolUse"))
 
+    def test_hook_reports_time_limit_instead_of_being_killed(self):
+        log = self.output / "checks.log"
+        with self.assertRaisesRegex(RuntimeError, "검사 시간 제한으로 끝내지 못했습니다: sleep 2"):
+            feedback.run(self.root, ["sleep", "2"], log, deadline=feedback.time.monotonic() + 0.2)
+        self.event("UserPromptSubmit")
+        (self.root / "old.py").write_text("value = 2\n")
+        with patch.object(feedback, "HOOK_BUDGET", 0):
+            result = self.event("PostToolUse")
+            self.assertEqual(result["decision"], "block")
+            self.assertIn("finish --base", result["reason"])
+            self.assertIn("finish --base", self.event("Stop")["reason"])
+        self.assertIn("검사 통과", self.event("Stop")["systemMessage"])
+
     def test_stop_blocks_failure_once_and_preserves_start_commit(self):
         self.event("UserPromptSubmit")
         (self.root / "old.py").write_text("value = 2\n")
