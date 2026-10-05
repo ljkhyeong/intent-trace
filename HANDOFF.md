@@ -5,7 +5,7 @@
 - 기록 생성·수정·작성자 확인·공개·폐기·대체와 후속 초안, 변경 이력을 지원한다.
 - 기록함 검색·페이지 조회, 원본 비교, Git 코드 해시 확인과 이름 변경·줄 이동 조회를 제공한다.
 - GitHub 사용자·저장소 권한을 확인하고 세션을 메모리에 보관한다. 사용자 승인 폐기 웹훅과 본인 세션 종료를 지원한다.
-- PR 게시·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
+- PR 게시·선택 코드 줄 주석·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
 - 웹·REST·MCP, Codex·IntelliJ·Zed에서 사용한다. 클라이언트별 범위는 [README](README.md#주요-기능)를 따른다.
 - H2 개발 환경과 PostgreSQL 운영 프로필, Compose·k3s 배포 설정을 준비했다. 운영 설정과 배포는 사용자가 수행한다.
 
@@ -17,7 +17,7 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `f7a3c99` | [서버 251개·ArchUnit 4개 통과, JAR 빌드](#2026-10-05-리팩터링-검토와-구조-정리) |
+| 서버·MCP | `58f918c` | [서버 256개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-pr-코드-줄-주석과-모듈-순환-규칙-추가) |
 | PostgreSQL | `f7a3c99` | [저장·조회 5개 통과, 백업·복구 확인](#2026-10-05-리팩터링-검토와-구조-정리) |
 | IntelliJ | `ad3b998` | [53개 통과, ZIP 빌드·구조 검사](#2026-10-05-중복-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `ad3b998` | [Node 15개·Python 3개 통과](#2026-10-05-중복-코드-정리) |
@@ -222,7 +222,7 @@
 
 1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
-3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
+3. 실제 GitHub PR의 Files changed 화면에서 코드 줄 주석 표시를 확인한다. 선택 게시와 중복 방지는 로컬 HTTP 계약으로만 검증했다.
 4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
@@ -239,6 +239,7 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
 - Fork PR Check Run과 GitHub App 설치·권한 변경 webhook은 아직 지원하지 않는다.
+- PR 줄 주석은 변경 후 근거 50개까지 게시한다. 게시한 주석은 지울 수 없어 이미 주석이 있는 Check Run은 다시 게시해도 주석을 바꾸지 않으며 대체 뒤에도 남는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
 - IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
@@ -890,3 +891,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `GitHubApiException`을 config로 옮겨 record·publication application의 순환 의존을 없애고, 게시 어댑터의 공용 `safeCall`과 기록 요약 행 매퍼를 별도 파일로 옮겼다. 검증 결과의 현재성, 작성자 전용 상태, 저장되는 작성자 식별자 `github:<id>`를 도메인 한 곳에 두고 활동 이력 범위를 Boolean 대신 `ActivityVisibility`로 전달한다. 세션 저장소는 코드 변경 없이 별도 파일로 옮겨 `GitHubUserOAuth.kt`가 371줄에서 209줄이 됐다. 이전 기록 조회는 후보 구성(`HistoryCandidates`)과 근거 일치 판정(`AnchorMatcher`)을 분리해 `find`가 94줄에서 42줄이 됐다. 새 파일의 선언 때문에 제품 코드는 전체 64줄 늘었다.
 - `./gradlew test bootJar`에서 서버 251개·ArchUnit 4개, `scripts/verify-postgres.sh`에서 PostgreSQL 5개와 백업·복구 후 기록 15건·변경 이력 34건 일치를 확인했다. 원격 조회 횟수와 시간·호출 한도 중단·재개를 검사하는 `RecordEvidenceIntegrationTest`도 통과했다. 결과 시각은 2026-10-05 01:04 KST다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 토큰 접두사·마스킹 정규식 통합, 게시 `publish`·`syncSupersession`의 enum 통합, 세션 `resolve`의 중복 정리, application 순환을 막는 ArchUnit 규칙 추가는 보안 정규식·동시성 코드 변경이나 문서·fixture 추가가 필요해 이번 범위에서 제외했다. IntelliJ·Zed·스크립트는 바뀌지 않아 해당 테스트는 반복하지 않았다. 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 PR 코드 줄 주석과 모듈 순환 규칙 추가
+
+- 시작 리비전은 `8b89f33`, 구현 커밋은 `74b09ad`(줄 주석)·`58f918c`(ArchUnit)다. REST·MCP PR 게시 요청에 선택 `codeAnnotations`를 추가해 `true`이면 변경 후 코드 근거를 Check Run `notice` 주석으로 최대 50개 보낸다. 주석에는 기록 제목·구현 결정·판단 출처만 담는다. GitHub가 수정 요청의 주석을 누적하므로 새 Check Run 생성과 `annotations_count`가 0으로 확인된 수정에만 넣는다. 기본 요청 본문·대체 안내·저장 데이터는 바꾸지 않았다. 모듈별 `application`·`domain`을 묶어 모듈 사이 순환을 금지하는 ArchUnit 규칙과 모듈 간 순환 fixture를 추가했다.
+- `./gradlew focusedTest --tests '*GitHubRestClientTest' --tests '*PublishChangeRecordToGitHubTest'` 36개가 통과했다. 주석 수 조건을 지운 변형에서는 기존 주석이 있거나 개수를 모르는 2개 경우가 실패하는 것을 확인했다. 최종 `./gradlew test bootJar`에서 서버 256개·ArchUnit 5개가 통과했고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:08~10:12 KST다. 서버 테스트 5개(매개변수 사례 포함)와 구조 규칙 1개를 추가했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 전체 실행 뒤 규칙 주석과 문서 문구만 고쳤고 컴파일 결과가 같아 구조 검사는 `UP-TO-DATE`였다. SQL·스키마·클라이언트는 바뀌지 않아 PostgreSQL·IntelliJ·Zed 테스트는 반복하지 않았다. 실제 GitHub PR 게시·원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
