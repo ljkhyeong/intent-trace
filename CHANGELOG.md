@@ -44,6 +44,8 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 - REST `/lookup`도 MCP와 같은 `{items, truncated}`를 반환. IntelliJ는 20건을 넘으면 일부만 표시한다고 안내
 - 변경 이력 응답의 `historyStartsAtCreation` 제거. 모든 기록이 생성 작업부터 이력을 남김
 - REST의 Spring MVC 표준 오류(파라미터 검증·누락·형식)도 ProblemDetail로 응답
+- MCP 기록 확인·공개·대체도 REST와 같은 커밋·스냅샷 해시 형식 검증을 거침
+- PR 게시에서 head 저장소가 없거나(삭제된 Fork) ID가 올바르지 않으면 조회 실패 대신 Fork PR 거부로 처리
 - IntelliJ 현재 줄 조회가 요청 전에 파일·Git HEAD·변경 목록을 다시 읽고, 터미널 checkout 직후처럼 편집기 상태와 다르면 조회하지 않음
 - IntelliJ 세션 삭제에서 서버 폐기가 호출 제한 외의 이유로 실패하면 확인 후 이 PC의 저장 세션만 삭제할 수 있음
 - 검증 훅이 165초 예산 안에서 검사를 멈추고 `finish` 직접 실행을 안내해, 훅 제한 시간 초과로 검사가 조용히 빠지지 않음
