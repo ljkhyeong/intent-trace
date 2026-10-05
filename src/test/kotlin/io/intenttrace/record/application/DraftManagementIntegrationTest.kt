@@ -203,7 +203,7 @@ class DraftManagementIntegrationTest(
     }
 
     class TestSession(var actor: ActorIdentity = owner) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token")
+        override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token", java.util.UUID.randomUUID())
     }
 
     @TestConfiguration

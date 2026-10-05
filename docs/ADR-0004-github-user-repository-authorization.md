@@ -10,7 +10,7 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 
 ## 결정
 
-- `ghu_`로 시작하는 GitHub App user access token을 REST·MCP Bearer 자격 증명으로 사용한다.
+- 사용자 식별에는 GitHub App user access token(`ghu_`)을 쓰되 서버 메모리에만 둔다. REST·MCP Bearer 자격 증명은 `ADR-0005`의 `its_` 로컬 세션이다.
 - 매 요청에서 GitHub `/user`를 호출해 사용자 숫자 ID와 현재 login을 확인한다.
 - `github:<user-id>`를 안정적인 작성자 subject, login을 표시값으로 저장한다.
 - `GET /repos/{owner}/{repo}/collaborators/{login}/permission`으로 대상 저장소의 최고 유효 권한만 조회하고, `permission`과 `role_name`을 `READER`, `CONTRIBUTOR`, `MAINTAINER`로 축약한다. `none`과 일반 403·404는 접근 거부로 처리한다. 호출 제한 헤더가 있는 403과 429는 공통 HTTP 처리에서 먼저 분류해 대기 시간을 안내한다. 401은 인증 실패, 5xx는 연동 장애로 유지한다. [GitHub 오류 안내](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api)를 따른다.
@@ -26,7 +26,7 @@ IntentTrace 기록의 신뢰성은 “누가 작성·확인했는가”와 “�
 - 모든 API·MCP 호출에는 GitHub 네트워크 왕복이 최소 한 번, 저장소 작업에는 권한 조회가 한 번 더 필요하다.
 - 저장소 수와 관계없이 권한 확인은 대상 저장소에 대한 GitHub 요청 한 번으로 끝난다. 응답이 현재 사용자와 다르거나 알 수 없는 권한 값이면 의존 서비스 오류로 중단한다.
 - GitHub 장애로 사용자·권한을 확인할 수 없으면 연동 오류를 반환한다. 이전 권한으로 요청을 허용하지 않는다.
-- `ghu_` user access token 직접 전달은 호환 경로로 유지한다. 기본 Codex 연결과 token 갱신 책임은 `ADR-0005`의 `its_` 로컬 세션이 맡는다.
+- GitHub user access token은 클라이언트에 전달하지 않는다. token 갱신 책임은 `ADR-0005`의 `its_` 로컬 세션이 맡는다.
 - 서버 주도 Check Run 게시의 installation token과 요청 사용자 token은 목적과 권한 범위가 다르므로 별도로 유지한다.
 
 ## 대안

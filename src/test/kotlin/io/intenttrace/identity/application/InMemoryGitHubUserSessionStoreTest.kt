@@ -46,7 +46,7 @@ class InMemoryGitHubUserSessionStoreTest {
         val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
         val second = store.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
 
-        store.revoke(store.resolve(first.sessionToken).localSessionId!!)
+        assertTrue(store.revoke(owner.subject, store.resolve(first.sessionToken).sessionId))
 
         assertFailsWith<GitHubUserAuthenticationException> { store.resolve(first.sessionToken) }
         assertEquals("ghu_access-2", store.resolve(second.sessionToken).accessToken)
@@ -223,7 +223,7 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["현재", "브라우저", "선택", "전체"])
+    @ValueSource(strings = ["브라우저", "선택", "전체"])
     fun `세션 폐기는 진행 중인 갱신을 기다리지 않고 해당 인증도 거부한다`(mode: String) {
         val channel = if (mode == "브라우저") SessionChannel.BROWSER else SessionChannel.CLIENT
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)), channel)
@@ -238,9 +238,8 @@ class InMemoryGitHubUserSessionStoreTest {
             assertTrue(entered.await(5, TimeUnit.SECONDS))
             executor.submit<Unit> {
                 when (mode) {
-                    "현재" -> store.revoke(session.localSessionId!!)
                     "브라우저" -> store.revokeBrowser(issued.sessionToken)
-                    "선택" -> assertTrue(store.revoke(owner.subject, session.sessionId!!))
+                    "선택" -> assertTrue(store.revoke(owner.subject, session.sessionId))
                     "전체" -> assertEquals(1, store.revokeAll(owner.subject))
                 }
             }.get(5, TimeUnit.SECONDS)

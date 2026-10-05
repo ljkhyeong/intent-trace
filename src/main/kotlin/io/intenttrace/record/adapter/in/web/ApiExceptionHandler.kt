@@ -2,7 +2,6 @@ package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.LocalGitHubUserSessionRequiredException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
@@ -57,10 +56,6 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
     @ExceptionHandler(GitHubUserAuthenticationException::class)
     fun githubUserAuthentication(exception: GitHubUserAuthenticationException): ProblemDetail =
         problem(HttpStatus.UNAUTHORIZED, "GitHub 사용자 인증 실패", exception.message)
-
-    @ExceptionHandler(LocalGitHubUserSessionRequiredException::class)
-    fun localGitHubUserSessionRequired(exception: LocalGitHubUserSessionRequiredException): ProblemDetail =
-        problem(HttpStatus.BAD_REQUEST, "IntentTrace 세션 필요", exception.message)
 
     @ExceptionHandler(RepositoryAccessDeniedException::class, ChangeRecordOwnershipException::class)
     fun repositoryAccessDenied(exception: RuntimeException): ProblemDetail =

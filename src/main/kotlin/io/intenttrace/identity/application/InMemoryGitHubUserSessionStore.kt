@@ -69,13 +69,8 @@ class InMemoryGitHubUserSessionStore(
             }
             stored.actor = verifiedActor
             stored.lastUsedAt = authenticatedAt
-            GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id, key)
+            GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id)
         }
-    }
-
-    override fun revoke(localSessionId: String) {
-        val stored = sessions[localSessionId] ?: return
-        revoke(localSessionId, stored)
     }
 
     private fun removeExpiredSessions(now: Instant) {

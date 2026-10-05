@@ -9,8 +9,7 @@ import java.util.UUID
 class GitHubUserSession(
     val actor: ActorIdentity,
     val accessToken: String,
-    val sessionId: UUID? = null,
-    val localSessionId: String? = null,
+    val sessionId: UUID,
 ) {
     // 인증할 때마다 새로 만드는 객체이며 장기 세션 저장소에는 보관하지 않는다.
     private val repositoryRoles = mutableMapOf<String, RepositoryRole?>()
@@ -63,9 +62,6 @@ class RepositoryAccessService(
 }
 
 class GitHubUserAuthenticationException : RuntimeException("GitHub 사용자 인증에 실패했습니다.")
-
-class LocalGitHubUserSessionRequiredException :
-    RuntimeException("IntentTrace 로그인 화면에서 받은 its_ 세션 토큰으로 요청하세요.")
 
 class GitHubIdentityApiException(message: String) : RuntimeException(message)
 

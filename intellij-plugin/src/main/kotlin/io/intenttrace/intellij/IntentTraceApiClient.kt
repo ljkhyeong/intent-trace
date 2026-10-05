@@ -40,7 +40,7 @@ internal class IntentTraceApiClient {
     fun revokeSession(server: IntentTraceServer, sessionToken: String) {
         requireSessionToken(sessionToken)
         execute {
-            HttpRequests.request(server.sessionUri().toString())
+            HttpRequests.request(server.currentSessionUri().toString())
                 .connectTimeout(5_000)
                 .readTimeout(10_000)
                 .followRedirects(false)
@@ -51,7 +51,7 @@ internal class IntentTraceApiClient {
                 }
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
-                        204, 401 -> Unit
+                        200, 401 -> Unit
                         429 -> throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         in 500..599 -> throw IntentTraceClientException(
                             "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",

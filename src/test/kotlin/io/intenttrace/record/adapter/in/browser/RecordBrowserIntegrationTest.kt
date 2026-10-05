@@ -120,7 +120,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `연결 종료 중 장애가 나면 종료 요청의 재조회 링크를 만들지 않는다`() {
         val cookie = login("/records/sessions")
-        val sessionId = sessionStore.resolve(cookie.value).sessionId!!
+        val sessionId = sessionStore.resolve(cookie.value).sessionId
         userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
         try {
             for (target in listOf("/records/sessions/$sessionId/revoke", "/records/sessions/revoke-all")) {
@@ -141,12 +141,12 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val now = Instant.now()
         fun issue(owner: ActorIdentity) = sessionStore.issue(owner, GitHubUserOAuthTokens("ghu_browser-session", now.plusSeconds(7200), "ghr_browser-session", now.plusSeconds(14400)))
         val client = issue(actor)
-        val clientId = sessionStore.resolve(client.sessionToken).sessionId!!
+        val clientId = sessionStore.resolve(client.sessionToken).sessionId
         val other = ActorIdentity.github(99, "other")
         issue(other)
         val otherId = sessionManagement.list(other.subject).first().id
         val cookie = login("/records/sessions")
-        val currentId = sessionStore.resolve(cookie.value).sessionId!!
+        val currentId = sessionStore.resolve(cookie.value).sessionId
         val page = mvc.get("/records/sessions") { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("현재 연결")) }; content { string(containsString(clientId.toString())) }
             content { string(containsString("내 모든 브라우저·Agent·API 연결이 종료됩니다.")) }
@@ -293,7 +293,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             header { string("Content-Security-Policy", containsString("default-src 'none'")) }
         }.andReturn().response.contentAsString
         val rest = mvc.get("/api/v1/change-records/${draft.id}/markdown") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test")
+            header(HttpHeaders.AUTHORIZATION, "Bearer $restSession")
         }.andExpect { status { isOk() } }.andReturn().response.contentAsString
         assertEquals(rest, downloaded)
         assertFalse(downloaded.contains("<script>"))
@@ -566,7 +566,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertEquals("${successorUrl.rawQuery}&changesOnly=false", link(changesOnly, "같은 항목도 함께 보기").rawQuery)
         val restored = mvc.get(link(changesOnly, "새 기록")) { cookie(comparisonCookie) }.andReturn().response.contentAsString
         assertEquals(URI(searchUrl), link(restored, "검색 결과로 돌아가기"))
-        mvc.get("/api/v1/change-records/${successor.id}/comparison") { header(HttpHeaders.AUTHORIZATION, "Bearer ghu_browser-test") }.andExpect {
+        mvc.get("/api/v1/change-records/${successor.id}/comparison") { header(HttpHeaders.AUTHORIZATION, "Bearer $restSession") }.andExpect {
             status { isOk() }
             jsonPath("$.changedFields[1]") { value("DECISIONS") }
             jsonPath("$.original.id") { value(original.id.toString()) }
@@ -592,6 +592,13 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?) = evidenceBytes
             override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?) = true
         }
+    }
+
+    // 같은 작성자의 REST 응답과 웹 화면을 비교할 때 쓰는 도구용 세션이다.
+    private val restSession by lazy {
+        val now = java.time.Instant.now()
+        sessionStore.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens("ghu_browser-test", now.plusSeconds(3600),
+            "ghr_browser-test", now.plusSeconds(7200))).sessionToken
     }
 
     private fun login(returnTo: String): Cookie {

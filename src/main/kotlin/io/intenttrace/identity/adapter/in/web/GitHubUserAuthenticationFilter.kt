@@ -1,7 +1,7 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.identity.application.CurrentGitHubUserSession
-import io.intenttrace.identity.application.GitHubUserCredentialProvider
+import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
@@ -30,7 +30,7 @@ class RequestGitHubUserSession(
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 class GitHubUserAuthenticationFilter(
-    private val credentials: GitHubUserCredentialProvider,
+    private val sessions: GitHubUserSessionStore,
     private val mapper: ObjectMapper,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
@@ -50,7 +50,7 @@ class GitHubUserAuthenticationFilter(
         }
 
         try {
-            request.setAttribute(SESSION_ATTRIBUTE, credentials.authenticate(accessToken))
+            request.setAttribute(SESSION_ATTRIBUTE, sessions.resolve(accessToken))
             filterChain.doFilter(request, response)
         } catch (exception: GitHubRateLimitException) {
             response.setHeader(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
@@ -70,11 +70,8 @@ class GitHubUserAuthenticationFilter(
         val header = request.getHeader(HttpHeaders.AUTHORIZATION) ?: return null
         if (!header.startsWith(BEARER_PREFIX, ignoreCase = true)) return null
         val token = header.substring(BEARER_PREFIX.length).trim()
-        return token.takeIf {
-            (it.startsWith(GITHUB_USER_TOKEN_PREFIX) || it.startsWith(INTENT_TRACE_SESSION_TOKEN_PREFIX)) &&
-                it.length <= MAX_TOKEN_LENGTH &&
-                it.none(Char::isWhitespace)
-        }
+        // REST·MCP는 IntentTrace가 발급한 its_ 세션만 받는다. GitHub 토큰은 서버 메모리에만 둔다.
+        return token.takeIf { it.startsWith(SESSION_TOKEN_PREFIX) && it.length <= MAX_TOKEN_LENGTH && it.none(Char::isWhitespace) }
     }
 
     private fun unauthorized(response: HttpServletResponse) {
@@ -95,8 +92,7 @@ class GitHubUserAuthenticationFilter(
     companion object {
         const val SESSION_ATTRIBUTE = "io.intenttrace.github-user-session"
         private const val BEARER_PREFIX = "Bearer "
-        private const val GITHUB_USER_TOKEN_PREFIX = "ghu_"
-        private const val INTENT_TRACE_SESSION_TOKEN_PREFIX = "its_"
+        private const val SESSION_TOKEN_PREFIX = "its_"
         private const val MAX_TOKEN_LENGTH = 8_192
     }
 }

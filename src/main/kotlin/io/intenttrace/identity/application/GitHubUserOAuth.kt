@@ -37,10 +37,6 @@ interface GitHubUserOAuthGateway {
     fun refresh(refreshToken: String): GitHubUserOAuthTokens
 }
 
-interface GitHubUserCredentialProvider {
-    fun authenticate(bearerToken: String): GitHubUserSession
-}
-
 class GitHubOAuthStart(
     val state: String,
     val authorizationUri: URI,
@@ -62,19 +58,6 @@ interface GitHubUserSessionStore {
     fun resolve(sessionToken: String): GitHubUserSession
 
     fun revokeBrowser(sessionToken: String)
-    fun revoke(localSessionId: String)
-}
-
-@Service
-class GitHubUserSessionService(
-    private val currentSession: CurrentGitHubUserSession,
-    private val sessions: GitHubUserSessionStore,
-) {
-    fun revokeCurrent() {
-        val localSessionId = currentSession.require().localSessionId
-            ?: throw LocalGitHubUserSessionRequiredException()
-        sessions.revoke(localSessionId)
-    }
 }
 
 @Service
@@ -160,21 +143,6 @@ class GitHubOAuthFlowService(
     companion object {
         private const val MAX_CODE_LENGTH = 512
         private val STATE_TOKEN = Regex("^[A-Za-z0-9_-]{43}$")
-    }
-}
-
-@Service
-class GitHubUserCredentialService(
-    private val userAccessGateway: GitHubUserAccessGateway,
-    private val sessions: GitHubUserSessionStore,
-) : GitHubUserCredentialProvider {
-    override fun authenticate(bearerToken: String): GitHubUserSession = when {
-        bearerToken.startsWith("ghu_") -> GitHubUserSession(
-            actor = userAccessGateway.authenticate(bearerToken),
-            accessToken = bearerToken,
-        )
-        bearerToken.startsWith("its_") -> sessions.resolve(bearerToken)
-        else -> throw GitHubUserAuthenticationException()
     }
 }
 

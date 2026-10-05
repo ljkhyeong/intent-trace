@@ -31,7 +31,7 @@ class GitHubContextClientTest {
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val mapper = jacksonObjectMapper()
     private val client = GitHubContextClient(GitHubHttpPolicy().githubApiRestClient(builder, properties), object : CurrentGitHubUserSession {
-        override fun require() = GitHubUserSession(ActorIdentity.github(42, "lim"), "ghu_context-test")
+        override fun require() = GitHubUserSession(ActorIdentity.github(42, "lim"), "ghu_context-test", java.util.UUID.randomUUID())
     }, mapper, properties)
     private val repository = GitHubRepository.parse("acme/intent-trace")
     private val revision = "a".repeat(40)

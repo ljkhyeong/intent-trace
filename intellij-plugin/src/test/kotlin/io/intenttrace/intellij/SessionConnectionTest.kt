@@ -130,13 +130,13 @@ class SessionConnectionTest {
             val status = AtomicInteger()
             val authorization = AtomicReference<String>()
             val storedAtRequest = AtomicReference<String>()
-            httpServer.createContext("/api/v1/session") { exchange ->
+            httpServer.createContext("/api/v1/me/sessions/current") { exchange ->
                 authorization.set(exchange.requestHeaders.getFirst("Authorization"))
                 storedAtRequest.set(credentials.loadStored(server))
                 exchange.sendResponseHeaders(status.get(), -1)
                 exchange.close()
             }
-            for (responseStatus in listOf(204, 401)) {
+            for (responseStatus in listOf(200, 401)) {
                 status.set(responseStatus)
                 credentials.save(server, previousToken)
 
@@ -160,7 +160,7 @@ class SessionConnectionTest {
         withServer { httpServer, server ->
             val status = AtomicInteger()
             val requests = AtomicInteger()
-            httpServer.createContext("/api/v1/session") { exchange ->
+            httpServer.createContext("/api/v1/me/sessions/current") { exchange ->
                 requests.incrementAndGet()
                 exchange.sendResponseHeaders(status.get(), -1)
                 exchange.close()

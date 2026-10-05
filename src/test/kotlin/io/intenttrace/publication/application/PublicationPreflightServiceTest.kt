@@ -18,7 +18,7 @@ class PublicationPreflightServiceTest {
     fun `관리자 요청에서만 원격 점검하고 고정 token은 확인 완료로 표시하지 않는다`() {
         val actor = ActorIdentity.github(42, "author")
         var role = RepositoryRole.CONTRIBUTOR
-        val access = RepositoryAccessService(object : CurrentGitHubUserSession { override fun require() = GitHubUserSession(actor, "test") },
+        val access = RepositoryAccessService(object : CurrentGitHubUserSession { override fun require() = GitHubUserSession(actor, "test", java.util.UUID.randomUUID()) },
             object : GitHubUserAccessGateway {
                 override fun authenticate(accessToken: String) = actor
                 override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository) = role

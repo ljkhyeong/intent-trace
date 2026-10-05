@@ -151,11 +151,11 @@ class IntentTraceApiClientTest {
 
     @Test
     fun `session 폐기는 DELETE와 bearer token을 보내고 이미 만료된 session도 완료로 처리한다`() {
-        for (status in listOf(204, 401)) {
+        for (status in listOf(200, 401)) {
             val method = AtomicReference<String>()
             val authorization = AtomicReference<String>()
             withServer(
-                path = "/api/v1/session",
+                path = "/api/v1/me/sessions/current",
                 handler = { exchange ->
                     method.set(exchange.requestMethod)
                     authorization.set(exchange.requestHeaders.getFirst("Authorization"))

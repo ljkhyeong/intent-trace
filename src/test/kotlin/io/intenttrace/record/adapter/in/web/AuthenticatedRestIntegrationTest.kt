@@ -3,6 +3,8 @@ package io.intenttrace.record.adapter.`in`.web
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubUserOAuthTokens
+import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
@@ -40,6 +42,7 @@ class AuthenticatedRestIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val userAccess: TestGitHubUserAccessGateway,
     @Autowired private val objectMapper: ObjectMapper,
+    @Autowired private val sessions: GitHubUserSessionStore,
 ) {
     @Test
     fun `REST 기록함은 본인 초안만 반환하고 권한 없는 저장소 조회를 거부한다`() {
@@ -70,16 +73,15 @@ class AuthenticatedRestIntegrationTest(
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
             authorized()
         }.andExpect { jsonPath("$.items") { isEmpty() } }
-        userAccess.actor = ActorIdentity.github(84, "teammate")
         try {
             for (path in listOf("", "/github-pull-requests")) {
-                mockMvc.get("/api/v1/change-records/$id$path") { authorized() }.andExpect {
+                mockMvc.get("/api/v1/change-records/$id$path") { authorized(teammateSession) }.andExpect {
                     status { isNotFound() }
                     content { string(not(containsString(repository))) }
                 }
             }
             mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE") {
-                authorized()
+                authorized(teammateSession)
             }.andExpect {
                 status { isOk() }
                 jsonPath("$.items") { isEmpty() }
@@ -87,10 +89,9 @@ class AuthenticatedRestIntegrationTest(
             }
             userAccess.role = null
             mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
-                authorized()
+                authorized(teammateSession)
             }.andExpect { status { isForbidden() } }
         } finally {
-            userAccess.actor = ActorIdentity.github(42, "lim")
             userAccess.role = RepositoryRole.MAINTAINER
         }
     }
@@ -237,8 +238,17 @@ class AuthenticatedRestIntegrationTest(
         }
     }
 
-    private fun org.springframework.test.web.servlet.MockHttpServletRequestDsl.authorized() {
-        header(HttpHeaders.AUTHORIZATION, "Bearer ghu_authenticated-rest-test")
+    private fun org.springframework.test.web.servlet.MockHttpServletRequestDsl.authorized(session: String = ownerSession) {
+        header(HttpHeaders.AUTHORIZATION, "Bearer $session")
+    }
+
+    private val ownerSession by lazy { issue(ActorIdentity.github(42, "lim"), "ghu_rest-owner") }
+    private val teammateSession by lazy { issue(ActorIdentity.github(84, "teammate"), TEAMMATE_TOKEN) }
+
+    private fun issue(actor: ActorIdentity, accessToken: String): String {
+        val now = Instant.now()
+        return sessions.issue(actor, GitHubUserOAuthTokens(accessToken, now.plusSeconds(3600), accessToken.replace("ghu_", "ghr_"),
+            now.plusSeconds(7200))).sessionToken
     }
 
     private fun createRequest(requestId: String, decisionSummary: String): String =
@@ -269,11 +279,10 @@ class AuthenticatedRestIntegrationTest(
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
         var failAuthentication = false
         var role: RepositoryRole? = RepositoryRole.MAINTAINER
-        var actor = ActorIdentity.github(42, "lim")
 
         override fun authenticate(accessToken: String): ActorIdentity {
             if (failAuthentication) throw GitHubIdentityApiException("테스트 사용자 조회 장애")
-            return actor
+            return if (accessToken == TEAMMATE_TOKEN) ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
         }
 
         override fun repositoryRole(
@@ -281,5 +290,9 @@ class AuthenticatedRestIntegrationTest(
             actor: ActorIdentity,
             repository: GitHubRepository,
         ): RepositoryRole? = role
+    }
+
+    companion object {
+        private const val TEAMMATE_TOKEN = "ghu_rest-teammate"
     }
 }

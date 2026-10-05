@@ -32,7 +32,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 
 ## 불변식
 
-- REST `/api/v1/**`와 MCP `/mcp`는 기본적으로 `its_` 로컬 session Bearer token이 필요하며 기존 `ghu_` 직접 인증도 허용한다.
+- REST `/api/v1/**`와 MCP `/mcp`는 `its_` 로컬 session Bearer token만 받는다. GitHub 토큰을 직접 보내면 `401`이다.
 - callback은 같은 브라우저의 HttpOnly·SameSite cookie와 TTL 안의 미사용 `state`, PKCE `S256` verifier가 모두 일치할 때만 code를 교환한다.
 - 미완료 OAuth `state`는 TTL과 설정 가능한 전역 개수 상한을 적용하고, 상한에 도달하면 새 승인 시작을 `429`로 거부한다.
 - 작성자 subject는 `/user.id`로 만든 `github:<id>`이며 login은 표시용이다.
@@ -45,7 +45,7 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 - GitHub token, private key와 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 - `its_` 원문은 callback 성공 본문에서 한 번만 표시하고 서버에는 SHA-256 digest만 인덱스로 저장한다.
 - 사용자별 활성 session은 기본 5개로 제한하고, 새 session 발급 시 상한을 넘는 가장 오래된 session을 폐기한다. 새 session과 같은 종류(브라우저·도구)의 session을 먼저 폐기해 브라우저 로그인이 도구 연결을 끊지 않게 한다.
-- `DELETE /api/v1/session`은 현재 `its_` session만 폐기한다. `ghu_` 직접 인증은 로컬 session 폐기 대상이 아니다.
+- `DELETE /api/v1/me/sessions/current`는 현재 `its_` session만 폐기한다.
 - refresh는 세션별로 한 번만 수행하고 새 token 쌍을 함께 교체한다. 갱신이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내한다. 사용자 subject가 바뀐 경우에도 세션을 폐기한다.
 - 세션 잠금을 기다리던 요청은 잠금 획득 후 세션이 아직 등록돼 있는지 확인한다. 앞선 요청이 폐기한 세션으로는 token 갱신이나 사용자 조회를 다시 수행하지 않는다.
 - 같은 `requestId`를 다른 사용자·저장소가 재사용하거나 저장할 내용이 달라지면 기존 기록을 반환하지 않고 충돌로 처리한다.
@@ -78,7 +78,6 @@ GitHub 로그인으로 세션을 발급하고 저장소 권한에 따라 기록 
 
 - `GET /api/v1/me/sessions`는 현재 사용자·인증 방식과 본인의 세션 ID·생성·최근 사용·만료 시각을 반환한다. token·digest는 반환하지 않으며 응답을 캐시하지 않는다.
 - `DELETE /api/v1/me/sessions/current`, `DELETE /api/v1/me/sessions/{id}`, `DELETE /api/v1/me/sessions`로 현재 연결·선택 연결·본인의 전체 연결을 폐기한다. 결과는 `revokedCount`다. 다른 사용자의 ID나 이미 없는 ID는 0을 반환해 소유권 정보를 노출하지 않는다.
-- 직접 `ghu_` 인증에는 현재 로컬 세션 ID가 없으므로 현재 연결 폐기는 `400`이다. 본인의 목록과 선택·전체 로컬 세션 폐기는 가능하다. GitHub App 승인 자체를 취소하는 기능은 아니다.
 - MCP는 `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions`다. token을 도구 인자로 받지 않는다.
 - `revoke_my_session`의 `sessionId`는 목록에서 확인한 UUID다. 잘못된 형식은 입력값과 원인 예외를 포함하지 않는 오류로 반환하고 연결을 종료하지 않는다. 빈 문자열은 잘못된 ID이며, 인자를 생략한 경우에만 현재 연결을 종료한다.
 - 폐기 후의 새 인증은 거부한다. token 갱신 중 폐기해도 세션을 다시 활성화하지 않는다. 이미 인증을 끝내 처리 중인 요청의 작업을 취소하지는 않는다.

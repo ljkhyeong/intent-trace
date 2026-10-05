@@ -38,6 +38,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- REST·MCP가 `its_` 세션만 받도록 `ghu_` 직접 Bearer 인증을 제거하고, 중복된 `DELETE /api/v1/session`을 `DELETE /api/v1/me/sessions/current`로 일원화. 세션 목록 응답의 `authentication` 필드 제거. IntelliJ 세션 삭제도 같은 API 사용
 - 운영 전 정리로 Flyway V1~V11을 기준 스키마 `V1__baseline.sql` 하나로 통합. 이전 버전으로 만든 로컬 H2·PostgreSQL DB는 지우고 새로 만든다. 작성자 로그인 열은 `created_by_login`으로 바꾸고 최초 내용 해시를 필수로 저장
 - 목록 조회의 페이지 번호 방식(`MY_DRAFTS`·`page`·`size`)을 제거하고 커서 조회(`items`·`nextCursor`)만 제공
 - 변경 이력 응답의 `historyStartsAtCreation` 제거. 모든 기록이 생성 작업부터 이력을 남김

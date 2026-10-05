@@ -141,7 +141,7 @@ class TeamChangeRecordServiceTest {
     )
 
     private class TestCurrentSession(var actor: ActorIdentity) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token")
+        override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token", java.util.UUID.randomUUID())
     }
 
     private class TestGitHubUserAccessGateway(var role: RepositoryRole?) : GitHubUserAccessGateway {

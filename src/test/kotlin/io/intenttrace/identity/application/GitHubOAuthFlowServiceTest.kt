@@ -112,7 +112,5 @@ class GitHubOAuthFlowServiceTest {
 
         override fun resolve(sessionToken: String): GitHubUserSession = error("사용하지 않는 테스트 경로")
         override fun revokeBrowser(sessionToken: String) = error("사용하지 않는 테스트 경로")
-
-        override fun revoke(localSessionId: String) = error("사용하지 않는 테스트 경로")
     }
 }
