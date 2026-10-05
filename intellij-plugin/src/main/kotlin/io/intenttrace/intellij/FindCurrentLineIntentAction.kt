@@ -30,6 +30,7 @@ class FindCurrentLineIntentAction : IntentTraceAction() {
             private lateinit var server: IntentTraceServer
 
             override fun run(indicator: ProgressIndicator) {
+                CurrentLineContextResolver.requireUnchanged(lookup, CurrentLineContextResolver.refreshState(project, file))
                 server = IntentTraceServer.current()
                 val token = IntentTraceCredentialStore().load(server)
                     ?: throw IntentTraceUsageException(

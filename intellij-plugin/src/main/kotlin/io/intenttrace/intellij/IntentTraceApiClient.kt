@@ -52,7 +52,7 @@ internal class IntentTraceApiClient {
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
                         204, 401 -> Unit
-                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
+                        429 -> throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         in 500..599 -> throw IntentTraceClientException(
                             "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
                         )
@@ -81,7 +81,7 @@ internal class IntentTraceApiClient {
                             }
                             bytes.toString(StandardCharsets.UTF_8)
                         }
-                        429 -> throw IntentTraceClientException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
+                        429 -> throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
                         else -> throw IntentTraceClientException(when {
                             // Spring 상태 확인은 UP이 아니면 503으로 응답한다.
                             sessionToken == null && status == 503 -> "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
@@ -132,4 +132,7 @@ internal class IntentTraceApiClient {
     }
 }
 
-internal class IntentTraceClientException(message: String) : IntentTraceUserException(message)
+internal open class IntentTraceClientException(message: String) : IntentTraceUserException(message)
+
+/** 서버가 응답했으므로 대기 후 다시 시도할 실패다. 로컬 세션 삭제를 제안하지 않는다. */
+internal class IntentTraceRateLimitException(message: String) : IntentTraceClientException(message)
