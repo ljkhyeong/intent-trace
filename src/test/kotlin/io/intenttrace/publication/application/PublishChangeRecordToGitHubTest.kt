@@ -9,6 +9,7 @@ import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
@@ -57,6 +58,26 @@ class PublishChangeRecordToGitHubTest {
         assertEquals("intent-trace:${record.id}", gateway.lastCommand?.externalId)
         assertEquals(publication, publicationRepository.find(record.id, target))
         assertTrue(gateway.lastCommand!!.markdown.contains("등록된 검증 결과가 없습니다."))
+        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
+    }
+
+    @Test
+    fun `코드 주석을 요청하면 변경 후 근거에만 결정 요약 주석을 50개까지 만든다`() {
+        val anchors = listOf(CodeAnchor("src/Old.kt", null, 2, 3, "e".repeat(64), side = CodeSide.BASE)) +
+            (1..51).map { CodeAnchor("src/App$it.kt", null, it, it + 1, "d".repeat(64)) }
+        val annotated = record.copy(baseRevision = "a".repeat(40), codeAnchors = anchors)
+
+        publisher.publish(annotated, PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
+
+        val annotations = gateway.lastCommand!!.annotations
+        assertEquals((1..50).map { "src/App$it.kt" }, annotations.map { it.path })
+        assertEquals(
+            CheckRunAnnotation(
+                "src/App1.kt", 1, 2, "변경 의도: GitHub PR에 변경 의도 게시",
+                "구현 결정과 이유\n- PR HEAD를 확인한다. — 사용자가 명시함\n요청·관련 코드·검증 결과는 이 Check Run 상세에서 확인하세요.",
+            ),
+            annotations.first(),
+        )
     }
 
     @Test
@@ -182,8 +203,9 @@ class PublishChangeRecordToGitHubTest {
         val replacement = UUID.randomUUID()
         gateway.headRevision = "f".repeat(40)
         val result = publisher.syncSupersession(record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement),
-            PublishChangeRecordToGitHubCommand(record.id, target))
+            PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
         assertEquals(42L, result.checkRunId)
+        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
         assertEquals(record.targetRevision, gateway.lastCommand?.headRevision)
         assertTrue(gateway.lastCommand!!.markdown.contains(replacement.toString()))
         assertEquals(1, gateway.creations)

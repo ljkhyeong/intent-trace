@@ -22,7 +22,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 5. 실제 실행한 검증의 명령·종료 코드·시각·스냅샷·출력 해시·짧은 요약만 제출한다. 필요한 검증을 새로 실행할 때는 `run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령>`을 사용할 수 있다. 실패 코드와 `source`를 보존한다. 실행 전후 코드가 바뀌면 현재 커밋 검증으로 등록하지 않는다.
 6. `create_change_record`로 비공개 초안을 만든다. 작성자가 승인한 내용은 `confirm_change_record`, 요청받은 팀 공개는 `publish_change_record`, 요청받은 PR 게시는 `publish_change_record_to_github_pr`로 진행한다.
 
-확인·공개 시 스냅샷이 달라졌다면 비공개 초안을 수정하고 변경된 내용에 대해 다시 확인받는다. 새 PR 게시에는 기록 저장소와 PR 저장소, 기록 커밋과 PR HEAD가 일치해야 하며 Fork PR은 지원하지 않는다.
+확인·공개 시 스냅샷이 달라졌다면 비공개 초안을 수정하고 변경된 내용에 대해 다시 확인받는다. 새 PR 게시에는 기록 저장소와 PR 저장소, 기록 커밋과 PR HEAD가 일치해야 하며 Fork PR은 지원하지 않는다. PR 줄 주석은 사용자가 요청한 경우에만 `codeAnnotations=true`로 보낸다. 변경 후 근거 최대 50개이며 이미 주석이 있는 Check Run에는 추가하지 않고 게시한 주석은 지울 수 없다.
 
 ### 이슈·PR 내용과 CI 결과 활용
 

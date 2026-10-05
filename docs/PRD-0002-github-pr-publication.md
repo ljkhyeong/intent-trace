@@ -37,7 +37,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 
 - REST: `POST /api/v1/change-records/{recordId}/github-pull-request`
 - MCP: `publish_change_record_to_github_pr`
-- 입력: 저장소 소유자, 저장소 이름, PR 번호
+- 입력: 저장소 소유자, 저장소 이름, PR 번호, 선택 `codeAnnotations`(기본 `false`)
 - 출력: 기록 ID, 저장소, PR 번호, HEAD 커밋, Check Run ID·URL, 게시 내용 해시와 시각
 
 ## 성공 기준
@@ -55,7 +55,7 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - GitHub App 등록·설치 화면과 private key 회전 자동화
 - PR 자동 게시를 위한 GitHub webhook 처리
 - Fork PR Check Run
-- line annotation 자동 생성
+- 사용자가 요청하지 않은 line annotation 생성과 이미 게시한 annotation 삭제
 - 실제 외부 GitHub 저장소를 사용하는 자동 테스트
 
 ## 게시 결과 조회와 대체 안내
@@ -80,3 +80,11 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 `POST /api/v1/publication-preflight`와 `check_publication_credentials`에 `repositoryKey`를 전달한다. 저장소 MAINTAINER 권한이 필요하다. App 키 사용·원격 인증·저장소 설치·대상 한 곳으로 축소한 token 발급·실제 부여 범위와 권한을 단계별로 반환한다. 모든 단계가 확인된 경우만 `ready=true`다. 고정 token은 `CONFIGURED_UNVERIFIED`로 반환한다.
 
 이 점검은 Check Run을 생성·수정하지 않는다. token은 메모리에서만 사용하고 응답에는 단계·설치 ID·만료 및 확인 시각만 포함한다. 실패 시 외부 오류 원문을 숨기며 호출 제한은 응답에 안내된 재시도 대기 시간을 따른다. 실제 게시의 PR HEAD·저장소 검사는 그대로 수행한다.
+
+## 코드 줄 주석
+
+- 게시 요청의 `codeAnnotations`가 `true`이면 변경 후(`TARGET`) 코드 근거를 Check Run `notice` annotation으로 함께 보낸다. MCP `publish_change_record_to_github_pr`도 같은 선택 인자를 받는다.
+- 기록 커밋과 PR HEAD가 같을 때만 게시하므로 변경 후 근거의 경로·줄을 그대로 쓴다. 변경 전(`BASE`) 근거는 PR HEAD의 줄과 맞지 않아 제외한다.
+- 주석 제목은 기록 제목, 본문은 구현 결정과 판단 출처만 담는다. 요청·코드 해시·검증은 Check Run 상세에서 읽는다. GitHub 요청당 한도에 맞춰 근거 순서대로 최대 50개를 보낸다.
+- GitHub는 수정 요청의 annotation을 기존 목록 뒤에 붙이고 삭제할 수 없다. 새 Check Run을 만들 때와 기존 Check Run의 `annotations_count`가 0으로 확인될 때만 보내므로 다시 게시해도 주석이 늘지 않는다.
+- 대체 안내는 주석을 추가하지 않는다. 이미 게시한 주석은 남으며 대체 사실은 Check Run 상세에서 확인한다.

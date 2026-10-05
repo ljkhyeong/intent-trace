@@ -85,6 +85,16 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         }
     }
 
+    /** Check Run 줄 주석 제목이다. GitHub는 주석을 Markdown으로 해석하지 않으므로 이스케이프하지 않는다. */
+    fun annotationTitle(record: ChangeRecord): String = "변경 의도: ${normalizedSingleLine(record.title)}".take(MAX_ANNOTATION_TITLE)
+
+    /** Check Run 줄 주석 본문이다. 구현 결정과 출처만 담고 나머지는 Check Run 상세로 안내한다. */
+    fun annotationMessage(record: ChangeRecord): String = buildString {
+        appendLine("구현 결정과 이유")
+        record.decisions.forEach { appendLine("- ${normalizedSingleLine(it.summary)} — ${it.source.label}") }
+        append("요청·관련 코드·검증 결과는 이 Check Run 상세에서 확인하세요.")
+    }
+
     private fun plainText(value: String): String = buildString(value.length) {
         normalizedSingleLine(value).forEach { character ->
             if (character.isAsciiPunctuation()) append('\\')
@@ -122,5 +132,6 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
     companion object {
         private val LINE_BREAK = Regex("\\R+")
         private val BACKTICK_RUN = Regex("`+")
+        private const val MAX_ANNOTATION_TITLE = 255
     }
 }

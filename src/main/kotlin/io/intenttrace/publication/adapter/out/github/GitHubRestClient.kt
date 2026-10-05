@@ -2,6 +2,7 @@ package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
+import io.intenttrace.publication.application.CheckRunAnnotation
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubPullRequestGateway
@@ -60,14 +61,14 @@ class GitHubRestClient(
         command.knownCheckRunId?.let { knownId ->
             val known = getCheckRun(command, knownId)
             if (known != null) {
-                updateCheckRun(command, known.id, ifNotFound = { null })
+                updateCheckRun(command, known, ifNotFound = { null })
                     ?.let { return it.toDomain(command, known.id) }
             }
         }
 
         val existing = findCheckRun(command)
         if (existing != null) {
-            return checkNotNull(updateCheckRun(command, existing.id)).toDomain(command, existing.id)
+            return checkNotNull(updateCheckRun(command, existing)).toDomain(command, existing.id)
         }
 
         return createCheckRun(command).toDomain(command)
@@ -75,8 +76,8 @@ class GitHubRestClient(
 
     override fun updateExistingCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
         val id = checkNotNull(command.knownCheckRunId) { "대체 안내를 반영할 기존 Check Run이 없습니다." }
-        checkNotNull(getCheckRun(command, id)) { "기존 Check Run의 기록 ID와 커밋을 확인할 수 없습니다." }
-        return checkNotNull(updateCheckRun(command, id)).toDomain(command, id)
+        val existing = checkNotNull(getCheckRun(command, id)) { "기존 Check Run의 기록 ID와 커밋을 확인할 수 없습니다." }
+        return checkNotNull(updateCheckRun(command, existing)).toDomain(command, id)
     }
 
     private fun getCheckRun(command: UpsertGitHubCheckRunCommand, checkRunId: Long): CheckRunResponse? =
@@ -129,7 +130,7 @@ class GitHubRestClient(
             client.post()
                 .uri("/repos/{owner}/{repository}/check-runs", command.target.owner, command.target.repository)
                 .headers { it.setBearerAuth(token) }
-                .body(checkRunRequest(command, headSha = command.headRevision))
+                .body(checkRunRequest(command, headSha = command.headRevision, annotations = command.annotations))
                 .retrieve()
                 .body(CheckRunResponse::class.java)
         }
@@ -138,14 +139,16 @@ class GitHubRestClient(
 
     private fun updateCheckRun(
         command: UpsertGitHubCheckRunCommand,
-        checkRunId: Long,
+        existing: CheckRunResponse,
         ifNotFound: (() -> CheckRunResponse?)? = null,
     ): CheckRunResponse? = safeCall("Check Run 수정", ifNotFound) {
+        // GitHub는 수정할 때 주석을 누적하므로 주석이 없다고 확인된 Check Run에만 보낸다.
+        val annotations = if (existing.output?.annotationsCount == 0) command.annotations else emptyList()
         authenticated(command.target) { token ->
             client.patch()
-                .uri(CHECK_RUN_PATH, command.target.owner, command.target.repository, checkRunId)
+                .uri(CHECK_RUN_PATH, command.target.owner, command.target.repository, existing.id)
                 .headers { it.setBearerAuth(token) }
-                .body(checkRunRequest(command, headSha = null))
+                .body(checkRunRequest(command, headSha = null, annotations = annotations))
                 .retrieve()
                 .body(CheckRunResponse::class.java)
         }
@@ -164,14 +167,17 @@ class GitHubRestClient(
         }
     }
 
-    private fun checkRunRequest(command: UpsertGitHubCheckRunCommand, headSha: String?) = CheckRunRequest(
-        name = CHECK_NAME,
-        headSha = headSha,
-        externalId = command.externalId,
-        status = "completed",
-        conclusion = "neutral",
-        output = CheckRunOutput(command.title, command.summary, command.markdown),
-    )
+    private fun checkRunRequest(command: UpsertGitHubCheckRunCommand, headSha: String?, annotations: List<CheckRunAnnotation>) =
+        CheckRunRequest(
+            name = CHECK_NAME,
+            headSha = headSha,
+            externalId = command.externalId,
+            status = "completed",
+            conclusion = "neutral",
+            output = CheckRunOutput(command.title, command.summary, command.markdown, annotations.map {
+                CheckRunAnnotationRequest(it.path, it.startLine, it.endLine, "notice", it.title, it.message)
+            }),
+        )
 
     private fun CheckRunResponse.hasIdentity(command: UpsertGitHubCheckRunCommand): Boolean =
         id > 0 && externalId == command.externalId && headSha.equals(command.headRevision, ignoreCase = true)
@@ -234,6 +240,16 @@ private data class CheckRunOutput(
     val title: String,
     val summary: String,
     val text: String,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) val annotations: List<CheckRunAnnotationRequest> = emptyList(),
+)
+
+private data class CheckRunAnnotationRequest(
+    val path: String,
+    @JsonProperty("start_line") val startLine: Int,
+    @JsonProperty("end_line") val endLine: Int,
+    @JsonProperty("annotation_level") val annotationLevel: String,
+    val title: String,
+    val message: String,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -247,4 +263,10 @@ private data class CheckRunResponse(
     @JsonProperty("head_sha") val headSha: String,
     @JsonProperty("html_url") val htmlUrl: String,
     @JsonProperty("external_id") val externalId: String?,
+    val output: CheckRunResponseOutput? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class CheckRunResponseOutput(
+    @JsonProperty("annotations_count") val annotationsCount: Int? = null,
 )

@@ -37,3 +37,10 @@ PR 댓글은 변경 의도 기록을 리뷰에 노출할 수 있지만 특정 �
 
 - PR 댓글: 권한과 구현은 단순하지만 커밋 연결과 검사 상태 표시가 부족하고 댓글 누적 위험이 있어 선택하지 않았다.
 - commit status: 상태 요약에는 적합하지만 변경 의도 Markdown 전체를 전달하기 어려워 선택하지 않았다.
+
+## 코드 줄 주석 선택 게시
+
+- 요청에 `codeAnnotations=true`가 있을 때만 변경 후 코드 근거를 `notice` annotation으로 보낸다. 기본 게시 요청 본문은 바꾸지 않는다.
+- GitHub는 Check Run 수정 때 annotation을 기존 목록 뒤에 붙이고 지우는 API를 제공하지 않는다. 새 Check Run 생성 요청과, 조회 응답의 `output.annotations_count`가 0인 Check Run 수정 요청에만 주석을 넣는다. 개수를 확인하지 못하면 보내지 않는다.
+- 주석 본문은 기록 제목·구현 결정·판단 출처만 담는다. 이 내용은 같은 Check Run Markdown에 이미 포함되므로 새 정보를 외부에 공개하지 않는다.
+- PR 리뷰 댓글은 재게시 때 누적되고 GitHub App에 `pull_requests: write` 권한을 추가해야 해서 사용하지 않았다.

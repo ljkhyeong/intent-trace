@@ -50,11 +50,14 @@ class GitHubPublicationTools(
         repository: String,
         @McpToolParam(description = "Pull Request 번호", required = true)
         pullNumber: Int,
+        @McpToolParam(description = "true면 변경 후 관련 코드에 PR 줄 주석을 함께 게시합니다. 최대 50개이며 주석이 없는 Check Run에만 추가합니다.", required = false)
+        codeAnnotations: Boolean? = null,
     ): GitHubPublicationResponse = GitHubPublicationResponse.from(
         publisher.publish(
             PublishChangeRecordToGitHubCommand(
                 changeRecordId = parseChangeRecordId(changeRecordId),
                 target = GitHubPullRequestTarget(owner, repository, pullNumber),
+                codeAnnotations = codeAnnotations == true,
             ),
         ),
     )

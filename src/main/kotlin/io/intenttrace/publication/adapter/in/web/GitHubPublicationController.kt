@@ -52,10 +52,12 @@ data class GitHubPublicationRequest(
     val repository: String,
     @field:Min(1)
     val pullNumber: Int,
+    val codeAnnotations: Boolean = false,
 ) {
     fun toCommand(recordId: UUID): PublishChangeRecordToGitHubCommand = PublishChangeRecordToGitHubCommand(
         changeRecordId = recordId,
         target = GitHubPullRequestTarget(owner, repository, pullNumber),
+        codeAnnotations = codeAnnotations,
     )
 }
 

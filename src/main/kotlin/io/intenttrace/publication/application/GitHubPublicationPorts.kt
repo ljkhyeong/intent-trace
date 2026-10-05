@@ -21,6 +21,16 @@ data class UpsertGitHubCheckRunCommand(
     val title: String,
     val summary: String,
     val markdown: String,
+    val annotations: List<CheckRunAnnotation> = emptyList(),
+)
+
+/** 변경 후 관련 코드에 붙이는 Check Run 줄 주석이다. */
+data class CheckRunAnnotation(
+    val path: String,
+    val startLine: Int,
+    val endLine: Int,
+    val title: String,
+    val message: String,
 )
 
 interface GitHubPublicationRepository {

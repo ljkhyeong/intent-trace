@@ -6,6 +6,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
+- PR 게시 요청의 `codeAnnotations`로 변경 후 코드 근거를 Check Run 줄 주석으로 선택 게시. 재게시해도 주석을 중복 추가하지 않음
 - GitHub 승인 취소 웹훅으로 해당 사용자의 브라우저·도구 세션 폐기
 - 홈서버 k3s의 앱 1개·PostgreSQL PVC·Traefik Ingress, 임시 환경 예시와 배포 파일 검증
 - IntelliJ 설정에서 저장 세션의 유효 여부와 GitHub 계정을 확인하는 로그인 확인

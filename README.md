@@ -248,7 +248,7 @@ GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 �
 - `GET /api/v1/change-records/{id}/evidence-check`: GitHub 코드 해시 확인
 - `GET /api/v1/change-records/history`: 현재 커밋·파일·줄의 관련 기록 조회
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
-- `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
+- `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시. `codeAnnotations: true`면 변경 후 코드 근거를 PR 줄 주석으로 함께 게시
 - `GET /api/v1/change-records/{id}/github-pull-request`: 게시 대상별 결과·시도 이력 조회
 - `POST /api/v1/change-records/{id}/github-pull-request/supersession`: 기존 Check Run에 대체 안내 반영
 - `GET /api/v1/github-pull-request/records?owner=...&repository=...&pullNumber=...`: PR에 게시·시도한 기록과 HEAD 일치 조회
@@ -438,6 +438,7 @@ python3 scripts/test_feedback.py
 - GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 권한 캐시는 없습니다.
 - V3 이전 초안의 작성자는 `legacy:<login>`으로 남으며 현재 GitHub 계정과 자동으로 연결되지 않습니다.
 - 포크에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
+- PR 줄 주석은 변경 후 코드 근거 50개까지 게시합니다. GitHub에서 게시한 주석을 지울 수 없어, 이미 주석이 있는 Check Run은 다시 게시해도 주석을 바꾸지 않습니다.
 - IntelliJ 플러그인은 현재 줄 조회·기록함·파일 이력과 웹 코드 이동 조회를 지원합니다. 로그인 토큰 자동 가져오기와 기록 생성·수정은 지원하지 않습니다.
 - Compose와 k3s 배포는 앱 1개만 지원하며 무중단 롤링 배포와 서버 간 세션 공유는 제공하지 않습니다.
 - 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 이력 수집 이전 작업과 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.

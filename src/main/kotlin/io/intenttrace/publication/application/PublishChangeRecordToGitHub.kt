@@ -5,6 +5,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.CodeSide
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -61,6 +62,7 @@ class PublishChangeRecordToGitHub(
             title = if (supersession) "대체됨: ${record.title}" else record.title,
             summary = if (supersession) "새 기록으로 대체됐습니다. 본문의 후속 기록을 확인하세요." else "작성자가 확인한 IntentTrace 변경 의도 기록입니다.",
             markdown = markdown,
+            annotations = if (!supersession && command.codeAnnotations) codeAnnotations(record) else emptyList(),
         )
         val checkRun = if (supersession) gitHubGateway.updateExistingCheckRun(checkCommand) else gitHubGateway.upsertCheckRun(checkCommand)
 
@@ -78,16 +80,26 @@ class PublishChangeRecordToGitHub(
         )
     }
 
+    // 게시 커밋은 PR HEAD와 같으므로 변경 후 근거만 PR 줄에 연결된다. GitHub는 요청당 주석 50개까지 받는다.
+    private fun codeAnnotations(record: ChangeRecord): List<CheckRunAnnotation> {
+        val title = markdownRenderer.annotationTitle(record)
+        val message = markdownRenderer.annotationMessage(record)
+        return record.codeAnchors.filter { it.side == CodeSide.TARGET }.take(MAX_CODE_ANNOTATIONS)
+            .map { CheckRunAnnotation(it.relativePath, it.startLine, it.endLine, title, message) }
+    }
+
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(StandardCharsets.UTF_8))
         .let(HexFormat.of()::formatHex)
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535
+        private const val MAX_CODE_ANNOTATIONS = 50
     }
 }
 
 data class PublishChangeRecordToGitHubCommand(
     val changeRecordId: UUID,
     val target: GitHubPullRequestTarget,
+    val codeAnnotations: Boolean = false,
 )
