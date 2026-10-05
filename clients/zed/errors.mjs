@@ -18,6 +18,9 @@ export function retryAfterSeconds(value, now = Date.now()) {
   return Number.isSafeInteger(seconds) && seconds >= 0 && seconds <= 604800 ? seconds : undefined;
 }
 
+/** 사용자가 고칠 수 있는 입력·설정 오류다. 메시지에는 비밀값을 넣지 않고 그대로 출력한다. */
+export class UsageError extends Error {}
+
 export class BridgeFailure extends Error {
   constructor(code, delay) {
     const kind = Object.hasOwn(messages, code) ? code : 'CONNECTION_FAILED';

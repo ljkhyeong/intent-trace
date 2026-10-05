@@ -4,6 +4,7 @@ import { chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:f
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { UsageError } from './errors.mjs';
 
 export function defaultSettingsPath() {
   if (process.platform === 'win32') return join(process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'), 'Zed', 'settings.json');
@@ -14,12 +15,12 @@ export function defaultSettingsPath() {
 export function prepareSettings(text, entry) {
   const errors = [];
   const root = parseTree(text, errors, { allowTrailingComma: true, allowEmptyContent: true });
-  if (errors.length || (root && root.type !== 'object')) throw new Error('Zed 설정: JSONC 문법과 최상위 객체를 확인하세요.');
+  if (errors.length || (root && root.type !== 'object')) throw new UsageError('Zed 설정: JSONC 문법과 최상위 객체를 확인하세요.');
   const servers = root && findNodeAtLocation(root, ['context_servers']);
-  if (servers && servers.type !== 'object') throw new Error('Zed 설정: context_servers는 객체여야 합니다.');
+  if (servers && servers.type !== 'object') throw new UsageError('Zed 설정: context_servers는 객체여야 합니다.');
   for (const [node, key] of [[root, 'context_servers'], [servers, 'intent-trace']]) {
     if (node?.children?.filter(child => child.children?.[0]?.value === key).length > 1) {
-      throw new Error('Zed 설정: context_servers 또는 intent-trace 중복 항목을 먼저 정리하세요.');
+      throw new UsageError('Zed 설정: context_servers 또는 intent-trace 중복 항목을 먼저 정리하세요.');
     }
   }
   const current = root && findNodeAtLocation(root, ['context_servers', 'intent-trace']);
@@ -47,7 +48,7 @@ export function prepareSettings(text, entry) {
 async function readSettings(path) {
   try {
     const stat = await lstat(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new UsageError('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
     return { text: await readFile(path, 'utf8'), mode: stat.mode & 0o777 };
   } catch (error) {
     if (error.code === 'ENOENT') return { text: '', mode: 0o600 };
@@ -73,7 +74,7 @@ export async function configure(path, entry, apply) {
   try {
     await writeFile(temporary, prepared.text, { flag: 'wx', mode: original.mode });
     await chmod(temporary, original.mode);
-    if ((await readSettings(target)).text !== original.text) throw new Error('Zed 설정: 다른 프로그램이 설정을 변경했습니다. 다시 미리보기를 실행하세요.');
+    if ((await readSettings(target)).text !== original.text) throw new UsageError('Zed 설정: 다른 프로그램이 설정을 변경했습니다. 다시 미리보기를 실행하세요.');
     await rename(temporary, target);
   } finally {
     await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; });

@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import { BridgeFailure } from './errors.mjs';
+import { BridgeFailure, UsageError } from './errors.mjs';
 
 export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
@@ -28,11 +28,11 @@ function printHelp(mode) {
 
 export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl) {
   let url;
-  try { url = new URL(value); } catch { throw new Error('IntentTrace MCP 주소 형식을 확인하세요.'); }
+  try { url = new URL(value); } catch { throw new UsageError('IntentTrace MCP 주소 형식을 확인하세요.'); }
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
       url.username || url.password || url.search || url.hash || url.pathname !== '/mcp') {
-    throw new Error('MCP 주소는 HTTPS 또는 로컬 HTTP의 /mcp 경로여야 하며 인증 정보와 쿼리를 넣을 수 없습니다.');
+    throw new UsageError('MCP 주소는 HTTPS 또는 로컬 HTTP의 /mcp 경로여야 하며 인증 정보와 쿼리를 넣을 수 없습니다.');
   }
   return url;
 }
@@ -41,7 +41,7 @@ export function sessionToken() {
   const value = process.env.INTENT_TRACE_SESSION_TOKEN;
   // 서버는 32바이트 무작위 값을 Base64URL 43자로 발급한다. IntelliJ와 같은 형식만 받는다.
   if (!value || !/^its_[A-Za-z0-9_-]{43}$/.test(value)) {
-    throw new Error('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
+    throw new UsageError('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
   }
   return value;
 }
@@ -53,17 +53,17 @@ function checkOptions(args) {
       revision: { type: 'string' }, pr: { type: 'string' },
     } });
   } catch {
-    throw new Error('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
+    throw new UsageError('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
   }
   const { values } = parsed;
   const positionals = parsed.positionals.length === 1 && /^[^:/\s]+\/[^/\s]+$/.test(parsed.positionals[0])
     ? [undefined, parsed.positionals[0]] : parsed.positionals;
   const pullNumber = values.pr === undefined ? undefined : Number(values.pr);
   if (pullNumber !== undefined && (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)) {
-    throw new Error('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
+    throw new UsageError('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
   }
   if ((values.revision !== undefined || pullNumber !== undefined) && !positionals[1]) {
-    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
+    throw new UsageError('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
   }
   return { positionals, diagnostic: { revision: values.revision, pullNumber } };
 }
@@ -83,7 +83,7 @@ async function main() {
     const launcher = existsSync(bundled) ? bundled : new URL('../../scripts/zed-with-intent-trace.py', import.meta.url);
     const child = spawn(process.platform === 'win32' ? 'python' : 'python3', [fileURLToPath(launcher), ...arguments_], { stdio: 'inherit' });
     process.exitCode = await new Promise((resolve, reject) => {
-      child.once('error', () => reject(new Error('Zed 설정: Python 3와 Zed CLI 설치를 확인하세요.')));
+      child.once('error', () => reject(new UsageError('Zed 설정: Python 3와 Zed CLI 설치를 확인하세요.')));
       child.once('close', code => resolve(code ?? 1));
     });
     return;
@@ -97,14 +97,14 @@ async function main() {
       } });
       if (parsed.positionals.length > (mode === 'configure' ? 1 : 0)) throw new Error();
     } catch {
-      throw new Error(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
+      throw new UsageError(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
     const entry = mode === 'configure' ? serverEntry(endpoint(parsed.positionals[0])) : undefined;
     return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
-  if (positionals.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
+  if (positionals.length > (mode === 'check' ? 2 : 1)) throw new UsageError('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   const url = endpoint(address);
   if (mode === 'config') {
     console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) } }, null, 2));
@@ -127,8 +127,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
       ? '연결 도구를 다시 설치하세요. 소스 실행 시 clients/zed에서 npm ci를 실행하세요.'
-      : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소') || error?.message?.startsWith('IntentTrace 연결 점검:')
-        ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
+      : error instanceof UsageError ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
     console.error(message);
     process.exitCode = 1;
   });

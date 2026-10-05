@@ -5,20 +5,19 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { parseArgs } from 'node:util';
 
 if (process.platform === 'win32') throw new Error('배포 파일 생성은 macOS 또는 Linux에서 실행해 주세요.');
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'clients/zed');
-const options = {};
-for (let i = 2; i < process.argv.length; i += 2) {
-  const key = process.argv[i];
-  if (!['--output', '--npm-name', '--mcp-name', '--repository'].includes(key) || !process.argv[i + 1] || options[key]) {
-    throw new Error('배포 파일 생성: --output 폴더와 선택 --npm-name 이름 --mcp-name 이름 --repository GitHub주소를 확인하세요.');
-  }
-  options[key] = process.argv[i + 1];
+let options;
+try {
+  ({ values: options } = parseArgs({ options: Object.fromEntries(['output', 'npm-name', 'mcp-name', 'repository'].map(name => [name, { type: 'string' }])) }));
+} catch {
+  throw new Error('배포 파일 생성: --output 폴더와 선택 --npm-name 이름 --mcp-name 이름 --repository GitHub주소를 확인하세요.');
 }
-const publication = ['--npm-name', '--mcp-name', '--repository'].map(key => options[key]);
+const publication = [options['npm-name'], options['mcp-name'], options.repository];
 if (publication.some(Boolean) && !publication.every(Boolean)) throw new Error('공개 제출 자료에는 패키지 이름·MCP 이름·저장소 주소가 모두 필요합니다.');
 if (publication.every(Boolean)) {
   if (!/^@[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/.test(publication[0]) ||
@@ -30,7 +29,7 @@ if (publication.every(Boolean)) {
     throw new Error('MCP 이름의 GitHub 소유자와 저장소 소유자를 일치시켜 주세요.');
   }
 }
-const output = resolve(options['--output'] || join(root, 'build/zed-release'));
+const output = resolve(options.output || join(root, 'build/zed-release'));
 const staging = await mkdtemp(join(tmpdir(), 'intent-trace-package-'));
 try {
   const manifest = await readFile(join(source, 'package.json'));
