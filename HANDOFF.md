@@ -17,10 +17,10 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `58f918c` | [서버 256개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-pr-코드-줄-주석과-모듈-순환-규칙-추가) |
+| 서버·MCP | `aabfeea` | [서버 262개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-추가개선-기능-검토-반영) |
 | PostgreSQL | `f7a3c99` | [저장·조회 5개 통과, 백업·복구 확인](#2026-10-05-리팩터링-검토와-구조-정리) |
-| IntelliJ | `ad3b998` | [53개 통과, ZIP 빌드·구조 검사](#2026-10-05-중복-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
-| Zed 연결 도구 | `ad3b998` | [Node 15개·Python 3개 통과](#2026-10-05-중복-코드-정리) |
+| IntelliJ | `a787fd1` | [54개 통과, ZIP 빌드·구조 검사](#2026-10-05-추가개선-기능-검토-반영). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| Zed 연결 도구 | `19ebd0e` | [Node 16개·Python 3개 통과, 실제 서버 점검 테스트는 서버 검증에 포함](#2026-10-05-추가개선-기능-검토-반영) |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
 | 검증 결과 수집·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
 | Git 근거·검증 루프 | `ad3b998` | [Git 근거 8개 통과, 잘못된 인자 출력 비교](#2026-10-05-중복-코드-정리). 검증 루프·Compose 검사는 [`938f570` 결과](#2026-09-12-보조-도구의-중복-검사와-불필요한-해시-계산-제거) 이후 변경 없음 |
@@ -220,10 +220,12 @@
 
 2026-09-05 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)의 9개 항목은 REST·MCP·로컬 실행 도구의 최소 기능을 구현했다. 계약은 PRD-0004, ADR-0007·0008과 기존 PRD의 확장 절을 따른다. 검색·브라우저 열람·후속 초안·코드 이동·PR 목록·진단과 Zed Agent 연결까지 확장했다. 외부 지표 대시보드와 편집기 인라인 UI는 후속 작업이다.
 
+2026-10-05 [추가·개선 기능 검토](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다. 검증은 [아래 상세 인계](#2026-10-05-추가개선-기능-검토-반영)를 따른다. 기록별 게시 PR 목록, 설치 웹훅, IntelliJ 저장소 진단 등 P2는 검토 문서에 남겼다.
+
 1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 실제 GitHub PR의 Files changed 화면에서 코드 줄 주석 표시를 확인한다. 선택 게시와 중복 방지는 로컬 HTTP 계약으로만 검증했다.
-4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다.
+4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다. 설치 토큰 캐시에 미치는 영향은 [검토 문서](docs/reviews/2026-10-05-feature-review.md#10-p2-github-app-설치-제거권한-변경-웹훅)에 정리했다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
 
@@ -897,3 +899,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `8b89f33`, 구현 커밋은 `74b09ad`(줄 주석)·`58f918c`(ArchUnit)다. REST·MCP PR 게시 요청에 선택 `codeAnnotations`를 추가해 `true`이면 변경 후 코드 근거를 Check Run `notice` 주석으로 최대 50개 보낸다. 주석에는 기록 제목·구현 결정·판단 출처만 담는다. GitHub가 수정 요청의 주석을 누적하므로 새 Check Run 생성과 `annotations_count`가 0으로 확인된 수정에만 넣는다. 기본 요청 본문·대체 안내·저장 데이터는 바꾸지 않았다. 모듈별 `application`·`domain`을 묶어 모듈 사이 순환을 금지하는 ArchUnit 규칙과 모듈 간 순환 fixture를 추가했다.
 - `./gradlew focusedTest --tests '*GitHubRestClientTest' --tests '*PublishChangeRecordToGitHubTest'` 36개가 통과했다. 주석 수 조건을 지운 변형에서는 기존 주석이 있거나 개수를 모르는 2개 경우가 실패하는 것을 확인했다. 최종 `./gradlew test bootJar`에서 서버 256개·ArchUnit 5개가 통과했고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:08~10:12 KST다. 서버 테스트 5개(매개변수 사례 포함)와 구조 규칙 1개를 추가했다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 전체 실행 뒤 규칙 주석과 문서 문구만 고쳤고 컴파일 결과가 같아 구조 검사는 `UP-TO-DATE`였다. SQL·스키마·클라이언트는 바뀌지 않아 PostgreSQL·IntelliJ·Zed 테스트는 반복하지 않았다. 실제 GitHub PR 게시·원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 추가·개선 기능 검토 반영
+
+- 시작 리비전은 `9bc5a8d`, 구현 커밋은 `aabfeea`(서버)·`19ebd0e`(Zed)·`a787fd1`(IntelliJ)·`6c1b668`(검토 문서·변경 이력)이다. 서버·클라이언트를 PRD·ADR과 비교해 [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다. GitHub에 없는 커밋은 502 대신 `REVISION_NOT_FOUND`로 안내하고 이전 기록 조회는 해당 후보만 실패로 남긴다. PR 조회 단계의 게시 실패는 `FAILED`·`PULL_REQUEST_UNAVAILABLE`로 저장한다. 기록 ID 조회의 권한 없음은 404로 숨긴다. 세션 상한은 같은 채널부터 정리한다. MCP `get_change_record_markdown`을 추가했다. 연결 진단은 PR 저장소 불일치에도 계속하고, Zed `check`는 서버 입력 오류를 서버 안내로 표시한다. IntelliJ는 400·403·503 안내를 구분하고 200자 초과 검색어를 요청 전에 안내한다. 목록·변경 작업의 403, HTTP 502 응답 코드, 세션 상한 수, 저장 스키마는 유지했다. 제품 코드는 서버·IntelliJ·Zed 합계 101줄 추가·13줄 삭제다.
+- `./gradlew test bootJar`에서 서버 262개·ArchUnit 5개가 통과하고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:55 KST다. Zed 실제 서버 점검(`ZedBridgeIntegrationTest`)도 여기에 포함된다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 IntelliJ 54개와 ZIP 구조 검사가 통과했다(10:45 KST). `npm test --prefix clients/zed`에서 Node 16개·Python 3개(10:56 KST), `scripts/validate-plugin.sh`가 통과했다. 서버 테스트 6개(매개변수 사례 포함)와 IntelliJ·Node 테스트 각 1개를 추가했다. 기존 테스트의 소유권 거부 기대 3곳은 기록 없음 예외로 바꿨다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. SQL·스키마는 바뀌지 않아 PostgreSQL 검증은 반복하지 않았다. 새 테스트를 반영 전 코드에서 실패시키는 확인은 하지 않았다. `quick_validate.py`는 PyYAML이 없어 실행하지 못했으며 스킬 frontmatter는 바꾸지 않았다. Zed 배포 패키지는 다시 만들지 않았다. 실제 IDE 설치·화면 확인, GitHub 게시, 원격 푸시와 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
