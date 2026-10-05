@@ -205,7 +205,7 @@ class IntentTraceTools(
 
     @McpTool(
         name = "find_change_intent",
-        description = "지정한 저장소·커밋·파일·줄에 연결된 공개 기록을 찾습니다.",
+        description = "지정한 저장소·커밋·파일·줄에 연결된 공개 기록을 최근 공개 순으로 최대 20건 찾습니다. 더 있으면 truncated가 true입니다.",
         generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(
             readOnlyHint = true,
@@ -223,8 +223,9 @@ class IntentTraceTools(
         path: String,
         @McpToolParam(description = "조회할 1부터 시작하는 줄 번호", required = true)
         line: Int,
-    ): ChangeIntentLookup = ChangeIntentLookup(records.findIntent(repositoryKey, revision, path, line)
-        .map { ChangeRecordResponse.from(it, revision) })
+    ): ChangeIntentLookup = records.findIntent(repositoryKey, revision, path, line).let { found ->
+        ChangeIntentLookup(found.items.map { ChangeRecordResponse.from(it, revision) }, found.truncated)
+    }
 
     private fun <T : Any> validated(request: T): T {
         val violations = validator.validate(request)
@@ -233,7 +234,7 @@ class IntentTraceTools(
     }
 }
 
-data class ChangeIntentLookup(val items: List<ChangeRecordResponse>)
+data class ChangeIntentLookup(val items: List<ChangeRecordResponse>, val truncated: Boolean = false)
 
 data class ChangeRecordMarkdown(
     val recordId: UUID,

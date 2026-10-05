@@ -16,7 +16,7 @@
 - `(record_id, version)`을 기본 키로 사용한다. 버전 충돌·동일 생성 요청의 재시도는 성공 이력을 추가하지 않는다. GitHub 원격 호출은 이 트랜잭션에 포함하지 않는다.
 - 생성 이전 이력을 추정하거나 기존 기록에 소급해서 추가하지 않는다. 작성자 조회의 `historyStartsAtCreation=false`로 수집 이전 작업을 확인할 수 없음을 알린다.
 - REST·MCP·브라우저가 같은 `RecordActivityService`를 사용한다. 기록 읽기 권한을 먼저 확인한 뒤 작성자는 전체 작업, 다른 팀원은 `PUBLISH`·`SUPERSEDE`만 조회한다. 비공개 기록의 이력은 작성자만 읽는다.
-- 결과는 버전 내림차순으로 50개씩 반환한다. 다음 페이지는 `nextBeforeVersion`을 사용한다. 팀 조회에는 비공개 작업을 페이지 조회 전에 제외하고 `historyStartsAtCreation`은 null로 반환한다.
+- 결과는 버전 내림차순으로 50개씩 반환한다. 상태 변경은 작성자만 하므로 응답의 `author`(기록 작성자 subject·login)로 처리자를 표시하며, 이력에는 처리자 subject만 저장한다. 다음 페이지는 `nextBeforeVersion`을 사용한다. 팀 조회에는 비공개 작업을 페이지 조회 전에 제외하고 `historyStartsAtCreation`은 null로 반환한다.
 - 이력을 수정·삭제하는 제품 API는 제공하지 않는다. 초안 폐기는 상태 변경이며 기존 기록과 이력을 삭제하지 않는다. 보존 기간과 운영자 삭제 정책은 별도 결정으로 남긴다.
 
 ## 영향

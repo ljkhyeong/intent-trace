@@ -1,6 +1,7 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.application.CurrentGitHubUserSession
+import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecordStatus
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -26,12 +27,14 @@ interface RecordActivityStore {
 }
 
 enum class ActivityVisibility { AUTHOR, TEAM }
+/** 상태 변경은 작성자만 하므로 [author]로 처리자의 표시 이름을 찾는다. 이력에는 처리자 subject만 저장한다. */
 data class RecordActivities(
     val recordId: UUID,
     val visibility: ActivityVisibility,
     val items: List<RecordActivity>,
     val nextBeforeVersion: Long?,
     val historyStartsAtCreation: Boolean?,
+    val author: ActorIdentity,
 )
 
 @Service
@@ -47,6 +50,6 @@ class RecordActivityService(
         val page = activities.list(recordId, visibility, beforeVersion, 51)
         val items = page.take(50)
         return RecordActivities(recordId, visibility, items, if (page.size > 50) items.last().version else null,
-            if (visibility == ActivityVisibility.AUTHOR) activities.hasCreation(recordId) else null)
+            if (visibility == ActivityVisibility.AUTHOR) activities.hasCreation(recordId) else null, record.createdBy)
     }
 }

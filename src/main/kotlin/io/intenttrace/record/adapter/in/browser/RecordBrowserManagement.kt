@@ -29,7 +29,7 @@ internal fun RecordBrowserPage.activities(actor: ActorIdentity, result: RecordAc
             RecordOperation.REOPEN -> "작성자 확인 취소"; RecordOperation.PUBLISH -> "팀 공개"; RecordOperation.DISCARD -> "기록 폐기"
             RecordOperation.SUPERSEDE -> "새 기록으로 대체"
         }
-        append("<li><div><span class=\"status\">버전 ${activity.version}</span><h2>$operation</h2><p>${stamp(activity.occurredAt)}</p><p>처리한 사용자: ${html(activity.actorSubject)}</p>")
+        append("<li><div><span class=\"status\">버전 ${activity.version}</span><h2>$operation</h2><p>${stamp(activity.occurredAt)}</p><p>처리한 사용자: ${html(if (activity.actorSubject == result.author.subject) "@${result.author.login}" else activity.actorSubject)}</p>")
         append("<p>${activity.previousStatus?.let { "${it.label} → " }.orEmpty()}${activity.status.label}</p></div></li>")
     }
     append("</ol>")

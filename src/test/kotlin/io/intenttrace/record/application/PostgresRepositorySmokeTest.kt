@@ -60,7 +60,7 @@ class PostgresRepositorySmokeTest(
             actor,
         )
 
-        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/App.kt", 5)
+        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/App.kt", 5).items
 
         assertEquals("acme/intent-trace", published.repositoryKey)
         assertEquals(listOf(published.id), found.map { it.id })

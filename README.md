@@ -302,7 +302,7 @@ REST·MCP의 생성·수정 요청에 같은 입력 제한을 적용합니다. �
 
 이전 기록 조회는 기본 30초·GitHub 코드 HTTP 호출 40회에서 중단합니다. `stopReason`이 있으면 같은 조건과 `nextCursor`로 미완료 근거부터 이어 읽고 반환된 결과에 추가합니다. `failures`의 기록을 `retryRecordId`로 다시 확인할 때는 해당 후보의 기존 결과를 교체합니다. `complete`는 이번 후보 처리 상태이며 전체 저장소 탐색 완료를 뜻하지 않습니다. 인증·권한·호출 제한 실패는 부분 결과로 숨기지 않습니다. [중단·재개 계약](docs/ADR-0007-evidence-check-and-history.md)을 참고하세요.
 
-MCP `find_change_intent`는 `{ "items": [...] }`, REST `/lookup`은 배열을 반환합니다.
+MCP `find_change_intent`는 `{ "items": [...], "truncated": false }`, REST `/lookup`은 배열을 반환합니다. 두 조회 모두 최근 공개 순(같은 시각은 기록 ID 순) 20건까지 반환하며, 더 있으면 MCP의 `truncated`가 `true`입니다.
 
 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` 형식의 작성자 식별자로 저장하고 현재 로그인 이름은 표시용으로 보존합니다. 팀 목록의 `authorId`는 조회 필터이며 작성자를 지정하는 입력이 아닙니다. `DRAFT`, `AUTHOR_CONFIRMED`, `DISCARDED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 

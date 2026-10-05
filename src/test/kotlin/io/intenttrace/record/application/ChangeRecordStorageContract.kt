@@ -107,6 +107,24 @@ abstract class ChangeRecordStorageContract {
     }
 
     @Test
+    fun `현재 줄 조회는 최근 공개 순 상한까지 반환하고 같은 공개 시각은 ID 순서로 고정한다`() {
+        val repositoryKey = "acme/line-limit-${UUID.randomUUID()}"
+        val records = List(LINE_INTENT_LIMIT + 1) {
+            val draft = storageFacade.create(command().copy(repositoryKey = repositoryKey), actor)
+            val confirmed = storageFacade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
+            storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
+        }
+        storageJdbc.update("update change_records set published_at = ? where repository_key = ?",
+            Instant.EPOCH.atOffset(ZoneOffset.UTC), repositoryKey)
+
+        val found = storageFacade.findIntent(repositoryKey, "b".repeat(40), "src/Storage.kt", 1)
+
+        assertTrue(found.truncated)
+        assertEquals(records.map { it.id.toString() }.sortedDescending().take(LINE_INTENT_LIMIT), found.items.map { it.id.toString() })
+        assertFalse(storageFacade.findIntent(repositoryKey, "b".repeat(40), "src/Storage.kt", 3).truncated)
+    }
+
+    @Test
     fun `파일 이력과 내 초안을 페이지로 조회한다`() {
         val repositoryKey = "acme/history-${UUID.randomUUID()}"
         fun draft(owner: ActorIdentity = actor, path: String = "src/Storage.kt"): ChangeRecord =

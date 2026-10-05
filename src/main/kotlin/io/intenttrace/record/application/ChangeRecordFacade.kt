@@ -183,13 +183,14 @@ class ChangeRecordFacade(
         }
     }
 
-    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
+    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): LineIntents {
         val normalizedRepositoryKey = GitHubRepository.parse(repositoryKey).key
         val normalizedRevision = GitRevision.parse(revision).value
         val normalizedPath = requireRepositoryRelativePath(path)
         require(line > 0) { "코드 줄 번호는 1 이상이어야 합니다." }
 
-        return repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, normalizedPath, line)
+        val found = repository.findPublishedByAnchor(normalizedRepositoryKey, normalizedRevision, normalizedPath, line, LINE_INTENT_LIMIT + 1)
+        return LineIntents(found.take(LINE_INTENT_LIMIT), found.size > LINE_INTENT_LIMIT)
     }
 
     private fun validateCreate(command: CreateChangeRecordCommand) {

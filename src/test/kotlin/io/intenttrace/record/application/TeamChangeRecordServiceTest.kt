@@ -187,6 +187,7 @@ class TeamChangeRecordServiceTest {
             targetRevision: String,
             relativePath: String,
             line: Int,
+            limit: Int,
         ): List<ChangeRecord> = listOfNotNull(record).filter {
             it.repositoryKey == repositoryKey &&
                 it.targetRevision == targetRevision &&

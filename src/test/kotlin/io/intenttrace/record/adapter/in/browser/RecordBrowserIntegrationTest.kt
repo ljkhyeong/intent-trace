@@ -470,6 +470,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             for (label in listOf("GitHub 코드와 비교", "기록 변경 이력")) {
                 val sectionUrl = link(detail, label)
                 val section = read(if (label == "기록 변경 이력") URI("$sectionUrl&beforeVersion=3") else sectionUrl)
+                if (label == "기록 변경 이력") assertTrue(section.contains("처리한 사용자: @lim"), section)
                 assertEquals(recordUrl, link(section, "기록으로 돌아가기"))
             }
             val compared = read(link(detail, "원본과 비교"))

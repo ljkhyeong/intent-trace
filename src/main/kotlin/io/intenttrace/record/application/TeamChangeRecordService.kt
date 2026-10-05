@@ -77,7 +77,7 @@ class TeamChangeRecordService(
         return facade.discard(record, expectedVersion, actor)
     }
 
-    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
+    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): LineIntents {
         access.requireReader(repositoryKey)
         return facade.findIntent(repositoryKey, revision, path, line)
     }

@@ -26,6 +26,7 @@ interface ChangeRecordRepository {
         targetRevision: String,
         relativePath: String,
         line: Int,
+        limit: Int,
     ): List<ChangeRecord>
 
     fun saveNew(record: ChangeRecord): ChangeRecord

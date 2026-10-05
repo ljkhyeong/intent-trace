@@ -91,6 +91,7 @@ class ChangeRecordFacadeTest {
             targetRevision: String,
             relativePath: String,
             line: Int,
+            limit: Int,
         ): List<ChangeRecord> = emptyList()
 
         override fun saveNew(record: ChangeRecord): ChangeRecord =

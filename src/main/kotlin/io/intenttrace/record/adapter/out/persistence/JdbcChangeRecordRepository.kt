@@ -105,6 +105,7 @@ class JdbcChangeRecordRepository(
         targetRevision: String,
         relativePath: String,
         line: Int,
+        limit: Int,
     ): List<ChangeRecord> {
         val records = jdbcTemplate.query(
             """
@@ -122,7 +123,8 @@ class JdbcChangeRecordRepository(
                     and anchors.start_line <= ?
                     and anchors.end_line >= ?
               )
-            order by records.published_at desc
+            order by records.published_at desc, records.id desc
+            limit ?
             """.trimIndent(),
             recordRowMapper,
             repositoryKey,
@@ -131,6 +133,7 @@ class JdbcChangeRecordRepository(
             relativePath,
             line,
             line,
+            limit,
         )
         return hydrate(records)
     }
