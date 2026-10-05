@@ -33,14 +33,14 @@ class LineHistoryDialogTest : LightPlatformTestCase() {
             assertTrue(content.text.contains("record-2: 파일 또는 응답이 지원 크기를 초과했습니다."))
             assertEmpty(cursors)
 
-            val failed = response
+            val resumed = response
             response = null
             next.doClick()
             assertEquals(listOf("h1.resume"), cursors)
             assertEquals(1, selection.itemCount)
             assertTrue(next.isEnabled)
 
-            response = failed
+            response = resumed
             next.doClick()
             assertEquals(listOf("h1.resume", "h1.resume"), cursors)
             assertEquals(3, selection.itemCount)
