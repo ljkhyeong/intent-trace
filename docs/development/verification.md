@@ -26,6 +26,7 @@ Markdown·CSS·YAML 등 별도 구문 검사가 없는 파일은 공백만 검�
 - `adapter.in`의 Controller·MCP는 `application`의 `*Repository`와 `adapter.out`·DB API를 직접 참조하지 않는다. 도메인의 `GitHubRepository` 값 객체는 허용한다.
 - `domain`은 `application`·`adapter`·`config`와 Spring·DB API에 의존하지 않는다.
 - `application`은 `adapter`·인프라 구현체·DB API에 의존하지 않는다. 기존 Spring 서비스·트랜잭션과 설정 주입은 허용한다.
+- 모듈별 `application`·`domain` 계층을 하나로 묶었을 때 모듈 사이에 순환 의존이 없다. 여러 모듈 화면을 조합하는 `adapter`와 공용 `config`는 검사하지 않는다.
 
 규칙은 `src/test/kotlin/io/intenttrace/architecture/ArchitectureTest.kt` 한 곳에서 관리한다. import 문만 찾는 정규식 검사 대신 필드·생성자·메서드·상속 등 실제 클래스 의존을 검사한다.
 
