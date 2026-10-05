@@ -84,7 +84,7 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - 원래 CRLF·LF와 마지막 줄 바이트를 그대로 비교한다. 공백뿐인 조각, 중복 조각, 코드 수정·이름 변경이 함께 일어난 경우는 자동 이동 확인 범위에서 제외한다.
 - `sourcePath`, `sourceStartLine`, `sourceEndLine`과 확인한 `currentStartLine`, `currentEndLine`을 반환한다. 현재 줄 일치를 확인하지 못하면 현재 범위는 null이다.
 - 이전 커밋에서 온 모든 연결의 `verificationAppliesToQuery`는 false다.
-- 0.9.0부터 MCP `find_change_intent`는 최상위 배열 대신 `{ "items": [...] }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 REST `/lookup` 배열 응답은 유지한다.
+- MCP `find_change_intent`와 REST `/lookup`은 같은 `{ "items": [...], "truncated": false }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 20건을 넘으면 `truncated`가 true다.
 
 ## 후보별 실패와 요청 안의 조회 재사용
 

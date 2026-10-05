@@ -26,7 +26,7 @@ class FindCurrentLineIntentAction : IntentTraceAction() {
         }
 
         object : Task.Backgroundable(project, "IntentTrace 변경 의도 조회", false) {
-            private lateinit var records: List<ChangeIntentRecord>
+            private lateinit var found: ChangeIntentLookup
             private lateinit var server: IntentTraceServer
 
             override fun run(indicator: ProgressIndicator) {
@@ -36,12 +36,12 @@ class FindCurrentLineIntentAction : IntentTraceAction() {
                     ?: throw IntentTraceUsageException(
                         "IntentTrace 세션이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.",
                     )
-                records = IntentTraceApiClient().lookup(server, token, lookup)
+                found = IntentTraceApiClient().lookup(server, token, lookup)
             }
 
             override fun onSuccess() {
                 if (project.isDisposed) return
-                IntentTraceResultDialog(project, lookup, records, server).show()
+                IntentTraceResultDialog(project, lookup, found, server).show()
             }
 
             override fun onThrowable(error: Throwable) {

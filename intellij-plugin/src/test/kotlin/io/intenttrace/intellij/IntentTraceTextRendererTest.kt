@@ -9,12 +9,13 @@ class IntentTraceTextRendererTest {
     fun `근거 출처와 snapshot 상태를 구분해서 표시한다`() {
         val output = IntentTraceTextRenderer.render(
             lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12),
-            records = listOf(record),
+            found = ChangeIntentLookup(listOf(record), truncated = true),
         )
 
         assertContains(output, "[정황에서 추론] 얇은 IDE client를 둔다.")
         assertContains(output, "[기록 스냅샷과 불일치, 종료 코드 0] ./gradlew test")
         assertContains(output, "남은 질문\n- 없음")
+        assertContains(output, "최근 공개 기록 1건만 표시합니다.")
     }
 
     @Test
@@ -23,7 +24,7 @@ class IntentTraceTextRendererTest {
         for (current in listOf(false, true)) {
             val response = record.copy(baseRevision = lookup.revision,
                 verifications = record.verifications.map { it.copy(current = current) })
-            val output = IntentTraceTextRenderer.render(lookup, listOf(response))
+            val output = IntentTraceTextRenderer.render(lookup, ChangeIntentLookup(listOf(response), truncated = false))
             assertContains(output, "[다른 커밋의 결과, 종료 코드 0]")
             assertFalse(output.contains("기록 스냅샷과 불일치"))
             assertFalse(output.contains("기록 스냅샷과 일치"))

@@ -93,8 +93,7 @@ class ChangeRecordController(
         @RequestParam @Pattern(regexp = FULL_GIT_REVISION_PATTERN) revision: String,
         @RequestParam @NotBlank @Size(max = 1000) path: String,
         @RequestParam @Min(1) line: Int,
-    ): List<ChangeRecordResponse> = records.findIntent(repositoryKey, revision, path, line)
-        .items.map { ChangeRecordResponse.from(it, revision) }
+    ): ChangeIntentLookup = ChangeIntentLookup.from(records.findIntent(repositoryKey, revision, path, line), revision)
 
     @GetMapping("/{recordId}/markdown", produces = [MediaType.TEXT_MARKDOWN_VALUE])
     fun markdown(@PathVariable recordId: UUID): String = markdownRenderer.render(records.get(recordId))

@@ -25,6 +25,10 @@ internal data class ChangeIntentRecord(
     }
 }
 
+/** 현재 줄 조회 결과다. 서버가 최근 공개 순 20건까지 돌려주고 더 있으면 [truncated]다. */
+@Serializable
+internal data class ChangeIntentLookup(val items: List<ChangeIntentRecord>, val truncated: Boolean)
+
 internal enum class RecordListScope { TEAM, MINE }
 
 internal data class RecordListQuery(

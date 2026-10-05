@@ -70,6 +70,8 @@ class AuthenticatedRestIntegrationTest(
         val (owner, name) = repository.split('/')
         mockMvc.get("/api/v1/change-records/$id/github-pull-request?owner=$owner&repository=$name&pullNumber=1") { authorized() }
             .andExpect { status { isOk() }; jsonPath("$.attempts") { isEmpty() } }
+        mockMvc.get("/api/v1/change-records/lookup?repositoryKey=$repository&revision=${"b".repeat(40)}&path=src/App.kt&line=1") { authorized() }
+            .andExpect { status { isOk() }; jsonPath("$.items") { isEmpty() }; jsonPath("$.truncated") { value(false) } }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
             authorized()
         }.andExpect { jsonPath("$.items") { isEmpty() } }

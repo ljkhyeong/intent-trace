@@ -21,7 +21,7 @@ import javax.swing.JPanel
 internal open class IntentTraceResultDialog(
     project: Project,
     private val lookup: LineLookup,
-    private val records: List<ChangeIntentRecord>,
+    found: ChangeIntentLookup,
     server: IntentTraceServer,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openHistory: (RepositoryFileContext) -> Unit = {
@@ -30,7 +30,8 @@ internal open class IntentTraceResultDialog(
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
     private val openLineHistory: (LineLookup) -> Unit = { LineHistory.open(project, it, server) },
 ) : DialogWrapper(project, true) {
-    private val text = IntentTraceTextRenderer.render(lookup, records)
+    private val text = IntentTraceTextRenderer.render(lookup, found)
+    private val records = found.items
     private val context = RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)
     private val webHistoryUri = server.webHistoryUri(lookup)
 

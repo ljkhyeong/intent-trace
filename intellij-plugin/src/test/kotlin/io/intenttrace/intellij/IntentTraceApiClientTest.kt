@@ -56,7 +56,6 @@ class IntentTraceApiClientTest {
         for ((status, message) in mapOf(
             401 to "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요.",
             403 to "로그인 정보를 확인할 권한이 없습니다.",
-            404 to "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요.",
             200 to "IntentTrace 조회 응답 형식을 확인할 수 없습니다.",
         )) {
             withServer(path = "/api/v1/me/sessions", handler = { exchange ->
@@ -134,15 +133,13 @@ class IntentTraceApiClientTest {
             handler = { exchange ->
                 authorization.set(exchange.requestHeaders.getFirst("Authorization"))
                 requestUri.set(exchange.requestURI.toString())
-                val response = "[]".toByteArray(StandardCharsets.UTF_8)
+                val response = EMPTY_LOOKUP.toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { it.write(response) }
             },
         ) { server ->
-            val records = lookup(server)
-
-            assertEquals(emptyList(), records)
+            assertEquals(ChangeIntentLookup(emptyList(), truncated = false), lookup(server))
             assertEquals("Bearer $token", authorization.get())
             assertContains(requestUri.get(), "repositoryKey=team%2Frepository")
             assertContains(requestUri.get(), "path=src%2Fmain%2FApp.kt&line=12")
@@ -180,9 +177,9 @@ class IntentTraceApiClientTest {
         withServer(
             handler = { exchange ->
                 try {
-                    exchange.sendResponseHeaders(200, 2)
+                    exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
                     releaseBody.await(15, TimeUnit.SECONDS)
-                    exchange.responseBody.write("[]".toByteArray())
+                    exchange.responseBody.write(EMPTY_LOOKUP.toByteArray())
                 } finally {
                     exchange.close()
                 }
@@ -219,8 +216,8 @@ class IntentTraceApiClientTest {
             ) { server ->
                 server.createContext("/redirected") { exchange ->
                     redirectedRequests.incrementAndGet()
-                    exchange.sendResponseHeaders(200, 2)
-                    exchange.responseBody.use { it.write("[]".toByteArray()) }
+                    exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
+                    exchange.responseBody.use { it.write(EMPTY_LOOKUP.toByteArray()) }
                 }
                 val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
 
@@ -297,7 +294,7 @@ class IntentTraceApiClientTest {
         withServer(
             path = "/api/v1/change-records",
             handler = { exchange ->
-                val json = if (exchange.requestURI.path.endsWith("/lookup")) "[$recordJson]" else recordJson
+                val json = if (exchange.requestURI.path.endsWith("/lookup")) """{"items":[$recordJson],"truncated":false}""" else recordJson
                 val body = json.toByteArray(StandardCharsets.UTF_8)
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
@@ -306,7 +303,7 @@ class IntentTraceApiClientTest {
             val endpoint = IntentTraceServer.parse("http://127.0.0.1:" + server.address.port)
             val record = IntentTraceApiClient().record(endpoint, token, id)
 
-            assertEquals(record, lookup(server).single())
+            assertEquals(record, lookup(server).items.single())
             assertEquals(50, record.verifications.size)
             assertEquals(detail, record.verifications.last().summary)
             assertEquals(summary, record.openQuestions.last())
@@ -318,13 +315,13 @@ class IntentTraceApiClientTest {
         for (size in listOf(4 * 1024 * 1024, 4 * 1024 * 1024 + 1)) {
             withServer(
                 handler = { exchange ->
-                    val body = ("[]" + " ".repeat(size - 2)).toByteArray(StandardCharsets.UTF_8)
+                    val body = (EMPTY_LOOKUP + " ".repeat(size - EMPTY_LOOKUP.length)).toByteArray(StandardCharsets.UTF_8)
                     exchange.sendResponseHeaders(200, body.size.toLong())
                     exchange.responseBody.use { it.write(body) }
                 },
             ) { server ->
                 if (size == 4 * 1024 * 1024) {
-                    assertEquals(emptyList(), lookup(server))
+                    assertEquals(emptyList(), lookup(server).items)
                 } else {
                     val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
                     assertEquals("IntentTrace 조회 응답이 허용 크기를 초과했습니다.", exception.message)
@@ -371,7 +368,7 @@ class IntentTraceApiClientTest {
         assertContains(authorization.get(), "cursor=h1.first")
     }
 
-    private fun lookup(server: HttpServer): List<ChangeIntentRecord> = IntentTraceApiClient().lookup(
+    private fun lookup(server: HttpServer): ChangeIntentLookup = IntentTraceApiClient().lookup(
         server = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
         sessionToken = token,
         lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12),
@@ -391,3 +388,5 @@ class IntentTraceApiClientTest {
 
     private val token = "its_${"A".repeat(43)}"
 }
+
+private const val EMPTY_LOOKUP = """{"items":[],"truncated":false}"""

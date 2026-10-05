@@ -1,5 +1,6 @@
 package io.intenttrace.record.adapter.`in`.mcp
 
+import io.intenttrace.record.adapter.`in`.web.ChangeIntentLookup
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
@@ -221,9 +222,7 @@ class IntentTraceTools(
         path: String,
         @McpToolParam(description = "조회할 1부터 시작하는 줄 번호", required = true)
         line: Int,
-    ): ChangeIntentLookup = records.findIntent(repositoryKey, revision, path, line).let { found ->
-        ChangeIntentLookup(found.items.map { ChangeRecordResponse.from(it, revision) }, found.truncated)
-    }
+    ): ChangeIntentLookup = ChangeIntentLookup.from(records.findIntent(repositoryKey, revision, path, line), revision)
 
     private fun <T : Any> validated(request: T): T {
         val violations = validator.validate(request)
@@ -231,8 +230,6 @@ class IntentTraceTools(
         return request
     }
 }
-
-data class ChangeIntentLookup(val items: List<ChangeRecordResponse>, val truncated: Boolean = false)
 
 data class ChangeRecordMarkdown(
     val recordId: UUID,

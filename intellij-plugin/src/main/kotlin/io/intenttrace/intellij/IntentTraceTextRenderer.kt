@@ -1,14 +1,17 @@
 package io.intenttrace.intellij
 
 internal object IntentTraceTextRenderer {
-    fun render(lookup: LineLookup, records: List<ChangeIntentRecord>): String = buildString {
+    fun render(lookup: LineLookup, found: ChangeIntentLookup): String = buildString {
         appendLine("${lookup.repositoryKey} · ${lookup.revision.take(12)}")
         appendLine("${lookup.relativePath}:${lookup.line}")
-        if (records.isEmpty()) {
+        if (found.items.isEmpty()) {
             appendLine().appendLine("이 커밋의 현재 줄에 연결된 공개 기록이 없습니다.")
             appendLine("아래 버튼으로 파일의 과거 기록이나 줄 이동·이름 변경을 찾아보세요.")
         }
-        append(renderRecords(records, lookup.revision))
+        if (found.truncated) {
+            appendLine().appendLine("최근 공개 기록 ${found.items.size}건만 표시합니다. 나머지는 이 파일의 과거 기록에서 확인하세요.")
+        }
+        append(renderRecords(found.items, lookup.revision))
     }.trimEnd()
 
     fun renderHistory(record: ChangeIntentRecord): String = buildString {

@@ -33,7 +33,7 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
         val openedWebPages = mutableListOf<URI>()
         var centerPanel: JComponent? = null
         val dialog = object : IntentTraceResultDialog(
-            project, lookup, listOf(original, replacement), server,
+            project, lookup, ChangeIntentLookup(listOf(original, replacement), truncated = false), server,
             { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) },
         ) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
@@ -82,7 +82,7 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
         val openedWebPages = mutableListOf<URI>()
         val openedLineHistories = mutableListOf<LineLookup>()
         var centerPanel: JComponent? = null
-        val dialog = object : IntentTraceResultDialog(project, lookup, emptyList(), server,
+        val dialog = object : IntentTraceResultDialog(project, lookup, ChangeIntentLookup(emptyList(), truncated = false), server,
             { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) }, { openedLineHistories.add(it) }) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
         }

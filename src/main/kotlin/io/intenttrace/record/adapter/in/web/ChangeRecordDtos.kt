@@ -3,6 +3,7 @@ package io.intenttrace.record.adapter.`in`.web
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.CreateChangeRecordCommand
+import io.intenttrace.record.application.LineIntents
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.application.SuccessorDraftCommand
@@ -212,6 +213,14 @@ data class ChangeRecordResponse(
             openQuestions = record.openQuestions,
             derivedFromRecordId = record.derivedFromRecordId,
         )
+    }
+}
+
+// 줄 조회는 REST·MCP 모두 상한을 넘었는지 함께 돌려준다.
+data class ChangeIntentLookup(val items: List<ChangeRecordResponse>, val truncated: Boolean) {
+    companion object {
+        fun from(found: LineIntents, revision: String): ChangeIntentLookup =
+            ChangeIntentLookup(found.items.map { ChangeRecordResponse.from(it, revision) }, found.truncated)
     }
 }
 

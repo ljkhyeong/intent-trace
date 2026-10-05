@@ -21,8 +21,8 @@ internal class IntentTraceApiClient {
         return IntentTraceResponseParser.parseLogin(get(server.mySessionsUri(), token, sessionCheck = true))
     }
 
-    fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): List<ChangeIntentRecord> =
-        IntentTraceResponseParser.parse(get(server.lookupUri(lookup), sessionToken))
+    fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): ChangeIntentLookup =
+        IntentTraceResponseParser.parseLookup(get(server.lookupUri(lookup), sessionToken))
 
     fun list(server: IntentTraceServer, sessionToken: String, query: RecordListQuery): ChangeRecordPage =
         IntentTraceResponseParser.parsePage(get(server.listUri(query), sessionToken))
@@ -91,8 +91,7 @@ internal class IntentTraceApiClient {
                             // 기록 ID 조회의 권한 없음은 서버가 404로 숨기므로 403은 저장소 단위 거부다.
                             status == 403 -> if (sessionCheck) "로그인 정보를 확인할 권한이 없습니다."
                                 else "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다."
-                            status == 404 -> if (sessionCheck) "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요."
-                                else "해당 IntentTrace 기록을 찾을 수 없습니다."
+                            status == 404 -> "해당 IntentTrace 기록을 찾을 수 없습니다."
                             status in 500..599 -> "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다."
                             else -> "IntentTrace 조회 요청이 거부됐습니다. HTTP $status"
                         })
