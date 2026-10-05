@@ -1,6 +1,7 @@
 package io.intenttrace.record.adapter.out.persistence
 
 import io.intenttrace.record.application.RecordActivity
+import io.intenttrace.record.application.ActivityVisibility
 import io.intenttrace.record.application.RecordActivityStore
 import io.intenttrace.record.application.RecordOperation
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -25,11 +26,11 @@ class JdbcRecordActivityStore(private val jdbc: JdbcTemplate) : RecordActivitySt
             activity.occurredAt.atOffset(ZoneOffset.UTC))
     }
 
-    override fun list(recordId: UUID, authorView: Boolean, beforeVersion: Long?, limit: Int): List<RecordActivity> {
+    override fun list(recordId: UUID, visibility: ActivityVisibility, beforeVersion: Long?, limit: Int): List<RecordActivity> {
         val parameters = mutableListOf<Any>(recordId.toString())
         val sql = buildString {
             append("select * from record_activities where record_id = ?")
-            if (!authorView) append(" and operation in ('PUBLISH', 'SUPERSEDE')")
+            if (visibility == ActivityVisibility.TEAM) append(" and operation in ('PUBLISH', 'SUPERSEDE')")
             if (beforeVersion != null) { append(" and version < ?"); parameters.add(beforeVersion) }
             append(" order by version desc limit ?"); parameters.add(limit)
         }
@@ -40,8 +41,4 @@ class JdbcRecordActivityStore(private val jdbc: JdbcTemplate) : RecordActivitySt
             ChangeRecordStatus.valueOf(row.getString("status")), row.getObject("occurred_at", OffsetDateTime::class.java).toInstant(),
         ) }, *parameters.toTypedArray())
     }
-
-    override fun hasCreation(recordId: UUID): Boolean = jdbc.queryForObject(
-        "select count(*) from record_activities where record_id = ? and operation = 'CREATE'", Long::class.java, recordId.toString(),
-    ) == 1L
 }

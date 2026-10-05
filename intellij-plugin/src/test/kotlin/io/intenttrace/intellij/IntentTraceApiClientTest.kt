@@ -24,7 +24,7 @@ class IntentTraceApiClientTest {
         withServer(path = "/api/v1/me/sessions", handler = { exchange ->
             method.set(exchange.requestMethod)
             authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-            val body = """{"actor":{"subject":"github:42","login":"developer"},"authentication":"LOCAL_SESSION","sessions":[]}""".toByteArray()
+            val body = """{"actor":{"subject":"github:42","login":"developer"},"sessions":[]}""".toByteArray()
             exchange.sendResponseHeaders(200, body.size.toLong())
             exchange.responseBody.use { it.write(body) }
         }) { server ->
@@ -56,7 +56,6 @@ class IntentTraceApiClientTest {
         for ((status, message) in mapOf(
             401 to "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요.",
             403 to "로그인 정보를 확인할 권한이 없습니다.",
-            404 to "로그인 확인 API를 찾을 수 없습니다. 서버 버전을 확인해 주세요.",
             200 to "IntentTrace 조회 응답 형식을 확인할 수 없습니다.",
         )) {
             withServer(path = "/api/v1/me/sessions", handler = { exchange ->
@@ -118,7 +117,8 @@ class IntentTraceApiClientTest {
                 val exception = assertFailsWith<IntentTraceClientException> {
                     IntentTraceApiClient().checkConnection(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"))
                 }
-                assertEquals("IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
+                assertEquals(if (status == 503) "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
+                    else "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
                 assertEquals(0, redirectedRequests.get())
                 assertFalse(exception.stackTraceToString().contains("test-private-response-marker"))
             }
@@ -133,15 +133,13 @@ class IntentTraceApiClientTest {
             handler = { exchange ->
                 authorization.set(exchange.requestHeaders.getFirst("Authorization"))
                 requestUri.set(exchange.requestURI.toString())
-                val response = "[]".toByteArray(StandardCharsets.UTF_8)
+                val response = EMPTY_LOOKUP.toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { it.write(response) }
             },
         ) { server ->
-            val records = lookup(server)
-
-            assertEquals(emptyList(), records)
+            assertEquals(ChangeIntentLookup(emptyList(), truncated = false), lookup(server))
             assertEquals("Bearer $token", authorization.get())
             assertContains(requestUri.get(), "repositoryKey=team%2Frepository")
             assertContains(requestUri.get(), "path=src%2Fmain%2FApp.kt&line=12")
@@ -150,11 +148,11 @@ class IntentTraceApiClientTest {
 
     @Test
     fun `session 폐기는 DELETE와 bearer token을 보내고 이미 만료된 session도 완료로 처리한다`() {
-        for (status in listOf(204, 401)) {
+        for (status in listOf(200, 401)) {
             val method = AtomicReference<String>()
             val authorization = AtomicReference<String>()
             withServer(
-                path = "/api/v1/session",
+                path = "/api/v1/me/sessions/current",
                 handler = { exchange ->
                     method.set(exchange.requestMethod)
                     authorization.set(exchange.requestHeaders.getFirst("Authorization"))
@@ -179,9 +177,9 @@ class IntentTraceApiClientTest {
         withServer(
             handler = { exchange ->
                 try {
-                    exchange.sendResponseHeaders(200, 2)
+                    exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
                     releaseBody.await(15, TimeUnit.SECONDS)
-                    exchange.responseBody.write("[]".toByteArray())
+                    exchange.responseBody.write(EMPTY_LOOKUP.toByteArray())
                 } finally {
                     exchange.close()
                 }
@@ -200,7 +198,8 @@ class IntentTraceApiClientTest {
     fun `오류는 상태 코드로 안내하고 redirect를 따라가지 않는다`() {
         val messages = mapOf(
             401 to "세션이 만료됐습니다. GitHub에 다시 로그인하고 새 세션을 연결해 주세요.",
-            403 to "현재 GitHub 사용자는 이 기록을 조회할 권한이 없습니다.",
+            400 to "IntentTrace가 조회 조건을 거부했습니다. 검색어 길이와 파일 경로·커밋 형식을 확인해 주세요.",
+            403 to "현재 GitHub 사용자는 이 저장소의 기록을 조회할 권한이 없습니다.",
             404 to "해당 IntentTrace 기록을 찾을 수 없습니다.",
             503 to "IntentTrace 또는 GitHub 연동이 일시적으로 응답하지 않습니다.",
             302 to "IntentTrace 조회 요청이 거부됐습니다. HTTP 302",
@@ -217,8 +216,8 @@ class IntentTraceApiClientTest {
             ) { server ->
                 server.createContext("/redirected") { exchange ->
                     redirectedRequests.incrementAndGet()
-                    exchange.sendResponseHeaders(200, 2)
-                    exchange.responseBody.use { it.write("[]".toByteArray()) }
+                    exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
+                    exchange.responseBody.use { it.write(EMPTY_LOOKUP.toByteArray()) }
                 }
                 val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
 
@@ -295,7 +294,7 @@ class IntentTraceApiClientTest {
         withServer(
             path = "/api/v1/change-records",
             handler = { exchange ->
-                val json = if (exchange.requestURI.path.endsWith("/lookup")) "[$recordJson]" else recordJson
+                val json = if (exchange.requestURI.path.endsWith("/lookup")) """{"items":[$recordJson],"truncated":false}""" else recordJson
                 val body = json.toByteArray(StandardCharsets.UTF_8)
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }
@@ -304,7 +303,7 @@ class IntentTraceApiClientTest {
             val endpoint = IntentTraceServer.parse("http://127.0.0.1:" + server.address.port)
             val record = IntentTraceApiClient().record(endpoint, token, id)
 
-            assertEquals(record, lookup(server).single())
+            assertEquals(record, lookup(server).items.single())
             assertEquals(50, record.verifications.size)
             assertEquals(detail, record.verifications.last().summary)
             assertEquals(summary, record.openQuestions.last())
@@ -316,13 +315,13 @@ class IntentTraceApiClientTest {
         for (size in listOf(4 * 1024 * 1024, 4 * 1024 * 1024 + 1)) {
             withServer(
                 handler = { exchange ->
-                    val body = ("[]" + " ".repeat(size - 2)).toByteArray(StandardCharsets.UTF_8)
+                    val body = (EMPTY_LOOKUP + " ".repeat(size - EMPTY_LOOKUP.length)).toByteArray(StandardCharsets.UTF_8)
                     exchange.sendResponseHeaders(200, body.size.toLong())
                     exchange.responseBody.use { it.write(body) }
                 },
             ) { server ->
                 if (size == 4 * 1024 * 1024) {
-                    assertEquals(emptyList(), lookup(server))
+                    assertEquals(emptyList(), lookup(server).items)
                 } else {
                     val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
                     assertEquals("IntentTrace 조회 응답이 허용 크기를 초과했습니다.", exception.message)
@@ -331,7 +330,45 @@ class IntentTraceApiClientTest {
         }
     }
 
-    private fun lookup(server: HttpServer): List<ChangeIntentRecord> = IntentTraceApiClient().lookup(
+    @Test
+    fun `연결 진단과 이전 커밋 조회는 세션으로 요청하고 응답을 화면 모델로 읽는다`() {
+        val authorization = AtomicReference<String>()
+        val diagnosis = """{"repositoryKey":"team/repository","checkedAt":"2026-10-05T01:00:00Z","checks":[
+            {"name":"repository_read","status":"VERIFIED","message":"GitHub 응답으로 확인했습니다."},
+            {"name":"git_tree_read","status":"FAILED","message":"GitHub에서 커밋을 찾을 수 없습니다."}]}""".toByteArray()
+        withServer(path = "/api/v1/connection-diagnostics", handler = { exchange ->
+            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+            exchange.sendResponseHeaders(200, diagnosis.size.toLong())
+            exchange.responseBody.use { it.write(diagnosis) }
+        }) { server ->
+            val result = IntentTraceApiClient().diagnose(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token, "team/repository", null)
+            assertEquals(listOf("VERIFIED", "FAILED"), result.checks.map { it.status })
+        }
+        assertEquals("Bearer $token", authorization.get())
+
+        val history = """{"queryRevision":"${"a".repeat(40)}","path":"src/main/App.kt","scannedRecords":2,"nextCursor":"h1.next",
+            "stopReason":"TIME_LIMIT","complete":false,"resumeBlocked":false,"failures":[{"recordId":"record-2","reason":"REVISION_NOT_FOUND"}],
+            "items":[{"record":{"id":"record-1","title":"이전 기록","requestSummary":"요청","repositoryKey":"team/repository",
+            "targetRevision":"${"b".repeat(40)}","status":"PUBLISHED","createdBy":{"subject":"github:1","login":"developer"},
+            "createdAt":"2026-10-01T00:00:00Z","version":3},"sourceRevision":"${"b".repeat(40)}","side":"TARGET",
+            "match":"ANCESTOR_MOVED_LINES","verificationAppliesToQuery":false,"sourcePath":"src/main/App.kt",
+            "sourceStartLine":4,"sourceEndLine":6,"currentStartLine":10,"currentEndLine":12}]}""".toByteArray()
+        withServer(path = "/api/v1/change-records/history", handler = { exchange ->
+            authorization.set(exchange.requestURI.rawQuery)
+            exchange.sendResponseHeaders(200, history.size.toLong())
+            exchange.responseBody.use { it.write(history) }
+        }) { server ->
+            val result = IntentTraceApiClient().history(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token,
+                LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12), "h1.first")
+            assertEquals("ANCESTOR_MOVED_LINES", result.items.single().match)
+            assertEquals(10, result.items.single().currentStartLine)
+            assertEquals("REVISION_NOT_FOUND", result.failures.single().reason)
+            assertEquals("h1.next", result.nextCursor)
+        }
+        assertContains(authorization.get(), "cursor=h1.first")
+    }
+
+    private fun lookup(server: HttpServer): ChangeIntentLookup = IntentTraceApiClient().lookup(
         server = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
         sessionToken = token,
         lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12),
@@ -351,3 +388,5 @@ class IntentTraceApiClientTest {
 
     private val token = "its_${"A".repeat(43)}"
 }
+
+private const val EMPTY_LOOKUP = """{"items":[],"truncated":false}"""

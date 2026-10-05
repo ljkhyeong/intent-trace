@@ -2,7 +2,8 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.connection.application.ConnectionDiagnostics
 import io.intenttrace.publication.application.PullRequestOverviewService
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.publication.application.TeamGitHubPublicationService
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.application.EvidenceUnavailableException
@@ -62,6 +63,7 @@ class RecordBrowserController(
     private val comparison: RecordComparisonService,
     private val diagnostics: ConnectionDiagnostics,
     private val overview: PullRequestOverviewService,
+    private val publisher: TeamGitHubPublicationService,
     private val githubContext: GitHubContextService,
     private val history: ChangeIntentHistoryService,
     private val evidence: RecordEvidenceService,
@@ -80,15 +82,16 @@ class RecordBrowserController(
         @RequestParam(required = false) authorId: Long?,
     ): ResponseEntity<String> = read(request) { session ->
         val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
-        val browserScope = if (scope == RecordScope.MY_DRAFTS) RecordScope.MINE else scope
-        pages.search(session.actor, repository, q, browserScope,
-            repository?.let { catalog.list(it, browserScope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
+        pages.search(session.actor, repository, q, scope,
+            repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
             status, path, authorId, returnTo(request))
     }
 
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.record(it.actor, records.get(id), searchUrl(request))
+        // 게시 목록 조회가 같은 권한 검사로 기록을 함께 읽는다.
+        val view = publisher.targets(id)
+        pages.record(it.actor, view.record, searchUrl(request), view)
     }
 
     @GetMapping("/{id}/markdown")
@@ -156,12 +159,15 @@ class RecordBrowserController(
         if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 연결을 종료해 주세요."), 403)
         return authenticated(request, "/records/sessions") { session ->
             val currentRevoked = action(session)
-            val result = ResponseEntity.status(303).header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .header(HttpHeaders.LOCATION, if (currentRevoked) "/records" else "/records/sessions")
-            if (currentRevoked) result.header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString())
-            result.body("")
+            seeOther(if (currentRevoked) "/records" else "/records/sessions", clearSession = currentRevoked)
         }
     }
+
+    // 현재 브라우저 세션이 끝났으면 쿠키도 지운다.
+    private fun seeOther(location: String, clearSession: Boolean): ResponseEntity<String> =
+        ResponseEntity.status(303).header(HttpHeaders.LOCATION, location).header(HttpHeaders.CACHE_CONTROL, "no-store")
+            .apply { if (clearSession) header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString()) }
+            .body("")
 
     @GetMapping("/pull-requests")
     fun pullRequests(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
@@ -197,9 +203,7 @@ class RecordBrowserController(
     fun logout(request: HttpServletRequest): ResponseEntity<String> {
         if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 로그아웃해 주세요."), 403)
         request.cookies?.singleOrNull { it.name == BROWSER_SESSION_COOKIE }?.let { sessions.revokeBrowser(it.value) }
-        return ResponseEntity.status(303).header(HttpHeaders.LOCATION, "/records")
-            .header(HttpHeaders.CACHE_CONTROL, "no-store")
-            .header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString()).body("")
+        return seeOther("/records", clearSession = true)
     }
 
     private fun sameOrigin(request: HttpServletRequest): Boolean {
@@ -248,13 +252,9 @@ class RecordBrowserController(
     @ExceptionHandler(ChangeRecordNotFoundException::class, ChangeRecordOwnershipException::class, RepositoryAccessDeniedException::class)
     fun unavailable(): ResponseEntity<String> = browserResponse(pages.error("기록이 없거나 열람 권한이 없습니다."), 404)
 
-    @ExceptionHandler(GitHubContextNotFoundException::class)
-    fun githubContextNotFound(exception: GitHubContextNotFoundException): ResponseEntity<String> =
-        browserResponse(pages.error(exception.message.orEmpty()), 404)
-
-    @ExceptionHandler(GitHubContextPermissionException::class)
-    fun githubContextPermission(exception: GitHubContextPermissionException): ResponseEntity<String> =
-        browserResponse(pages.error(exception.message.orEmpty()), 403)
+    @ExceptionHandler(GitHubContextNotFoundException::class, GitHubContextPermissionException::class)
+    fun githubContextUnavailable(exception: RuntimeException): ResponseEntity<String> =
+        browserResponse(pages.error(exception.message.orEmpty()), if (exception is GitHubContextPermissionException) 403 else 404)
 
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
     fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)

@@ -25,12 +25,11 @@ internal data class ChangeIntentRecord(
     }
 }
 
-internal enum class RecordListScope(private val label: String) {
-    TEAM("팀 공개 기록"),
-    MINE("내 비공개 기록");
+/** 현재 줄 조회 결과다. 서버가 최근 공개 순 20건까지 돌려주고 더 있으면 [truncated]다. */
+@Serializable
+internal data class ChangeIntentLookup(val items: List<ChangeIntentRecord>, val truncated: Boolean)
 
-    override fun toString(): String = label
-}
+internal enum class RecordListScope { TEAM, MINE }
 
 internal data class RecordListQuery(
     val repositoryKey: String,
@@ -88,3 +87,41 @@ internal data class ChangeVerification(
     val current: Boolean,
     val source: String? = null,
 )
+
+@Serializable
+internal data class ConnectionDiagnosis(
+    val repositoryKey: String,
+    val checkedAt: String,
+    val checks: List<ConnectionCheck>,
+)
+
+@Serializable
+internal data class ConnectionCheck(val name: String, val status: String, val message: String = "")
+
+@Serializable
+internal data class ChangeIntentHistory(
+    val items: List<HistoricalIntent>,
+    val nextCursor: String? = null,
+    val scannedRecords: Int,
+    val failures: List<HistoryFailure> = emptyList(),
+    val stopReason: String? = null,
+    val complete: Boolean = true,
+    val resumeBlocked: Boolean = false,
+)
+
+@Serializable
+internal data class HistoricalIntent(
+    val record: ChangeRecordSummary,
+    val sourceRevision: String,
+    val side: CodeSide = CodeSide.TARGET,
+    val match: String,
+    val verificationAppliesToQuery: Boolean,
+    val sourcePath: String,
+    val sourceStartLine: Int,
+    val sourceEndLine: Int,
+    val currentStartLine: Int? = null,
+    val currentEndLine: Int? = null,
+)
+
+@Serializable
+internal data class HistoryFailure(val recordId: String, val reason: String)

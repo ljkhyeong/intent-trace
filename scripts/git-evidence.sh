@@ -2,9 +2,9 @@
 set -eu
 
 usage() {
-    printf '%s\n' '사용법:'
-    printf '%s\n' '  git-evidence.sh snapshot <전체-커밋-ID>'
-    printf '%s\n' '  git-evidence.sh anchor <전체-커밋-ID> <상대-경로> <시작-줄> <끝-줄>'
+    printf '%s\n' '사용법:' '  git-evidence.sh snapshot <전체-커밋-ID>' \
+        '  git-evidence.sh anchor <전체-커밋-ID> <상대-경로> <시작-줄> <끝-줄>' >&2
+    exit 1
 }
 
 require_full_revision() {
@@ -29,10 +29,7 @@ sha256_file() {
     printf '%s\n' "${digest_line%% *}"
 }
 
-if [ "$#" -lt 2 ]; then
-    usage >&2
-    exit 1
-fi
+[ "$#" -ge 2 ] || usage
 
 operation=$1
 revision=$2
@@ -41,20 +38,14 @@ require_full_revision "$revision"
 
 case "$operation" in
     snapshot)
-        if [ "$#" -ne 2 ]; then
-            usage >&2
-            exit 1
-        fi
+        [ "$#" -eq 2 ] || usage
         # 기존 기본 출력의 해시를 유지하고 개인 파일명 표시 설정은 적용하지 않는다.
         prepare_workspace
         git -c core.quotePath=true ls-tree -r --full-tree "$revision" > "$evidence_directory/snapshot"
         sha256_file "$evidence_directory/snapshot"
         ;;
     anchor)
-        if [ "$#" -ne 5 ]; then
-            usage >&2
-            exit 1
-        fi
+        [ "$#" -eq 5 ] || usage
         path=$3
         start_line=$4
         end_line=$5
@@ -92,7 +83,6 @@ case "$operation" in
         sha256_file "$evidence_directory/range"
         ;;
     *)
-        usage >&2
-        exit 1
+        usage
         ;;
 esac

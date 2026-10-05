@@ -10,9 +10,9 @@ import kotlin.test.assertTrue
 class IntentTraceResponseParserTest {
     @Test
     fun `공개 변경 의도 응답을 화면 모델로 변환한다`() {
-        val records = IntentTraceResponseParser.parse(
+        val found = IntentTraceResponseParser.parseLookup(
             """
-            [
+            {"truncated": true, "items": [
               {
                 "id": "record-1",
                 "repositoryKey": "team/repository",
@@ -35,9 +35,12 @@ class IntentTraceResponseParserTest {
                 ],
                 "openQuestions": ["Marketplace 배포 시점을 정한다."]
               }
-            ]
+            ]}
             """.trimIndent(),
         )
+        val records = found.items
+
+        assertTrue(found.truncated)
 
         assertEquals(1, records.size)
         assertEquals("developer", records.single().createdBy.login)
@@ -55,14 +58,14 @@ class IntentTraceResponseParserTest {
     @Test
     fun `문자열 필드에 숫자가 오면 응답 형식 오류로 처리한다`() {
         assertFailsWith<IntentTraceClientException> {
-            IntentTraceResponseParser.parse(
+            IntentTraceResponseParser.parseLookup(
                 """
-                [{
+                {"truncated": false, "items": [{
                   "id": "record-1", "title": 123, "requestSummary": "요청", "status": "PUBLISHED",
                   "repositoryKey": "team/repository", "targetRevision": "${"a".repeat(40)}",
                   "createdBy": {"login": "developer"},
                   "decisions": [], "codeAnchors": [], "verifications": [], "openQuestions": []
-                }]
+                }]}
                 """.trimIndent(),
             )
         }
@@ -72,7 +75,7 @@ class IntentTraceResponseParserTest {
     fun `형식이 잘못된 응답은 원문을 남기지 않는 안내 오류로 바꾼다`() {
         val marker = "test-private-response-marker"
         val exception = assertFailsWith<IntentTraceClientException> {
-            IntentTraceResponseParser.parse("""{"id":"$marker"}""")
+            IntentTraceResponseParser.parseLookup("""{"id":"$marker"}""")
         }
 
         assertEquals("IntentTrace 조회 응답 형식을 확인할 수 없습니다.", exception.message)

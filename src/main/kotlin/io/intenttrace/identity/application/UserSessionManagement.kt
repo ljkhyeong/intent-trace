@@ -12,11 +12,11 @@ data class UserSessionInfo(
     val accessExpiresAt: Instant,
     val refreshExpiresAt: Instant,
     val current: Boolean = false,
-    val channel: SessionChannel = SessionChannel.CLIENT,
-    val expiresAt: Instant = refreshExpiresAt,
+    val channel: SessionChannel,
+    val expiresAt: Instant,
 )
 
-data class MySessions(val actor: ActorIdentity, val authentication: String, val sessions: List<UserSessionInfo>)
+data class MySessions(val actor: ActorIdentity, val sessions: List<UserSessionInfo>)
 data class SessionRevocation(val revokedCount: Int)
 
 interface UserSessionManagement {
@@ -29,14 +29,12 @@ interface UserSessionManagement {
 class MySessionService(private val current: CurrentGitHubUserSession, private val sessions: UserSessionManagement) {
     fun list(): MySessions {
         val session = current.require()
-        return MySessions(session.actor, if (session.sessionId == null) "GITHUB_USER_TOKEN" else "LOCAL_SESSION",
-            sessions.list(session.actor.subject).map { it.copy(current = it.id == session.sessionId) })
+        return MySessions(session.actor, sessions.list(session.actor.subject).map { it.copy(current = it.id == session.sessionId) })
     }
 
     fun revoke(sessionId: UUID? = null): SessionRevocation {
         val session = current.require()
-        val id = sessionId ?: requireNotNull(session.sessionId) { "GitHub 토큰으로 직접 인증한 요청에는 현재 IntentTrace 세션이 없습니다." }
-        return SessionRevocation(if (sessions.revoke(session.actor.subject, id)) 1 else 0)
+        return SessionRevocation(if (sessions.revoke(session.actor.subject, sessionId ?: session.sessionId)) 1 else 0)
     }
 
     fun revokeAll(): SessionRevocation = SessionRevocation(sessions.revokeAll(current.require().actor.subject))

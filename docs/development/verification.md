@@ -26,10 +26,11 @@ Markdown·CSS·YAML 등 별도 구문 검사가 없는 파일은 공백만 검�
 - `adapter.in`의 Controller·MCP는 `application`의 `*Repository`와 `adapter.out`·DB API를 직접 참조하지 않는다. 도메인의 `GitHubRepository` 값 객체는 허용한다.
 - `domain`은 `application`·`adapter`·`config`와 Spring·DB API에 의존하지 않는다.
 - `application`은 `adapter`·인프라 구현체·DB API에 의존하지 않는다. 기존 Spring 서비스·트랜잭션과 설정 주입은 허용한다.
+- 모듈별 `application`·`domain` 계층을 하나로 묶었을 때 모듈 사이에 순환 의존이 없다. 여러 모듈 화면을 조합하는 `adapter`와 공용 `config`는 검사하지 않는다.
 
 규칙은 `src/test/kotlin/io/intenttrace/architecture/ArchitectureTest.kt` 한 곳에서 관리한다. import 문만 찾는 정규식 검사 대신 필드·생성자·메서드·상속 등 실제 클래스 의존을 검사한다.
 
-## Codex 자동 실행
+## Codex·Claude Code 자동 실행
 
 프로젝트의 `.codex/config.toml`에 [공식 command hook](https://learn.chatgpt.com/docs/hooks)을 등록한다. 추가 모델 호출이나 유료 서비스는 사용하지 않는다.
 
@@ -37,9 +38,13 @@ Markdown·CSS·YAML 등 별도 구문 검사가 없는 파일은 공백만 검�
 - `PostToolUse`: `apply_patch`와 셸 실행 뒤 실제 내용이 달라진 파일만 지역 검사한다. 실패를 읽기만 하는 후속 호출에는 같은 검사를 반복하지 않는다.
 - `Stop`: 전체 diff와 구조를 검사하고 실패하면 수정을 요청한다. 이미 연장된 턴에서도 실패하면 무한 반복 없이 실패를 알리고 최종 응답에 남기도록 한다.
 
-상태는 세션 ID의 해시로 구분하고 동시 훅 검사는 잠금으로 직렬 실행한다. 셸에서 직접 실행한 Gradle과 훅 검사를 겹치지 않도록 수정·검증을 순서대로 실행한다. Python 3.11 이상과 macOS·Linux 환경을 사용한다.
+훅 한 번의 검사는 165초 안에 끝내고 명령마다 남은 시간만 사용한다. 시간이 부족하면 훅 제한(180초)으로 강제 종료되기 전에 검사를 멈추고 `finish`를 직접 실행하라고 안내한다. 상태는 세션 ID의 해시로 구분하고 동시 훅 검사는 잠금으로 직렬 실행한다. 셸에서 직접 실행한 Gradle과 훅 검사를 겹치지 않도록 수정·검증을 순서대로 실행한다. Python 3.11 이상과 macOS·Linux 환경을 사용한다.
 
 Codex CLI의 `/hooks`에서 새 훅의 정의를 검토하고 신뢰 승인한 뒤 자동 실행된다. 이는 공식 훅 보안 절차이며 설정을 저장하는 것만으로 승인되지 않는다. 새 설정을 불러오지 않은 세션이나 훅 미지원 도구에서는 같은 수동 명령을 사용한다. 이때 시작 커밋을 현재 HEAD로 바꾸어 이전 변경을 누락하지 않는다. 훅은 모든 파일 저장을 감시하는 데몬이 아니며 IDE에서 직접 저장한 파일도 종료 전 전체 diff에 포함해 검사한다.
+
+Claude Code는 `.claude/settings.json`에 같은 명령을 [command hook](https://code.claude.com/docs/en/hooks)으로 등록한다. `PostToolUse`는 `Edit`·`Write`·`MultiEdit`·`NotebookEdit`·`Bash` 뒤에 실행하며 서브에이전트의 도구 호출에도 적용된다. 종료 검사의 통과 메시지는 사용자에게만 표시되므로 에이전트는 최종 응답 전에 `finish`를 직접 실행하고 `review.diff`를 읽는다.
+
+두 도구 모두 종료 검사가 통과하면 다음 요청의 기준을 그때의 HEAD로 바꾼다. 여러 요청에 걸친 작업은 처음 기록한 시작 커밋으로 `finish`를 실행한다.
 
 ## 결과와 Gradle 증분 실행
 
@@ -61,6 +66,7 @@ Codex CLI의 `/hooks`에서 새 훅의 정의를 검토하고 신뢰 승인한 �
 - 같은 작업 폴더에서 Gradle 실행을 겹치지 않는다. 실행 중인 명령의 결과를 기다리고, 입력을 수정한 뒤 다음 검증을 시작한다.
 - PostgreSQL 검증은 Docker가 배정한 빈 로컬 포트를 사용한다. 고정 포트가 필요한 경우에만 `INTENT_TRACE_POSTGRES_SMOKE_PORT`를 지정한다. 다른 작업의 DB를 종료해 포트를 확보하지 않는다.
 - `npm ci --prefix clients/zed --ignore-scripts`는 의존성이 없거나 `package.json`·잠금 파일이 바뀌었을 때 실행한다. 일반 Zed 수정은 `npm test --prefix clients/zed`로 확인한다. 배포 패키지의 빈 캐시 설치 검증은 별도 배포 절차를 따른다.
+- Zed 확장(`clients/zed/extension`)을 바꾸면 rustup 또는 Docker `rust:1-slim`에서 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`를 실행한다. CI의 `Zed 확장 검증` 작업과 같다.
 - 전체 서버 테스트에서 `ZedBridgeIntegrationTest`가 통과했다면 같은 코드·환경에서 따로 반복하지 않는다. 건너뛴 경우에는 의존성을 준비한 뒤 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`로 확인한다.
 - 문서·스킬 수정에는 해당 구조·링크 검사만 실행한다. 검증기 자체를 바꾸지 않았다면 공식 검사와 로컬 대체 검사를 둘 다 반복할 필요가 없다.
 

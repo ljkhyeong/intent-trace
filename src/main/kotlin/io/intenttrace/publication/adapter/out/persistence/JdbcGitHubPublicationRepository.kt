@@ -43,36 +43,31 @@ class JdbcGitHubPublicationRepository(
         ).associateBy { it.changeRecordId }
     }
 
+    @Transactional(readOnly = true)
+    override fun findByRecord(changeRecordId: UUID, limit: Int): List<GitHubPublication> = jdbcTemplate.query(
+        "select * from github_publications where change_record_id = ? order by published_at desc, id desc limit ?",
+        { resultSet, _ -> mapPublication(resultSet) }, changeRecordId.toString(), limit,
+    )
+
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     override fun save(publication: GitHubPublication): GitHubPublication {
-        val repository = GitHubRepository(publication.target.owner, publication.target.repository)
-        val updated = update(publication)
-        if (updated == 1) {
-            return requireNotNull(find(publication.changeRecordId, publication.target))
-        }
-
-        try {
-            jdbcTemplate.update(
-                """
-                insert into github_publications (
-                    id, change_record_id, repository_owner, repository_name, pull_number,
-                    head_revision, check_run_id, check_run_url, content_digest, published_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent(),
-                publication.id.toString(),
-                publication.changeRecordId.toString(),
-                repository.canonicalOwner,
-                repository.canonicalName,
-                publication.target.pullNumber,
-                publication.headRevision,
-                publication.checkRunId,
-                publication.checkRunUrl,
-                publication.contentDigest,
-                publication.publishedAt.atOffset(ZoneOffset.UTC),
-            )
-        } catch (_: DuplicateKeyException) {
-            if (update(publication) != 1) {
-                throw IllegalStateException("GitHub 게시 이력을 저장하지 못했습니다.")
+        // 같은 PR 게시가 동시에 들어오면 먼저 저장한 행을 갱신한다.
+        if (update(publication) != 1) {
+            val repository = GitHubRepository(publication.target.owner, publication.target.repository)
+            try {
+                jdbcTemplate.update(
+                    """
+                    insert into github_publications (
+                        id, change_record_id, repository_owner, repository_name, pull_number,
+                        head_revision, check_run_id, check_run_url, content_digest, published_at
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """.trimIndent(),
+                    publication.id.toString(), publication.changeRecordId.toString(), repository.canonicalOwner, repository.canonicalName,
+                    publication.target.pullNumber, publication.headRevision, publication.checkRunId, publication.checkRunUrl,
+                    publication.contentDigest, publication.publishedAt.atOffset(ZoneOffset.UTC),
+                )
+            } catch (_: DuplicateKeyException) {
+                check(update(publication) == 1) { "GitHub 게시 이력을 저장하지 못했습니다." }
             }
         }
         return requireNotNull(find(publication.changeRecordId, publication.target))

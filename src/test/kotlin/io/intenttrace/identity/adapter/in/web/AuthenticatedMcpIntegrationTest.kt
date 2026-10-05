@@ -2,6 +2,7 @@ package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
@@ -34,6 +35,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.record.application.confirm
+import io.intenttrace.record.application.publish
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
@@ -49,7 +53,12 @@ class AuthenticatedMcpIntegrationTest(
     @Autowired private val records: io.intenttrace.record.application.ChangeRecordFacade,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val facade: ChangeRecordFacade,
+    @Autowired private val sessions: GitHubUserSessionStore,
 ) {
+    // REST·MCP는 its_ 세션만 받는다. 테스트 게이트웨이는 세션에 넣은 GitHub 토큰으로 사용자를 정한다.
+    private val userSession by lazy { sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_user-token") }
+    private val otherSession by lazy { sessions.issueTestSession(ActorIdentity.github(84, "teammate"), "ghu_other-user-token") }
+
     private val initialize = """
         {"jsonrpc":"2.0","id":1,"method":"initialize","params":{
           "protocolVersion":"2025-06-18","capabilities":{},
@@ -68,7 +77,7 @@ class AuthenticatedMcpIntegrationTest(
         }
 
         val authenticated = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
             content = initialize
@@ -81,7 +90,7 @@ class AuthenticatedMcpIntegrationTest(
         assertNotNull(sessionId)
 
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
@@ -97,6 +106,8 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("compare_change_record")) }
             content { string(containsString("check_publication_credentials")) }
             content { string(containsString("list_record_activities")) }
+            content { string(containsString("get_change_record_markdown")) }
+            content { string(containsString("list_record_publications")) }
         }
         val activityRecord = records.create(CreateChangeRecordRequest(
             requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
@@ -105,15 +116,22 @@ class AuthenticatedMcpIntegrationTest(
             codeAnchors = listOf(CodeAnchorRequest("src/App.kt", null, 1, 2, "b".repeat(64))),
         ).toCommand(), ActorIdentity.github(42, "lim"))
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
             content = """{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_record_activities","arguments":{"recordId":"${activityRecord.id}"}}}"""
         }.andExpect {
             status { isOk() }; content { string(containsString("\"isError\":false")) }
             content { string(containsString("CREATE")) }; content { string(containsString("AUTHOR")) }
         }
+        val markdown = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
+            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"get_change_record_markdown","arguments":{"recordId":"${activityRecord.id}"}}}"""
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray.toString(Charsets.UTF_8)
+        assertTrue(markdown.contains("\"isError\":false") && markdown.contains("\"status\":\"DRAFT\""), markdown)
+        assertTrue(markdown.contains("# 변경 의도: 변경 이력 조회"), markdown)
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
@@ -124,7 +142,7 @@ class AuthenticatedMcpIntegrationTest(
         }
 
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token"); header("Mcp-Session-Id", sessionId)
+            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
             content = """{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"find_related_change_intent","arguments":{"repositoryKey":"acme/intent-trace","revision":"${"b".repeat(40)}","path":"src/App.kt","line":1}}}"""
         }.andExpect {
@@ -134,7 +152,7 @@ class AuthenticatedMcpIntegrationTest(
         }
 
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
@@ -146,7 +164,7 @@ class AuthenticatedMcpIntegrationTest(
         }
 
         mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
@@ -173,7 +191,7 @@ class AuthenticatedMcpIntegrationTest(
         }
 
         val listed = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             header("Mcp-Session-Id", sessionId)
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
@@ -190,16 +208,14 @@ class AuthenticatedMcpIntegrationTest(
         assertEquals(false, result.get("isError").booleanValue())
         val page = result.get("structuredContent")
         assertEquals(0, page.get("items").size())
-        assertEquals(0, page.get("page").intValue())
-        assertEquals(20, page.get("size").intValue())
-        assertEquals(false, page.get("hasNext").booleanValue())
+        assertTrue(page.get("nextCursor").isNull)
     }
 
     @Test
     fun `MCP 기록 ID 오류는 입력값을 응답에 포함하지 않는다`() {
         val sensitiveInput = "ghu_private-marker"
         val initialized = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer ghu_user-token")
+            header("Authorization", "Bearer $userSession")
             contentType = MediaType.APPLICATION_JSON
             header("Accept", "application/json, text/event-stream")
             content = initialize
@@ -209,7 +225,7 @@ class AuthenticatedMcpIntegrationTest(
 
         for (tool in listOf("get_change_record", "list_record_activities", "compare_change_record", "check_change_record_evidence")) {
             val response = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer ghu_user-token")
+                header("Authorization", "Bearer $userSession")
                 header("Mcp-Session-Id", sessionId)
                 contentType = MediaType.APPLICATION_JSON
                 header("Accept", "application/json, text/event-stream")
@@ -279,10 +295,10 @@ class AuthenticatedMcpIntegrationTest(
             return objectMapper.readTree(data).get("result")
         }
 
-        assertTrue(callSupersede("ghu_other-user-token").get("isError").booleanValue())
+        assertTrue(callSupersede(otherSession).get("isError").booleanValue())
         assertEquals(original, facade.get(original.id))
 
-        val result = callSupersede("ghu_user-token")
+        val result = callSupersede(userSession)
         assertEquals(false, result.get("isError").booleanValue())
         val updated = result.get("structuredContent")
         assertEquals("SUPERSEDED", updated.get("status").stringValue())
@@ -292,7 +308,7 @@ class AuthenticatedMcpIntegrationTest(
             original.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement.id, version = original.version + 1),
             facade.get(original.id),
         )
-        assertTrue(callSupersede("ghu_user-token").get("isError").booleanValue())
+        assertTrue(callSupersede(userSession).get("isError").booleanValue())
         assertEquals(replacement, facade.get(replacement.id))
     }
 

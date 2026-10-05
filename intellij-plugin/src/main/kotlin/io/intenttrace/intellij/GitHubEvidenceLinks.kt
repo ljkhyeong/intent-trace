@@ -15,9 +15,8 @@ internal object GitHubEvidenceLinks {
     }
 
     private fun uri(record: ChangeIntentRecord, revision: String?, kind: String, suffix: String = "", fragment: String? = null): URI {
-        if (!record.repositoryKey.matches(Regex("^[a-z0-9_.-]+/[a-z0-9_.-]+$")) ||
-            record.repositoryKey.split('/').any { it == "." || it == ".." } ||
-            revision?.matches(Regex("^(?:[0-9a-f]{40}|[0-9a-f]{64})$")) != true
+        if (!REPOSITORY_KEY.matches(record.repositoryKey) || record.repositoryKey.split('/').any { it == "." || it == ".." } ||
+            revision == null || !FULL_REVISION.matches(revision)
         ) {
             throw IntentTraceUsageException("기록의 GitHub 저장소와 전체 커밋을 확인할 수 없습니다.")
         }

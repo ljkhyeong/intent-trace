@@ -20,16 +20,18 @@ import javax.swing.JPanel
 
 internal open class IntentTraceResultDialog(
     project: Project,
-    lookup: LineLookup,
-    private val records: List<ChangeIntentRecord>,
+    private val lookup: LineLookup,
+    found: ChangeIntentLookup,
     server: IntentTraceServer,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openHistory: (RepositoryFileContext) -> Unit = {
         IntentTraceRecordBrowser.open(project, it, fileOnly = true, server = server)
     },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
+    private val openLineHistory: (LineLookup) -> Unit = { LineHistory.open(project, it, server) },
 ) : DialogWrapper(project, true) {
-    private val text = IntentTraceTextRenderer.render(lookup, records)
+    private val text = IntentTraceTextRenderer.render(lookup, found)
+    private val records = found.items
     private val context = RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)
     private val webHistoryUri = server.webHistoryUri(lookup)
 
@@ -39,24 +41,13 @@ internal open class IntentTraceResultDialog(
     }
 
     override fun createCenterPanel(): JComponent {
-        val textArea = JBTextArea(text).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            border = JBUI.Borders.empty(12)
-            caretPosition = 0
-        }
         return JPanel(BorderLayout()).apply {
-            add(JBScrollPane(textArea), BorderLayout.CENTER)
+            add(readOnlyTextPane(text), BorderLayout.CENTER)
             add(JPanel(BorderLayout()).apply {
                 add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                    val selection = JComboBox(records.map {
+                    val selection = plainComboBox(records.map {
                         "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.createdBy.login}"
-                    }.toTypedArray()).apply {
-                        renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
-                        preferredSize = Dimension(320, preferredSize.height)
-                        isEnabled = records.isNotEmpty()
-                    }
+                    }).apply { isEnabled = records.isNotEmpty() }
                     add(JLabel("기록"))
                     add(selection)
                     add(JButton("선택 기록 열기").apply {
@@ -68,6 +59,9 @@ internal open class IntentTraceResultDialog(
                     add(JButton("이 파일의 과거 기록 보기").apply {
                         addActionListener { openHistory(context) }
                     })
+                    add(JButton("이전 커밋에서 이 줄 찾기").apply {
+                        addActionListener { openLineHistory(lookup) }
+                    })
                     add(JButton("웹에서 줄 이동·이름 변경 찾기").apply {
                         addActionListener { openBrowser(webHistoryUri) }
                     })
@@ -78,4 +72,18 @@ internal open class IntentTraceResultDialog(
     }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
+}
+
+internal fun readOnlyTextPane(text: String): JComponent = JBScrollPane(readOnlyTextArea(text).apply { caretPosition = 0 })
+
+internal fun readOnlyTextArea(text: String = ""): JBTextArea = JBTextArea(text).apply {
+    isEditable = false
+    lineWrap = true
+    wrapStyleWord = true
+    border = JBUI.Borders.empty(12)
+}
+
+internal fun plainComboBox(items: List<String>): JComboBox<String> = JComboBox(items.toTypedArray()).apply {
+    renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
+    preferredSize = Dimension(320, preferredSize.height)
 }

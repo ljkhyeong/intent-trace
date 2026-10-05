@@ -6,7 +6,7 @@
 
 Zed Agent에서 IntentTrace의 조회·초안·확인·공개·PR 기록·연결 진단 도구를 사용한다. [Zed의 로컬 MCP 서버 설정](https://zed.dev/docs/ai/mcp)에 저장소의 연결 도구를 등록한다. Node.js 22 이상과 Python 3이 필요하다.
 
-코드 줄의 인라인 메뉴, 자동 기록 수집, Codex 훅 실행은 제공하지 않는다. 사용자가 Agent에 저장소·전체 커밋·상대 경로·줄을 전달한다. Codex 플러그인 파일을 Zed 확장으로 설치할 필요는 없다.
+편집기에서는 별도 Zed 확장을 설치하면 커밋된 줄의 hover에서 공개 기록 요약을 볼 수 있다([편집기 hover](#편집기-hover)). Agent에서는 사용자가 저장소·전체 커밋·상대 경로·줄을 전달한다. 자동 기록 수집과 Codex 훅 실행은 제공하지 않으며 Codex 플러그인 파일을 Zed 확장으로 설치할 필요는 없다.
 
 ## 설치 패키지 사용
 
@@ -41,7 +41,7 @@ node clients/zed/intent-trace.mjs configure https://intent.example.com/mcp --app
 
 미리보기는 주소를 저장하지 않는다. 적용할 때 주소와 `INTENT_TRACE_MCP_URL`을 모두 생략하면 기본 로컬 서버를 사용한다.
 
-JSONC 주석·다른 MCP 서버·화면 설정을 보존하고 `context_servers.intent-trace` 항목만 추가하거나 교체한다. 같은 설정을 다시 등록하면 파일을 쓰지 않는다. Node 경로나 서버 주소가 바뀌면 새 실행 값으로 교체한다. 잘못된 JSONC·중복 연결 키·일반 파일이 아닌 설정은 덮어쓰지 않는다. IntentTrace 항목 안의 별도 설정도 교체되므로 필요한 경우 저장 후 다시 조정한다.
+JSONC 주석·다른 MCP 서버·화면 설정을 보존하고 `context_servers.intent-trace`와 hover 언어 서버의 `lsp.intent-trace` 항목만 추가하거나 교체한다. 같은 설정을 다시 등록하면 파일을 쓰지 않는다. Node 경로나 서버 주소가 바뀌면 새 실행 값으로 교체한다. 잘못된 JSONC·중복 연결 키·일반 파일이 아닌 설정은 덮어쓰지 않는다. IntentTrace 항목 안의 별도 설정도 교체되므로 필요한 경우 저장 후 다시 조정한다.
 
 `--settings /설정파일경로/settings.json`으로 다른 설정 파일을 지정할 수 있다. 기본값은 macOS의 `~/.config/zed/settings.json`, Linux의 `$XDG_CONFIG_HOME/zed/settings.json` 또는 `~/.config/zed/settings.json`, Windows의 `%APPDATA%\Zed\settings.json`이다. `--user-data-dir`로 Zed를 실행한다면 그 폴더의 `config/settings.json`을 지정한다. 직접 편집하려면 기존 `config` 명령의 JSON을 사용할 수 있다. token은 계속 `env`에 쓰지 않는다.
 4. Zed를 완전히 종료하고 다음 실행 도구를 사용한다. Zed CLI가 없으면 Zed 명령 팔레트에서 `cli: install`을 먼저 실행한다.
@@ -60,6 +60,23 @@ python3 scripts/zed-with-intent-trace.py .
 
 > IntentTrace에서 acme/project의 12번 PR에 연결된 기록과 현재 커밋에 맞지 않는 기록을 보여줘.
 
+## 편집기 hover
+
+Zed 확장은 편집기 UI를 직접 추가할 수 없다. 그래서 IntentTrace 언어 서버가 hover에 현재 줄의 공개 기록 요약을 붙이고, 다른 언어 서버의 hover와 함께 표시된다. 선택 근거는 [Zed 인라인 UI 검토](../reviews/2026-10-05-zed-inline-ui-review.md)에 있다. 실제 Zed 앱에서는 아직 확인하지 않았다.
+
+1. 위 절차로 `configure --apply`를 실행한다. MCP 연결과 함께 `lsp.intent-trace.binary`에 언어 서버 실행 명령과 서버 주소를 저장한다.
+2. Zed 명령 팔레트에서 `zed: install dev extension`을 실행하고 저장소의 `clients/zed/extension` 폴더를 선택한다. Zed가 확장을 직접 빌드하므로 rustup이 필요하다. Zed 확장 저장소에 등록되기 전까지는 이 방법으로 설치한다.
+3. `intent-trace-zed launch .` 또는 `python3 scripts/zed-with-intent-trace.py .`로 Zed를 실행해 세션을 전달한다.
+4. 커밋된 파일의 줄에 hover를 열면 공개·대체 기록을 최근 공개 순 3건까지 보여준다. 기록마다 제목·상태·작성자·첫 구현 결정과 `/records/{UUID}` 링크를 표시한다. 더 있으면 웹 파일·줄 조회 링크를 붙인다.
+
+- 대상 언어는 C, C++, CSS, Go, Java, JavaScript, JSON, Kotlin, Markdown, Python, Rust, Shell Script, TSX, TypeScript, YAML이다. Java·Kotlin은 해당 언어 확장도 설치해야 한다.
+- 저장하지 않은 변경이 있거나 커밋되지 않은 파일, GitHub 원격이 없는 저장소는 조회하지 않고 hover도 표시하지 않는다.
+- 서버는 REST 요청마다 GitHub 사용자·저장소 권한을 확인한다. 그래서 먼저 파일 단위로 공개 기록이 있는지 확인해 5분간 캐시하고, 기록이 있는 파일에서만 줄을 조회해 1분간 캐시한다. 새로 공개한 기록은 최대 5분 뒤 보인다.
+- 저장소 읽기 권한이 없으면 5분 동안 조용히 조회하지 않는다. 세션 만료·호출 제한·서버 장애는 hover에 안내하고 30초 동안 다시 조회하지 않는다. 호출 제한은 `Retry-After`가 더 길면 그 시간을 따른다.
+- 토큰은 Zed 실행 환경 변수로만 받고 hover·설정·로그에 쓰지 않는다. 오류 응답 원문은 표시하지 않는다.
+- `lsp.intent-trace.binary` 설정이 없으면 PATH의 `intent-trace-zed lsp`를 기본 서버 주소(`INTENT_TRACE_MCP_URL`, 없으면 로컬)로 실행한다.
+- 제거할 때는 Zed Extensions 화면에서 확장을 지우고 아래 `unconfigure --apply`로 설정을 지운다.
+
 ## 연결 설정 제거
 
 ```bash
@@ -67,7 +84,7 @@ node clients/zed/intent-trace.mjs unconfigure
 node clients/zed/intent-trace.mjs unconfigure --apply
 ```
 
-첫 명령은 미리보기이며 `--apply`에서만 IntentTrace 연결을 제거한다. `--settings`로 별도 설정 파일을 지정할 수 있다. 다른 연결·주석·파일 권한을 유지하고, 이미 제거됐다면 파일을 쓰지 않는다. 서버 주소와 세션 없이 실행한다. 서버 세션도 끝내려면 내 연결 화면에서 사용하지 않는 연결을 종료한다.
+첫 명령은 미리보기이며 `--apply`에서만 IntentTrace 연결과 hover 언어 서버 설정을 제거한다. `--settings`로 별도 설정 파일을 지정할 수 있다. 다른 연결·주석·파일 권한을 유지하고, 이미 제거됐다면 파일을 쓰지 않는다. 서버 주소와 세션 없이 실행한다. 서버 세션도 끝내려면 내 연결 화면에서 사용하지 않는 연결을 종료한다.
 
 ## 연결만 먼저 점검하기
 
@@ -84,7 +101,7 @@ node clients/zed/intent-trace.mjs check http://127.0.0.1:8080/mcp acme/project -
 
 Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호출한다. MCP 연결에 성공하면 도구 개수와 각 진단의 상태·설명을 출력한다. 실패 사유와 필요한 설정을 같은 결과에서 확인할 수 있다. 저장소 이름을 생략하면 초기화와 도구 목록만 확인한다. 인증 또는 진단 실패 시 종료 코드는 1이다. 서버 게시 키가 미설정이어도 기록 조회와 초안 기능은 사용할 수 있다.
 
-`--pr 12`는 PR 읽기와 해당 PR의 현재 커밋 읽기를 점검한다. 특정 커밋은 `--revision <40자 또는 64자 커밋 해시>`로 지정한다. 두 옵션을 함께 쓰면 PR의 현재 커밋과 일치하는지도 확인한다. 불일치는 진단 실패로 표시하며 지정한 커밋의 코드 읽기는 계속한다. PR·커밋 옵션을 쓰려면 저장소 이름도 필요하다.
+`--pr 12`는 PR 읽기와 해당 PR의 현재 커밋 읽기를 점검한다. 특정 커밋은 `--revision <40자 또는 64자 커밋 해시>`로 지정한다. 두 옵션을 함께 쓰면 PR의 현재 커밋과 일치하는지도 확인한다. 불일치는 진단 실패로 표시하며 지정한 커밋의 코드 읽기는 계속한다. PR·커밋 옵션을 쓰려면 저장소 이름도 필요하다. 커밋 해시 형식처럼 서버가 거부한 입력은 `IntentTrace 연결 점검:` 뒤에 서버 안내를 표시하며 연결 오류 코드는 출력하지 않는다.
 
 ## 기록할 때 지킬 내용
 
@@ -134,3 +151,5 @@ Zed와 같은 stdio 연결로 초기화·도구 목록·저장소 진단을 호�
 npm test --prefix clients/zed
 ./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'
 ```
+
+2026-10-05에는 hover 언어 서버를 추가했다. Node 테스트로 원격 주소 해석, 미커밋 판정, Markdown 변환, 파일·줄 캐시, 편집 중 파일, 호출 제한 대기를 확인했다. 통합 테스트는 실제 Spring 서버에 공개 기록을 만들고 임시 Git 저장소의 커밋된 줄에서 hover로 조회한다. Zed 확장은 `wasm32-wasip2` 빌드·clippy·형식 검사만 했고 실제 Zed 앱에서는 실행하지 않았다.

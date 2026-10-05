@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.readJsonWithin
 import io.intenttrace.record.application.EvidenceReadBudget
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import java.net.http.HttpClient
@@ -14,7 +15,7 @@ import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.GitTreeEntry
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -31,8 +32,9 @@ class GitHubGitEvidenceClient(
     private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
-        val ref = GitRevision.parse(revision).value
-        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget)
+        val ref = requireFullRevision(revision)
+        // 저장소 읽기 권한을 확인한 뒤 읽으므로 커밋 조회의 404·422는 GitHub에 없는 커밋이다.
+        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget, EvidenceUnavailableReason.REVISION_NOT_FOUND)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
         val tree = get(repository, "/git/trees/${parseResponseRevision(commit.tree.sha)}?recursive=1", TreeResponse::class.java, budget)
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
@@ -49,7 +51,7 @@ class GitHubGitEvidenceClient(
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
-        val blob = get(repository, "/git/blobs/${GitRevision.parse(sha).value}", BlobResponse::class.java, budget)
+        val blob = get(repository, "/git/blobs/${requireFullRevision(sha)}", BlobResponse::class.java, budget)
         if (blob.size > MAX_BLOB_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         if (blob.encoding != "base64") throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
         if (blob.sha != sha || blob.size < 0) {
@@ -64,7 +66,7 @@ class GitHubGitEvidenceClient(
 
     override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean {
         if (ancestor == descendant) return true
-        val result = get(repository, "/compare/${GitRevision.parse(ancestor).value}...${GitRevision.parse(descendant).value}?per_page=1", CompareResponse::class.java, budget)
+        val result = get(repository, "/compare/${requireFullRevision(ancestor)}...${requireFullRevision(descendant)}?per_page=1", CompareResponse::class.java, budget)
         return when (result.status) {
             "ahead", "identical" -> true
             "behind", "diverged" -> false
@@ -73,12 +75,18 @@ class GitHubGitEvidenceClient(
     }
 
     private fun parseResponseRevision(value: String): String = try {
-        GitRevision.parse(value).value
+        requireFullRevision(value)
     } catch (_: IllegalArgumentException) {
         throw GitHubApiException("GitHub 코드 응답의 객체 해시 형식이 올바르지 않습니다.")
     }
 
-    private fun <T> get(repository: GitHubRepository, suffix: String, type: Class<T>, budget: EvidenceReadBudget?): T = try {
+    private fun <T> get(
+        repository: GitHubRepository,
+        suffix: String,
+        type: Class<T>,
+        budget: EvidenceReadBudget?,
+        notFound: EvidenceUnavailableReason? = null,
+    ): T = try {
         val remaining = budget?.beforeRemoteCall()
         val requestClient = if (remaining == null) client else client.mutate().requestFactory(
             JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(remaining.coerceAtMost(Duration.ofSeconds(10))) },
@@ -87,13 +95,11 @@ class GitHubGitEvidenceClient(
             .headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
+                if (notFound != null && response.statusCode.value() in setOf(404, 422)) throw EvidenceUnavailableException(notFound)
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 코드 조회 실패. HTTP ${response.statusCode.value()}")
-                val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
-                if (bytes.size > MAX_RESPONSE_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
-                budget?.checkpoint()
-                try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
-                    throw GitHubApiException("GitHub 코드 응답을 해석할 수 없습니다.")
-                }
+                response.readJsonWithin(mapper, type, MAX_RESPONSE_SIZE) {
+                    throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
+                }.also { budget?.checkpoint() }
             } ?: throw GitHubApiException("GitHub 코드 응답이 비어 있습니다.")
     } catch (_: RestClientException) {
         budget?.checkpoint()

@@ -2,11 +2,13 @@ package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubHttpPolicy
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
+import io.intenttrace.publication.application.CheckRunAnnotation
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.NullSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
@@ -15,6 +17,7 @@ import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.client.match.MockRestRequestMatchers.content
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
+import org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath
 import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
@@ -97,6 +100,7 @@ class GitHubRestClientTest {
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
             .andExpect(method(HttpMethod.PATCH))
             .andExpect(content().json("""{"name":"IntentTrace / 변경 의도","external_id":"$externalId","status":"completed","conclusion":"neutral"}""", JsonCompareMode.LENIENT))
+            .andExpect(jsonPath("$.head_sha").doesNotHaveJsonPath())
             .andRespond(
                 withSuccess(
                     """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
@@ -126,6 +130,7 @@ class GitHubRestClientTest {
                     JsonCompareMode.LENIENT,
                 ),
             )
+            .andExpect(jsonPath("$.output.annotations").doesNotHaveJsonPath())
             .andRespond(
                 withSuccess(
                     """{"id":88,"head_sha":"$revision","html_url":"https://github.test/check-runs/88","external_id":"$externalId"}""",
@@ -136,6 +141,64 @@ class GitHubRestClientTest {
         val result = client.upsertCheckRun(command(externalId))
 
         assertEquals(88L, result.id)
+        server.verify()
+    }
+
+    @Test
+    fun `코드 주석은 새 Check Run에 notice 수준으로 함께 만든다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request -> assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path) }
+            .andRespond(withSuccess("""{"check_runs":[]}""", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(
+                content().json(
+                    """{"output":{"annotations":[{"path":"src/App.kt","start_line":1,"end_line":4,"annotation_level":"notice","title":"변경 의도: 게시","message":"구현 결정과 이유"}]}}""",
+                    JsonCompareMode.LENIENT,
+                ),
+            )
+            .andRespond(
+                withSuccess(
+                    """{"id":88,"head_sha":"$revision","html_url":"https://github.test/check-runs/88","external_id":"$externalId"}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        client.upsertCheckRun(command(externalId).copy(annotations = listOf(annotation)))
+
+        server.verify()
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = [0, 3])
+    fun `기존 Check Run에는 주석이 없다고 확인된 경우에만 주석을 보낸다`(annotationsCount: Int?) {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        val output = annotationsCount?.let { ""","output":{"annotations_count":$it}""" }.orEmpty()
+        server.expect { request -> assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path) }
+            .andRespond(
+                withSuccess(
+                    """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"$output}]}""",
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+        val update = server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+        // GitHub는 수정 요청의 주석을 기존 주석 뒤에 덧붙이므로 다시 게시해도 중복되지 않아야 한다.
+        if (annotationsCount == 0) {
+            update.andExpect(jsonPath("$.output.annotations[0].path").value("src/App.kt"))
+        } else {
+            update.andExpect(jsonPath("$.output.annotations").doesNotHaveJsonPath())
+        }
+        update.andRespond(
+            withSuccess(
+                """{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}""",
+                MediaType.APPLICATION_JSON,
+            ),
+        )
+
+        client.upsertCheckRun(command(externalId).copy(annotations = listOf(annotation)))
+
         server.verify()
     }
 
@@ -201,6 +264,24 @@ class GitHubRestClientTest {
     }
 
     @Test
+    fun `목록에서 찾은 Check Run 수정이 404면 새로 만들지 않고 실패한다`() {
+        val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
+        server.expect { request -> assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path) }
+            .andRespond(withSuccess(
+                """{"check_runs":[{"id":77,"head_sha":"$revision","html_url":"https://github.test/check-runs/77","external_id":"$externalId"}]}""",
+                MediaType.APPLICATION_JSON,
+            ))
+        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/77"))
+            .andExpect(method(HttpMethod.PATCH))
+            .andRespond(withStatus(HttpStatus.NOT_FOUND))
+
+        val exception = assertFailsWith<GitHubApiException> { client.upsertCheckRun(command(externalId)) }
+
+        assertEquals("GitHub Check Run 수정 요청이 실패했습니다. HTTP 404", exception.message)
+        server.verify()
+    }
+
+    @Test
     fun `Check Run 검색 한도를 채우면 중복 생성하지 않는다`() {
         val response = (1..100).joinToString(",", prefix = "{\"check_runs\":[", postfix = "]}") { id ->
             """{"id":$id,"head_sha":"$revision","html_url":"https://github.test/check-runs/$id","external_id":"다른-기록-$id"}"""
@@ -222,16 +303,28 @@ class GitHubRestClientTest {
         server.verify()
     }
 
-    @Test
-    fun `저장된 Check Run ID가 다른 기록이면 목록에서 올바른 실행을 다시 찾는다`() {
+    @ParameterizedTest
+    @ValueSource(strings = ["다른 기록", "조회 404", "수정 404"])
+    fun `저장된 Check Run을 쓸 수 없으면 목록에서 올바른 실행을 다시 찾는다`(case: String) {
         val externalId = "intent-trace:8c766289-5c2c-4b1f-90e6-376058868c42"
-        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
-            .andRespond(
+        val known = server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+            .andExpect(method(HttpMethod.GET))
+        if (case == "조회 404") {
+            known.andRespond(withStatus(HttpStatus.NOT_FOUND))
+        } else {
+            val knownExternalId = if (case == "다른 기록") "intent-trace:다른-기록" else externalId
+            known.andRespond(
                 withSuccess(
-                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"intent-trace:다른-기록"}""",
+                    """{"id":55,"head_sha":"$revision","html_url":"https://github.test/check-runs/55","external_id":"$knownExternalId"}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
+        }
+        if (case == "수정 404") {
+            server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/check-runs/55"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND))
+        }
         server.expect { request ->
             assertEquals("/repos/acme/intent-trace/commits/$revision/check-runs", request.uri.path)
         }.andRespond(
@@ -331,6 +424,8 @@ class GitHubRestClientTest {
         assertFalse(exception.stackTraceToString().contains(marker))
         server.verify()
     }
+
+    private val annotation = CheckRunAnnotation("src/App.kt", 1, 4, "변경 의도: 게시", "구현 결정과 이유")
 
     private fun command(externalId: String) = UpsertGitHubCheckRunCommand(
         target = target,

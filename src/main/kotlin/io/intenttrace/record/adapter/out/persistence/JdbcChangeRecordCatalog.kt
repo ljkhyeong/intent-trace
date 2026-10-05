@@ -1,17 +1,13 @@
 package io.intenttrace.record.adapter.out.persistence
 
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.application.ChangeRecordCatalog
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.RecordCatalogQuery
-import io.intenttrace.record.domain.ChangeRecordStatus
-import org.springframework.jdbc.core.RowMapper
+import io.intenttrace.record.application.toSummary
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
-import java.util.UUID
 
 @Repository
 class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : ChangeRecordCatalog {
@@ -53,29 +49,10 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
         }
         return jdbc.query(
             """
-            select r.id, r.title, r.request_summary, r.repository_key, r.target_revision, r.status,
-                   r.created_by_subject, r.created_by, r.created_at, r.superseded_by, r.version, r.published_at
-            from change_records r where ${conditions.joinToString(" and ")}
+            select r.* from change_records r where ${conditions.joinToString(" and ")}
             order by r.created_at desc, r.id desc limit :limit
             """.trimIndent(),
             parameters,
-            changeRecordSummaryRowMapper,
-        )
+        ) { row, index -> changeRecordRowMapper.mapRow(row, index).toSummary() }
     }
-}
-
-internal val changeRecordSummaryRowMapper = RowMapper<ChangeRecordSummary> { row, _ ->
-    ChangeRecordSummary(
-        id = UUID.fromString(row.getString("id")),
-        repositoryKey = row.getString("repository_key"),
-        title = row.getString("title"),
-        requestSummary = row.getString("request_summary"),
-        version = row.getLong("version"),
-        status = ChangeRecordStatus.valueOf(row.getString("status")),
-        targetRevision = row.getString("target_revision"),
-        createdBy = ActorIdentity(row.getString("created_by_subject"), row.getString("created_by")),
-        createdAt = row.getObject("created_at", OffsetDateTime::class.java).toInstant(),
-        publishedAt = row.getObject("published_at", OffsetDateTime::class.java)?.toInstant(),
-        supersededBy = row.getString("superseded_by")?.let(UUID::fromString),
-    )
 }

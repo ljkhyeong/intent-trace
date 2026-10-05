@@ -5,7 +5,9 @@ import org.springframework.boot.restclient.RestClientCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
+import org.springframework.http.client.ClientHttpResponse
 import org.springframework.web.client.RestClient
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -23,6 +25,15 @@ object GitHubRateLimit {
         }.getOrNull()
         val reset = if (exhausted) headers.getFirst("X-RateLimit-Reset")?.toLongOrNull()?.let { it - now.epochSecond } else null
         return GitHubRateLimitException(maxOf(retrySeconds ?: 0, reset ?: 0, 1).takeIf { retrySeconds != null || reset != null } ?: 60)
+    }
+}
+
+/** RestClient는 응답 크기를 제한하지 않으므로 [limit]바이트까지만 읽고 JSON으로 해석한다. 오류 메시지에 응답 원문을 넣지 않는다. */
+fun <T> ClientHttpResponse.readJsonWithin(mapper: ObjectMapper, type: Class<T>, limit: Int, tooLarge: () -> Nothing): T {
+    val bytes = body.readNBytes(limit + 1)
+    if (bytes.size > limit) tooLarge()
+    return try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
+        throw GitHubApiException("GitHub 응답 형식을 해석할 수 없습니다.")
     }
 }
 

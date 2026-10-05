@@ -11,7 +11,7 @@ class RepositoryAccessServiceTest {
     @Test
     fun `같은 요청은 권한을 공유하고 새 요청은 회수된 권한을 다시 확인한다`() {
         val actor = ActorIdentity.github(42, "author")
-        var request = GitHubUserSession(actor, "test-token")
+        var request = GitHubUserSession(actor, "test-token", java.util.UUID.randomUUID())
         var role: RepositoryRole? = RepositoryRole.MAINTAINER
         var reads = 0
         val service = RepositoryAccessService(object : CurrentGitHubUserSession { override fun require() = request },
@@ -23,7 +23,7 @@ class RepositoryAccessServiceTest {
         service.requireContributor("acme/repo")
         service.requireMaintainer("acme/repo")
         assertEquals(1, reads)
-        request = GitHubUserSession(actor, "test-token")
+        request = GitHubUserSession(actor, "test-token", java.util.UUID.randomUUID())
         role = null
         repeat(2) { assertFailsWith<RepositoryAccessDeniedException> { service.requireReader("acme/repo") } }
         assertEquals(2, reads)

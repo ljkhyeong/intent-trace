@@ -149,7 +149,7 @@ class ChangeRecordFacadeIntegrationTest(
             PublishChangeRecordCommand(relatedConfirmed.id, relatedConfirmed.version, digest),
             actor,
         )
-        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/./App.kt", 15)
+        val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/./App.kt", 15).items
 
         assertEquals(first.id, retried.id)
         assertEquals("acme/intent-trace", first.repositoryKey)

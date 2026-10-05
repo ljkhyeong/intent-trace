@@ -8,6 +8,7 @@ import org.springframework.boot.health.registry.HealthContributorRegistry
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 
@@ -31,7 +32,7 @@ class TeamReadinessIntegrationTest(
             registry.registerContributor("db", HealthIndicator { Health.down().withDetail("test", "private-database-detail").build() })
             mvc.get("/actuator/health/readiness").andExpect {
                 status { isServiceUnavailable() }
-                content { json("""{"status":"DOWN"}""", true) }
+                content { json("""{"status":"DOWN"}""", JsonCompareMode.STRICT) }
             }
             mvc.get("/actuator/health/liveness").andExpect { status { isOk() } }
         } finally {

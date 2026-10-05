@@ -6,16 +6,18 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.adapter.out.github.GitHubGitEvidenceClient
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
+import org.springframework.test.web.client.response.MockRestResponseCreators.withStatus
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
 import org.springframework.web.client.RestClient
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -29,7 +31,7 @@ class GitHubEvidenceClientTest {
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val client = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))),
         object : CurrentGitHubUserSession {
-            override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_test")
+            override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_test", java.util.UUID.randomUUID())
         }, jacksonObjectMapper())
     private val repository = GitHubRepository.parse("acme/repo")
     private val revision = "a".repeat(40)
@@ -102,6 +104,26 @@ class GitHubEvidenceClientTest {
         assertEquals("a\n", client.blob(repository, blob).toString(Charsets.UTF_8))
         server.verify()
     }
+
+    @ParameterizedTest
+    @ValueSource(ints = [404, 422])
+    fun `GitHub에 없는 커밋은 일시 장애가 아닌 확인 불가 사유로 구분한다`(status: Int) {
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
+            .andRespond(withStatus(HttpStatus.valueOf(status)))
+        val missing = assertFailsWith<EvidenceUnavailableException> { client.snapshot(repository, revision) }
+        assertEquals(EvidenceUnavailableReason.REVISION_NOT_FOUND, missing.reason)
+        server.verify()
+
+        server.reset()
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
+            .andRespond(withSuccess("""{"sha":"$revision","tree":{"sha":"$tree"}}""", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/git/trees/$tree?recursive=1"))
+            .andRespond(withStatus(HttpStatus.valueOf(status)))
+        val treeFailure = assertFailsWith<GitHubApiException> { client.snapshot(repository, revision) }
+        assertFalse(treeFailure is EvidenceUnavailableException)
+        server.verify()
+    }
+
     @Test
     fun `중복 경로는 객체 형식 검사보다 먼저 거부한다`() {
         for (mode in listOf("100644", "invalid")) {
@@ -139,7 +161,7 @@ class GitHubEvidenceClientTest {
         val remote = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(
             RestClient.builder().uriBuilderFactory(org.springframework.web.util.DefaultUriBuilderFactory("http://127.0.0.1:${http.address.port}")), GitHubProperties()),
             object : CurrentGitHubUserSession {
-                override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_local-test")
+                override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_local-test", java.util.UUID.randomUUID())
             }, jacksonObjectMapper())
         try {
             val countBudget = EvidenceReadBudget(java.time.Duration.ofSeconds(5), 1)

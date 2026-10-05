@@ -26,7 +26,8 @@ def main():
         except (EOFError, KeyboardInterrupt):
             print("세션 입력을 취소하거나 종료했습니다. Zed를 실행하지 않았습니다.", file=sys.stderr)
             return 1
-    if not re.fullmatch(r"its_[A-Za-z0-9_-]{32,128}", token):
+    # 서버가 발급하는 43자 Base64URL 세션만 받아 잘못 붙여넣은 값을 Zed 실행 전에 거부한다.
+    if not re.fullmatch(r"its_[A-Za-z0-9_-]{43}", token):
         print("로그인 화면의 its_ 세션을 확인하세요.", file=sys.stderr)
         return 1
     os.environ["INTENT_TRACE_SESSION_TOKEN"] = token

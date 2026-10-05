@@ -2,9 +2,8 @@ package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.LocalGitHubUserSessionRequiredException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.ForkPullRequestUnsupportedException
 import io.intenttrace.publication.application.GitHubCredentialConfigurationException
 import io.intenttrace.publication.application.GitHubCredentialMissingException
@@ -19,6 +18,7 @@ import io.intenttrace.record.application.GitHubContextNotFoundException
 import io.intenttrace.record.application.GitHubContextPermissionException
 import io.intenttrace.record.application.EvidenceUnavailableException
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.http.HttpHeaders
@@ -26,9 +26,13 @@ import io.intenttrace.config.GitHubRateLimitException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.context.request.WebRequest
+import org.springframework.web.method.annotation.HandlerMethodValidationException
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 
+/** 업무 예외와 Spring MVC 표준 예외를 모두 ProblemDetail로 응답한다. */
 @RestControllerAdvice
-class ApiExceptionHandler {
+class ApiExceptionHandler : ResponseEntityExceptionHandler() {
     @ExceptionHandler(GitHubRateLimitException::class)
     fun rateLimited(exception: GitHubRateLimitException): ResponseEntity<ProblemDetail> =
         ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
@@ -52,10 +56,6 @@ class ApiExceptionHandler {
     @ExceptionHandler(GitHubUserAuthenticationException::class)
     fun githubUserAuthentication(exception: GitHubUserAuthenticationException): ProblemDetail =
         problem(HttpStatus.UNAUTHORIZED, "GitHub 사용자 인증 실패", exception.message)
-
-    @ExceptionHandler(LocalGitHubUserSessionRequiredException::class)
-    fun localGitHubUserSessionRequired(exception: LocalGitHubUserSessionRequiredException): ProblemDetail =
-        problem(HttpStatus.BAD_REQUEST, "IntentTrace 세션 필요", exception.message)
 
     @ExceptionHandler(RepositoryAccessDeniedException::class, ChangeRecordOwnershipException::class)
     fun repositoryAccessDenied(exception: RuntimeException): ProblemDetail =
@@ -104,12 +104,18 @@ class ApiExceptionHandler {
     fun invalidState(exception: IllegalStateException): ProblemDetail =
         problem(HttpStatus.CONFLICT, "기록 처리 불가", exception.message)
 
-    @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun validation(exception: MethodArgumentNotValidException): ProblemDetail {
-        val detail = exception.bindingResult.fieldErrors
-            .joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
-        return problem(HttpStatus.BAD_REQUEST, "입력값 오류", detail)
-    }
+    // 요청 본문·파라미터 검증 실패도 업무 입력 오류와 같은 제목과 항목별 사유로 응답한다.
+    override fun handleMethodArgumentNotValid(
+        ex: MethodArgumentNotValidException, headers: HttpHeaders, status: HttpStatusCode, request: WebRequest,
+    ): ResponseEntity<Any>? = ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "입력값 오류",
+        ex.bindingResult.fieldErrors.joinToString(", ") { "${it.field}: ${it.defaultMessage}" }))
+
+    override fun handleHandlerMethodValidationException(
+        ex: HandlerMethodValidationException, headers: HttpHeaders, status: HttpStatusCode, request: WebRequest,
+    ): ResponseEntity<Any>? = ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "입력값 오류",
+        ex.parameterValidationResults.joinToString(", ") { result ->
+            "${result.methodParameter.parameterName}: ${result.resolvableErrors.joinToString { it.defaultMessage.orEmpty() }}"
+        }))
 
     private fun problem(status: HttpStatus, title: String, detail: String?): ProblemDetail =
         ProblemDetail.forStatusAndDetail(status, detail ?: title).also { it.title = title }

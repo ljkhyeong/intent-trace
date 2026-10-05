@@ -16,7 +16,6 @@
 - 공개 기록의 본문은 수정하지 않고 새 공개 기록으로 대체한다.
 - 모든 수정은 현재 버전을 요구하며 충돌은 `409`로 처리한다.
 - 생성 시 정규화·비밀값 제거를 끝낸 내용의 해시를 보존한다. 같은 요청 ID라도 최초 내용이 다르면 `409`이다. 수정 후 최초 생성 요청을 다시 보내면 기존 ID의 최신 기록을 반환한다.
-- V7 이전 기록은 현재 본문으로 최초 내용 해시를 계산한다. 최초 수정 시 이 값을 보존한다.
 
 ## 기록 목록 계약
 
@@ -24,7 +23,6 @@
 - `scope=TEAM`은 공개·대체 기록, `scope=MINE`은 인증 사용자의 초안·확인 기록이다. MINE에서 `status=DISCARDED`를 지정하면 본인의 폐기 기록을 찾는다.
 - 선택 필터는 `path`, `status`, 팀 목록의 `authorId`이다. `authorId`는 조회용 GitHub 숫자 ID이며 생성·수정 행위자를 지정하지 않는다.
 - 기본 20개, 최대 100개의 요약을 반환한다. `createdAt desc, id desc` 순서의 커서 페이지를 사용한다.
-- 메인의 기존 `MY_DRAFTS`·`page`·`size` 조회는 PRD-0005의 페이지 번호 방식으로 유지한다. 커서 방식의 `cursor`·`limit`·`authorId`·`q`와 함께 지정하면 입력 오류다.
 - `nextCursor`는 다음 요청의 `cursor`로 전달한다. 목록에는 검증 본문과 코드 근거 목록을 포함하지 않는다.
 - 조회 범위와 맞지 않는 상태, 내 초안의 다른 작성자 필터는 `400`으로 거부한다. 대상 저장소 읽기 권한은 매 요청 확인한다.
 - 선택 `q`는 최대 200자의 부분 문자열 검색이다. 앞뒤 공백을 제거하고 빈 값은 목록 조회로 처리한다. 제목·요청 요약·구현 결정 요약·결정 이유를 대소문자 구분 없이 검색하며 `%`, `_`, `!`를 문자 그대로 처리한다. 같은 기록의 여러 구현 결정이 일치해도 한 번 반환한다.
@@ -32,7 +30,7 @@
 ## 브라우저 열람
 
 - `/records`에서 저장소·검색어·팀 공개/내 비공개 범위와 상태·파일·팀 작성자 필터를 입력하고 다음 페이지를 조회한다. 폐기 기록은 내 비공개 범위에서 선택한다.
-- 웹에는 `내 비공개 기록`·`팀 공개 기록` 두 탭만 표시한다. 이전 웹 주소의 `scope=MY_DRAFTS`는 `MINE`으로 처리하며 비공개 상태 필터를 제공한다. REST·MCP의 페이지 번호 조회 계약은 유지한다.
+- 웹에는 `내 비공개 기록`·`팀 공개 기록` 두 탭만 표시하며 비공개 상태 필터를 제공한다.
 - 팀 공개 범위의 `내 공개 기록만 보기`는 로그인 사용자의 GitHub 숫자 ID를 기존 작성자 필터에 적용한다. 적용·해제 시 검색어·파일·상태를 유지하고 커서는 초기화한다. 비공개 기록은 포함하지 않는다.
 - 목록에서 연 기록은 상단의 `검색 결과로 돌아가기`로 같은 검색 조건·커서의 페이지로 복귀한다. 직접 연 기록은 기존 저장소 기록 목록으로 돌아간다.
 - 파일·줄 조회나 PR 기록에서 연 상세는 `파일·줄 조회로 돌아가기`·`PR 기록으로 돌아가기`로 원래 조건과 페이지에 복귀한다. 실패 기록 재조회와 원본·비교·코드 확인·변경 이력을 거친 뒤에도 유지한다.
@@ -46,7 +44,7 @@
 
 ## MCP
 
-REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`를 제공한다. 중첩 수정 내용에도 생성과 같은 Jakarta 검증을 명시적으로 적용한다.
+REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `reopen_change_record`, `discard_change_record`, `supersede_change_record`를 제공한다. `get_change_record_markdown`은 REST Markdown 출력과 같은 권한·렌더러로 `{recordId, version, status, markdown}`을 반환하며 공개·게시를 수행하지 않는다. 중첩 수정 내용에도 생성과 같은 Jakarta 검증을 명시적으로 적용한다.
 
 ## 완료 기준
 
@@ -86,12 +84,12 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 - 원래 CRLF·LF와 마지막 줄 바이트를 그대로 비교한다. 공백뿐인 조각, 중복 조각, 코드 수정·이름 변경이 함께 일어난 경우는 자동 이동 확인 범위에서 제외한다.
 - `sourcePath`, `sourceStartLine`, `sourceEndLine`과 확인한 `currentStartLine`, `currentEndLine`을 반환한다. 현재 줄 일치를 확인하지 못하면 현재 범위는 null이다.
 - 이전 커밋에서 온 모든 연결의 `verificationAppliesToQuery`는 false다.
-- 0.9.0부터 MCP `find_change_intent`는 최상위 배열 대신 `{ "items": [...] }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 REST `/lookup` 배열 응답은 유지한다.
+- MCP `find_change_intent`와 REST `/lookup`은 같은 `{ "items": [...], "truncated": false }`를 반환한다. MCP 출력 스키마의 최상위 객체 규칙을 따르며 20건을 넘으면 `truncated`가 true다.
 
 ## 후보별 실패와 요청 안의 조회 재사용
 
 - history는 `failures: [{recordId, reason}]`과 `complete`를 반환한다. `complete=true`는 이번 후보 처리가 실패나 중단 없이 끝났다는 뜻이며 저장소 전체 탐색 완료를 뜻하지 않는다.
-- `SIZE_LIMIT`, `TRUNCATED_TREE`, `UNSUPPORTED_OBJECT`가 발생하면 해당 기록의 나머지 코드 확인을 중단하고 `failures`에 사유를 남긴 뒤 다음 후보를 확인한다. 이미 확인한 결과는 유지한다.
+- `SIZE_LIMIT`, `TRUNCATED_TREE`, `UNSUPPORTED_OBJECT`, `REVISION_NOT_FOUND`가 발생하면 해당 기록의 나머지 코드 확인을 중단하고 `failures`에 사유를 남긴 뒤 다음 후보를 확인한다. 이미 확인한 결과는 유지한다.
 - 실패 ID를 같은 조건의 `retryRecordId`로 보내면 해당 공개·대체 기록 한 건을 다시 확인한다. `cursor`와 함께 전달하면 400이며 다른 저장소나 비공개 기록은 404다. 기존의 해당 기록 결과를 재조회 결과로 교체한다. `scannedRecords`는 1이며, 완료되면 `nextCursor`는 null이고 제한으로 중단하면 이어 읽을 커서를 반환한다.
 - 인증 실패·권한 거부·호출 제한·그 밖의 원격 장애는 전체 조회를 중단한다. 호출 제한은 429와 응답의 재시도 대기 시간으로 안내한다.
 - 저장소 권한은 같은 인증 요청 안에서 정규화한 저장소 키로 재사용하고 새 요청에서 다시 확인한다. Git 객체는 조회 한 번의 후보가 공유하는 제한된 메모리 캐시에만 둔다.
@@ -124,14 +122,14 @@ REST와 같은 사용 사례로 `list_change_records`, `revise_change_record`, `
 ## 0.11.0 기록 변경 이력
 
 - `GET /api/v1/change-records/{UUID}/activities`, `list_record_activities`, `/records/{UUID}/activities`에서 같은 이력을 읽는다.
-- 응답은 `recordId`, `visibility`(`AUTHOR`·`TEAM`), `items`, `nextBeforeVersion`, `historyStartsAtCreation`을 포함한다. 선택 `beforeVersion`은 직전 응답의 값을 사용하며 50개씩 버전 내림차순으로 조회한다.
+- 응답은 `recordId`, `visibility`(`AUTHOR`·`TEAM`), `items`, `nextBeforeVersion`, `author`를 포함한다. 선택 `beforeVersion`은 직전 응답의 값을 사용하며 50개씩 버전 내림차순으로 조회한다.
 - 이력은 작업·인증 사용자 subject·이전/이후 버전 및 상태·처리 시각만 보존한다. 본문 이전 버전이나 대화·검증 원문은 저장하지 않는다.
-- 작성자만 전체 작업을 보고 다른 팀원에게는 공개·대체 작업만 표시한다. 수집 이전 작업을 추정해 채우지 않는다. 저장 트랜잭션과 페이지·노출 규칙은 ADR-0011을 따른다.
+- 작성자만 전체 작업을 보고 다른 팀원에게는 공개·대체 작업만 표시한다. 저장 트랜잭션과 페이지·노출 규칙은 ADR-0011을 따른다.
 
 ## 0.12.0 코드 확인 불가와 조회 중단
 
 - 개별 웹 코드 확인은 지원 불가 사유를 HTTP 422로 표시하고 원래 기록으로 돌아갈 수 있게 한다. 코드 불일치·테스트 실패와 구분한다.
-- REST 코드 확인도 지원 불가 시 HTTP 422를 반환한다. ProblemDetail의 `code=EVIDENCE_UNAVAILABLE`, `reason=SIZE_LIMIT|TRUNCATED_TREE|UNSUPPORTED_OBJECT`로 원인을 구분한다. MCP 오류에는 같은 사유 코드와 한국어 안내를 전달한다. 크기·객체 제한을 확인하기 전에는 같은 요청을 반복하지 않는다. 일시적인 GitHub 장애는 기존 502, 호출 제한은 429·`Retry-After`로 처리한다.
+- REST 코드 확인도 지원 불가 시 HTTP 422를 반환한다. ProblemDetail의 `code=EVIDENCE_UNAVAILABLE`, `reason=SIZE_LIMIT|TRUNCATED_TREE|UNSUPPORTED_OBJECT|REVISION_NOT_FOUND`로 원인을 구분한다. `REVISION_NOT_FOUND`는 GitHub에 없는 커밋이며 원격 저장소에 푸시한 뒤 다시 조회한다. MCP 오류에는 같은 사유 코드와 한국어 안내를 전달한다. 크기·객체 제한을 확인하기 전에는 같은 요청을 반복하지 않는다. 일시적인 GitHub 장애는 기존 502, 호출 제한은 429·`Retry-After`로 처리한다.
 - history의 기본 제한은 30초·GitHub 코드 HTTP 호출 40회다. 서버 설정으로 조정하며 개별 호출에도 남은 시간을 적용한다. [코드 확인과 이전 기록 조회](ADR-0007-evidence-check-and-history.md)의 제한을 따른다.
 - `stopReason`이 `TIME_LIMIT`, `CALL_LIMIT`, `CANCELLED`이면 `complete=false`다. 현재 요청에서 처리한 근거 결과와 미완료 근거의 재개 `nextCursor`를 함께 반환한다. 끝나면 `stopReason`은 null이다. `complete`는 현재 후보 처리 상태이며 전체 저장소 탐색 완료를 뜻하지 않는다.
 - 클라이언트는 같은 저장소·커밋·파일·줄과 `cursor`로 계속 조회한다. 중단 응답의 근거 결과에 재개 결과를 추가한다. `scannedRecords`는 이번 요청에서 살펴본 기록 수이므로 같은 기록의 재개 요청까지 합산해 고유 기록 수로 사용하지 않는다.

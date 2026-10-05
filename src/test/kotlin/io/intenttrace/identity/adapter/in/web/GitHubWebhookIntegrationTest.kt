@@ -1,9 +1,7 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GitHubProperties
-import io.intenttrace.identity.application.GitHubAuthorizationWebhookService
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.SessionChannel
 import io.intenttrace.identity.application.UserSessionManagement
@@ -14,7 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import io.intenttrace.publication.application.InstallationTokenCache
+import org.mockito.Mockito.clearInvocations
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoMoreInteractions
 import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
@@ -27,6 +31,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(properties = [
     "spring.datasource.url=jdbc:h2:mem:webhook-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
@@ -40,8 +45,10 @@ class GitHubWebhookIntegrationTest(
     @Autowired private val management: UserSessionManagement,
     @Autowired private val clock: Clock,
     @Autowired private val mapper: ObjectMapper,
-    @Autowired private val authorization: GitHubAuthorizationWebhookService,
 ) {
+    @MockitoSpyBean
+    private lateinit var installationTokens: InstallationTokenCache
+
     @BeforeEach
     fun clearSessions() {
         management.revokeAll("github:42")
@@ -89,7 +96,7 @@ class GitHubWebhookIntegrationTest(
     @Test
     fun `ping과 지원하지 않는 이벤트는 서명만 확인하고 세션을 유지한다`() {
         issue(42, SessionChannel.CLIENT)
-        for (event in listOf("ping", "installation", "push")) {
+        for (event in listOf("ping", "check_run", "push")) {
             send(revoked, event = event).andExpect { status { isNoContent() } }
         }
         send("""{"action":"unknown","sender":{"id":42}}""").andExpect { status { isNoContent() } }
@@ -97,10 +104,30 @@ class GitHubWebhookIntegrationTest(
     }
 
     @Test
+    fun `설치 변경 이벤트는 설치 ID의 게시 토큰만 버리고 사용자 세션은 유지한다`() {
+        issue(42, SessionChannel.CLIENT)
+        clearInvocations(installationTokens)
+        for ((event, action) in listOf("installation" to "deleted", "installation" to "new_permissions_accepted",
+            "installation_repositories" to "removed")) {
+            send("""{"action":"$action","installation":{"id":7},"sender":{"id":42}}""", event = event)
+                .andExpect { status { isNoContent() }; content { string("") } }
+        }
+        verify(installationTokens, times(3)).evictInstallation(7)
+        for (body in listOf("""{"action":"deleted"}""", """{"action":"deleted","installation":{"id":"7"}}""",
+            """{"action":"deleted","installation":{"id":0}}""", """{"installation":{"id":7}}""")) {
+            send(body, event = "installation").andExpect { status { isBadRequest() } }
+        }
+        send("""{"action":"deleted","installation":{"id":7}}""", event = "installation", signature = sign("{}"))
+            .andExpect { status { isUnauthorized() } }
+        verifyNoMoreInteractions(installationTokens)
+        assertEquals(1, management.list("github:42").size)
+    }
+
+    @Test
     fun `본문 상한과 비밀값 미설정은 수신을 거부한다`() {
         issue(42, SessionChannel.CLIENT)
-        send(" ".repeat(1_048_577)).andExpect { status { isPayloadTooLarge() } }
-        val disabled = GitHubWebhookController(GitHubProperties(), mapper, authorization)
+        send(" ".repeat(1_048_577)).andExpect { status { isContentTooLarge() } }
+        val disabled = GitHubWebhookController(GitHubProperties(), mapper, management, installationTokens)
         val request = MockHttpServletRequest("POST", "/webhooks/github").apply {
             setContent(revoked.toByteArray())
             addHeader("X-Hub-Signature-256", sign(revoked))
@@ -110,12 +137,8 @@ class GitHubWebhookIntegrationTest(
         assertEquals(1, management.list("github:42").size)
     }
 
-    private fun issue(id: Long, channel: SessionChannel): String = sessions.issue(
-        ActorIdentity.github(id, "user$id"),
-        GitHubUserOAuthTokens("ghu_webhook-$id", clock.instant().plusSeconds(3600),
-            "ghr_webhook-$id", clock.instant().plusSeconds(86400)),
-        channel,
-    ).sessionToken
+    private fun issue(id: Long, channel: SessionChannel): String =
+        sessions.issueTestSession(ActorIdentity.github(id, "user$id"), "ghu_webhook-$id", channel, clock.instant())
 
     private fun send(body: String, event: String = "github_app_authorization", signature: String? = sign(body)) =
         mvc.post("/webhooks/github") {

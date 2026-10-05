@@ -9,7 +9,7 @@ import java.util.UUID
 enum class ComparisonField { TITLE, REQUEST, DECISIONS, CODE_ANCHORS, VERIFICATIONS, OPEN_QUESTIONS, BASE_REVISION, TARGET_REVISION, SNAPSHOT }
 data class RecordComparisonSide(val id: UUID, val version: Long, val status: ChangeRecordStatus, val targetRevision: String?, val content: ChangeRecordContent)
 data class ChangeRecordComparison(val original: RecordComparisonSide, val successor: RecordComparisonSide, val changedFields: List<ComparisonField>,
-    val details: List<ComparisonDetail> = emptyList())
+    val details: List<ComparisonDetail>)
 
 @Service
 class RecordComparisonService(private val records: TeamChangeRecordService) {

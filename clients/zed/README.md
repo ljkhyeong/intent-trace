@@ -22,7 +22,7 @@ IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 
 
 세션 토큰은 화면에 표시하지 않고 Zed 실행 환경에만 전달한다. 입력을 숨길 수 없거나 입력을 취소·종료하면 Zed를 실행하지 않는다. 이 경우 터미널에서 실행하거나 `INTENT_TRACE_SESSION_TOKEN` 환경 변수로 세션을 미리 전달한다. 환경 변수로 세션을 전달했다면 `check [MCP 주소] [저장소]`로 연결을 확인할 수 있다. `serve`는 MCP 통신에 사용한다.
 
-`check owner/repo --pr 12`는 PR과 현재 커밋 읽기까지 확인한다. 서버 주소는 `INTENT_TRACE_MCP_URL`, 없으면 로컬 서버를 사용한다. 다른 서버는 `check <MCP 주소> <owner/repo> --pr 12`로 지정한다. `--revision <전체 커밋 해시>`로 다른 커밋을 지정할 수 있다. 두 옵션을 함께 쓰면 지정한 커밋을 확인한다.
+`check owner/repo --pr 12`는 PR과 현재 커밋 읽기까지 확인한다. 서버 주소는 `INTENT_TRACE_MCP_URL`, 없으면 로컬 서버를 사용한다. 다른 서버는 `check <MCP 주소> <owner/repo> --pr 12`로 지정한다. `--revision <전체 커밋 해시>`로 다른 커밋을 지정할 수 있다. 두 옵션을 함께 쓰면 지정한 커밋을 읽고 PR의 현재 커밋과 같은지도 확인한다. 다르면 `pull_request_revision: FAILED`와 종료 코드 1을 반환한다. 서버가 거부한 입력은 서버 안내로 표시한다.
 
 점검 결과에는 항목별 상태와 서버의 설명을 함께 표시한다. `FAILED` 항목의 실패 사유를 확인하고 조치한다. 실패 항목이 있으면 종료 코드 1을 반환한다.
 
@@ -48,5 +48,5 @@ npm uninstall --prefix ~/.local/share/intent-trace --ignore-scripts intent-trace
 
 - macOS·Linux: 위 설치·실행 명령을 사용한다. Linux 검증은 저장소 CI에서 수행한다.
 - Windows: Node로 연결 도구를 실행하고 `--settings`로 Zed 설정을 지정할 수 있다. `launch`는 PATH의 `python`을 사용한다. Windows 실제 Zed 앱 실행은 확인하지 않았다.
-- 에이전트의 MCP 도구 연결을 지원한다. 편집기 인라인 메뉴와 자동 기록 수집은 제공하지 않는다.
+- 에이전트의 MCP 도구 연결을 지원한다. 별도 Zed 확장을 설치하면 `lsp` 명령이 커밋된 줄의 hover에 공개 기록 요약을 표시한다. 확장은 저장소의 `clients/zed/extension`을 개발용으로 설치한다. 자동 기록 수집은 제공하지 않는다.
 - 서버 재시작·세션 만료 후에는 다시 로그인한다. 레지스트리의 비밀 입력 항목을 등록해도 IntentTrace의 OAuth가 자동 연동되지는 않는다.

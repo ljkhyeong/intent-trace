@@ -38,53 +38,42 @@ class GitHubUserRestClient(
         accessToken: String,
         actor: ActorIdentity,
         repository: GitHubRepository,
-    ): RepositoryRole? {
-        try {
-            val response = client.get()
-                .uri(
-                    "/repos/{owner}/{repository}/collaborators/{username}/permission",
-                    repository.canonicalOwner,
-                    repository.canonicalName,
-                    actor.login,
-                )
-                .headers { it.setBearerAuth(accessToken) }
-                .retrieve()
-                .body(GitHubRepositoryPermissionResponse::class.java)
-                ?: throw GitHubIdentityApiException("GitHub 저장소 권한 응답이 비어 있습니다.")
+    ): RepositoryRole? = safeCall("저장소 권한 조회", ifNoAccess = { null }) {
+        val response = client.get()
+            .uri(
+                "/repos/{owner}/{repository}/collaborators/{username}/permission",
+                repository.canonicalOwner,
+                repository.canonicalName,
+                actor.login,
+            )
+            .headers { it.setBearerAuth(accessToken) }
+            .retrieve()
+            .body(GitHubRepositoryPermissionResponse::class.java)
+            ?: throw GitHubIdentityApiException("GitHub 저장소 권한 응답이 비어 있습니다.")
 
-            val responseActor = try {
-                ActorIdentity.github(response.user.id, response.user.login)
-            } catch (_: IllegalArgumentException) {
-                throw GitHubIdentityApiException("GitHub 저장소 권한 응답 값이 올바르지 않습니다.")
-            }
-            if (responseActor.subject != actor.subject) {
-                throw GitHubIdentityApiException("GitHub 저장소 권한 응답 사용자가 현재 사용자와 일치하지 않습니다.")
-            }
-            return response.toRole()
-        } catch (exception: RestClientResponseException) {
-            if (exception.statusCode == HttpStatus.FORBIDDEN || exception.statusCode == HttpStatus.NOT_FOUND) return null
-            throw mapResponseException("저장소 권한 조회", exception)
-        } catch (_: RestClientException) {
-            throw GitHubIdentityApiException("GitHub 저장소 권한 조회 요청을 완료하지 못했습니다.")
+        val responseActor = try {
+            ActorIdentity.github(response.user.id, response.user.login)
+        } catch (_: IllegalArgumentException) {
+            throw GitHubIdentityApiException("GitHub 저장소 권한 응답 값이 올바르지 않습니다.")
         }
+        if (responseActor.subject != actor.subject) {
+            throw GitHubIdentityApiException("GitHub 저장소 권한 응답 사용자가 현재 사용자와 일치하지 않습니다.")
+        }
+        response.toRole()
     }
 
-    private fun <T> safeCall(operation: String, call: () -> T): T {
+    private fun <T> safeCall(operation: String, ifNoAccess: (() -> T)? = null, call: () -> T): T {
         try {
             return call()
         } catch (exception: RestClientResponseException) {
-            throw mapResponseException(operation, exception)
+            val status = exception.statusCode
+            if (ifNoAccess != null && (status == HttpStatus.FORBIDDEN || status == HttpStatus.NOT_FOUND)) return ifNoAccess()
+            if (status == HttpStatus.UNAUTHORIZED) throw GitHubUserAuthenticationException()
+            throw GitHubIdentityApiException("GitHub $operation 요청이 실패했습니다. HTTP ${status.value()}")
         } catch (_: RestClientException) {
             throw GitHubIdentityApiException("GitHub $operation 요청을 완료하지 못했습니다.")
         }
     }
-
-    private fun mapResponseException(operation: String, exception: RestClientResponseException): RuntimeException =
-        if (exception.statusCode == HttpStatus.UNAUTHORIZED) {
-            GitHubUserAuthenticationException()
-        } else {
-            GitHubIdentityApiException("GitHub $operation 요청이 실패했습니다. HTTP ${exception.statusCode.value()}")
-        }
 
     private fun GitHubRepositoryPermissionResponse.toRole(): RepositoryRole? = when {
         permission.equals("admin", ignoreCase = true) -> RepositoryRole.MAINTAINER

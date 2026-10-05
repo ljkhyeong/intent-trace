@@ -104,7 +104,7 @@ Java 21이 필요합니다.
 - 상태 확인: `http://127.0.0.1:8080/actuator/health`
 - H2 콘솔: `http://127.0.0.1:8080/h2-console`
 
-기본 데이터는 `.intent-trace/data`에 저장됩니다. PostgreSQL을 사용할 때는 환경 변수를 설정하고 `postgres` 프로필을 켭니다.
+기본 데이터는 `.intent-trace/data`에 저장됩니다. 운영 전 DB 스키마를 하나로 통합했으므로 이전 버전에서 만든 이 폴더는 지우고 다시 시작합니다. PostgreSQL을 사용할 때는 환경 변수를 설정하고 `postgres` 프로필을 켭니다.
 
 ```bash
 export INTENT_TRACE_DATABASE_URL='jdbc:postgresql://127.0.0.1:5432/intent_trace'
@@ -131,7 +131,7 @@ PostgreSQL에는 변경 기록과 게시 이력만 저장합니다. GitHub 액�
 
 홈서버 k3s는 [배포 준비 안내](docs/operations/k3s-deployment.md)를 따릅니다. 앱 1개·PostgreSQL PVC·Traefik Ingress와 환경변수 예시를 제공합니다. 이미지 빌드·DNS·공유기·TLS·GitHub App 등록·클러스터 적용은 운영자가 수행합니다.
 
-`POST /webhooks/github`는 GitHub 승인 취소 이벤트를 받아 해당 사용자의 세션을 정리합니다. `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 GitHub App의 Webhook URL·Secret을 설정해야 하며 비밀값을 비워 두면 수신을 거부합니다.
+`POST /webhooks/github`는 GitHub 승인 취소 이벤트를 받아 해당 사용자의 세션을 정리하고, App 설치 제거·권한 변경·저장소 범위 변경 이벤트를 받아 게시용 토큰 캐시를 비웁니다. `INTENT_TRACE_GITHUB_WEBHOOK_SECRET`과 GitHub App의 Webhook URL·Secret을 설정해야 하며 비밀값을 비워 두면 수신을 거부합니다.
 
 ## 인증과 GitHub 권한
 
@@ -159,7 +159,7 @@ IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로�
 
 토큰 갱신에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내합니다. GitHub 사용자 조회의 일시 장애는 `502`를 반환하며 세션을 유지합니다. 로그인 검증·갱신·대기 요청 제한은 [세션 관리 규칙](docs/ADR-0005-github-web-oauth-memory-session.md)을 참고하세요.
 
-사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 가장 오래된 세션을 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/session`으로 즉시 폐기할 수 있으며, 이후 같은 토큰 요청은 `401`을 반환합니다. 호환용 `ghu_` 토큰은 IntentTrace가 발급한 세션이 아니므로 이 API의 대상이 아닙니다.
+사용자별 활성 세션은 기본 5개이며 `INTENT_TRACE_GITHUB_MAX_SESSIONS_PER_USER`로 1~100 범위에서 조정할 수 있습니다. 새 세션이 상한을 넘으면 같은 종류(브라우저·도구)의 가장 오래된 세션부터 폐기합니다. 현재 `its_` 세션은 `DELETE /api/v1/me/sessions/current`로 즉시 폐기할 수 있으며, 이후 같은 토큰 요청은 `401`을 반환합니다. REST·MCP는 IntentTrace가 발급한 `its_` 세션만 받고 GitHub 토큰을 직접 받지 않습니다.
 
 서버는 매 요청에서 GitHub `/user`로 사용자를 확인하고 대상 저장소의 권한을 조회합니다. 권한 응답의 사용자 ID가 현재 사용자와 일치해야 합니다. 팀 공개 기록 조회에는 읽기 권한, 본인 기록 생성·관리에는 쓰기 권한이 필요합니다. 권한 없음과 404는 접근 거부로 처리하며, GitHub 공개 저장소도 같은 권한 검사를 거칩니다. `health`, `info`, 로컬 H2 콘솔은 이 필터 대상이 아닙니다.
 
@@ -202,7 +202,7 @@ scripts/git-evidence.sh snapshot "$(git rev-parse HEAD)"
 scripts/git-evidence.sh anchor "$(git rev-parse HEAD)" src/main/kotlin/example/File.kt 10 25
 ```
 
-`snapshot`은 저장소 트리, `anchor`는 지정한 코드 줄의 SHA-256을 계산합니다. 줄 범위는 `1 ≤ 시작 줄 ≤ 끝 줄 ≤ 10,000,000`입니다. 계산 규칙과 `core.quotePath=false`로 만든 [기존 해시의 재현 방법](docs/ADR-0001-evidence-bound-change-record.md#기존-스냅샷-해시-재현)은 설계 문서를 참고하세요.
+`snapshot`은 저장소 트리, `anchor`는 지정한 코드 줄의 SHA-256을 계산합니다. 줄 범위는 `1 ≤ 시작 줄 ≤ 끝 줄 ≤ 10,000,000`입니다. 계산 규칙은 [기록 저장 규칙](docs/ADR-0001-evidence-bound-change-record.md)을 참고하세요.
 
 검증을 실행하며 결과를 수집하려면 다음 도구를 사용합니다. 실행 전후 HEAD가 같고 서브모듈을 포함해 수정·미추적 파일이 없어야 하며, 표준 출력에는 원문 대신 검증 JSON만 나옵니다. 검증 명령의 실패 종료 코드도 그대로 전달합니다.
 
@@ -222,7 +222,7 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 조회`로 같은 조건과 페이지를 다시 엽니다. 호출 제한은 안내된 대기 시간 뒤에 눌러 주세요.
 
-`/records/pull-requests`에서 PR 기록과 최신 커밋의 일치 여부를, `/records/connection`에서 연결 상태를 확인합니다. 새 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 구현 결정·출처·관련 코드·검증을 나란히 읽습니다.
+`/records/pull-requests`에서 PR 기록과 최신 커밋의 일치 여부를, `/records/connection`에서 연결 상태를 확인합니다. 공개·대체 기록 상세의 `GitHub 게시`에서 게시한 PR과 Check Run, 대체 안내가 필요한 PR을 확인합니다. 새 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 구현 결정·출처·관련 코드·검증을 나란히 읽습니다.
 
 `/records/history`에서는 저장소·커밋 해시·파일 경로·줄 번호로 관련 기록을 찾고 확인하지 못한 기록만 재조회할 수 있습니다. 기록 화면의 ‘GitHub 코드와 비교’는 `/records/{UUID}/evidence`를 엽니다. 서버의 코드 해시 일치와 테스트 실행 증명은 구분합니다. 용량 제한·일부 트리·지원하지 않는 Git 객체는 HTTP 422와 확인 불가 사유로 안내합니다.
 
@@ -240,7 +240,7 @@ GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 �
 - `POST /api/v1/change-records/{id}/reopen`: 비공개 확인 취소
 - `POST /api/v1/change-records/{id}/discard`: 비공개 기록 폐기
 - `POST /api/v1/change-records`: 비공개 초안 생성
-- `GET /api/v1/change-records/{id}`: 기록 조회
+- `GET /api/v1/change-records/{id}`: 기록 조회. 권한 없는 저장소나 다른 작성자의 비공개 기록은 존재를 드러내지 않고 404
 - `POST /api/v1/change-records/{id}/confirm`: 작성자 확인과 커밋 해시 연결
 - `POST /api/v1/change-records/{id}/publish`: 스냅샷 재확인 후 공개
 - `POST /api/v1/change-records/{id}/supersede`: 새 공개 기록으로 대체
@@ -248,8 +248,9 @@ GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 �
 - `GET /api/v1/change-records/{id}/evidence-check`: GitHub 코드 해시 확인
 - `GET /api/v1/change-records/history`: 현재 커밋·파일·줄의 관련 기록 조회
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
-- `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시
+- `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시. `codeAnnotations: true`면 변경 후 코드 근거를 PR 줄 주석으로 함께 게시
 - `GET /api/v1/change-records/{id}/github-pull-request`: 게시 대상별 결과·시도 이력 조회
+- `GET /api/v1/change-records/{id}/github-pull-requests`: 기록을 게시했거나 시도한 PR 목록과 대체 안내 필요 여부
 - `POST /api/v1/change-records/{id}/github-pull-request/supersession`: 기존 Check Run에 대체 안내 반영
 - `GET /api/v1/github-pull-request/records?owner=...&repository=...&pullNumber=...`: PR에 게시·시도한 기록과 HEAD 일치 조회
 - `GET /api/v1/connection-diagnostics?repositoryKey=owner/repo`: 연결·권한 진단 (`revision`, `pullNumber` 선택)
@@ -267,10 +268,10 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 | --- | --- |
 | 초안 생성·수정 | `create_change_record`, `revise_change_record` |
 | 확인·공개·폐기·대체 | `confirm_change_record`, `reopen_change_record`, `publish_change_record`, `discard_change_record`, `supersede_change_record` |
-| 기록 조회·검색 | `list_change_records`, `get_change_record`, `find_change_intent`, `find_related_change_intent` |
+| 기록 조회·검색 | `list_change_records`, `get_change_record`, `get_change_record_markdown`, `find_change_intent`, `find_related_change_intent` |
 | 후속 초안·원본 비교 | `create_successor_draft`, `compare_change_record` |
 | 코드 확인·처리 이력 | `check_change_record_evidence`, `list_record_activities` |
-| PR 게시·결과·복구 | `publish_change_record_to_github_pr`, `get_github_publication_status`, `sync_superseded_record_to_github_pr`, `list_pull_request_records` |
+| PR 게시·결과·복구 | `publish_change_record_to_github_pr`, `get_github_publication_status`, `list_record_publications`, `sync_superseded_record_to_github_pr`, `list_pull_request_records` |
 | 이슈·PR 내용과 CI 결과 | `get_github_request_context`, `list_github_actions_runs` |
 | 연결 진단·게시 사전 점검 | `diagnose_connection`, `check_publication_credentials` |
 | 내 세션 관리 | `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions` |
@@ -282,12 +283,7 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 
 `repositoryKey`는 필수입니다. `scope=TEAM`(기본값)은 공개·대체 기록, `scope=MINE`은 내 초안·작성자 확인 기록을 조회합니다. `MINE`에서 `status=DISCARDED`를 지정하면 내 폐기 기록을 조회합니다. `path`는 관련 코드의 정확한 상대 경로, `status`는 선택한 범위 안의 상태로 검색합니다.
 
-| 방식 | 입력 | 다음 목록 |
-| --- | --- | --- |
-| 기본 커서 조회 | `cursor`, `limit`(기본 20·최대 100), 선택 `authorId`·`q` | 응답의 `nextCursor`를 다음 요청의 `cursor`에 전달 |
-| 이전 클라이언트의 페이지 번호 조회 | `MY_DRAFTS` 또는 `page`(0부터)·`size`(기본 20·최대 50) | 응답의 `hasNext`를 확인하고 `page`를 1 증가 |
-
-두 방식의 입력은 섞지 않습니다. 페이지 번호 방식은 `items`, `page`, `size`, `hasNext`, `nextCursor` 응답을 유지합니다. 생성 시각·UUID 내림차순으로 조회하며, 조회 사이에 기록을 생성·공개하면 목록이 달라질 수 있습니다.
+목록은 `limit`(기본 20·최대 100)만큼 `items`와 `nextCursor`를 반환합니다. 다음 목록은 `nextCursor`를 `cursor`에 전달하며, 선택 `authorId`·`q`를 함께 쓸 수 있습니다. 생성 시각·UUID 내림차순으로 조회하며, 조회 사이에 기록을 생성·공개하면 목록이 달라질 수 있습니다.
 
 MCP의 `list_change_records(repositoryKey="owner/repository", scope="MINE")`은 내 비공개 기록을 찾습니다. `scope="TEAM", path="src/App.kt"`는 같은 파일의 공개 이력을 찾습니다. 상세는 `get_change_record`로 조회합니다.
 
@@ -301,7 +297,7 @@ REST·MCP의 생성·수정 요청에 같은 입력 제한을 적용합니다. �
 
 이전 기록 조회는 기본 30초·GitHub 코드 HTTP 호출 40회에서 중단합니다. `stopReason`이 있으면 같은 조건과 `nextCursor`로 미완료 근거부터 이어 읽고 반환된 결과에 추가합니다. `failures`의 기록을 `retryRecordId`로 다시 확인할 때는 해당 후보의 기존 결과를 교체합니다. `complete`는 이번 후보 처리 상태이며 전체 저장소 탐색 완료를 뜻하지 않습니다. 인증·권한·호출 제한 실패는 부분 결과로 숨기지 않습니다. [중단·재개 계약](docs/ADR-0007-evidence-check-and-history.md)을 참고하세요.
 
-MCP `find_change_intent`는 `{ "items": [...] }`, REST `/lookup`은 배열을 반환합니다.
+MCP `find_change_intent`와 REST `/lookup`은 모두 `{ "items": [...], "truncated": false }`를 반환합니다. 최근 공개 순(같은 시각은 기록 ID 순) 20건까지 반환하며, 더 있으면 `truncated`가 `true`입니다.
 
 작성자는 인증된 GitHub 사용자의 숫자 ID를 `github:<id>` 형식의 작성자 식별자로 저장하고 현재 로그인 이름은 표시용으로 보존합니다. 팀 목록의 `authorId`는 조회 필터이며 작성자를 지정하는 입력이 아닙니다. `DRAFT`, `AUTHOR_CONFIRMED`, `DISCARDED`는 만든 사용자만 볼 수 있으며, `PUBLISHED`와 `SUPERSEDED`는 해당 저장소의 읽기 권한이 있는 사용자에게만 보입니다.
 
@@ -318,6 +314,25 @@ MCP `find_change_intent`는 `{ "items": [...] }`, REST `/lookup`은 배열을 �
 [AGENTS.md](AGENTS.md)는 공통 작업 규칙, 개발 스킬은 기능별 설계·검증, 사용 스킬은 요청받은 기록 작업을 안내합니다. 이력 조회와 게시 복구 절차는 사용 스킬의 참고 문서에서 필요할 때 읽습니다.
 
 [GPT-6 Astra 가이드](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)의 지시 충돌·재확인·검증 범위 권고에 따라 중복 규칙과 모든 문서를 매번 읽는 절차를 정리했습니다. 세션 시작 훅을 제거해 일반 코드 작업마다 기록 생성을 제안하지 않습니다.
+
+## Claude Code
+
+Claude Code는 루트 `CLAUDE.md`의 `@AGENTS.md` 가져오기로 Codex와 같은 [AGENTS.md](AGENTS.md)를 읽습니다. 작업 규칙은 AGENTS.md에만 씁니다.
+
+- `.claude/settings.json`: Codex와 같은 `scripts/feedback.py` 훅으로 파일 수정 후 지역 검사와 종료 전 전체 diff 검사 실행
+- `.claude/skills/intent-trace`, `.claude/skills/intent-trace-flows`: Codex 사용·개발 스킬을 기준으로 Claude Code의 연결·훅 차이 안내
+- `.claude/skills/intent-trace-handoff`, `.claude/skills/intent-trace-docs`: 작업 마무리와 HANDOFF 검증 기록, PRD·ADR·검토 문서 작성
+- `.claude/skills/intent-trace-release`: `/intent-trace-release <버전>`으로만 실행하는 릴리스 절차
+
+Claude Code는 `.mcp.json`의 `bearer_token_env_var`를 읽지 않습니다. 같은 이름의 로컬 범위 서버를 추가하면 프로젝트 설정 대신 사용합니다. 작은따옴표로 감싸 토큰 대신 환경 변수 참조를 저장합니다.
+
+```bash
+claude mcp add --transport http --scope local intent-trace http://127.0.0.1:8080/mcp \
+  --header 'Authorization: Bearer ${INTENT_TRACE_SESSION_TOKEN}'
+claude mcp list
+```
+
+`claude mcp get`은 확장된 토큰 값을 출력하므로 공유 화면이나 기록에 남기지 않습니다.
 
 ## IntelliJ 플러그인
 
@@ -349,25 +364,27 @@ IntelliJ의 `Settings > Plugins > Install Plugin from Disk`에서 `intellij-plug
 
 설정의 `로그인 확인`을 누르면 입력한 서버의 저장 세션 또는 환경 변수 세션으로 GitHub 계정을 확인합니다. 세션이 없으면 연결 방법을, 만료됐다면 재로그인을 안내합니다. 확인만으로 서버 주소를 저장하지 않으며 저장소 권한은 기록 조회 시 확인합니다.
 
-PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. 플러그인은 저장된 세션을 서버에서 먼저 폐기하고 로컬 자격 증명을 삭제합니다. 이미 만료된 세션은 로컬 토큰만 삭제하고, 저장 세션이 없으면 서버 요청 없이 안내합니다. 서버 장애로 폐기하지 못하면 토큰을 유지해 다시 시도할 수 있게 합니다.
+기록 조회가 거부되면 저장소 파일을 선택하고 `Tools > IntentTrace 저장소 연결 진단`을 실행하세요. 현재 서버와 저장 세션으로 저장소 읽기·쓰기 권한, HEAD 커밋의 코드 읽기, 서버 게시 설정 여부를 확인해 항목별로 보여줍니다. 게시나 테스트 실행은 하지 않습니다.
+
+PasswordSafe 세션은 서버 주소별로 보관합니다. 주소를 바꿔도 기존 서버의 세션을 복사하거나 삭제하지 않으므로 새 서버에서 발급받은 세션을 연결해야 합니다. 연결을 지우려면 `Tools > IntentTrace 저장 세션 삭제`를 실행합니다. 플러그인은 저장된 세션을 서버에서 먼저 폐기하고 로컬 자격 증명을 삭제합니다. 이미 만료된 세션은 로컬 토큰만 삭제하고, 저장 세션이 없으면 서버 요청 없이 안내합니다. 서버 장애로 폐기하지 못하면 토큰을 유지해 다시 시도할 수 있게 합니다. 서버 주소가 바뀌었거나 서버가 응답하지 않는다면 이어서 표시되는 확인 창에서 `이 PC에서만 삭제`를 고를 수 있습니다. 이 경우 서버의 연결은 만료되거나 웹의 내 연결 화면에서 종료할 때까지 남습니다.
 
 `INTENT_TRACE_SESSION_TOKEN` 환경 변수는 선택한 주소가 `INTENT_TRACE_URL`의 주소와 같을 때만 PasswordSafe의 대체 수단으로 사용합니다. `INTENT_TRACE_URL`이 없으면 기본 서버에만 적용합니다. 이 경우 PasswordSafe를 지운 뒤에도 환경 변수 세션이 남아 있음을 안내합니다.
 
-플러그인은 현재 GitHub 원격 저장소, 전체 HEAD 커밋, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. GitHub 액세스·갱신 토큰은 받거나 저장하지 않습니다.
+플러그인은 현재 GitHub 원격 저장소, 전체 HEAD 커밋, 저장소 상대 경로와 1부터 시작하는 줄 번호로 기존 공개 기록 조회 API를 호출합니다. 현재 파일에 커밋되지 않은 변경이 있으면 HEAD의 줄과 편집기 줄이 어긋날 수 있으므로 조회하지 않습니다. 조회 직전에 파일과 Git HEAD를 다시 읽어, 터미널에서 checkout·commit한 직후처럼 IDE가 아직 갱신되지 않았다면 다시 조회하도록 안내합니다. GitHub 액세스·갱신 토큰은 받거나 저장하지 않습니다.
 
 파일 이력은 수정 중인 파일에서도 조회할 수 있습니다. 현재 줄 결과 창에서 `이 파일의 과거 기록 보기`를 누르면 같은 파일 경로의 과거 기록을 엽니다. 이력의 코드 링크는 기록에 저장된 전체 커밋과 줄을 가리킵니다.
 
-파일 이름이나 줄 위치가 바뀌었다면 `웹에서 줄 이동·이름 변경 찾기`를 누르세요. 조회 당시 서버의 웹 화면에 저장소·전체 커밋·파일·줄을 전달해 기존 코드 비교를 실행합니다. 웹 로그인이 필요할 수 있으며 과거 테스트를 현재 코드의 검증으로 표시하지 않습니다. 현재 줄의 결과가 없어도 두 이력 버튼을 사용할 수 있습니다.
+파일 이름이나 줄 위치가 바뀌었다면 결과 창의 `이전 커밋에서 이 줄 찾기`로 이전 커밋의 관련 기록을 IDE에서 확인할 수 있습니다. 결과마다 일치 방식·원본 커밋·조회한 커밋의 줄을 표시하고, 조회가 중단되면 `중단 위치부터 계속 조회`로 이어 읽습니다. 서버가 GitHub 코드를 읽으므로 최대 30초 정도 걸릴 수 있습니다. 확인하지 못한 기록을 다시 조회하거나 코드를 비교하려면 `웹에서 줄 이동·이름 변경 찾기`를 누르세요. 조회 당시 서버의 웹 화면에 저장소·전체 커밋·파일·줄을 전달해 기존 코드 비교를 실행합니다. 웹 로그인이 필요할 수 있으며 과거 테스트를 현재 코드의 검증으로 표시하지 않습니다. 현재 줄의 결과가 없어도 두 이력 버튼을 사용할 수 있습니다.
 
 현재 줄 조회의 검증 결과는 조회 커밋이 다르면 `다른 커밋의 결과`로 표시합니다. 기록 상세의 스냅샷 일치 여부와 구분하세요. 검증마다 로컬 실행 도구 수집·클라이언트 제출·출처 미확인을 표시하며, 서버가 테스트 실행을 확인한 것은 아닙니다.
 
 코드 목록의 `변경 전`은 변경 전 커밋을, `변경 후`는 변경 후 커밋을 엽니다. 선택한 쪽의 커밋이 없으면 `당시 코드 열기`가 비활성화됩니다. 변경 전 커밋이 있는 초안은 작성자 확인 전에도 이전 코드를 열 수 있습니다.
 
-연결 대기는 최대 5초로 제한합니다. 응답 데이터가 10초 동안 도착하지 않으면 조회를 중단합니다. 리디렉션을 따라가지 않고, 성공 응답은 최대 4MiB(4,194,304바이트)까지 읽습니다. 서버의 필드별 입력 상한으로 만든 단건 기록은 한글·JSON 이스케이프를 포함해 이 범위에서 조회할 수 있습니다. 여러 기록을 함께 반환하는 현재 줄 조회의 합계가 상한을 넘으면 응답을 자르지 않고 거부합니다. 이때는 기록함에서 필요한 기록을 개별 조회합니다.
+연결 대기는 최대 5초로 제한합니다. 응답 데이터가 10초 동안 도착하지 않으면 조회를 중단합니다. 서버가 GitHub 코드를 읽는 이전 커밋 조회와 저장소 연결 진단은 40초까지 기다립니다. 리디렉션을 따라가지 않고, 성공 응답은 최대 4MiB(4,194,304바이트)까지 읽습니다. 서버의 필드별 입력 상한으로 만든 단건 기록은 한글·JSON 이스케이프를 포함해 이 범위에서 조회할 수 있습니다. 여러 기록을 함께 반환하는 현재 줄 조회의 합계가 상한을 넘으면 응답을 자르지 않고 거부합니다. 이때는 기록함에서 필요한 기록을 개별 조회합니다.
 호출 제한이 발생하면 서버가 알려준 대기 시간 뒤에 직접 다시 시도하세요. 대기 시간을 읽을 수 없으면 잠시 후 재시도하도록 안내하며 자동으로 요청하지 않습니다. 세션 해제가 호출 제한으로 실패하면 저장된 세션은 유지됩니다.
 GitHub 연동과 IntelliJ 조회에서 응답 파싱이 실패하면 응답 원문 없이 형식 오류만 안내합니다.
 
-Zed 에이전트에서는 공식 MCP SDK 중계기로 연결합니다. 0.12.0부터 의존성이 포함된 `.tgz`를 저장소 밖에 설치할 수 있습니다. [패키지 설치 안내](clients/zed/README.md)와 [배포 파일 생성·레지스트리 준비](docs/clients/zed-distribution.md)를 제공합니다.
+Zed 에이전트에서는 공식 MCP SDK 중계기로 연결합니다. 편집기에서는 `clients/zed/extension` 확장을 설치하면 커밋된 줄의 hover에 공개 기록 요약이 보입니다([편집기 hover](docs/clients/zed.md#편집기-hover)). 0.12.0부터 의존성이 포함된 `.tgz`를 저장소 밖에 설치할 수 있습니다. [패키지 설치 안내](clients/zed/README.md)와 [배포 파일 생성·레지스트리 준비](docs/clients/zed-distribution.md)를 제공합니다.
 
 Zed 연결 점검의 `check [MCP 주소] <owner/repo>`에 `--pr <번호>`와 `--revision <전체 커밋 해시>`를 추가하면 PR·코드 읽기 권한도 확인할 수 있습니다. 주소를 생략하면 `INTENT_TRACE_MCP_URL`, 없으면 로컬 서버를 사용합니다. PR만 지정하면 해당 PR의 현재 커밋으로 확인합니다.
 
@@ -415,17 +432,17 @@ python3 scripts/test_feedback.py
 
 - GitHub App 등록·저장소 설치와 개인 키 교체는 운영자가 해야 합니다.
 - 사용자 자격 증명과 `its_` 세션은 메모리 전용이므로 서버 재시작·다중 인스턴스 간에 유지되지 않습니다.
-- GitHub 웹훅은 사용자 승인 취소만 처리합니다. PR·CI 이벤트의 자동 기록 생성·게시는 제공하지 않습니다.
+- GitHub 웹훅은 사용자 승인 취소와 App 설치 변경만 처리합니다. PR·CI 이벤트의 자동 기록 생성·게시는 제공하지 않습니다.
 - GitHub 권한은 같은 인증 요청 안에서만 재사용하고 새 요청에서 다시 확인합니다. 요청 간 권한 캐시는 없습니다.
-- V3 이전 초안의 작성자는 `legacy:<login>`으로 남으며 현재 GitHub 계정과 자동으로 연결되지 않습니다.
 - 포크에서 생성된 PR의 Check Run 게시는 현재 지원하지 않습니다.
-- IntelliJ 플러그인은 현재 줄 조회·기록함·파일 이력과 웹 코드 이동 조회를 지원합니다. 로그인 토큰 자동 가져오기와 기록 생성·수정은 지원하지 않습니다.
+- PR 줄 주석은 변경 후 코드 근거 50개까지 게시합니다. GitHub에서 게시한 주석을 지울 수 없어, 이미 주석이 있는 Check Run은 다시 게시해도 주석을 바꾸지 않습니다.
+- IntelliJ 플러그인은 현재 줄 조회·기록함·파일 이력·이전 커밋 조회·저장소 연결 진단과 웹 코드 이동 조회를 지원합니다. 로그인 토큰 자동 가져오기와 기록 생성·수정은 지원하지 않습니다.
 - Compose와 k3s 배포는 앱 1개만 지원하며 무중단 롤링 배포와 서버 간 세션 공유는 제공하지 않습니다.
-- 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 이력 수집 이전 작업과 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.
+- 기록 변경·게시 시도 이력은 저장하지만 인증·운영 전체 감사 로그와 자동 보존 정책은 제공하지 않습니다. 과거 본문은 복원하지 않으며 폐기한 비공개 기록은 작성자에게 남습니다.
 - 코드 확인은 일부 트리·2 MiB 초과 파일 객체를 지원하지 않으며 테스트 실행 자체를 증명하지 않습니다.
 - 이전 기록 탐색은 동일 파일 객체의 고유한 이름 변경과 원본·현재 파일에서 한 곳에만 있는 전체 줄 조각을 연결합니다. 수정과 이름 변경이 함께 일어나거나 조각이 중복되면 자동으로 연결하지 않습니다. 후보를 페이지로 살피므로 결과가 비어 있어도 다음 커서를 확인해야 합니다.
 - 과거 조회의 호출 수 설정은 7~200회입니다. 기한 안에 근거 하나도 처리하지 못하면 `resumeBlocked=true`로 안내합니다. 같은 커서를 반복하기 전에 서버 조회 제한·GitHub 응답 지연을 확인해야 합니다. 기본값은 30초·40회이며 상세 설정은 [코드 확인과 이전 기록 조회](docs/ADR-0007-evidence-check-and-history.md)를 따릅니다.
-- Zed 에이전트 연결 도구를 제공하며 인라인 IDE 메뉴·자동 기록 수집은 제공하지 않습니다. Zed 1.18.1에서 등록·도구 승인·기록 조회·세션 폐기와 재연결을 로컬 테스트 응답으로 확인했습니다. 실제 사용자 GitHub 승인은 별도 설정이 필요합니다.
+- Zed 에이전트 연결 도구와 커밋된 줄의 hover 확장을 제공하며 자동 기록 수집은 제공하지 않습니다. hover 확장은 개발용 설치만 지원하고 실제 Zed 앱에서는 아직 확인하지 않았습니다. Zed 1.18.1에서 등록·도구 승인·기록 조회·세션 폐기와 재연결을 로컬 테스트 응답으로 확인했습니다. 실제 사용자 GitHub 승인은 별도 설정이 필요합니다.
 - Micrometer 지표의 외부 수집기와 대시보드는 별도 연결이 필요합니다.
 
 ## 문서

@@ -5,7 +5,7 @@ import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
@@ -24,7 +24,7 @@ class GitHubUserPullRequestClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val client = GitHubUserPullRequestClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties()), object : CurrentGitHubUserSession {
-        override fun require() = GitHubUserSession(ActorIdentity.github(1, "owner"), "ghu_test")
+        override fun require() = GitHubUserSession(ActorIdentity.github(1, "owner"), "ghu_test", java.util.UUID.randomUUID())
     }, jacksonObjectMapper())
     private val target = GitHubPullRequestTarget("acme", "repo", 1)
     private val sha = "a".repeat(40)

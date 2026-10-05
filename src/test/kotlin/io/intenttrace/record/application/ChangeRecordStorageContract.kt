@@ -12,9 +12,11 @@ import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Clock
 import java.time.Instant
@@ -24,9 +26,11 @@ import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 abstract class ChangeRecordStorageContract {
     @Autowired
@@ -43,6 +47,9 @@ abstract class ChangeRecordStorageContract {
 
     @Autowired
     private lateinit var tracking: GitHubPublicationTracking
+
+    @Autowired
+    private lateinit var storageCatalog: ChangeRecordCatalog
 
     @Test
     fun `게시 정보 일괄 조회는 요청한 기록과 PR의 최신 시도만 반환한다`() {
@@ -79,7 +86,53 @@ abstract class ChangeRecordStorageContract {
     }
 
     @Test
-    fun `파일 이력과 내 초안을 페이지로 조회한다`() {
+    fun `기록별 게시 목록은 PR마다 최신 시도와 대체 안내 성공 여부를 반환한다`() {
+        val record = published()
+        val target = GitHubPullRequestTarget("ACME", "RECORD-TARGETS", 81)
+        val older = publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!,
+            81, "https://github.test/check/81", digest, Instant.EPOCH))
+        val newer = publications.save(older.copy(id = UUID.randomUUID(), target = target.copy(pullNumber = 82), checkRunId = 82,
+            publishedAt = Instant.EPOCH.plusSeconds(60)))
+        fun attempt(pullNumber: Int, operation: PublicationOperation, status: PublicationAttemptStatus, second: Long): UUID =
+            tracking.start(record.id, target.copy(pullNumber = pullNumber), operation).also {
+                storageJdbc.update("update github_publication_attempts set started_at = ? where id = ?",
+                    Instant.EPOCH.plusSeconds(second).atOffset(ZoneOffset.UTC), it.toString())
+                tracking.finish(it, status, null, null)
+            }
+        attempt(81, PublicationOperation.SUPERSESSION_NOTICE, PublicationAttemptStatus.SUCCEEDED, 10)
+        val latest81 = attempt(81, PublicationOperation.SUPERSESSION_NOTICE, PublicationAttemptStatus.FAILED, 20)
+        val latest83 = attempt(83, PublicationOperation.PUBLISH, PublicationAttemptStatus.FAILED, 30)
+
+        assertEquals(listOf(newer, older), publications.findByRecord(record.id, 10))
+        assertEquals(listOf(newer), publications.findByRecord(record.id, 1))
+        val targets = tracking.latestByTarget(record.id, 10)
+        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.target.pullNumber to it.latest.id })
+        assertEquals(listOf(false, true), targets.map { it.supersessionNoticed })
+        assertEquals(target.repositoryKey, targets.first().target.repositoryKey)
+        assertEquals(1, tracking.latestByTarget(record.id, 1).size)
+        assertTrue(publications.findByRecord(UUID.randomUUID(), 10).isEmpty())
+    }
+
+    @Test
+    fun `현재 줄 조회는 최근 공개 순 상한까지 반환하고 같은 공개 시각은 ID 순서로 고정한다`() {
+        val repositoryKey = "acme/line-limit-${UUID.randomUUID()}"
+        val records = List(LINE_INTENT_LIMIT + 1) {
+            val draft = storageFacade.create(command().copy(repositoryKey = repositoryKey), actor)
+            val confirmed = storageFacade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
+            storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
+        }
+        storageJdbc.update("update change_records set published_at = ? where repository_key = ?",
+            Instant.EPOCH.atOffset(ZoneOffset.UTC), repositoryKey)
+
+        val found = storageFacade.findIntent(repositoryKey, "b".repeat(40), "src/Storage.kt", 1)
+
+        assertTrue(found.truncated)
+        assertEquals(records.map { it.id.toString() }.sortedDescending().take(LINE_INTENT_LIMIT), found.items.map { it.id.toString() })
+        assertFalse(storageFacade.findIntent(repositoryKey, "b".repeat(40), "src/Storage.kt", 3).truncated)
+    }
+
+    @Test
+    fun `파일 이력과 내 초안을 커서로 이어 조회한다`() {
         val repositoryKey = "acme/history-${UUID.randomUUID()}"
         fun draft(owner: ActorIdentity = actor, path: String = "src/Storage.kt"): ChangeRecord =
             storageFacade.create(
@@ -110,33 +163,25 @@ abstract class ChangeRecordStorageContract {
             Instant.parse("2026-08-30T00:00:00Z").atOffset(ZoneOffset.UTC), repositoryKey,
         )
 
-        val privateQuery = ListChangeRecordsQuery(
-            repositoryKey.uppercase(), ChangeRecordListScope.MY_DRAFTS, "src/./Storage.kt", size = 1,
-        )
-        val first = storageFacade.list(privateQuery, actor)
-        val second = storageFacade.list(privateQuery.copy(page = 1), actor)
-        assertTrue(first.hasNext())
-        assertFalse(second.hasNext())
+        val privateQuery = RecordCatalogQuery(repositoryKey, setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED),
+            actor.subject, "src/Storage.kt", cursor = null, limit = 1)
+        val first = storageCatalog.search(privateQuery).single()
+        val rest = storageCatalog.search(privateQuery.copy(cursor = RecordCursor(first.createdAt, first.id), limit = 2))
         assertEquals(
             listOf(ownDraft.id, ownConfirmed.id).map(UUID::toString).sortedDescending(),
-            (first.content + second.content).map { it.id.toString() },
+            (listOf(first) + rest).map { it.id.toString() },
         )
-        assertTrue(storageFacade.list(privateQuery.copy(page = 2), actor).isEmpty)
-        assertEquals(
-            listOf(ownConfirmed.id),
-            storageFacade.list(privateQuery.copy(status = ChangeRecordStatus.AUTHOR_CONFIRMED), actor).content.map { it.id },
-        )
+        assertEquals(listOf(ownConfirmed.id),
+            storageCatalog.search(privateQuery.copy(statuses = setOf(ChangeRecordStatus.AUTHOR_CONFIRMED), limit = 10)).map { it.id })
 
-        val publicQuery = ListChangeRecordsQuery(repositoryKey, path = "src/Storage.kt")
-        val history = storageFacade.list(publicQuery, ActorIdentity.github(2, "teammate")).content
+        val publicQuery = RecordCatalogQuery(repositoryKey, TEAM_VISIBLE_STATUSES, null, "src/Storage.kt", cursor = null, limit = 10)
+        val history = storageCatalog.search(publicQuery)
         assertEquals(setOf(old.id, replacement.id), history.map { it.id }.toSet())
         assertEquals(2, history.size)
         assertEquals(replacement.id, history.single { it.id == old.id }.supersededBy)
         assertEquals(setOf("b".repeat(40), "c".repeat(40)), history.map { it.targetRevision }.toSet())
-        assertEquals(
-            listOf(replacement.id),
-            storageFacade.list(publicQuery.copy(status = ChangeRecordStatus.PUBLISHED), actor).content.map { it.id },
-        )
+        assertEquals(listOf(replacement.id),
+            storageCatalog.search(publicQuery.copy(statuses = setOf(ChangeRecordStatus.PUBLISHED))).map { it.id })
     }
 
     @Test
@@ -148,15 +193,8 @@ abstract class ChangeRecordStorageContract {
             ),
         )
 
-        val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC))
+        val preciseFacade = ChangeRecordFacade(storageRepository, SensitiveTextRedactor(), Clock.fixed(startedAt, ZoneOffset.UTC), SimpleMeterRegistry())
         val first = preciseFacade.create(command, actor)
-        // 정규화가 없던 이전 저장 방식도 같은 요청으로 인식해야 한다.
-        storageJdbc.update(
-            "update verification_runs set started_at = ?, finished_at = ? where record_id = ?",
-            startedAt.atOffset(ZoneOffset.UTC),
-            startedAt.plusSeconds(1).atOffset(ZoneOffset.UTC),
-            first.id.toString(),
-        )
         val retried = storageFacade.create(command, actor)
 
         assertEquals(first.id, retried.id)
@@ -167,6 +205,20 @@ abstract class ChangeRecordStorageContract {
         assertEquals(confirmed, storageFacade.get(first.id))
         val published = preciseFacade.publish(PublishChangeRecordCommand(first.id, confirmed.version, digest), actor)
         assertEquals(published, storageFacade.get(first.id))
+    }
+
+    @Test
+    fun `스키마는 대문자 저장소 키와 정규화되지 않은 코드 경로를 거부한다`() {
+        val record = published()
+        tracking.start(record.id, GitHubPullRequestTarget("acme", "storage-contract", 1), PublicationOperation.PUBLISH)
+        for (sql in listOf(
+            "update change_records set repository_key = 'ACME/STORAGE' where id = ?",
+            "update code_anchors set relative_path = './src/Storage.kt' where record_id = ?",
+            "update code_anchors set relative_path = 'src//Storage.kt' where record_id = ?",
+            "update github_publication_attempts set repository_key = 'ACME/STORAGE' where change_record_id = ?",
+        )) {
+            assertFailsWith<DataIntegrityViolationException>(sql) { storageJdbc.update(sql, record.id.toString()) }
+        }
     }
 
     @Test

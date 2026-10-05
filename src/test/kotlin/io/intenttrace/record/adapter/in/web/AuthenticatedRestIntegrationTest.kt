@@ -3,6 +3,7 @@ package io.intenttrace.record.adapter.`in`.web
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
@@ -27,6 +28,7 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertTrue
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, AuthenticatedRestIntegrationTest.RestTestConfiguration::class],
@@ -40,6 +42,7 @@ class AuthenticatedRestIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val userAccess: TestGitHubUserAccessGateway,
     @Autowired private val objectMapper: ObjectMapper,
+    @Autowired private val sessions: GitHubUserSessionStore,
 ) {
     @Test
     fun `REST 기록함은 본인 초안만 반환하고 권한 없는 저장소 조회를 거부한다`() {
@@ -51,49 +54,74 @@ class AuthenticatedRestIntegrationTest(
                 .replace("acme/intent-trace", repository)
         }.andExpect { status { isCreated() } }.andReturn()
         val id = objectMapper.readTree(created.response.contentAsString).get("id").stringValue()
-        mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS&size=1") {
-            authorized()
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.items[0].id") { value(id) }
-            jsonPath("$.hasNext") { value(false) }
-        }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE&limit=1&path=./src/App.kt") {
             authorized()
         }.andExpect {
             status { isOk() }
             jsonPath("$.items[0].id") { value(id) }
-            jsonPath("$.size") { value(1) }
-            jsonPath("$.hasNext") { value(false) }
+            jsonPath("$.nextCursor") { value(null) }
         }
+        mockMvc.get("/api/v1/change-records/$id/github-pull-requests") { authorized() }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("DRAFT") }
+            jsonPath("$.items") { isEmpty() }
+            jsonPath("$.truncated") { value(false) }
+        }
+        val (owner, name) = repository.split('/')
+        mockMvc.get("/api/v1/change-records/$id/github-pull-request?owner=$owner&repository=$name&pullNumber=1") { authorized() }
+            .andExpect { status { isOk() }; jsonPath("$.attempts") { isEmpty() } }
+        mockMvc.get("/api/v1/change-records/lookup?repositoryKey=$repository&revision=${"b".repeat(40)}&path=src/App.kt&line=1") { authorized() }
+            .andExpect { status { isOk() }; jsonPath("$.items") { isEmpty() }; jsonPath("$.truncated") { value(false) } }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
             authorized()
         }.andExpect { jsonPath("$.items") { isEmpty() } }
-        userAccess.actor = ActorIdentity.github(84, "teammate")
         try {
-            mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS") {
-                authorized()
+            for (path in listOf("", "/github-pull-requests")) {
+                mockMvc.get("/api/v1/change-records/$id$path") { authorized(teammateSession) }.andExpect {
+                    status { isNotFound() }
+                    content { string(not(containsString(repository))) }
+                }
+            }
+            mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MINE") {
+                authorized(teammateSession)
             }.andExpect {
                 status { isOk() }
                 jsonPath("$.items") { isEmpty() }
-                jsonPath("$.hasNext") { value(false) }
+                jsonPath("$.nextCursor") { value(null) }
             }
             userAccess.role = null
             mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
-                authorized()
+                authorized(teammateSession)
             }.andExpect { status { isForbidden() } }
         } finally {
-            userAccess.actor = ActorIdentity.github(42, "lim")
             userAccess.role = RepositoryRole.MAINTAINER
         }
     }
 
     @Test
-    fun `목록 범위와 맞지 않는 상태나 잘못된 페이지 입력은 거부한다`() {
-        for (query in listOf("status=DRAFT", "scope=MY_DRAFTS&status=PUBLISHED", "page=-1", "size=0", "size=51", "path=../App.kt", "page=0&cursor=invalid", "size=10&q=검색", "scope=MY_DRAFTS&limit=10")) {
+    fun `목록 범위와 맞지 않는 상태나 잘못된 커서·크기 입력은 거부한다`() {
+        for (query in listOf("status=DRAFT", "scope=MINE&status=PUBLISHED", "limit=0", "limit=101", "path=../App.kt", "cursor=invalid", "scope=MY_DRAFTS")) {
             mockMvc.get("/api/v1/change-records?repositoryKey=acme/intent-trace&$query") {
                 authorized()
             }.andExpect { status { isBadRequest() } }
+        }
+    }
+
+    @Test
+    fun `파라미터 검증·누락·형식 오류도 ProblemDetail로 응답한다`() {
+        val revision = "a".repeat(40)
+        mockMvc.get("/api/v1/change-records/lookup?repositoryKey=acme/intent-trace&revision=$revision&path=&line=1") { authorized() }
+            .andExpect {
+                status { isBadRequest() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+                jsonPath("$.title") { value("입력값 오류") }
+                jsonPath("$.detail") { value(org.hamcrest.Matchers.startsWith("path: ")) }
+            }
+        for (path in listOf("/api/v1/change-records", "/api/v1/change-records/not-a-uuid")) {
+            mockMvc.get(path) { authorized() }.andExpect {
+                status { isBadRequest() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+            }
         }
     }
 
@@ -212,9 +240,12 @@ class AuthenticatedRestIntegrationTest(
         }
     }
 
-    private fun org.springframework.test.web.servlet.MockHttpServletRequestDsl.authorized() {
-        header(HttpHeaders.AUTHORIZATION, "Bearer ghu_authenticated-rest-test")
+    private fun org.springframework.test.web.servlet.MockHttpServletRequestDsl.authorized(session: String = ownerSession) {
+        header(HttpHeaders.AUTHORIZATION, "Bearer $session")
     }
+
+    private val ownerSession by lazy { sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_rest-owner") }
+    private val teammateSession by lazy { sessions.issueTestSession(ActorIdentity.github(84, "teammate"), TEAMMATE_TOKEN) }
 
     private fun createRequest(requestId: String, decisionSummary: String): String =
         """
@@ -244,11 +275,10 @@ class AuthenticatedRestIntegrationTest(
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
         var failAuthentication = false
         var role: RepositoryRole? = RepositoryRole.MAINTAINER
-        var actor = ActorIdentity.github(42, "lim")
 
         override fun authenticate(accessToken: String): ActorIdentity {
             if (failAuthentication) throw GitHubIdentityApiException("테스트 사용자 조회 장애")
-            return actor
+            return if (accessToken == TEAMMATE_TOKEN) ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
         }
 
         override fun repositoryRole(
@@ -256,5 +286,9 @@ class AuthenticatedRestIntegrationTest(
             actor: ActorIdentity,
             repository: GitHubRepository,
         ): RepositoryRole? = role
+    }
+
+    companion object {
+        private const val TEAMMATE_TOKEN = "ghu_rest-teammate"
     }
 }

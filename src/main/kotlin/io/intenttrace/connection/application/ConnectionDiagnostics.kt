@@ -5,13 +5,14 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubPullRequestReader
+import io.intenttrace.publication.application.GitHubRepositoryMismatchException
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.EvidenceUnavailableException
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.stereotype.Service
 import java.time.Clock
 import java.time.Instant
@@ -30,25 +31,26 @@ class ConnectionDiagnostics(
 ) {
     fun diagnose(repositoryKey: String, revision: String? = null, pullNumber: Int? = null): ConnectionDiagnosis {
         val repository = GitHubRepository.parse(repositoryKey)
-        val ref = revision?.let { GitRevision.parse(it).value }
+        val ref = revision?.let { requireFullRevision(it) }
         require(pullNumber == null || pullNumber > 0) { "PR 번호는 양수여야 합니다." }
         val checks = mutableListOf(ConnectionCheck("authentication", DiagnosticStatus.VERIFIED, "현재 요청의 GitHub 사용자 인증을 확인했습니다."))
-        fun check(name: String, action: () -> Unit): Boolean = try {
-            action()
-            checks += ConnectionCheck(name, DiagnosticStatus.VERIFIED, "GitHub 응답으로 확인했습니다.")
-            true
-        } catch (_: RepositoryAccessDeniedException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요.")
-            false
-        } catch (failure: EvidenceUnavailableException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, failure.reason.message)
-            false
-        } catch (_: GitHubApiException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요.")
-            false
-        } catch (_: GitHubIdentityApiException) {
-            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, "GitHub 권한 조회를 완료하지 못했습니다. 연결 상태를 확인하세요.")
-            false
+        fun check(name: String, action: () -> Unit): Boolean {
+            val failure = try {
+                action()
+                null
+            } catch (error: RuntimeException) {
+                // 코드 확인 불가는 GitHubApiException의 하위 예외라 먼저 구분한다.
+                when (error) {
+                    is RepositoryAccessDeniedException -> "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요."
+                    is GitHubRepositoryMismatchException -> "PR의 병합 대상 저장소가 입력한 저장소와 다릅니다. 저장소 이름 변경이나 이전 여부를 확인하세요."
+                    is EvidenceUnavailableException -> error.reason.message
+                    is GitHubApiException -> "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요."
+                    is GitHubIdentityApiException -> "GitHub 권한 조회를 완료하지 못했습니다. 연결 상태를 확인하세요."
+                    else -> throw error
+                }
+            }
+            checks += ConnectionCheck(name, if (failure == null) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED, failure ?: "GitHub 응답으로 확인했습니다.")
+            return failure == null
         }
         val readable = check("repository_read") { access.requireReader(repository.key) }
         if (readable) check("repository_write") { access.requireContributor(repository.key) }

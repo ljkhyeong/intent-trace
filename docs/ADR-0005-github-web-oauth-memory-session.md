@@ -18,16 +18,16 @@
 - authorize 요청에는 PKCE `S256` code challenge를 포함한다. callback은 query와 cookie의 `state`, TTL, 일회성 사용 여부를 모두 확인한 뒤 client ID·client secret·정확한 redirect URI·code verifier로 code를 교환한다.
 - GitHub App의 expiring user authorization token을 필수로 하고 `ghu_` access token과 `ghr_` refresh token 쌍을 프로세스 메모리에만 저장한다.
 - 클라이언트에는 별도 256비트 무작위 `its_` session token을 callback 성공 본문에서 한 번 표시한다. 메모리 store의 조회 key에는 session 원문이 아니라 SHA-256 digest를 사용한다.
-- 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 가장 오래된 것을 폐기한다.
+- 사용자별 활성 session은 기본 5개로 제한한다. 새 session을 발급할 때 만료된 session을 제거하고 상한에 도달한 같은 사용자의 session 중 새 session과 같은 채널(`BROWSER`·`CLIENT`)의 가장 오래된 것을 먼저 폐기한다. 같은 채널이 없으면 가장 오래된 session을 폐기한다. 8시간 브라우저 로그인을 반복해도 오래 쓰는 `its_` 도구 연결이 밀려나지 않는다.
 - 새 세션 발급은 기존 세션의 GitHub 응답을 기다리지 않는다. 잠금이 사용 중이면 만료 정리를 다음 발급으로 미룬다. 사용자별 상한으로 폐기할 때는 활성 상태를 먼저 해제해, 진행 중인 토큰 갱신이 오래된 세션을 복구하지 못하게 한다.
-- `DELETE /api/v1/session`은 인증 필터가 확인한 현재 `its_` session의 digest를 메모리 store에서 제거한다. 호환용 `ghu_` token은 IntentTrace가 발급한 session이 아니므로 이 API로 폐기하지 않는다.
+- `DELETE /api/v1/me/sessions/current`는 인증 필터가 확인한 현재 `its_` session을 메모리 store에서 제거한다.
 - access token 만료 5분 전부터 세션별 잠금 안에서 갱신을 한 번 수행하고, 새 access·refresh token을 함께 저장한다.
 - 갱신 요청이 거부되거나 응답 수신·파싱·token 값 변환에 실패하면 같은 refresh token을 다시 보내지 않고 세션을 폐기한다. 클라이언트에는 `401`을 반환해 재로그인을 안내한다. 잠금 획득 후에는 대기 중 세션이 폐기되지 않았는지도 확인한다.
 - token 형식·만료 순서 검증과 만료 시각 계산에서 발생한 예외는 HTTP 어댑터가 OAuth 연동 오류로 변환한다. 응답 원문을 포함할 수 있는 원인 예외는 연결하지 않는다.
 - 매 요청에서 `/user`를 다시 확인한다. 갱신 거부, token 거부 또는 GitHub 숫자 사용자 ID 변경 시 세션을 폐기하고 재로그인을 요구한다.
-- `POST /webhooks/github`는 GitHub `github_app_authorization`의 `revoked`를 받아 기존 전체 세션 폐기를 호출한다. 전송 원문의 HMAC-SHA256 서명을 먼저 검증하고 `sender.id`로 대상을 정한다. secret 미설정·잘못된 서명·1MiB 초과 본문은 거부하며 `ping`과 다른 이벤트는 상태 변경 없이 응답한다. 원문·서명·전송 이력 저장소를 추가하지 않는다. [설정과 응답](operations/k3s-deployment.md#github-승인-취소-웹훅)을 따른다.
+- `POST /webhooks/github`는 GitHub `github_app_authorization`의 `revoked`를 받아 기존 전체 세션 폐기를 호출한다. 전송 원문의 HMAC-SHA256 서명을 먼저 검증하고 `sender.id`로 대상을 정한다. secret 미설정·잘못된 서명·1MiB 초과 본문은 거부하며 `ping`과 다른 이벤트는 상태 변경 없이 응답하고, 설치 이벤트는 [ADR-0003](ADR-0003-github-app-installation-auth.md#설치-변경-웹훅)을 따른다. 원문·서명·전송 이력 저장소를 추가하지 않는다. [설정과 응답](operations/k3s-deployment.md#github-웹훅)을 따른다.
 - `/user` 조회의 일시 장애는 기존처럼 `502`로 구분하고 세션을 유지한다. 앞서 token 갱신에 성공했다면 새 token 쌍을 다음 요청에 사용한다.
-- 기존 `ghu_` 직접 Bearer 인증은 REST 호환 경로로 유지하되 Codex 프로젝트와 플러그인은 `INTENT_TRACE_SESSION_TOKEN`을 사용한다.
+- REST·MCP 인증 필터는 `its_` session만 받는다. 운영 전 정리에서 `ghu_` 직접 Bearer 인증과 중복된 `DELETE /api/v1/session`을 제거했다. Codex·IntelliJ·Zed는 `INTENT_TRACE_SESSION_TOKEN` 또는 저장한 `its_` session을 사용한다.
 - 승인 HTML에는 `no-store`, `no-referrer`, 제한된 CSP와 `nosniff`를 적용하고 GitHub token, client secret과 외부 오류 본문을 응답에 넣지 않는다.
 - access·refresh·session token과 client secret을 보유한 객체의 문자열 표현에는 비밀값을 포함하지 않는다.
 

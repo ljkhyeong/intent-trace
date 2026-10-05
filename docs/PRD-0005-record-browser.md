@@ -4,26 +4,13 @@
 
 기록 UUID를 몰라도 저장소의 공개 기록과 내 비공개 초안을 찾는다. 현재 커밋의 줄 조회 결과가 없으면 같은 파일의 과거 기록에서 당시 코드와 검증 결과를 확인한다.
 
-## 기존 페이지 번호 조회 계약
+## 목록 조회 계약
 
-- REST: `GET /api/v1/change-records`
-- MCP: `list_change_records`
-- 공통 입력: 필수 `repositoryKey`, 선택 `scope`, `path`, `status`, `page`, `size`
-- `repositoryKey`는 기존과 같이 소문자 `owner/repository`로 정규화한다. 요청마다 해당 저장소의 읽기 권한을 확인한다.
-- 기본 `scope=TEAM`은 `PUBLISHED`, `SUPERSEDED`를 조회한다.
-- `scope=MY_DRAFTS`는 인증된 숫자 GitHub 사용자 ID로 만든 `DRAFT`, `AUTHOR_CONFIRMED`만 조회한다. 작성자 입력은 받지 않는다.
-- `status`를 지정하면 선택한 기록함에서 해당 상태만 조회한다. 다른 기록함의 상태는 입력 오류다.
-- `path`를 지정하면 기존 상대 경로 정규화를 거쳐 코드 근거의 경로와 정확히 비교한다. 커밋과 줄 번호는 필터링하지 않는다.
-- `page`는 0부터, `size`는 기본 20·최대 50이다. 0 이하 크기와 음수 페이지는 입력 오류다.
-- 생성 시각 내림차순, 같은 시각이면 기록 UUID 내림차순으로 정렬한다. 생성 시각은 공개 시각과 다르다.
-- 기존 응답 필드 `items`, `page`, `size`, `hasNext`를 유지하고 `nextCursor`를 추가한다. 총 건수 조회는 하지 않는다.
-- 요약에는 ID, 저장소, 제목, 상태, 전체 커밋, 작성자, 생성·공개 시각, 대체 기록 ID를 포함한다. 본문·근거·검증은 기존 단건 조회로 읽는다.
-
-권한과 파일·상태 필터는 페이지를 자르기 전에 SQL에서 적용한다. 다른 사람의 초안은 본문뿐 아니라 `hasNext`에도 영향을 주지 않는다. 목록을 본 뒤 상세를 열 때도 권한을 다시 확인한다.
-
-## 커서 조회와의 호환
-
-웹·Zed·IntelliJ는 [기록 관리와 조회](PRD-0004-record-management-and-evidence.md)의 커서 조회를 사용한다. `scope=MINE`은 내 비공개 기록이며 `authorId` 필터는 `TEAM`에서만 지원한다. `MY_DRAFTS` 또는 `page`·`size`를 지정하면 페이지 번호 조회로 전환되며 `cursor`·`limit`·`authorId`·`q`와 함께 쓸 수 없다. 선택 인자를 모두 생략하면 팀 공개 기록을 커서 방식으로 20건 조회하며 기존 페이지 응답 필드도 유지한다.
+- REST `GET /api/v1/change-records`, MCP `list_change_records`는 [기록 관리와 조회](PRD-0004-record-management-and-evidence.md)의 커서 조회만 제공한다. 입력은 필수 `repositoryKey`와 선택 `scope`(`TEAM`·`MINE`), `path`, `status`, `authorId`, `q`, `cursor`, `limit`이며 응답은 `items`와 `nextCursor`다.
+- `repositoryKey`는 소문자 `owner/repository`로 정규화하고 요청마다 해당 저장소의 읽기 권한을 확인한다. 기본 `scope=TEAM`은 `PUBLISHED`, `SUPERSEDED`, `scope=MINE`은 인증된 숫자 GitHub 사용자 ID로 만든 `DRAFT`, `AUTHOR_CONFIRMED`(지정하면 `DISCARDED`)를 조회한다.
+- `path`는 상대 경로 정규화를 거쳐 코드 근거의 경로와 정확히 비교한다. 생성 시각 내림차순, 같은 시각이면 기록 UUID 내림차순으로 정렬하며 총 건수는 조회하지 않는다.
+- 권한과 파일·상태 필터는 목록을 자르기 전에 SQL에서 적용한다. 다른 사람의 초안은 본문뿐 아니라 `nextCursor`에도 영향을 주지 않는다. 목록을 본 뒤 상세를 열 때도 권한을 다시 확인한다.
+- 0.12까지 남아 있던 페이지 번호 조회(`MY_DRAFTS`·`page`·`size`)는 운영 전 정리에서 제거했다.
 
 이 문서의 제외 범위는 IntelliJ 기록함 기준이다. 서버·웹의 초안 수정·폐기와 이름 변경·줄 이동 조회는 [기록 관리와 조회](PRD-0004-record-management-and-evidence.md)를 따른다.
 

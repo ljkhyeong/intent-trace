@@ -1,17 +1,11 @@
 package io.intenttrace.intellij
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.Messages
 
-class FindCurrentLineIntentAction : DumbAwareAction() {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class FindCurrentLineIntentAction : IntentTraceAction() {
     override fun update(event: AnActionEvent) {
         event.presentation.isEnabledAndVisible =
             event.project != null && event.getData(CommonDataKeys.EDITOR) != null
@@ -20,45 +14,19 @@ class FindCurrentLineIntentAction : DumbAwareAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR) ?: return
-        val file = event.getData(CommonDataKeys.VIRTUAL_FILE)
-            ?: FileDocumentManager.getInstance().getFile(editor.document)
-            ?: return showError(project, "현재 편집기 파일을 확인할 수 없습니다.")
         val lookup = try {
-            CurrentLineContextResolver.resolve(project, editor, file)
+            val file = event.getData(CommonDataKeys.VIRTUAL_FILE)
+                ?: FileDocumentManager.getInstance().getFile(editor.document)
+                ?: throw IntentTraceUsageException("현재 편집기 파일을 확인할 수 없습니다.")
+            file to CurrentLineContextResolver.resolve(project, editor, file)
         } catch (exception: IntentTraceUserException) {
-            return showError(project, exception.message ?: "현재 줄의 Git 문맥을 확인할 수 없습니다.")
+            return Messages.showErrorDialog(project, exception.message, "IntentTrace")
         }
-
-        object : Task.Backgroundable(project, "IntentTrace 변경 의도 조회", false) {
-            private lateinit var records: List<ChangeIntentRecord>
-            private lateinit var server: IntentTraceServer
-
-            override fun run(indicator: ProgressIndicator) {
-                server = IntentTraceServer.current()
-                val token = IntentTraceCredentialStore().load(server)
-                    ?: throw IntentTraceUsageException(
-                        "IntentTrace 세션이 없습니다. Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.",
-                    )
-                records = IntentTraceApiClient().lookup(server, token, lookup)
-            }
-
-            override fun onSuccess() {
-                if (project.isDisposed) return
-                IntentTraceResultDialog(project, lookup, records, server).show()
-            }
-
-            override fun onThrowable(error: Throwable) {
-                val message = if (error is IntentTraceUserException) {
-                    error.message ?: "IntentTrace 조회를 완료하지 못했습니다."
-                } else {
-                    "IntentTrace 조회 중 예상하지 못한 오류가 발생했습니다."
-                }
-                showError(project, message)
-            }
-        }.queue()
+        val (file, line) = lookup
+        queueTask(project, "IntentTrace 변경 의도 조회", "IntentTrace 조회 중 예상하지 못한 오류가 발생했습니다.", {
+            CurrentLineContextResolver.requireUnchanged(line, CurrentLineContextResolver.refreshState(project, file))
+            val server = IntentTraceServer.current()
+            server to IntentTraceApiClient().lookup(server, IntentTraceCredentialStore().require(server), line)
+        }) { (server, found) -> IntentTraceResultDialog(project, line, found, server).show() }
     }
-}
-
-private fun showError(project: com.intellij.openapi.project.Project, message: String) {
-    Messages.showErrorDialog(project, message, "IntentTrace")
 }

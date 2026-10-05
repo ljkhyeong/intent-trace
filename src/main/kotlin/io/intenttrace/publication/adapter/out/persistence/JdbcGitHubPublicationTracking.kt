@@ -4,6 +4,7 @@ import io.intenttrace.publication.application.GitHubPublicationTracking
 import io.intenttrace.publication.application.PublicationAttempt
 import io.intenttrace.publication.application.PublicationAttemptStatus
 import io.intenttrace.publication.application.PublicationOperation
+import io.intenttrace.publication.application.PublicationTargetAttempt
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -64,6 +65,27 @@ class JdbcGitHubPublicationTracking(
             { row, _ -> UUID.fromString(row.getString("change_record_id")) to mapAttempt(row) },
         ).toMap()
     }
+
+    override fun latestByTarget(recordId: UUID, limit: Int): List<PublicationTargetAttempt> = jdbc.query(
+        """
+        select * from (
+            select a.*,
+                row_number() over (partition by repository_key, pull_number order by started_at desc, id desc) as attempt_rank,
+                max(case when operation = 'SUPERSESSION_NOTICE' and status = 'SUCCEEDED' then 1 else 0 end)
+                    over (partition by repository_key, pull_number) as notice_succeeded
+            from github_publication_attempts a
+            where change_record_id = ?
+        ) ranked where attempt_rank = 1
+        order by started_at desc, id desc
+        limit ?
+        """.trimIndent(),
+        { row, _ ->
+            val (owner, repository) = row.getString("repository_key").split('/', limit = 2)
+            PublicationTargetAttempt(GitHubPullRequestTarget(owner, repository, row.getInt("pull_number")), mapAttempt(row),
+                row.getInt("notice_succeeded") == 1)
+        },
+        recordId.toString(), limit,
+    )
 
     private fun mapAttempt(row: ResultSet): PublicationAttempt = PublicationAttempt(
         UUID.fromString(row.getString("id")), PublicationOperation.valueOf(row.getString("operation")),

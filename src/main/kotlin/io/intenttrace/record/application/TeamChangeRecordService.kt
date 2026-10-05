@@ -1,10 +1,10 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
-import io.intenttrace.record.domain.ChangeRecordStatus
-import org.springframework.data.domain.Slice
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -32,9 +32,14 @@ class TeamChangeRecordService(
 
     fun get(recordId: UUID): ChangeRecord {
         val record = facade.get(recordId)
-        val actor = access.requireReader(record.repositoryKey)
-        if (!record.isTeamVisible() && actor.subject != record.createdBy.subject) {
-            throw ChangeRecordOwnershipException()
+        // ID만으로 읽을 때는 접근할 수 없는 저장소 이름과 다른 작성자 기록의 존재를 드러내지 않는다.
+        try {
+            val actor = access.requireReader(record.repositoryKey)
+            if (record.status !in TEAM_VISIBLE_STATUSES) requireOwner(record, actor)
+        } catch (_: RepositoryAccessDeniedException) {
+            throw ChangeRecordNotFoundException(recordId)
+        } catch (_: ChangeRecordOwnershipException) {
+            throw ChangeRecordNotFoundException(recordId)
         }
         return record
     }
@@ -71,14 +76,9 @@ class TeamChangeRecordService(
         return facade.discard(record, expectedVersion, actor)
     }
 
-    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): List<ChangeRecord> {
+    fun findIntent(repositoryKey: String, revision: String, path: String, line: Int): LineIntents {
         access.requireReader(repositoryKey)
         return facade.findIntent(repositoryKey, revision, path, line)
-    }
-
-    fun list(query: ListChangeRecordsQuery): Slice<ChangeRecordSummary> {
-        val actor = access.requireReader(query.repositoryKey)
-        return facade.list(query, actor)
     }
 
     fun requireOwnedContributor(recordId: UUID): ChangeRecord = ownedContributor(recordId).record
@@ -95,9 +95,6 @@ class TeamChangeRecordService(
             throw ChangeRecordOwnershipException()
         }
     }
-
-    private fun ChangeRecord.isTeamVisible(): Boolean =
-        status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED
 
     private data class OwnedContributorRecord(
         val record: ChangeRecord,

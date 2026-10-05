@@ -2,12 +2,15 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.publication.application.RecordPublications
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
+import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationSource
 import org.springframework.http.CacheControl
 import org.springframework.http.MediaType
@@ -42,8 +45,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 append("<a href=\"$link\" ${if (option == scope) "aria-current=\"page\"" else ""}>${if (option == RecordScope.MINE) "내 비공개 기록" else "팀 공개 기록"}</a>")
             }
             append("</nav>")
-            val statuses = if (scope == RecordScope.MINE) listOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
-                else listOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+            val statuses = if (scope == RecordScope.MINE) AUTHOR_ONLY_STATUSES.toList()
+                else TEAM_VISIBLE_STATUSES.toList()
             append("""
                 <form action="/records" method="get" class="search-form record-search">
                 <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required maxlength="255" autocapitalize="none" spellcheck="false"></label>
@@ -54,8 +57,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                 ${if (scope == RecordScope.TEAM) "<label>작성자 GitHub ID<input name=\"authorId\" type=\"number\" min=\"1\" step=\"1\" value=\"${authorId ?: ""}\" placeholder=\"숫자 ID · 선택\"></label>" else ""}
                 <button type="submit">검색</button></form>
             """.trimIndent())
-            val myAuthorId = actor.subject.removePrefix("github:").toLongOrNull()
-            if (scope == RecordScope.TEAM && myAuthorId != null) {
+            val myAuthorId = actor.githubUserId()
+            if (scope == RecordScope.TEAM) {
                 val mineOnly = authorId == myAuthorId
                 val link = url("/records", "repositoryKey" to repository, "q" to q, "path" to path,
                     "scope" to scope.name, "status" to status?.name, "authorId" to if (mineOnly) null else myAuthorId.toString())
@@ -78,8 +81,8 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             }
         })
 
-    fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null): String = layout(record.title, actor, buildString {
-        val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.isPrivate) "MINE" else "TEAM", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
+    fun record(actor: ActorIdentity, record: ChangeRecord, searchUrl: String? = null, publications: RecordPublications? = null): String = layout(record.title, actor, buildString {
+        val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey, "scope" to if (record.status in TEAM_VISIBLE_STATUSES) "TEAM" else "MINE", "status" to if (record.status == ChangeRecordStatus.DISCARDED) "DISCARDED" else null)
         val backLabel = when {
             searchUrl == null -> "${html(record.repositoryKey)} 기록 목록"
             backUrl.substringBefore('?') == "/records/history" -> "파일·줄 조회로 돌아가기"
@@ -129,7 +132,9 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
         append("</section></article><aside class=\"record-facts\"><h2>기록 정보</h2><dl><dt>작성자</dt><dd>@${html(record.createdBy.login)}</dd><dt>생성</dt><dd>${stamp(record.createdAt)}</dd>")
         record.confirmedAt?.let { append("<dt>작성자 확인</dt><dd>${stamp(it)}</dd>") }
         record.publishedAt?.let { append("<dt>공개</dt><dd>${stamp(it)}</dd>") }
-        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"${html(recordUrl(record.id, searchUrl, "activities"))}\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p></aside></div>")
+        append("<dt>연결된 커밋</dt><dd class=\"hash\">${html(record.targetRevision ?: "작성자 확인 전")}</dd><dt>스냅샷 해시</dt><dd class=\"hash\">${html(record.snapshotDigest)}</dd><dt>기록 ID</dt><dd class=\"hash\">${record.id}</dd></dl><p class=\"muted\">시각은 UTC 기준입니다.</p><a href=\"${html(recordUrl(record.id, searchUrl, "activities"))}\">기록 변경 이력</a><p><a class=\"button secondary\" href=\"/records/${record.id}/markdown\">Markdown 저장</a></p>")
+        if (record.status in TEAM_VISIBLE_STATUSES) publications?.let { append(publicationFacts(it)) }
+        append("</aside></div>")
     })
 
     fun error(message: String, retryUrl: String? = null): String = layout("기록을 열 수 없습니다", null, """
@@ -177,7 +182,6 @@ internal fun recordUrl(id: UUID, searchUrl: String?, section: String? = null, va
         .apply { controls.forEach { (key, value) -> replaceQueryParam(key, value) } }
         .build().toUriString()
 
-private val ChangeRecord.isPrivate: Boolean get() = status !in setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
 internal val ChangeRecordStatus.label: String get() = when (this) {
     ChangeRecordStatus.DRAFT -> "초안"
     ChangeRecordStatus.AUTHOR_CONFIRMED -> "작성자 확인"

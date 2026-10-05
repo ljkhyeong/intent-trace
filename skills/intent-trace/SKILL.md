@@ -22,7 +22,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 5. 실제 실행한 검증의 명령·종료 코드·시각·스냅샷·출력 해시·짧은 요약만 제출한다. 필요한 검증을 새로 실행할 때는 `run-verification.py <전체-HEAD-커밋> --summary '검증 설명' -- <명령>`을 사용할 수 있다. 실패 코드와 `source`를 보존한다. 실행 전후 코드가 바뀌면 현재 커밋 검증으로 등록하지 않는다.
 6. `create_change_record`로 비공개 초안을 만든다. 작성자가 승인한 내용은 `confirm_change_record`, 요청받은 팀 공개는 `publish_change_record`, 요청받은 PR 게시는 `publish_change_record_to_github_pr`로 진행한다.
 
-확인·공개 시 스냅샷이 달라졌다면 비공개 초안을 수정하고 변경된 내용에 대해 다시 확인받는다. 새 PR 게시에는 기록 저장소와 PR 저장소, 기록 커밋과 PR HEAD가 일치해야 하며 Fork PR은 지원하지 않는다.
+확인·공개 시 스냅샷이 달라졌다면 비공개 초안을 수정하고 변경된 내용에 대해 다시 확인받는다. 새 PR 게시에는 기록 저장소와 PR 저장소, 기록 커밋과 PR HEAD가 일치해야 하며 Fork PR은 지원하지 않는다. PR 줄 주석은 사용자가 요청한 경우에만 `codeAnnotations=true`로 보낸다. 변경 후 근거 최대 50개이며 이미 주석이 있는 Check Run에는 추가하지 않고 게시한 주석은 지울 수 없다.
 
 ### 이슈·PR 내용과 CI 결과 활용
 
@@ -35,7 +35,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 - `revise_change_record`에는 현재 `expectedVersion`과 수정된 전체 내용을 보낸다. 최초 `requestId`와 저장소는 유지한다. 같은 생성 ID에 다른 내용을 보내 수정하지 않는다.
 - 확인된 비공개 기록은 `reopen_change_record` 후 수정한다. 요청받은 비공개 기록 폐기는 `discard_change_record`로 처리한다.
 - 본인의 공개 기록에서 이어 쓰려면 `create_successor_draft`에 새 요청 ID·스냅샷·코드 근거를 보낸다. 원본 확인·검증을 승계하지 않는다. `compare_change_record`로 변경 내용을 검토하며 `AMBIGUOUS` 항목은 양쪽 원문을 읽는다.
-- 기존 기록 대체가 요청되면 두 기록을 조회한 뒤 `supersede_change_record`에 기존 기록 ID·현재 버전·후속 공개 기록 ID를 보낸다. 같은 작성자·저장소의 공개 기록끼리 대체한다. GitHub 반영도 요청받았다면 `sync_superseded_record_to_github_pr`를 호출한다.
+- 기존 기록 대체가 요청되면 두 기록을 조회한 뒤 `supersede_change_record`에 기존 기록 ID·현재 버전·후속 공개 기록 ID를 보낸다. 같은 작성자·저장소의 공개 기록끼리 대체한다. GitHub 반영도 요청받았다면 `list_record_publications`로 게시한 PR을 찾아 `sync_superseded_record_to_github_pr`를 호출한다.
 
 ## 기록 찾기
 
@@ -44,11 +44,12 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 | 현재 줄의 기록 | `find_change_intent`: 저장소·전체 커밋·상대 경로·줄 번호, 결과는 `items` |
 | 기록함·파일 이력·검색 | `list_change_records`: 저장소 필수, 팀 기록은 `TEAM`, 본인 비공개 기록은 `MINE`. 파일은 정확한 상대 `path`, 검색은 `q`. `nextCursor`를 다음 요청의 `cursor`로 전달 |
 | 상세·대체 기록 | `get_change_record`: 목록은 요약이므로 설명할 기록은 상세를 읽고 `supersededBy`를 따라감 |
+| 공유용 Markdown | `get_change_record_markdown`: PR 설명·리뷰에 붙일 저장된 기록 본문. 공개·GitHub 게시는 하지 않음 |
 | PR의 기록·이전 커밋 | `list_pull_request_records`: `matchesCurrentHead`와 게시·공개 상태를 함께 확인 |
 | 코드 해시 확인 | `check_change_record_evidence`: `codeVerified=true`는 GitHub 코드와 해시 일치이며 테스트 실행 증명이 아님 |
 | 이전 줄·이름 변경·처리 이력 | [이력 조회와 복구](references/history-and-recovery.md) |
 
-목록은 커서 방식을 기본으로 쓴다. 기존 `MY_DRAFTS`·`page`·`size` 방식은 `cursor`·`limit`·`authorId`·`q`와 섞지 않는다. `authorId`는 팀 조회 필터로만 사용한다. 본인 폐기 기록은 `MINE`·`status=DISCARDED`로 찾는다. 팀 조회에 본인 비공개 기록을 섞거나, 빈 페이지를 전체 기록 없음으로 설명하지 않는다. 추론·미확인·오래된 검증을 구분해 전달한다. 기록 링크는 `/records/{UUID}`다.
+목록은 `nextCursor`를 다음 요청의 `cursor`로 넘겨 이어 읽는다. `authorId`는 팀 조회 필터로만 사용한다. 본인 폐기 기록은 `MINE`·`status=DISCARDED`로 찾는다. 팀 조회에 본인 비공개 기록을 섞거나, 빈 페이지를 전체 기록 없음으로 설명하지 않는다. 추론·미확인·오래된 검증을 구분해 전달한다. 기록 링크는 `/records/{UUID}`다.
 
 ## 연결과 게시 오류
 

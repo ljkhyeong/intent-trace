@@ -26,7 +26,6 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
-import org.springframework.web.util.HtmlUtils
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Clock
@@ -37,6 +36,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.htmlLink
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
@@ -123,7 +123,6 @@ class GitHubOAuthSessionIntegrationTest(
         }.andExpect {
             status { isOk() }
             header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
-            jsonPath("$.authentication") { value("LOCAL_SESSION") }
         }.andReturn().response.contentAsString
         assertFalse(listed.contains(sessionToken))
         assertFalse(listed.contains("ghu_access"))
@@ -136,29 +135,17 @@ class GitHubOAuthSessionIntegrationTest(
     }
 
     @Test
-    fun `현재 로컬 session을 폐기하면 이후 요청은 인증되지 않는다`() {
+    fun `현재 로컬 session을 폐기하면 이후 요청은 인증되지 않고 GitHub 토큰 직접 인증은 받지 않는다`() {
         val sessionToken = issueSession()
 
-        mockMvc.delete("/api/v1/session") {
+        mockMvc.delete("/api/v1/me/sessions/current") {
             header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect {
-            status { isNoContent() }
-        }
+        }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
 
-        mockMvc.delete("/api/v1/session") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect {
-            status { isUnauthorized() }
-        }
-    }
-
-    @Test
-    fun `GitHub access token으로는 로컬 session 폐기를 요청할 수 없다`() {
-        mockMvc.delete("/api/v1/session") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer ghu_direct-access")
-        }.andExpect {
-            status { isBadRequest() }
-            jsonPath("$.title") { value("IntentTrace 세션 필요") }
+        for (token in listOf(sessionToken, "ghu_direct-access")) {
+            mockMvc.get("/api/v1/me/sessions") {
+                header(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            }.andExpect { status { isUnauthorized() } }
         }
     }
 
@@ -271,9 +258,7 @@ class GitHubOAuthSessionIntegrationTest(
         assertFalse(callback.contentAsString.contains("ghu_"))
         assertEquals(0, callback.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }.maxAge)
 
-        val retryUrl = URI(HtmlUtils.htmlUnescape(
-            Regex("href=\"([^\"]+)\">다시 로그인</a>").find(callback.contentAsString)!!.groupValues[1],
-        ))
+        val retryUrl = URI(htmlLink(callback.contentAsString, "다시 로그인"))
         val retry = mockMvc.get(retryUrl).andExpect { status { isFound() } }.andReturn().response
         val newState = retry.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
         mockMvc.get("/auth/github/callback") {

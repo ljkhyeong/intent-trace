@@ -121,12 +121,32 @@ jobs:
       - name: 테스트와 설치 ZIP 검증
         run: ./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 
+  zed-extension:
+    name: Zed 확장 검증
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 저장소 받기
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      # Zed는 확장을 wasm32-wasip2로 빌드한다. 러너에 설치된 rustup을 사용한다.
+      - name: Rust 대상 준비
+        run: rustup target add wasm32-wasip2 && rustup component add clippy rustfmt
+
+      - name: 확장 형식·정적 검사와 빌드
+        working-directory: clients/zed/extension
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+          cargo build --locked --release --target wasm32-wasip2
+
   verify:
     name: verify
     needs:
       - server
       - intellij-plugin
+      - zed-extension
     runs-on: ubuntu-24.04
     steps:
       - name: 전체 검증 결과 확인
-        run: echo '서버와 IntelliJ 플러그인 검증이 완료됐습니다.'
+        run: echo '서버·IntelliJ 플러그인·Zed 확장 검증이 완료됐습니다.'

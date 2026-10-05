@@ -7,9 +7,10 @@ import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
 import org.springframework.web.util.UriUtils
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 @Component
-class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = GitHubProperties()) {
+class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
     fun render(record: ChangeRecord): String = buildString {
         appendLine("# 변경 의도: ${plainText(record.title)}")
         appendLine()
@@ -18,16 +19,10 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         appendLine("- 커밋: ${inlineCode(record.targetRevision ?: "작성자 확인 전")}")
         appendLine("- 스냅샷 해시: ${inlineCode(record.snapshotDigest)}")
         appendLine("- 작성자: ${inlineCode("@${record.createdBy.login}")} (${inlineCode(record.createdBy.subject)})")
-        val recordUrl = properties.userAuthorization.callbackUrl.resolve("/records/${record.id}")
-        appendLine("- 기록 열람: [브라우저에서 읽기]($recordUrl)")
-        record.derivedFromRecordId?.let {
-            val url = properties.userAuthorization.callbackUrl.resolve("/records/$it")
-            appendLine("- 원본 공개 기록: [기록 읽기]($url)")
-        }
-        record.supersededBy?.let {
-            val url = properties.userAuthorization.callbackUrl.resolve("/records/$it")
-            appendLine("- 대체 기록: [$it]($url) — 저장소 접근 권한이 필요합니다.")
-        }
+        fun recordUrl(id: UUID) = properties.userAuthorization.callbackUrl.resolve("/records/$id")
+        appendLine("- 기록 열람: [브라우저에서 읽기](${recordUrl(record.id)})")
+        record.derivedFromRecordId?.let { appendLine("- 원본 공개 기록: [기록 읽기](${recordUrl(it)})") }
+        record.supersededBy?.let { appendLine("- 대체 기록: [$it](${recordUrl(it)}) — 저장소 접근 권한이 필요합니다.") }
         appendLine()
         appendLine("## 요청")
         appendLine()
@@ -90,6 +85,16 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
         }
     }
 
+    /** Check Run 줄 주석 제목이다. GitHub는 주석을 Markdown으로 해석하지 않으므로 이스케이프하지 않는다. */
+    fun annotationTitle(record: ChangeRecord): String = "변경 의도: ${normalizedSingleLine(record.title)}".take(MAX_ANNOTATION_TITLE)
+
+    /** Check Run 줄 주석 본문이다. 구현 결정과 출처만 담고 나머지는 Check Run 상세로 안내한다. */
+    fun annotationMessage(record: ChangeRecord): String = buildString {
+        appendLine("구현 결정과 이유")
+        record.decisions.forEach { appendLine("- ${normalizedSingleLine(it.summary)} — ${it.source.label}") }
+        append("요청·관련 코드·검증 결과는 이 Check Run 상세에서 확인하세요.")
+    }
+
     private fun plainText(value: String): String = buildString(value.length) {
         normalizedSingleLine(value).forEach { character ->
             if (character.isAsciiPunctuation()) append('\\')
@@ -127,5 +132,6 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties = Gi
     companion object {
         private val LINE_BREAK = Regex("\\R+")
         private val BACKTICK_RUN = Regex("`+")
+        private const val MAX_ANNOTATION_TITLE = 255
     }
 }

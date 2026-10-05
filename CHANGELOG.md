@@ -6,10 +6,18 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
+- Zed 편집기 hover에 커밋된 현재 줄의 공개 기록 요약을 표시하는 확장(`clients/zed/extension`)과 연결 도구의 `lsp` 명령. `configure`가 hover 언어 서버 설정도 저장
+- IntelliJ 현재 줄 결과에서 이전 커밋의 관련 기록을 조회해 일치 방식·원본 커밋을 보고 중단 위치부터 이어 읽는 `이전 커밋에서 이 줄 찾기`
+- IntelliJ `Tools > IntentTrace 저장소 연결 진단`으로 현재 파일 저장소의 권한·HEAD 코드 읽기·게시 설정 확인
+- 기록을 게시했거나 게시를 시도한 PR 목록과 대체 안내 필요 여부를 조회하는 REST `GET /api/v1/change-records/{id}/github-pull-requests`·MCP `list_record_publications`와 웹 기록 상세의 `GitHub 게시` 표시
+- 기록을 팀 공유용 Markdown으로 읽는 MCP `get_change_record_markdown`. REST Markdown 출력과 같은 권한·렌더러 사용
+- PR 게시 요청의 `codeAnnotations`로 변경 후 코드 근거를 Check Run 줄 주석으로 선택 게시. 재게시해도 주석을 중복 추가하지 않음
 - GitHub 승인 취소 웹훅으로 해당 사용자의 브라우저·도구 세션 폐기
+- GitHub App 설치 제거·정지·권한 수락·저장소 범위 변경 웹훅으로 해당 설치의 게시용 토큰 캐시 폐기
 - 홈서버 k3s의 앱 1개·PostgreSQL PVC·Traefik Ingress, 임시 환경 예시와 배포 파일 검증
 - IntelliJ 설정에서 저장 세션의 유효 여부와 GitHub 계정을 확인하는 로그인 확인
 - 파일 수정 후 지역 검사와 종료 전 전체 diff·ArchUnit 구조 검사를 실행하는 Codex 훅과 공통 명령
+- 같은 검사 훅, Codex 스킬 기준의 사용·개발 스킬, 작업 마무리·문서·릴리스 스킬을 담은 Claude Code 프로젝트 설정
 - 웹 조회의 GitHub 일시 장애·호출 제한 화면에서 같은 조건과 페이지로 다시 조회
 - IntelliJ 기록 상세에서 같은 서버의 웹 기록으로 이동해 변경 이력·원본 비교·Markdown 저장 사용
 - Zed 연결 점검 명령의 PR 번호·커밋 지정과 PR 현재 커밋 읽기 확인
@@ -31,6 +39,26 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- REST·MCP가 `its_` 세션만 받도록 `ghu_` 직접 Bearer 인증을 제거하고, 중복된 `DELETE /api/v1/session`을 `DELETE /api/v1/me/sessions/current`로 일원화. 세션 목록 응답의 `authentication` 필드 제거. IntelliJ 세션 삭제도 같은 API 사용
+- 운영 전 정리로 Flyway V1~V11을 기준 스키마 `V1__baseline.sql` 하나로 통합. 이전 버전으로 만든 로컬 H2·PostgreSQL DB는 지우고 새로 만든다. 작성자 로그인 열은 `created_by_login`으로 바꾸고 최초 내용 해시를 필수로 저장
+- 목록 조회의 페이지 번호 방식(`MY_DRAFTS`·`page`·`size`)을 제거하고 커서 조회(`items`·`nextCursor`)만 제공
+- REST `/lookup`도 MCP와 같은 `{items, truncated}`를 반환. IntelliJ는 20건을 넘으면 일부만 표시한다고 안내
+- 변경 이력 응답의 `historyStartsAtCreation` 제거. 모든 기록이 생성 작업부터 이력을 남김
+- REST의 Spring MVC 표준 오류(파라미터 검증·누락·형식)도 ProblemDetail로 응답
+- MCP 기록 확인·공개·대체도 REST와 같은 커밋·스냅샷 해시 형식 검증을 거침
+- PR 게시에서 head 저장소가 없거나(삭제된 Fork) ID가 올바르지 않으면 조회 실패 대신 Fork PR 거부로 처리
+- IntelliJ 현재 줄 조회가 요청 전에 파일·Git HEAD·변경 목록을 다시 읽고, 터미널 checkout 직후처럼 편집기 상태와 다르면 조회하지 않음
+- IntelliJ 세션 삭제에서 서버 폐기가 호출 제한 외의 이유로 실패하면 확인 후 이 PC의 저장 세션만 삭제할 수 있음
+- 검증 훅이 165초 예산 안에서 검사를 멈추고 `finish` 직접 실행을 안내해, 훅 제한 시간 초과로 검사가 조용히 빠지지 않음
+- 현재 줄 조회(`/lookup`·`find_change_intent`)를 최근 공개 순 20건으로 제한하고 같은 공개 시각은 기록 ID 순으로 고정. MCP는 더 있으면 `truncated=true`
+- 기록 변경 이력 응답에 기록 작성자(`author`)를 추가하고 웹 이력 화면에 처리자를 `@login`으로 표시
+- Zed 연결 도구와 실행 도구가 서버 발급 형식인 43자 `its_` 세션만 받도록 변경
+- GitHub에 없는 커밋의 코드 확인·이전 기록 조회·연결 진단을 일시 장애(502) 대신 `REVISION_NOT_FOUND` 확인 불가 사유로 안내. 이전 기록 조회는 해당 후보만 실패로 남기고 다음 후보를 확인
+- 설치 토큰 발급을 포함한 PR 조회 단계에서 실패한 게시 시도를 결과 미확인 대신 실패(`PULL_REQUEST_UNAVAILABLE`)로 기록
+- 사용자별 세션 상한에서 새 세션과 같은 종류(브라우저·도구)의 오래된 세션부터 폐기해 브라우저 로그인이 도구 연결을 끊지 않도록 변경
+- Zed `check`가 서버가 거부한 입력을 연결 실패 대신 서버 안내로 표시
+- 연결 진단이 PR 병합 대상 저장소 불일치에서 전체 요청을 중단하지 않고 해당 항목 실패로 표시
+- IntelliJ에서 400·저장소 403·상태 확인 503 안내를 구분하고 200자를 넘는 검색어는 요청 전에 안내
 - GitHub 게시의 중복 잠금 제거. 게시 이력이 없는 대체 안내는 게시용 토큰 발급·PR 조회 전에 거부
 - 현재 연결 종료가 다른 요청의 GitHub 응답을 기다리던 오류와 인증 중 만료된 브라우저 세션을 허용하던 오류 수정
 - GitHub 코드 조회의 잘못된 해시·커밋 비교 응답을 오류로 처리해 입력 오류 안내와 일부 이력 누락 방지
@@ -105,6 +133,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 보안
 
+- 기록 ID로 읽는 REST·MCP 조회가 403 응답에 권한 없는 저장소 이름과 다른 작성자 비공개 기록의 존재를 드러내던 문제 수정. 웹 화면과 같은 404로 응답
 - 이스케이프된 따옴표 뒤의 비밀값이 제거되지 않고 남던 문제 수정
 - IntelliJ에서 서버 주소를 바꿔도 다른 서버의 환경 변수 세션이 전송되지 않도록 사용 범위 제한
 - OAuth 응답 파싱 실패 시 원인 예외에 응답 원문이 남지 않도록 처리
@@ -123,7 +152,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 | V8 | V10 | 원본 공개 기록 연결 |
 | V9 | V11 | 기록 변경 이력 |
 
-개발 브랜치의 기존 DB는 별도 이관이 필요하다. [기존 DB 업그레이드 절차](docs/operations/team-deployment.md#기존-db-업그레이드)를 따른다.
+이 대응표는 당시 이력이다. 운영 전 정리에서 모든 마이그레이션을 `V1__baseline.sql`로 통합했다([DB 스키마 기준](docs/operations/team-deployment.md#db-스키마-기준)).
 
 ## 0.7.0 - 2026-08-30
 

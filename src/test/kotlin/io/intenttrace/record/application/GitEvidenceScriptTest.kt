@@ -140,11 +140,11 @@ class GitEvidenceScriptTest {
         assertEquals(0, result.exitCode)
         val json = tools.jackson.module.kotlin.jacksonObjectMapper().readTree(result.output)
         assertEquals(0, json.get("exitCode").asInt())
-        assertEquals("LOCAL_RUNNER_REPORTED", json.get("source").asText())
-        assertEquals(sha256(secrets.joinToString("\n")), json.get("outputDigest").asText())
-        assertEquals(runEvidence("snapshot", revision).output.trim(), json.get("snapshotDigest").asText())
-        assertTrue(json.get("summary").asText().contains("검증 완료"))
-        assertTrue(json.get("command").asText().contains("label=남길값"))
+        assertEquals("LOCAL_RUNNER_REPORTED", json.get("source").asString())
+        assertEquals(sha256(secrets.joinToString("\n")), json.get("outputDigest").asString())
+        assertEquals(runEvidence("snapshot", revision).output.trim(), json.get("snapshotDigest").asString())
+        assertTrue(json.get("summary").asString().contains("검증 완료"))
+        assertTrue(json.get("command").asString().contains("label=남길값"))
         for (secret in listOf("TAIL_ONLY_FOR_TEST", "ARGUMENT_VALUE_ONLY_FOR_TEST", "ASSIGNMENT_VALUE_ONLY_FOR_TEST",
             "SUMMARY_ONLY_FOR_TEST", "BEARER_VALUE_ONLY_FOR_TEST", jwt)) {
             assertFalse(result.output.contains(secret))

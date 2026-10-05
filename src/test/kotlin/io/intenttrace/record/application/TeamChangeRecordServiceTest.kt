@@ -14,21 +14,22 @@ import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
-import org.springframework.data.domain.Pageable
-import org.springframework.data.domain.Slice
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.intenttrace.record.domain.draftRecord
 
 class TeamChangeRecordServiceTest {
     private val repository = InMemoryChangeRecordRepository()
     private val currentSession = TestCurrentSession(owner)
     private val gateway = TestGitHubUserAccessGateway(RepositoryRole.CONTRIBUTOR)
     private val service = TeamChangeRecordService(
-        facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock),
+        facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry()),
         access = RepositoryAccessService(currentSession, gateway),
     )
 
@@ -45,9 +46,19 @@ class TeamChangeRecordServiceTest {
         currentSession.actor = teammate
         gateway.role = RepositoryRole.READER
 
-        assertFailsWith<ChangeRecordOwnershipException> {
+        assertFailsWith<ChangeRecordNotFoundException> {
             service.get(repository.record!!.id)
         }
+    }
+
+    @Test
+    fun `저장소 권한이 없으면 ID 조회에서 저장소 이름 대신 기록 없음으로 응답한다`() {
+        repository.record = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        currentSession.actor = teammate
+        gateway.role = null
+
+        val failure = assertFailsWith<ChangeRecordNotFoundException> { service.get(repository.record!!.id) }
+        assertFalse(failure.message.orEmpty().contains(repository.record!!.repositoryKey))
     }
 
     @Test
@@ -109,29 +120,10 @@ class TeamChangeRecordServiceTest {
         openQuestions = emptyList(),
     )
 
-    private fun draft(actor: ActorIdentity) = ChangeRecord(
-        id = UUID.randomUUID(),
-        requestId = "seeded",
-        repositoryKey = repositoryKey,
-        targetRevision = null,
-        snapshotDigest = "a".repeat(64),
-        title = "초안",
-        requestSummary = "팀 공개 전 기록",
-        status = ChangeRecordStatus.DRAFT,
-        createdBy = actor,
-        createdAt = Instant.parse("2026-08-28T00:00:00Z"),
-        confirmedAt = null,
-        publishedAt = null,
-        supersededBy = null,
-        version = 0,
-        decisions = listOf(Decision("초안으로 둔다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-    )
+    private fun draft(actor: ActorIdentity) = draftRecord(actor, repositoryKey)
 
     private class TestCurrentSession(var actor: ActorIdentity) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token")
+        override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token", java.util.UUID.randomUUID())
     }
 
     private class TestGitHubUserAccessGateway(var role: RepositoryRole?) : GitHubUserAccessGateway {
@@ -150,14 +142,6 @@ class TeamChangeRecordServiceTest {
     }
 
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
-        override fun findSummaries(
-            repositoryKey: String,
-            statuses: Set<ChangeRecordStatus>,
-            authorSubject: String?,
-            relativePath: String?,
-            pageable: Pageable,
-        ): Slice<ChangeRecordSummary> = error("사용하지 않는 테스트 경로")
-
         var record: ChangeRecord? = null
         val records = mutableMapOf<UUID, ChangeRecord>()
         var findByIdCount: Int = 0
@@ -176,6 +160,7 @@ class TeamChangeRecordServiceTest {
             targetRevision: String,
             relativePath: String,
             line: Int,
+            limit: Int,
         ): List<ChangeRecord> = listOfNotNull(record).filter {
             it.repositoryKey == repositoryKey &&
                 it.targetRevision == targetRevision &&

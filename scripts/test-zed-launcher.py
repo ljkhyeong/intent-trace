@@ -46,6 +46,18 @@ class ZedLauncherTest(unittest.TestCase):
                 execute.assert_called_once_with("/test/zed", ["/test/zed", "project with spaces"])
                 self.assertEqual(getpass.call_count, 0 if from_environment else 1)
 
+    def test_session_length_must_match_issued_token(self):
+        for token in (TOKEN[:-1], TOKEN + "a", "its_" + "a" * 64):
+            with self.subTest(length=len(token)), \
+                    patch.dict(os.environ, {"INTENT_TRACE_SESSION_TOKEN": token}), \
+                    patch.object(launcher.shutil, "which", return_value="/test/zed"), \
+                    patch.object(launcher.os, "execv") as execute, \
+                    contextlib.redirect_stderr(io.StringIO()) as stderr:
+                self.assertEqual(launcher.main(), 1)
+                execute.assert_not_called()
+                self.assertIn("its_ 세션을 확인하세요", stderr.getvalue())
+                self.assertNotIn(token, stderr.getvalue())
+
     def test_cancel_and_end_of_input_do_not_launch(self):
         for failure in (EOFError, KeyboardInterrupt):
             with self.subTest(failure=failure), \

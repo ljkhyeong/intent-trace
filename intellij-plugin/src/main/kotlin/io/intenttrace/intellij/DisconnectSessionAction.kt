@@ -1,40 +1,31 @@
 package io.intenttrace.intellij
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.Messages
 
-class DisconnectSessionAction : DumbAwareAction() {
-    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
+class DisconnectSessionAction : IntentTraceAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val server = try {
-            IntentTraceServer.current()
-        } catch (exception: IntentTraceUserException) {
-            return Messages.showErrorDialog(project, exception.message, "IntentTrace")
+        val server = currentServerOrShowError(project) ?: return
+        val failure = "IntentTrace 세션을 삭제하지 못했습니다."
+        queueTask(project, "IntentTrace 세션 삭제", failure, {
+            try {
+                Result.success(disconnectSession(server, IntentTraceCredentialStore()))
+            } catch (error: IntentTraceRateLimitException) {
+                throw error
+            } catch (error: IntentTraceClientException) {
+                // 서버가 없어졌거나 응답하지 않아도 사용자가 고르면 이 PC의 토큰만 지울 수 있게 한다.
+                Result.failure(error)
+            }
+        }) { result ->
+            val serverFailure = result.exceptionOrNull()?.message
+                ?: return@queueTask Messages.showInfoMessage(project, result.getOrThrow(), "IntentTrace")
+            val choice = Messages.showYesNoDialog(project, localDeletionPrompt(server, serverFailure), "IntentTrace",
+                "이 PC에서만 삭제", "취소", Messages.getWarningIcon())
+            if (choice == Messages.YES) {
+                queueSessionTask(project, "IntentTrace 로컬 세션 삭제", failure) { forgetLocalSession(server, IntentTraceCredentialStore()) }
+            }
         }
-
-        object : Task.Backgroundable(project, "IntentTrace 세션 삭제", false) {
-            private lateinit var message: String
-
-            override fun run(indicator: ProgressIndicator) {
-                message = disconnectSession(server, IntentTraceCredentialStore())
-            }
-
-            override fun onSuccess() {
-                Messages.showInfoMessage(project, message, "IntentTrace")
-            }
-
-            override fun onThrowable(error: Throwable) {
-                val detail = (error as? IntentTraceUserException)?.message
-                    ?: "IntentTrace 세션을 삭제하지 못했습니다."
-                Messages.showErrorDialog(project, detail, "IntentTrace")
-            }
-        }.queue()
     }
 }
 
@@ -42,14 +33,31 @@ internal fun disconnectSession(server: IntentTraceServer, credentials: IntentTra
     val sessionToken = credentials.loadStored(server)
     sessionToken?.let { IntentTraceApiClient().revokeSession(server, it) }
     credentials.clear(server)
-    val message = if (sessionToken == null) {
+    return withEnvironmentNote(server, credentials, if (sessionToken == null) {
         "${server.baseUri}에 삭제할 저장 세션이 없습니다."
     } else {
         "${server.baseUri}의 PasswordSafe 세션을 삭제했습니다."
-    }
-    return if (credentials.environmentSessionConfigured(server)) {
+    })
+}
+
+/** 서버 폐기 없이 이 PC의 저장 세션만 지운다. 사용자가 확인한 경우에만 호출한다. */
+internal fun forgetLocalSession(server: IntentTraceServer, credentials: IntentTraceCredentialStore): String {
+    val stored = credentials.loadStored(server) != null
+    credentials.clear(server)
+    return withEnvironmentNote(server, credentials, if (stored) {
+        "${server.baseUri}의 PasswordSafe 세션을 이 PC에서 삭제했습니다. 서버의 연결은 만료되거나 웹의 내 연결 화면에서 종료할 때까지 남습니다."
+    } else {
+        "${server.baseUri}에 삭제할 저장 세션이 없습니다."
+    })
+}
+
+internal fun localDeletionPrompt(server: IntentTraceServer, failure: String): String =
+    "${server.baseUri}에서 세션을 폐기하지 못했습니다.\n사유: $failure\n\n" +
+        "이 PC에 저장한 세션만 삭제할까요? 서버의 연결은 만료되거나 웹의 내 연결 화면에서 종료할 때까지 남습니다."
+
+private fun withEnvironmentNote(server: IntentTraceServer, credentials: IntentTraceCredentialStore, message: String): String =
+    if (credentials.environmentSessionConfigured(server)) {
         "$message INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다."
     } else {
         message
     }
-}

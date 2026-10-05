@@ -56,6 +56,13 @@ export async function serve(url) {
   }
 }
 
+// 터미널 제어 문자를 지우고 길이를 제한해 서버 안내만 한 줄로 표시한다.
+export function toolErrorText(result) {
+  const text = (result.content ?? []).filter(item => item.type === 'text').map(item => item.text).join(' ')
+    .replace(/[\p{Cc}\p{Cf}]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 500);
+  return text || '서버가 진단 요청을 거부했습니다. 저장소·커밋·PR 번호를 확인하세요.';
+}
+
 export async function check(script, url, repositoryKey, diagnostic = {}) {
   const client = new Client({ name: 'intent-trace-connection-check', version });
   const transport = new StdioClientTransport({
@@ -78,7 +85,12 @@ export async function check(script, url, repositoryKey, diagnostic = {}) {
     console.log(`MCP 연결 성공: ${result.tools.length}개 도구를 확인했습니다.`);
     if (repositoryKey) {
       const result = await client.callTool({ name: 'diagnose_connection', arguments: { repositoryKey, ...diagnostic } });
-      if (result.isError) throw new Error('저장소 진단에 실패했습니다.');
+      if (result.isError) {
+        // 서버가 거부한 입력은 연결 실패가 아니므로 오류 코드 줄 없이 서버 안내만 표시한다.
+        console.error(`IntentTrace 연결 점검: ${toolErrorText(result)}`);
+        process.exitCode = 1;
+        return;
+      }
       const diagnosis = result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text').text);
       for (const item of diagnosis.checks) console.log(`${item.name}: ${item.status}${item.message ? ` — ${item.message}` : ''}`);
       if (diagnosis.checks.some(item => item.status === 'FAILED')) process.exitCode = 1;

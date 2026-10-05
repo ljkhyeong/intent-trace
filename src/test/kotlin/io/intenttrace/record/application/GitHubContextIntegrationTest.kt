@@ -2,7 +2,7 @@ package io.intenttrace.record.application
 
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.application.*
 import io.intenttrace.identity.domain.ActorIdentity
@@ -21,7 +21,6 @@ import org.springframework.context.annotation.Primary
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import org.springframework.web.util.HtmlUtils
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,6 +28,8 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
+import io.intenttrace.htmlLink
+import io.intenttrace.issueTestSession
 
 @SpringBootTest(classes = [IntentTraceApplication::class, GitHubContextIntegrationTest.Configuration::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -110,7 +111,7 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             assertContains(page, "<span class=\"status\">$status</span>")
         }
         assertEquals("/records/pull-requests?repositoryKey=acme%2Fintent-trace&pullNumber=7",
-            link(page, "이 PR의 변경 기록 보기"))
+            htmlLink(page, "이 PR의 변경 기록 보기"))
         val issue = mvc.get("/records/github?repositoryKey=acme/intent-trace&number=8") { cookie(cookie) }
             .andExpect { status { isOk() } }.andReturn().response.contentAsString
         assertContains(issue, "이슈 #8")
@@ -134,27 +135,27 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val first = get(endpoint)
         assertContains(first, "1페이지 · 20건")
         assertFalse(first.contains("이전 실행 결과"))
-        val next = link(first, "다음 실행 결과")
+        val next = htmlLink(first, "다음 실행 결과")
         assertEquals("$endpoint&page=2", next)
         val second = get(next)
         assertContains(second, "2페이지 · 20건")
         assertContains(second, "https://github.com/acme/intent-trace/actions/runs/21")
 
-        val refresh = link(second, "결과 새로고침")
+        val refresh = htmlLink(second, "결과 새로고침")
         assertEquals(next, refresh)
         val calls = gateway.calls.get()
         assertContains(get(refresh), "2페이지 · 20건")
         assertEquals(calls + 1, gateway.calls.get())
 
-        val previous = link(second, "이전 실행 결과")
+        val previous = htmlLink(second, "이전 실행 결과")
         assertEquals("$endpoint&page=1", previous)
         assertContains(get(previous), "1페이지 · 20건")
 
         val last = get("$endpoint&page=50")
         assertContains(last, "50페이지 · 20건")
         assertFalse(last.contains("다음 실행 결과"))
-        assertEquals("$endpoint&page=49", link(last, "이전 실행 결과"))
-        assertEquals("$endpoint&page=50", link(last, "결과 새로고침"))
+        assertEquals("$endpoint&page=49", htmlLink(last, "이전 실행 결과"))
+        assertEquals("$endpoint&page=50", htmlLink(last, "결과 새로고침"))
     }
 
     @Test
@@ -200,15 +201,8 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
     }
 
-    private fun session(channel: SessionChannel = SessionChannel.CLIENT): String {
-        val now = Instant.now()
-        return sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens("ghu_context", now.plusSeconds(3600),
-            "ghr_context", now.plusSeconds(7200)), channel).sessionToken
-    }
-
-    private fun link(body: String, label: String): String = HtmlUtils.htmlUnescape(
-        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
-    )
+    private fun session(channel: SessionChannel = SessionChannel.CLIENT): String =
+        sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_context", channel)
 
     @TestConfiguration
     class Configuration {

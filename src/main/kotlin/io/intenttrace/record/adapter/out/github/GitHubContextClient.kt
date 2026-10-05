@@ -6,9 +6,10 @@ import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.readJsonWithin
 import io.intenttrace.record.application.*
-import io.intenttrace.record.domain.GitRevision
+import io.intenttrace.record.domain.requireFullRevision
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -42,7 +43,7 @@ class GitHubContextClient(
             if (run.id <= 0 || run.runAttempt <= 0 || !run.repository.fullName.equals(repository.key, ignoreCase = true) || run.headSha != revision) {
                 throw GitHubApiException("GitHub Actions 결과가 요청 저장소·커밋과 다릅니다.")
             }
-            GitHubActionsRun(run.id, run.runAttempt, run.name.orEmpty(), GitRevision.parse(run.headSha).value,
+            GitHubActionsRun(run.id, run.runAttempt, run.name.orEmpty(), requireFullRevision(run.headSha),
                 run.event, run.status, run.conclusion, run.startedAt, run.updatedAt, webUrl(repository, "actions/runs/${run.id}"))
         }
         return GitHubActionsPage(response.totalCount, runs)
@@ -58,11 +59,7 @@ class GitHubContextClient(
                 if (response.statusCode.value() == 403) throw GitHubContextPermissionException()
                 if (response.statusCode.value() in setOf(404, 410)) throw GitHubContextNotFoundException()
                 if (!response.statusCode.is2xxSuccessful) throw GitHubApiException("GitHub 자료 조회 실패. HTTP ${response.statusCode.value()}")
-                val bytes = response.body.readNBytes(MAX_RESPONSE_SIZE + 1)
-                if (bytes.size > MAX_RESPONSE_SIZE) throw GitHubApiException("GitHub 응답이 2 MiB를 초과했습니다.")
-                try { mapper.readValue(bytes, type) } catch (_: RuntimeException) {
-                    throw GitHubApiException("GitHub 응답 형식이 올바르지 않습니다.")
-                }
+                response.readJsonWithin(mapper, type, MAX_RESPONSE_SIZE) { throw GitHubApiException("GitHub 응답이 2 MiB를 초과했습니다.") }
             }
     } catch (_: RestClientException) {
         throw GitHubApiException("GitHub 자료를 조회하지 못했습니다.")

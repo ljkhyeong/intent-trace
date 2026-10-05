@@ -7,7 +7,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
 const val GITHUB_OAUTH_CALLBACK_PATH = "/auth/github/callback"
-private const val INVALID_GITHUB_API_VERSION = "GitHub API 버전은 유효한 YYYY-MM-DD 날짜여야 합니다."
 
 @ConfigurationProperties("intent-trace.github")
 data class GitHubProperties(
@@ -19,18 +18,10 @@ data class GitHubProperties(
     val userAuthorization: GitHubUserAuthorizationProperties = GitHubUserAuthorizationProperties(),
 ) {
     init {
-        require(apiBaseUrl.scheme == "https" && !apiBaseUrl.host.isNullOrBlank()) {
-            "GitHub API 기본 주소는 유효한 HTTPS 주소여야 합니다."
-        }
-        require(apiBaseUrl.userInfo == null && apiBaseUrl.query == null && apiBaseUrl.fragment == null) {
-            "GitHub API 기본 주소에는 사용자 정보, 쿼리 또는 fragment를 넣을 수 없습니다."
-        }
-        require(apiVersion.length == 10) { INVALID_GITHUB_API_VERSION }
-        try {
-            LocalDate.parse(apiVersion)
-        } catch (_: DateTimeParseException) {
-            throw IllegalArgumentException(INVALID_GITHUB_API_VERSION)
-        }
+        requireHttpsBaseUrl(apiBaseUrl, "API")
+        val validVersion = apiVersion.length == 10 &&
+            try { LocalDate.parse(apiVersion); true } catch (_: DateTimeParseException) { false }
+        require(validVersion) { "GitHub API 버전은 유효한 YYYY-MM-DD 날짜여야 합니다." }
     }
 
     override fun toString(): String =
@@ -67,12 +58,7 @@ data class GitHubUserAuthorizationProperties(
     val refreshBeforeExpiry: Duration = Duration.ofMinutes(5),
 ) {
     init {
-        require(webBaseUrl.scheme == "https" && !webBaseUrl.host.isNullOrBlank()) {
-            "GitHub 웹 기본 주소는 유효한 HTTPS 주소여야 합니다."
-        }
-        require(webBaseUrl.userInfo == null && webBaseUrl.query == null && webBaseUrl.fragment == null) {
-            "GitHub 웹 기본 주소에는 사용자 정보, 쿼리 또는 fragment를 넣을 수 없습니다."
-        }
+        requireHttpsBaseUrl(webBaseUrl, "웹")
         require(webBaseUrl.path.isNullOrBlank() || webBaseUrl.path == "/") {
             "GitHub 웹 기본 주소에는 별도 경로를 넣을 수 없습니다."
         }
@@ -116,5 +102,12 @@ data class GitHubUserAuthorizationProperties(
 
     companion object {
         private val LOOPBACK_HOSTS = setOf("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")
+    }
+}
+
+private fun requireHttpsBaseUrl(url: URI, label: String) {
+    require(url.scheme == "https" && !url.host.isNullOrBlank()) { "GitHub $label 기본 주소는 유효한 HTTPS 주소여야 합니다." }
+    require(url.userInfo == null && url.query == null && url.fragment == null) {
+        "GitHub $label 기본 주소에는 사용자 정보, 쿼리 또는 fragment를 넣을 수 없습니다."
     }
 }

@@ -1,16 +1,17 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.application.GitEvidenceDigest
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.CodeSide
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
-import java.util.HexFormat
 import java.util.UUID
 
 @Service
@@ -48,7 +49,11 @@ class PublishChangeRecordToGitHub(
         val previous = publicationRepository.find(record.id, target)
         check(!supersession || previous != null) { "대체 안내를 반영할 GitHub 게시 이력이 없습니다." }
 
-        val pullRequestRevision = gitHubGateway.getHeadRevision(target).lowercase()
+        val pullRequestRevision = try {
+            gitHubGateway.getHeadRevision(target).lowercase()
+        } catch (failure: GitHubApiException) {
+            throw PullRequestUnavailableException(failure)
+        }
         if (!supersession && recordRevision != pullRequestRevision) {
             throw PullRequestRevisionMismatchException(recordRevision, pullRequestRevision)
         }
@@ -61,6 +66,7 @@ class PublishChangeRecordToGitHub(
             title = if (supersession) "대체됨: ${record.title}" else record.title,
             summary = if (supersession) "새 기록으로 대체됐습니다. 본문의 후속 기록을 확인하세요." else "작성자가 확인한 IntentTrace 변경 의도 기록입니다.",
             markdown = markdown,
+            annotations = if (!supersession && command.codeAnnotations) codeAnnotations(record) else emptyList(),
         )
         val checkRun = if (supersession) gitHubGateway.updateExistingCheckRun(checkCommand) else gitHubGateway.upsertCheckRun(checkCommand)
 
@@ -72,22 +78,28 @@ class PublishChangeRecordToGitHub(
                 headRevision = recordRevision,
                 checkRunId = checkRun.id,
                 checkRunUrl = checkRun.url,
-                contentDigest = sha256(markdown),
+                contentDigest = GitEvidenceDigest.sha256(markdown.toByteArray(StandardCharsets.UTF_8)),
                 publishedAt = Instant.now(clock),
             ),
         )
     }
 
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(StandardCharsets.UTF_8))
-        .let(HexFormat.of()::formatHex)
+    // 게시 커밋은 PR HEAD와 같으므로 변경 후 근거만 PR 줄에 연결된다. GitHub는 요청당 주석 50개까지 받는다.
+    private fun codeAnnotations(record: ChangeRecord): List<CheckRunAnnotation> {
+        val title = markdownRenderer.annotationTitle(record)
+        val message = markdownRenderer.annotationMessage(record)
+        return record.codeAnchors.filter { it.side == CodeSide.TARGET }.take(MAX_CODE_ANNOTATIONS)
+            .map { CheckRunAnnotation(it.relativePath, it.startLine, it.endLine, title, message) }
+    }
 
     companion object {
         private const val MAX_GITHUB_OUTPUT_LENGTH = 65_535
+        private const val MAX_CODE_ANNOTATIONS = 50
     }
 }
 
 data class PublishChangeRecordToGitHubCommand(
     val changeRecordId: UUID,
     val target: GitHubPullRequestTarget,
+    val codeAnnotations: Boolean = false,
 )

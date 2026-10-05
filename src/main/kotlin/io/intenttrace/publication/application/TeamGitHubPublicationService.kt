@@ -2,10 +2,12 @@ package io.intenttrace.publication.application
 
 import io.intenttrace.config.GitHubRateLimitException
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.domain.ChangeRecordStatus
 import org.springframework.stereotype.Service
+import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -15,7 +17,7 @@ class TeamGitHubPublicationService(
     private val publisher: PublishChangeRecordToGitHub,
     private val tracking: GitHubPublicationTracking,
     private val publications: GitHubPublicationRepository,
-    private val meters: MeterRegistry = SimpleMeterRegistry(),
+    private val meters: MeterRegistry,
 ) {
     private val locks = Array(64) { ReentrantLock() }
 
@@ -31,6 +33,20 @@ class TeamGitHubPublicationService(
         val record = records.get(command.changeRecordId)
         require(record.repositoryKey == command.target.repositoryKey) { "기록 저장소와 게시 조회 대상이 다릅니다." }
         return GitHubPublicationStatus(publications.find(record.id, command.target), tracking.recent(record.id, command.target))
+    }
+
+    /** 기록을 게시했거나 게시를 시도한 PR을 최근 순으로 모은다. 대체된 기록은 대체 안내가 필요한 PR을 표시한다. */
+    fun targets(recordId: UUID): RecordPublications {
+        val record = records.get(recordId)
+        val published = publications.findByRecord(record.id, MAX_TARGETS + 1).associateBy { it.target.repositoryKey to it.target.pullNumber }
+        val attempted = tracking.latestByTarget(record.id, MAX_TARGETS + 1).associateBy { it.target.repositoryKey to it.target.pullNumber }
+        val items = (published.keys + attempted.keys).map { key ->
+            val publication = published[key]
+            val attempt = attempted[key]
+            RecordPublicationTarget(key.first, key.second, publication, attempt?.latest,
+                record.status == ChangeRecordStatus.SUPERSEDED && publication != null && attempt?.supersessionNoticed != true)
+        }.sortedByDescending { maxOf(it.publication?.publishedAt ?: Instant.MIN, it.latestAttempt?.startedAt ?: Instant.MIN) }
+        return RecordPublications(record, items.take(MAX_TARGETS), items.size > MAX_TARGETS)
     }
 
     private fun execute(command: PublishChangeRecordToGitHubCommand, operation: PublicationOperation): GitHubPublication =
@@ -52,6 +68,7 @@ class TeamGitHubPublicationService(
                     is GitHubPublicationContentTooLargeException -> "CONTENT_TOO_LARGE"
                     is GitHubCredentialMissingException, is GitHubCredentialConfigurationException -> "CREDENTIALS_UNAVAILABLE"
                     is GitHubRateLimitException -> "GITHUB_RATE_LIMITED"
+                    is PullRequestUnavailableException -> "PULL_REQUEST_UNAVAILABLE"
                     is IllegalArgumentException, is IllegalStateException -> "INVALID_RECORD_STATE"
                     else -> "REMOTE_RESULT_UNCONFIRMED"
                 }
@@ -61,4 +78,8 @@ class TeamGitHubPublicationService(
                 throw exception
             }
         }
+
+    companion object {
+        private const val MAX_TARGETS = 100
+    }
 }

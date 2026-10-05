@@ -5,7 +5,7 @@
 - 기록 생성·수정·작성자 확인·공개·폐기·대체와 후속 초안, 변경 이력을 지원한다.
 - 기록함 검색·페이지 조회, 원본 비교, Git 코드 해시 확인과 이름 변경·줄 이동 조회를 제공한다.
 - GitHub 사용자·저장소 권한을 확인하고 세션을 메모리에 보관한다. 사용자 승인 폐기 웹훅과 본인 세션 종료를 지원한다.
-- PR 게시·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
+- PR 게시·선택 코드 줄 주석·결과 조회·응답 유실 복구, 이슈·PR 내용과 CI 결과 조회, 연결·게시 인증 진단을 제공한다.
 - 웹·REST·MCP, Codex·IntelliJ·Zed에서 사용한다. 클라이언트별 범위는 [README](README.md#주요-기능)를 따른다.
 - H2 개발 환경과 PostgreSQL 운영 프로필, Compose·k3s 배포 설정을 준비했다. 운영 설정과 배포는 사용자가 수행한다.
 
@@ -13,17 +13,19 @@
 
 ## 최근 검증
 
-2026-09-12 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
+2026-10-05 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `60c4bfc` | [서버 248개·ArchUnit 4개 통과, JAR 빌드](#2026-09-12-db-시간-변환을-표준-api로-정리) |
-| PostgreSQL | `60c4bfc` | [저장·조회 5개 통과, 백업·복구 확인](#2026-09-12-db-시간-변환을-표준-api로-정리) |
-| IntelliJ | `5e5c094` | [53개 통과, ZIP 빌드·구조 검사](#2026-09-12-http-날짜-처리와-세션-토큰-검증-단순화). 실제 IDE 설치·수동 화면 확인은 미실행 |
-| Zed 연결 도구 | `2afaa2b` | [Node 15개·Python 3개 통과](#2026-09-12-연결-진단의-pr-커밋-일치-확인). 로컬 서버·npm 접근 제한으로 실패한 4개는 권한 적용 후 재검증 |
-| Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
-| 검증 결과 수집·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
-| Git 근거·검증 루프 | `938f570` | [Git 근거 8개·검증 루프 8개 통과, Compose 설정 확인](#2026-09-12-보조-도구의-중복-검사와-불필요한-해시-계산-제거) |
+| 서버·MCP | `b7ac92a` | [서버 264개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
+| PostgreSQL | `b7ac92a` | [저장·조회 8개 통과, 백업·복구 확인](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
+| IntelliJ | `9f2896f` | [61개 통과, ZIP 빌드·구조 검사](#2026-10-05-프로젝트-점검과-불필요한-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| Zed 연결 도구 | `5b2c11b` | [Node 21개·Python 4개, 실제 서버 연결·hover 통합 7개 통과](#2026-10-05-zed-편집기-hover-구현) |
+| Zed hover 확장 | `5b2c11b` | [wasm32-wasip2 빌드·clippy·형식 검사 통과](#2026-10-05-zed-편집기-hover-구현). 실제 Zed 앱 설치·hover 확인과 확장 저장소 등록은 미실행 |
+| Zed 배포 패키지 | `df139d7` | [임시 폴더에 패키지·체크섬 생성, 잘못된 인자 거부 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 저장소의 배포 폴더는 다시 만들지 않음 |
+| 검증 결과 수집·릴리스 도구 | `df139d7` | [실행 도구 출력 해시는 서버 테스트로 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 릴리스 도구는 [`e6e3e5e` 결과](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) 이후 변경 없음 |
+| Git 근거·검증 루프 | `f7d03cd` | [검증 루프 9개 통과, 시간 예산 초과 안내 확인](#2026-10-05-남은-검토-항목-반영). Git 근거 스크립트는 [`ad3b998` 결과](#2026-10-05-중복-코드-정리) 이후 변경 없음 |
+| Claude Code 설정 | `e70edca` | [검증 루프 8개 통과, 훅 명령·스킬 형식·MCP 헤더 설정 확인](#2026-10-04-claude-code-스킬과-검증-훅-추가). 실제 서버 MCP 연결은 미확인. 새 세션의 스킬 로드·명령 주입은 [2026-10-05](#2026-10-05-중복-코드-정리)에 확인 |
 
 [남은 작업](#다음-작업-후보)과 [현재 제한](#현재-제한)을 먼저 확인한다. 아래 날짜별 결과는 당시 검증이며 현재 코드의 검증으로 간주하지 않는다.
 
@@ -219,10 +221,12 @@
 
 2026-09-05 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)의 9개 항목은 REST·MCP·로컬 실행 도구의 최소 기능을 구현했다. 계약은 PRD-0004, ADR-0007·0008과 기존 PRD의 확장 절을 따른다. 검색·브라우저 열람·후속 초안·코드 이동·PR 목록·진단과 Zed Agent 연결까지 확장했다. 외부 지표 대시보드와 편집기 인라인 UI는 후속 작업이다.
 
-1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
+2026-10-05 [추가·개선 기능 검토](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다([검증](#2026-10-05-추가개선-기능-검토-반영)). 같은 날 P2의 기록별 게시 PR 목록, GitHub App 설치 변경 웹훅, IntelliJ 저장소 연결 진단·이전 커밋 조회도 반영했다([검증](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가)). 남은 11·12번도 반영했다([검증](#2026-10-05-남은-검토-항목-반영)).
+
+1. Zed 편집기 hover를 [검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)대로 구현했다([검증](#2026-10-05-zed-편집기-hover-구현)). 실제 Zed 앱에서 개발용 확장을 설치해 hover 표시와 다른 언어 서버 hover와의 공존을 확인한 뒤, 저장소 공개 여부를 정해 [Zed 확장 저장소에 등록](docs/clients/zed-distribution.md#zed-확장-등록-자료)한다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
-3. 코드 근거를 Check Run line annotation으로 선택 게시한다.
-4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다.
+3. 실제 GitHub PR의 Files changed 화면에서 코드 줄 주석 표시를 확인한다. 선택 게시와 중복 방지는 로컬 HTTP 계약으로만 검증했다.
+4. IntelliJ의 조회 전 Git 상태 재확인·이 PC 세션 삭제와 이전 커밋 조회·저장소 진단을 실제 IDE에서 확인한다. 자동 테스트는 상태 비교·로컬 삭제·화면 모델까지만 검증했다. 확인 항목은 [릴리스 전 확인](docs/operations/release.md#1-릴리스-전-확인)에 정리했다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
 
@@ -232,17 +236,17 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 서명을 확인한 GitHub 사용자 승인 폐기 webhook은 해당 사용자의 모든 메모리 세션을 종료한다. 웹·REST·MCP에서도 본인 세션을 조회·폐기할 수 있다. 연결 이름은 기기를 추정하지 않고 브라우저·Agent/API 채널로 구분한다.
 - 팀 배포는 단일 app만 지원하며 무중단 rolling 배포와 여러 host의 session 공유가 없다.
 - GitHub 사용자 인증은 요청마다 확인한다. 저장소 권한은 같은 인증 요청 안에서만 재사용하며 새 요청에서는 다시 확인한다. 저장소 권한의 요청 간 캐시는 없다.
-- V3 이전 기록은 `legacy:<login>` subject로 남아 현재 GitHub 계정이 수정할 수 없다.
 - 서버 코드 확인은 별도 요청에서 GitHub 객체를 읽으며 `Contents: read` 권한이 필요하다. 결과는 저장하지 않고 호출 시 계산한다. 일부 트리·2 MiB 초과 blob은 확인하지 않는다.
 - 코드 이동은 동일 blob의 고유한 이름 변경 또는 원본·현재 파일에서 고유한 전체 줄 조각에 한정한다. 수정·이름 변경 동시 발생과 중복 조각은 자동 연결하지 않는다. 조회는 후보 단위 페이지이며 빈 결과에서도 다음 커서가 있을 수 있다.
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
-- Fork PR Check Run과 GitHub App 설치·권한 변경 webhook은 아직 지원하지 않는다.
+- Fork PR Check Run은 아직 지원하지 않는다. GitHub App 설치 변경 웹훅은 이 프로세스의 게시용 토큰 캐시만 비우며 여러 인스턴스 간 무효화는 없다.
+- PR 줄 주석은 변경 후 근거 50개까지 게시한다. 게시한 주석은 지울 수 없어 이미 주석이 있는 Check Run은 다시 게시해도 주석을 바꾸지 않으며 대체 뒤에도 남는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
 - IntelliJ callback token 자동 가져오기, 기록 생성·수정과 Marketplace 배포는 아직 지원하지 않는다.
 - 현재 두 개의 alignment HTML만 저장소에 유지하며 새 HTML은 GitHub Release나 별도 보관소에 둔다.
-- Zed Agent MCP 연결을 구현했다. 인라인 IDE 메뉴와 자동 기록 수집은 없다. 실제 Zed 1.18.1에서 로컬 테스트 응답을 사용해 앱 연결·도구 승인·공개 기록 조회·세션 폐기 후 오류·새 세션 재연결을 확인했다. 실제 GitHub 사용자 승인은 확인하지 않았다.
+- Zed Agent MCP 연결과 커밋된 줄의 hover 확장을 구현했다. hover 확장은 개발용 설치만 지원하고 실제 Zed 앱에서는 확인하지 않았다. 자동 기록 수집은 없다. 실제 Zed 1.18.1에서 로컬 테스트 응답을 사용해 앱 연결·도구 승인·공개 기록 조회·세션 폐기 후 오류·새 세션 재연결을 확인했다. 실제 GitHub 사용자 승인은 확인하지 않았다.
 - 일반 연결 진단은 게시 설정 존재만 확인한다. 관리자용 별도 사전 점검은 App 키·설치·실제 발급 범위·권한을 확인한다. 고정 token은 미확인으로 남기며 실제 Check Run 성공까지 보장하지 않는다.
 - 기록 변경·게시 시도 이력을 저장한다. 인증·운영 전체 감사 로그와 자동 보존 정책은 없다. 수집 이전 이력과 과거 본문은 복원하지 않는다.
 - Micrometer 지표는 수집하지만 외부 수집기와 대시보드는 별도 연결해야 한다.
@@ -869,3 +873,71 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `20335f3`, 구현 커밋은 `938f570`이다. Git 근거 스크립트의 시작·끝 줄 숫자 검사를 반복문 하나로 합치고, Compose 네트워크의 목록·객체 형식 검사에서 같은 반환 분기를 합쳤다. 종료 훅에서는 사용하지 않는 변경 감지용 파일 해시 계산을 제거했다. 실행 코드는 6줄 줄었으며 파일 수정 후 변경 감지와 종료 전 전체 diff 검사는 유지했다.
 - `./gradlew focusedTest --tests '*GitEvidenceScriptTest'` 8개, `python3 scripts/test_feedback.py` 8개와 `python3 scripts/validate-compose.py .env.team.example`이 통과했다. 임시 저장소에서 종료 훅의 해시 계산이 변경 전 1회·변경 후 0회이며, 최종 diff에 수정 내용이 포함되는지 확인했다. 결과 시각은 2026-09-12 23:47 KST, 로그는 `/tmp/intent-trace-script-cleanup-{files,focused,feedback,compose,stop}.log`다. 새 테스트 파일은 추가하지 않았다.
 - 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·클라이언트 제품 코드와 의존성·설정은 바뀌지 않아 전체 서버·PostgreSQL·IntelliJ·Node 테스트와 패키지 빌드는 반복하지 않았다. 기존 미추적 PNG를 보존했고 원격 푸시·운영 설정 변경·배포는 하지 않았다.
+
+## 2026-10-04 Claude Code 스킬과 검증 훅 추가
+
+- 시작 리비전은 `7a2a0f6`, 구현 커밋은 `e70edca`다. Codex 사용·개발 스킬을 기준 문서로 두고 Claude Code의 연결·훅 차이만 담은 `intent-trace`·`intent-trace-flows` 스킬을 `.claude/skills/`에 추가했다. 작업 마무리·HANDOFF 기록(`intent-trace-handoff`), PRD·ADR·검토 문서(`intent-trace-docs`), 수동 실행 릴리스(`intent-trace-release`) 스킬을 새로 만들었다. `.claude/settings.json`은 `.codex/config.toml`과 같은 `feedback.py` 훅을 등록하고 `CLAUDE.md`는 `@AGENTS.md`만 가져온다. Codex 스킬·`.mcp.json`·제품 코드는 바꾸지 않았다.
+- `python3 scripts/test_feedback.py` 8개가 통과했다. 설정의 훅 명령에 Claude 형식 입력을 넣어 시작 기록·지역 검사·종료 검사가 종료 코드 0과 JSON을 반환하고, 하위 폴더에서 시작해도 저장소 루트를 찾는 것을 확인했다. 작업 중인 Claude Code 세션에서도 설정을 추가한 뒤 `Edit` 후 지역 검사 문맥이 전달됐다. 스킬 5개의 frontmatter·상대 링크·저장소 경로를 별도 스크립트로 확인했다. 임시 설정 디렉터리에서 로컬 범위 MCP 헤더의 환경 변수 확장, 같은 이름의 프로젝트 `.mcp.json`보다 우선 적용, `bearer_token_env_var` 무시를 확인했다. 결과 시각은 2026-10-04 23:45 KST다.
+- 지역 검사와 시작 커밋 기준 전체 diff 검사를 적용한다. 서버·DB·IntelliJ·Zed 코드는 바뀌지 않아 해당 테스트는 실행하지 않았다. 실제 IntentTrace 서버와 Claude Code의 MCP 연결, 새 세션에서의 스킬 자동 선택과 명령 주입 결과는 확인하지 않았다. 기존 미추적 PNG를 보존했고 원격 푸시는 하지 않았다.
+
+## 2026-10-05 중복 코드 정리
+
+- 시작 리비전은 `dacf305`, 구현 커밋은 `f961bc8`(서버)·`56ad37f`(IntelliJ)·`ad3b998`(보조 스크립트·Zed)다. 컴파일 경고·미사용 선언·반복 블록을 점검하고 동작이 같은 중복만 합쳤다. 서버는 기록 자식 행 INSERT 네 벌, GitHub 어댑터 세 곳의 RestClient 오류 변환, Check Run 생성·수정 DTO와 App 설치 조회·토큰 발급 요청을 각각 하나로 모으고 SHA-256 패턴과 팀 공개 상태를 도메인 한 곳에서 정의했다. 읽는 곳이 없는 발급 세션 만료 필드도 제거했다. IntelliJ는 액션 기반 클래스와 세션 작업·대화상자 구성 요소를 공용으로 쓴다. 제품 코드는 서버 184줄·IntelliJ 59줄·스크립트 15줄·Zed 4줄 줄었고 SQL·JSON 필드·오류 문구·권한 규칙은 유지했다.
+- `./gradlew test bootJar`에서 서버 250개·ArchUnit 4개, `scripts/verify-postgres.sh`에서 PostgreSQL 5개와 백업·복구 후 기록 15건·변경 이력 34건 일치, IntelliJ `test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 53개와 ZIP 구조 검사, `npm test --prefix clients/zed`에서 Node 15개·Python 3개가 통과했다. 저장된 Check Run 대체 테스트를 조회·수정 404까지 넓혀 리팩터링 전 코드에서 먼저 통과시켰고, 수정 요청에 `head_sha`가 없는지 확인한다. `git-evidence.sh`·`restore-postgres.sh`는 잘못된 인자 8가지에서 바꾸기 전과 같은 오류 출력·종료 코드를 확인했다. 결과 시각은 2026-10-05 00:25~00:31 KST다. 새 테스트 클래스는 추가하지 않았다.
+- 테스트의 복제된 `MutableClock`을 공용 파일로 옮기고 지원 중단 API 3종을 교체해 서버·IntelliJ 컴파일 경고가 없다. 의도적으로 중복한 커밋 검증(`GitRevision.parse`)과 변경 폭에 비해 효과가 작은 Python `fail()` 치환·게시 저장 재구성은 반영하지 않았다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 검증 결과 수집·릴리스 도구와 `feedback.py`는 바뀌지 않아 해당 테스트는 반복하지 않았다. 새 세션에서 `intent-trace-flows`·`intent-trace-handoff` 스킬 로드와 명령 주입을 확인했다. 실제 IDE 설치·GitHub 호출·원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 리팩터링 검토와 구조 정리
+
+- 시작 리비전은 `c94be01`, 구현 커밋은 `d218b7e`(검토 반영)·`4e21dd2`·`e71278e`·`04cd0ba`·`f7a3c99`다. 직전 리팩터링 세 커밋을 독립 검토해 제품 동작 변화는 찾지 못했고, 수정 요청의 `head_sha` 생략 검사가 null 값도 통과시키는 테스트 결함을 확인했다. 검사를 `doesNotHaveJsonPath`로 바꿔 `@JsonInclude`를 지운 변형에서 실패하는 것을 확인했고, 목록에서 찾은 Check Run 수정이 404면 새로 만들지 않는 경로를 테스트로 고정했다.
+- `GitHubApiException`을 config로 옮겨 record·publication application의 순환 의존을 없애고, 게시 어댑터의 공용 `safeCall`과 기록 요약 행 매퍼를 별도 파일로 옮겼다. 검증 결과의 현재성, 작성자 전용 상태, 저장되는 작성자 식별자 `github:<id>`를 도메인 한 곳에 두고 활동 이력 범위를 Boolean 대신 `ActivityVisibility`로 전달한다. 세션 저장소는 코드 변경 없이 별도 파일로 옮겨 `GitHubUserOAuth.kt`가 371줄에서 209줄이 됐다. 이전 기록 조회는 후보 구성(`HistoryCandidates`)과 근거 일치 판정(`AnchorMatcher`)을 분리해 `find`가 94줄에서 42줄이 됐다. 새 파일의 선언 때문에 제품 코드는 전체 64줄 늘었다.
+- `./gradlew test bootJar`에서 서버 251개·ArchUnit 4개, `scripts/verify-postgres.sh`에서 PostgreSQL 5개와 백업·복구 후 기록 15건·변경 이력 34건 일치를 확인했다. 원격 조회 횟수와 시간·호출 한도 중단·재개를 검사하는 `RecordEvidenceIntegrationTest`도 통과했다. 결과 시각은 2026-10-05 01:04 KST다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 토큰 접두사·마스킹 정규식 통합, 게시 `publish`·`syncSupersession`의 enum 통합, 세션 `resolve`의 중복 정리, application 순환을 막는 ArchUnit 규칙 추가는 보안 정규식·동시성 코드 변경이나 문서·fixture 추가가 필요해 이번 범위에서 제외했다. IntelliJ·Zed·스크립트는 바뀌지 않아 해당 테스트는 반복하지 않았다. 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 PR 코드 줄 주석과 모듈 순환 규칙 추가
+
+- 시작 리비전은 `8b89f33`, 구현 커밋은 `74b09ad`(줄 주석)·`58f918c`(ArchUnit)다. REST·MCP PR 게시 요청에 선택 `codeAnnotations`를 추가해 `true`이면 변경 후 코드 근거를 Check Run `notice` 주석으로 최대 50개 보낸다. 주석에는 기록 제목·구현 결정·판단 출처만 담는다. GitHub가 수정 요청의 주석을 누적하므로 새 Check Run 생성과 `annotations_count`가 0으로 확인된 수정에만 넣는다. 기본 요청 본문·대체 안내·저장 데이터는 바꾸지 않았다. 모듈별 `application`·`domain`을 묶어 모듈 사이 순환을 금지하는 ArchUnit 규칙과 모듈 간 순환 fixture를 추가했다.
+- `./gradlew focusedTest --tests '*GitHubRestClientTest' --tests '*PublishChangeRecordToGitHubTest'` 36개가 통과했다. 주석 수 조건을 지운 변형에서는 기존 주석이 있거나 개수를 모르는 2개 경우가 실패하는 것을 확인했다. 최종 `./gradlew test bootJar`에서 서버 256개·ArchUnit 5개가 통과했고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:08~10:12 KST다. 서버 테스트 5개(매개변수 사례 포함)와 구조 규칙 1개를 추가했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용한다. 전체 실행 뒤 규칙 주석과 문서 문구만 고쳤고 컴파일 결과가 같아 구조 검사는 `UP-TO-DATE`였다. SQL·스키마·클라이언트는 바뀌지 않아 PostgreSQL·IntelliJ·Zed 테스트는 반복하지 않았다. 실제 GitHub PR 게시·원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 추가·개선 기능 검토 반영
+
+- 시작 리비전은 `9bc5a8d`, 구현 커밋은 `aabfeea`(서버)·`19ebd0e`(Zed)·`a787fd1`(IntelliJ)·`6c1b668`(검토 문서·변경 이력)이다. 서버·클라이언트를 PRD·ADR과 비교해 [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다. GitHub에 없는 커밋은 502 대신 `REVISION_NOT_FOUND`로 안내하고 이전 기록 조회는 해당 후보만 실패로 남긴다. PR 조회 단계의 게시 실패는 `FAILED`·`PULL_REQUEST_UNAVAILABLE`로 저장한다. 기록 ID 조회의 권한 없음은 404로 숨긴다. 세션 상한은 같은 채널부터 정리한다. MCP `get_change_record_markdown`을 추가했다. 연결 진단은 PR 저장소 불일치에도 계속하고, Zed `check`는 서버 입력 오류를 서버 안내로 표시한다. IntelliJ는 400·403·503 안내를 구분하고 200자 초과 검색어를 요청 전에 안내한다. 목록·변경 작업의 403, HTTP 502 응답 코드, 세션 상한 수, 저장 스키마는 유지했다. 제품 코드는 서버·IntelliJ·Zed 합계 101줄 추가·13줄 삭제다.
+- `./gradlew test bootJar`에서 서버 262개·ArchUnit 5개가 통과하고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:55 KST다. Zed 실제 서버 점검(`ZedBridgeIntegrationTest`)도 여기에 포함된다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 IntelliJ 54개와 ZIP 구조 검사가 통과했다(10:45 KST). `npm test --prefix clients/zed`에서 Node 16개·Python 3개(10:56 KST), `scripts/validate-plugin.sh`가 통과했다. 서버 테스트 6개(매개변수 사례 포함)와 IntelliJ·Node 테스트 각 1개를 추가했다. 기존 테스트의 소유권 거부 기대 3곳은 기록 없음 예외로 바꿨다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. SQL·스키마는 바뀌지 않아 PostgreSQL 검증은 반복하지 않았다. 새 테스트를 반영 전 코드에서 실패시키는 확인은 하지 않았다. `quick_validate.py`는 PyYAML이 없어 실행하지 못했으며 스킬 frontmatter는 바꾸지 않았다. Zed 배포 패키지는 다시 만들지 않았다. 실제 IDE 설치·화면 확인, GitHub 게시, 원격 푸시와 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 기록별 게시 목록과 설치 웹훅, IntelliJ 진단 추가
+
+- 시작 리비전은 `b5d9077`, 구현 커밋은 `62a2182`(기록별 게시 목록)·`71922f5`(설치 웹훅)·`168a6b8`·`1bf460d`(IntelliJ)다. [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 P2 항목을 반영했다. REST `GET /api/v1/change-records/{id}/github-pull-requests`·MCP `list_record_publications`와 웹 기록 상세가 게시 결과와 PR별 최신 시도를 최근 순 100개까지 보여 주고, 대체된 기록은 대체 안내 성공 시도가 없는 PR을 `supersessionNoticeNeeded`로 표시한다. 서명한 `installation`·`installation_repositories` 웹훅은 해당 설치 ID로 발급한 게시용 토큰만 캐시에서 버린다. IntelliJ는 `IntentTrace 저장소 연결 진단`과 현재 줄 결과의 `이전 커밋에서 이 줄 찾기`를 추가했으며 두 요청만 응답 읽기 제한이 40초다. 기존 게시 상태·대체 안내 REST 경로, 사용자 세션, 저장 스키마는 유지했다. 제품 코드는 서버·IntelliJ 합계 546줄 추가·39줄 삭제다.
+- `./gradlew test bootJar`에서 서버 266개·ArchUnit 5개가 통과하고 JAR을 빌드했다(11:11 KST). `scripts/verify-postgres.sh`에서 PostgreSQL 6개와 백업·복구 후 기록 16건·변경 이력 37건 일치를 확인했다(11:12 KST). 새 조회의 window 함수는 H2와 PostgreSQL 양쪽 저장소 계약 테스트로 확인했다. `./gradlew -p intellij-plugin test`에서 IntelliJ 59개(11:19 KST), `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`와 `scripts/validate-plugin.sh`가 통과했다. 서버 테스트 4개·PostgreSQL 계약 1개·IntelliJ 테스트 5개를 추가하고 REST·MCP·웹·발급 테스트를 넓혔다. GitHub 공식 문서에서 설치 이벤트가 모든 App에 기본 전달되는 것을 확인했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. Zed 코드는 바뀌지 않아 Node 테스트는 반복하지 않았다. 실제 IntelliJ 설치·화면 확인, GitHub 웹훅 실제 수신·게시, 원격 푸시·배포는 하지 않았다. 새 테스트를 반영 전 코드에서 실패시키는 확인은 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 남은 검토 항목 반영
+
+- 시작 리비전은 `668d077`, 구현 커밋은 `06f1c42`(현재 줄 조회 상한·변경 이력 처리자)·`ccfc001`(Zed 세션 형식)·`f63b9b9`(IntelliJ)·`f7d03cd`(검증 훅)이며 변경 이력은 `47e7d7f`에 기록했다. 현재 줄 조회는 최근 공개 순 20건으로 제한하고 같은 공개 시각은 기록 ID 순으로 고정했다. MCP는 더 있으면 `truncated=true`이며 REST `/lookup`은 배열 형식을 유지한다. 변경 이력 응답에 기록 작성자(`author`)를 넣어 웹이 처리자를 `@login`으로 표시한다. Zed 도구는 43자 `its_` 세션만 받는다. IntelliJ 현재 줄 조회는 요청 전에 파일·`GitRepository.update()`·변경 목록 갱신(최대 10초)을 거쳐 HEAD나 파일 상태가 달라졌으면 조회하지 않는다. 세션 삭제는 호출 제한 외의 서버 폐기 실패에서 확인 후 이 PC 토큰만 지울 수 있다. 검증 훅은 165초 예산을 넘기기 전에 멈추고 `finish` 실행을 안내한다. 제품·도구 코드는 162줄 추가·36줄 삭제다.
+- `./gradlew test bootJar`에서 서버 267개·ArchUnit 5개가 통과하고 JAR을 빌드했다(11:33 KST). `scripts/verify-postgres.sh`에서 PostgreSQL 7개와 백업·복구 후 기록 37건·변경 이력 100건 일치를 확인했다(11:33 KST). `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 IntelliJ 61개와 ZIP 구조 검사가 통과했다(11:31 KST). `npm test --prefix clients/zed`에서 Node 16개·Python 4개, `python3 scripts/test_feedback.py`에서 9개가 통과했다. 수정한 `feedback.py`로 이 세션의 훅 지역 검사가 계속 실행되는 것을 확인했다. 사용한 `ChangeListManagerEx.promiseWaitForUpdate`·`Repository.update`·`VcsDirtyScopeManager.fileDirty`는 SDK 2025.3.2 클래스에서 공개 API(`ApiStatus.Internal` 없음)인지 확인했다. 서버·PostgreSQL 계약 각 1개, IntelliJ 2개, Python 2개 테스트를 추가하고 Zed·REST 테스트를 넓혔다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. 조회 전 Git 상태 재확인과 이 PC 세션 삭제 확인 창은 실제 IDE에서 실행하지 않았고 비교 함수·로컬 삭제 함수만 자동 테스트했다. 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 운영 전 호환 코드 제거와 표준 API 정리
+
+- 시작 리비전은 `f267e95`, 구현 커밋은 서버 `f831cf0`·`3d35ae9`·`f000da7`·`021b1b3`·`3c439cc`·`a4b186b`·`0adfe7f`, IntelliJ `cb6756e`, Zed·스크립트 `df139d7`, 테스트 `7699822`, 문서 `a056ff2`다. 보존할 DB 데이터와 실운영이 없어 이전 데이터·클라이언트 호환 경로를 지웠다. Flyway V1~V11은 `V1__baseline.sql` 하나로 합쳤고 작성자 로그인 열은 `created_by_login`, 최초 내용 해시는 필수다. 내용 해시는 근거 쪽·연결 경로·검증 출처·원본 기록을 항상 포함한다. `legacy:` subject, V7 이전 해시 재계산, `historyStartsAtCreation`은 제거했고 작성자 subject는 `github:<숫자>`만 받는다. REST·MCP는 `its_` 세션만 받는다. `ghu_` 직접 인증, `DELETE /api/v1/session`, 세션 목록의 `authentication`은 없앴고 세션 폐기는 `DELETE /api/v1/me/sessions/current`로 통일했다. 목록의 `MY_DRAFTS`·`page`·`size` 조회를 제거하고 Spring Data 대신 `spring-boot-starter-jdbc`를 쓴다. REST `/lookup`은 MCP와 같은 `{items, truncated}`를 반환하며 IntelliJ는 20건 초과를 안내한다. 직접 구현을 표준 API로 바꿨다. App 키는 Spring Boot `PemContent`, MVC 표준 오류의 ProblemDetail은 `ResponseEntityExceptionHandler`가 처리한다. OAuth 폼은 `MultiValueMap.fromSingleValue`, IntelliJ 세션 폐기는 `HttpRequests.delete`를 쓴다. Zed 패키지 인자는 `parseArgs`, 검증 출력 해시는 `hashlib.file_digest`로 계산한다. GitHub 응답 크기 제한 읽기 3곳과 테스트의 HTML 링크 추출을 하나로 합쳤다. 권한 비교는 enum 순서를 쓴다. 운영 코드의 `SimpleMeterRegistry`·`Clock` 기본값과 테스트 전용 `confirm`·`publish` 오버로드는 테스트 소스로 옮겼다. 고정 게시 토큰 `INTENT_TRACE_GITHUB_TOKEN`, 지표 `intenttrace.github.request`, 응답의 `serverExecutionVerified=false`는 유지했다. Spring JDBC 7.0.9의 `JdbcClient`에는 batch가 없어 `JdbcTemplate`을 유지했다. 버전 검사와 도메인 규칙이 맞지 않는 Spring Data JDBC 집계, 템플릿 엔진, OAuth2 Client는 도입하지 않았다. 제품·도구 코드는 208줄 추가·468줄 삭제, 마이그레이션은 142줄 추가·197줄 삭제, 테스트는 297줄 추가·536줄 삭제다.
+- `./gradlew test bootJar`에서 서버 264개·ArchUnit 5개가 통과하고 JAR을 빌드했다(2026-10-05 12:50 KST, `7699822`). 이후 `a056ff2`는 문서와 IntelliJ 테스트만 바꿨다. `scripts/verify-postgres.sh`에서 PostgreSQL 8개와 백업·복구 후 기록 38건·변경 이력 103건 일치를 확인했다(12:50 KST). `./gradlew -p intellij-plugin test`에서 IntelliJ 61개(12:52 KST, `a056ff2`)가 통과했다. `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`는 IntelliJ 코드가 같은 `7699822`에서 통과했다. `npm test --prefix clients/zed`에서 Node 16개·Python 4개(12:53 KST), `scripts/validate-plugin.sh`가 통과했다. `node scripts/package-zed.mjs --output <임시 폴더>`로 패키지·체크섬을 생성했고 알 수 없는 인자는 거부했다. 검증 실행 도구의 출력 해시는 서버 테스트의 `GitEvidenceScriptTest`로 확인했다. REST 줄 조회 응답·파라미터 오류 ProblemDetail·GitHub 토큰 직접 인증 거부·스키마 제약 계약 테스트를 추가했다. IntelliJ에는 일부 표시 안내 단언을 추가했고 이전 데이터 마이그레이션 테스트 4개는 삭제했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. 최종 diff 검토에서 PRD-0003과 IntelliJ 테스트 응답에 남은 `authentication`을 고친 뒤 `finish`를 다시 실행했다. 이전 버전으로 만든 로컬 H2 `.intent-trace/data`와 Compose·k3s PostgreSQL 볼륨은 Flyway 체크섬이 달라 지우고 새로 만들어야 한다. 사용자 환경의 DB는 지우지 않았다. `feedback.py`가 바뀌지 않아 `test_feedback.py`는 반복하지 않았다. 실제 IDE 설치·화면 확인, GitHub 게시, 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 프로젝트 점검과 불필요한 코드 정리
+
+- 시작 리비전은 `99bf889`, 구현 커밋은 `9f2896f`(IntelliJ)·`d8677df`(서버)·`b7ac92a`(테스트)이며 변경 이력은 `8040ba0`에 기록했다. 컴파일러 경고, 미사용 선언·import 검사와 영역별 점검으로 중복을 정리했다. 서버는 기록 요약 행 매퍼를 지우고 `ChangeRecord.toSummary()`를 쓴다. `GitRevision` 값 클래스는 `requireFullRevision` 함수로 바꿨다. 두 GitHub 클라이언트의 PR 응답 해석, 단순 위임 웹훅 서비스 2개, MCP의 기본값 `required = true`, 연결 진단·인증 필터·브라우저 응답의 중복 분기를 정리했다. 게시 요청 Bean Validation 중 도메인과 같은 규칙, 테스트에서만 쓰던 기본 인자, 수정 때 바뀌지 않는 `creation_digest` 갱신, 설정 파일의 기본값 중복도 지웠다. IntelliJ는 백그라운드 작업·세션 확인·요청 설정을 `queueTask`·`credentials.require`·`send`로 합쳤고, plugin.xml의 id·이름·제공자는 빌드 설정만 기준으로 쓴다. 테스트는 기록 픽스처·`its_` 세션 발급·Zed CLI 실행을 공용 helper로 합쳤다. 동작 변화는 세 가지다. MCP 확인·공개도 REST와 같은 해시 형식 검증을 거친다. head 저장소가 없는 PR은 Fork 거부로 처리한다. REST 게시 요청 형식 오류는 도메인 검사 문구로 응답한다. 도메인의 작성자 검사, facade 입력 검사, `GitHubProperties` 조정값, Python `fail()` helper는 경계 방어나 가독성 때문에 유지했다. 제품 코드는 357줄 추가·725줄 삭제, 테스트는 85줄 추가·148줄 삭제다.
+- `./gradlew test bootJar`에서 서버 264개·ArchUnit 5개가 통과하고 JAR을 빌드했다(2026-10-05 15:12 KST). `scripts/verify-postgres.sh`에서 PostgreSQL 8개와 백업·복구 후 기록 38건·변경 이력 103건 일치를 확인했다(15:12 KST). `./gradlew -p intellij-plugin test`에서 IntelliJ 61개(15:00 KST)가 통과했다. `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`도 통과했고, 빌드된 plugin.xml에 id·이름·제공자가 들어간 것을 확인했다. `npm test --prefix clients/zed`에서 Node 16개·Python 4개, `scripts/validate-plugin.sh`가 통과했다. 새 동작 테스트는 추가하지 않았다. PR 응답 통합 직후 `base.sha` 없는 응답을 거부하던 회귀는 기존 `GitHubRestClientTest`가 잡아 기본값으로 고쳤다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. `feedback.py`가 바뀌지 않아 `test_feedback.py`는 반복하지 않았다. 실제 IDE 설치·화면 확인, GitHub 게시, 원격 푸시·배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 실행 JAR 점검과 Zed 인라인 UI 검토
+
+- 시작 리비전은 `fdf1098`, 문서 커밋은 `cc05a4b`(IntelliJ 수동 확인 목록)·`0e37c21`(Zed 인라인 UI 검토)다. 제품 코드는 바꾸지 않았다. [릴리스 전 확인](docs/operations/release.md#1-릴리스-전-확인)에 저장소 연결 진단, 조회 전 Git 상태 재확인, 20건 초과 안내, 이전 커밋 조회, `이 PC에서만 삭제`, 기록함 필터 팝업 확인 항목을 추가했다. [Zed 인라인 UI 검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)는 Zed 공개 문서 기준으로 확장 UI API가 없음을 확인하고 언어 서버 hover를 P2로 제안했다. 코드 렌즈와 웹 열기 code action은 보류했다.
+- `b7ac92a` 코드로 만든 `build/libs/intent-trace.jar`를 임시 H2 DB로 실행했다. 기준 스키마 V1이 적용되고 `/actuator/health`가 `UP`이었다. `/records`와 CSS는 200, 세션 없는 MCP와 `ghu_` Bearer REST 요청은 401이었다. 결과 시각은 2026-10-05 16:13 KST다. 문서만 바꿔 서버·IDE 테스트는 반복하지 않았고 문서 링크와 지역 검사만 확인했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. Zed 시제품 실행, 실제 IDE 확인, GitHub 게시는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 Zed 편집기 hover 구현
+
+- 시작 리비전은 `631fdab`, 구현 커밋은 `fbf384e`·`5b2c11b`, 문서 커밋은 `d5f2c5b`다. [Zed 인라인 UI 검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)의 1번을 반영했다. Rust Zed 확장 `clients/zed/extension`(`zed_extension_api` 0.7.0)이 보조 언어 서버 `intent-trace`를 등록한다. 확장은 언어 서버를 포함하지 않고 `configure`가 저장한 `lsp.intent-trace.binary`나 PATH의 `intent-trace-zed lsp`를 실행한다. 연결 도구의 `lsp` 명령(`vscode-languageserver` 10.1.2)은 hover만 제공한다. Git으로 HEAD·origin·상대 경로를 구하고, 저장하지 않았거나 커밋되지 않은 파일은 조회하지 않는다. 기존 목록 API로 파일 단위 공개 기록 여부를 5분 캐시한 뒤 `/lookup`을 1분 캐시로 호출한다. 403 저장소는 조용히 건너뛰고 세션 만료·호출 제한·장애는 안내 후 30초 또는 `Retry-After` 동안 다시 부르지 않는다. 기록 문구는 Markdown escape한다. `configure`·`unconfigure`가 `lsp.intent-trace`도 관리하고 배포 패키지에 `lsp.mjs`를 넣었다. CI에 `Zed 확장 검증` 작업을 추가했다. 검토 문서와 달리 편집 중·미커밋 파일은 안내 대신 hover를 표시하지 않는다. 제품·도구 코드는 294줄 추가·27줄 삭제, 테스트는 213줄 추가·4줄 삭제다.
+- `npm test --prefix clients/zed`에서 Node 21개·Python 4개가 통과했다(2026-10-05 16:35 KST). 원격 주소 해석, 미커밋·미추적 판정, Markdown escape, 파일·줄 캐시, 편집 중 파일, 호출 제한 대기, 세션 없는 시작 거부, 설정 등록·제거, 배포 패키지의 `lsp.mjs` 로드를 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`에서 7개가 통과했다(16:35 KST). 이 중 새 테스트는 실제 Spring 서버에 공개 기록을 만들고 임시 Git 저장소의 커밋된 줄에서 hover로 조회한다. Docker `rust:1-slim`에서 CI와 같은 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`가 통과했다. 서버 제품 코드는 바꾸지 않아 전체 서버·PostgreSQL·IntelliJ 검증은 반복하지 않았다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. 최종 검토에서 언어 서버의 미사용 주입 인자를 지웠다. 실제 Zed 앱 설치·hover 확인, Zed 확장 저장소 등록, 원격 푸시·PR 생성은 하지 않았다. 원격 푸시는 이 세션의 자동 승인 정책에서 거부됐다. 기존 미추적 PNG를 보존했다.

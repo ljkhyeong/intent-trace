@@ -12,7 +12,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | 변경 대상 | 읽을 문서 |
 | --- | --- |
 | 기록 생성·확인·공개·대체·후속 초안 | [MVP 요구사항](../../docs/PRD-0001-intent-trace-mvp.md), [기록·스냅샷 규칙](../../docs/ADR-0001-evidence-bound-change-record.md) |
-| 초안 수정·검색·페이지 조회·원본 비교 | [기록 관리 계약](../../docs/PRD-0004-record-management-and-evidence.md), 기존 페이지 번호 방식은 [기록함 계약](../../docs/PRD-0005-record-browser.md) |
+| 초안 수정·검색·목록 조회·원본 비교 | [기록 관리 계약](../../docs/PRD-0004-record-management-and-evidence.md), IntelliJ 기록함은 [기록함 계약](../../docs/PRD-0005-record-browser.md) |
 | 코드 해시 확인·이전 줄 조회·중단 후 재개 | [코드 확인과 이력 조회](../../docs/ADR-0007-evidence-check-and-history.md) |
 | 기록 변경 이력 | [이력 저장과 공개 범위](../../docs/ADR-0011-record-activity-history.md) |
 | GitHub 사용자·저장소 권한 | [팀 접근 요구사항](../../docs/PRD-0003-team-identity-and-repository-access.md), [권한 확인](../../docs/ADR-0004-github-user-repository-authorization.md) |
@@ -44,7 +44,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 | Flyway·JDBC·백업·복구 | `scripts/verify-postgres.sh`, 백업 스크립트 수정 시 `python3 scripts/test_backup_postgres.py` |
 | Codex 플러그인·스킬 | `scripts/validate-plugin.sh`, 스킬 frontmatter·문서 링크·사용 조건 확인. `quick_validate.py`가 설치되어 있으면 변경한 스킬에 실행 |
 | IntelliJ | `./gradlew -p intellij-plugin test`, 패키지·설정 변경 시 `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`도 실행 |
-| Zed·MCP 연결 | 의존성이 없거나 명세가 바뀌면 `npm ci --prefix clients/zed --ignore-scripts`. `npm test --prefix clients/zed`와 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`. 서버 전체 검증에서 연결 테스트가 통과했다면 별도 실행 생략 |
+| Zed·MCP 연결·hover | 의존성이 없거나 명세가 바뀌면 `npm ci --prefix clients/zed --ignore-scripts`. `npm test --prefix clients/zed`와 `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`. 서버 전체 검증에서 연결 테스트가 통과했다면 별도 실행 생략. `clients/zed/extension`을 바꾸면 [검증 절차](../../docs/development/verification.md)의 cargo 검사 |
 | Compose | `python3 scripts/validate-compose.py .env.team.example`, Caddy 수정 시 운영 문서의 설정 검증 |
 | 릴리스 버전·패키지 | [릴리스 절차](../../docs/operations/release.md)의 해당 검사 |
 

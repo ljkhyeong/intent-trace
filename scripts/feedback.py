@@ -10,11 +10,15 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import time
 import tomllib
 
 
 ROOT = Path(__file__).resolve().parent.parent
 ARTIFACTS = Path("build/feedback")
+COMMAND_TIMEOUT = 150
+# 훅 실행 제한(180초)보다 먼저 끝내 강제 종료 대신 안내를 남긴다.
+HOOK_BUDGET = 165
 
 
 def git(root, *arguments):
@@ -33,8 +37,15 @@ def snapshot(root, base):
             for name in changed_files(root, base)}
 
 
-def run(root, command, log, accepted=(0,)):
-    result = subprocess.run(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=150)
+def run(root, command, log, accepted=(0,), deadline=None):
+    timeout = COMMAND_TIMEOUT if deadline is None else min(COMMAND_TIMEOUT, deadline - time.monotonic())
+    try:
+        if timeout <= 0:
+            raise subprocess.TimeoutExpired(command, 0)
+        result = subprocess.run(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"검사 시간 제한으로 끝내지 못했습니다: {shlex.join(command)}\n"
+                           "종료 전에 python3 scripts/feedback.py finish --base <작업 시작 커밋>을 직접 실행하세요.") from None
     with log.open("ab") as output:
         output.write(("$ " + shlex.join(command) + "\n").encode() + result.stdout + b"\n")
     if result.returncode not in accepted:
@@ -42,12 +53,12 @@ def run(root, command, log, accepted=(0,)):
         raise RuntimeError(f"검사 실패: {shlex.join(command)}\n{detail}\n로그: {log.relative_to(root)}")
 
 
-def check_files(root, names, base, log, structural=False):
+def check_files(root, names, base, log, structural=False, deadline=None):
     if not names:
         return
-    run(root, ["git", "diff", "--check", base, "--", *names], log)
+    run(root, ["git", "diff", "--check", base, "--", *names], log, deadline=deadline)
     if structural:
-        run(root, ["git", "diff", "--cached", "--check", "--", *names], log)
+        run(root, ["git", "diff", "--cached", "--check", "--", *names], log, deadline=deadline)
     untracked = set(git(root, "ls-files", "--others", "--exclude-standard", "-z").decode().split("\0"))
     tasks = {".": set(), "intellij-plugin": set()}
     for name in names:
@@ -56,7 +67,7 @@ def check_files(root, names, base, log, structural=False):
             continue
         path.resolve().relative_to(root.resolve())
         if name in untracked:
-            run(root, ["git", "diff", "--no-index", "--check", "--", "/dev/null", name], log, accepted=(0, 1))
+            run(root, ["git", "diff", "--no-index", "--check", "--", "/dev/null", name], log, accepted=(0, 1), deadline=deadline)
         suffix = path.suffix
         if suffix == ".py":
             ast.parse(path.read_bytes(), filename=name)
@@ -65,10 +76,10 @@ def check_files(root, names, base, log, structural=False):
         elif suffix == ".toml":
             tomllib.loads(path.read_text())
         elif suffix in (".js", ".mjs"):
-            run(root, ["node", "--check", name], log)
+            run(root, ["node", "--check", name], log, deadline=deadline)
         elif suffix == ".sh":
             shell = "bash" if "bash" in path.read_text().partition("\n")[0] else "sh"
-            run(root, [shell, "-n", name], log)
+            run(root, [shell, "-n", name], log, deadline=deadline)
         project = "intellij-plugin" if name.startswith("intellij-plugin/") else "."
         if suffix == ".kt":
             tasks[project].add("compileTestKotlin" if "/src/test/" in f"/{name}" else "compileKotlin")
@@ -79,7 +90,7 @@ def check_files(root, names, base, log, structural=False):
         tasks["."] = {"architectureTest"}
     for project, selected in tasks.items():
         if selected:
-            run(root, ["./gradlew", "--console=plain", "-p", project, *sorted(selected)], log)
+            run(root, ["./gradlew", "--console=plain", "-p", project, *sorted(selected)], log, deadline=deadline)
 
 
 def write_diff(root, base, directory):
@@ -100,16 +111,17 @@ def write_diff(root, base, directory):
     return target
 
 
-def finish(root, base, directory):
+def finish(root, base, directory, deadline=None):
     # 시작 커밋 이후의 커밋·stage·작업 파일과 미추적 파일을 한 번에 검토한다.
     base = git(root, "rev-parse", "--verify", "--end-of-options", f"{base}^{{commit}}").decode().strip()
     names = changed_files(root, base)
     patch = write_diff(root, base, directory)
-    check_files(root, names, base, directory / "checks.log", structural=True)
+    check_files(root, names, base, directory / "checks.log", structural=True, deadline=deadline)
     return f"전체 변경 {len(names)}개 검사 통과. {patch.relative_to(root)} 전체를 읽고 구조·누락·불필요한 변경을 검토하세요."
 
 
 def hook(root, payload, directory):
+    deadline = time.monotonic() + HOOK_BUDGET
     state_file = directory / "state.json"
     state = json.loads(state_file.read_text()) if state_file.exists() else None
     event = payload["hook_event_name"]
@@ -130,11 +142,11 @@ def hook(root, payload, directory):
                 return {}
             state["files"] = current
             state_file.write_text(json.dumps(state))
-            check_files(root, names, state["base"], directory / "checks.log")
+            check_files(root, names, state["base"], directory / "checks.log", deadline=deadline)
             return {"hookSpecificOutput": {"hookEventName": event,
                     "additionalContext": f"변경 파일 {len(names)}개 지역 검사 통과. 동작 테스트는 변경 범위에 맞게 별도로 실행하세요."}}
         if event == "Stop":
-            message = finish(root, state["base"], directory)
+            message = finish(root, state["base"], directory, deadline)
             state["complete"] = True
             state_file.write_text(json.dumps(state))
             return {"systemMessage": message}
@@ -153,7 +165,7 @@ def main(arguments=None):
     files.add_argument("paths", nargs="+")
     final = modes.add_parser("finish", help="작업 전체 diff와 구조 규칙 검사")
     final.add_argument("--base", required=True, help="작업 시작 커밋")
-    modes.add_parser("hook", help="Codex 훅의 JSON 입력 처리")
+    modes.add_parser("hook", help="Codex·Claude Code 훅의 JSON 입력 처리")
     args = parser.parse_args(arguments)
     payload = json.load(sys.stdin) if args.mode == "hook" else None
     key = hashlib.sha256(payload["session_id"].encode()).hexdigest()[:20] if payload else "manual"

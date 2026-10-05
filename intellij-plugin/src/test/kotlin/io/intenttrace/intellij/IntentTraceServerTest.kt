@@ -68,4 +68,18 @@ class IntentTraceServerTest {
             )
         }
     }
+
+    @Test
+    fun `이전 커밋 조회와 연결 진단은 같은 서버에 조건과 커서를 인코딩해 보낸다`() {
+        val server = IntentTraceServer.parse("https://trace.example.com")
+        val lookup = LineLookup("team/repository", "a".repeat(40), "src/한글.kt", 3)
+        val line = "repositoryKey=team%2Frepository&revision=${"a".repeat(40)}&path=src%2F%ED%95%9C%EA%B8%80.kt&line=3"
+        assertEquals("https://trace.example.com/api/v1/change-records/history?$line&limit=10", server.historyUri(lookup, null).toString())
+        assertEquals("https://trace.example.com/api/v1/change-records/history?$line&limit=10&cursor=h1.a%2Bb%3D",
+            server.historyUri(lookup, "h1.a+b=").toString())
+        assertEquals("https://trace.example.com/api/v1/connection-diagnostics?repositoryKey=team%2Frepository&revision=${"b".repeat(40)}",
+            server.diagnosticsUri("team/repository", "b".repeat(40)).toString())
+        assertEquals("https://trace.example.com/api/v1/connection-diagnostics?repositoryKey=team%2Frepository",
+            server.diagnosticsUri("team/repository", null).toString())
+    }
 }

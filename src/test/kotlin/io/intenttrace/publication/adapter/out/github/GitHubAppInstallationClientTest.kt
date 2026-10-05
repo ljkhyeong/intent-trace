@@ -8,7 +8,7 @@ import java.time.Clock
 import java.time.ZoneOffset
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubHttpPolicy
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
@@ -63,6 +63,7 @@ class GitHubAppInstallationClientTest {
         val client = GitHubAppInstallationClient(
             client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+            clock = Clock.systemUTC(),
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
@@ -90,6 +91,7 @@ class GitHubAppInstallationClientTest {
         val client = GitHubAppInstallationClient(
             client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
             jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+            clock = Clock.systemUTC(),
         )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andExpect(method(HttpMethod.GET))
@@ -116,6 +118,7 @@ class GitHubAppInstallationClientTest {
 
         assertEquals("installation-token", result.value)
         assertEquals(Instant.parse("2026-08-28T01:00:00Z"), result.expiresAt)
+        assertEquals(901, result.installationId)
         assertFalse(result.toString().contains("installation-token"))
         assertTrue(result.toString().contains("[보호됨]"))
         server.verify()

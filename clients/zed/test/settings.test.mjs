@@ -31,10 +31,13 @@ test('JSONC 주석과 다른 연결을 보존하고 미리보기·반복 등록�
     assert.equal(parse(content).context_servers.other.env.TOKEN, 'other-secret');
     assert.equal(parse(content).context_servers['intent-trace'].command, process.execPath);
     assert.deepEqual(parse(content).context_servers['intent-trace'].env, {});
+    assert.equal(parse(content).lsp['intent-trace'].binary.path, process.execPath);
+    assert.equal(parse(content).lsp['intent-trace'].binary.arguments.at(-2), 'lsp');
     assert.equal(run('--apply').status, 0);
     assert.equal(readFileSync(path, 'utf8'), content);
     assert.equal(run('https://intent.example/mcp', '--apply').status, 0);
     assert.equal(parse(readFileSync(path, 'utf8')).context_servers['intent-trace'].args.at(-1), 'https://intent.example/mcp');
+    assert.equal(parse(readFileSync(path, 'utf8')).lsp['intent-trace'].binary.arguments.at(-1), 'https://intent.example/mcp');
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -77,7 +80,7 @@ test('연결 위치와 끝 쉼표에 관계없이 다른 설정과 인접 주석
 test('제거 미리보기는 파일과 비밀값을 보존하고 적용은 해당 연결만 지운다', () => {
   const directory = mkdtempSync(join(tmpdir(), 'intent-trace-unconfigure-'));
   const path = join(directory, 'settings.json');
-  const original = '{"context_servers":{"other":{"env":{"TOKEN":"other-secret"}},"intent-trace":{"env":{"TOKEN":"old-secret"}}}}';
+  const original = '{"context_servers":{"other":{"env":{"TOKEN":"other-secret"}},"intent-trace":{"env":{"TOKEN":"old-secret"}}},"lsp":{"rust-analyzer":{},"intent-trace":{"binary":{"path":"node"}}}}';
   const env = { ...process.env, INTENT_TRACE_MCP_URL: 'invalid-address', INTENT_TRACE_SESSION_TOKEN: '' };
   const run = (...args) => spawnSync(process.execPath, [script, 'unconfigure', '--settings', path, ...args], { env, encoding: 'utf8' });
   try {
@@ -95,7 +98,7 @@ test('제거 미리보기는 파일과 비밀값을 보존하고 적용은 해�
     }
     const applied = run('--apply');
     assert.equal(applied.status, 0, applied.stderr);
-    assert.deepEqual(parse(readFileSync(path, 'utf8')), { context_servers: { other: { env: { TOKEN: 'other-secret' } } } });
+    assert.deepEqual(parse(readFileSync(path, 'utf8')), { context_servers: { other: { env: { TOKEN: 'other-secret' } } }, lsp: { 'rust-analyzer': {} } });
     if (process.platform !== 'win32') assert.equal(statSync(path).mode & 0o777, 0o640);
     const unchanged = run('--apply');
     assert.equal(unchanged.status, 0, unchanged.stderr);

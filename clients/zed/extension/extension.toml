@@ -1,0 +1,12 @@
+id = "intent-trace"
+name = "IntentTrace"
+version = "0.1.0"
+schema_version = 1
+authors = ["IntentTrace contributors"]
+description = "Shows published IntentTrace change records for the hovered line of committed code."
+repository = "https://github.com/ljkhyeong/intent-trace"
+
+# 다른 언어 서버와 함께 동작하는 보조 서버다. hover만 제공한다.
+[language_servers.intent-trace]
+name = "IntentTrace"
+languages = ["C", "C++", "CSS", "Go", "Java", "JavaScript", "JSON", "Kotlin", "Markdown", "Python", "Rust", "Shell Script", "TSX", "TypeScript", "YAML"]

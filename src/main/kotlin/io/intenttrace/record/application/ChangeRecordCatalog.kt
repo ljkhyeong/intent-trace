@@ -3,14 +3,17 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
+import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
+import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.requireRepositoryRelativePath
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-enum class RecordScope { MINE, TEAM, MY_DRAFTS }
+enum class RecordScope { MINE, TEAM }
 
 data class ChangeRecordSummary(
     val id: UUID,
@@ -26,13 +29,10 @@ data class ChangeRecordSummary(
     val publishedAt: Instant? = null,
 )
 
-data class ChangeRecordPage(
-    val items: List<ChangeRecordSummary>,
-    val nextCursor: String?,
-    val page: Int? = 0,
-    val size: Int = 20,
-    val hasNext: Boolean = nextCursor != null,
-)
+fun ChangeRecord.toSummary(): ChangeRecordSummary =
+    ChangeRecordSummary(id, title, requestSummary, repositoryKey, targetRevision, status, createdBy, createdAt, supersededBy, version, publishedAt)
+
+data class ChangeRecordPage(val items: List<ChangeRecordSummary>, val nextCursor: String?)
 
 data class RecordCursor(val createdAt: Instant, val id: UUID) {
     fun encode(): String = Base64.getUrlEncoder().withoutPadding()
@@ -90,8 +90,8 @@ class ChangeRecordCatalogService(
         val key = GitHubRepository.parse(repositoryKey).key
         val actor = access.requireReader(key)
         val allowed = when (scope) {
-            RecordScope.MINE, RecordScope.MY_DRAFTS -> setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
-            RecordScope.TEAM -> setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+            RecordScope.MINE -> AUTHOR_ONLY_STATUSES
+            RecordScope.TEAM -> TEAM_VISIBLE_STATUSES
         }
         require(status == null || status in allowed) { "조회 범위에 맞지 않는 기록 상태입니다." }
         require(scope == RecordScope.TEAM || authorId == null) { "내 초안 목록에는 다른 작성자 필터를 지정할 수 없습니다." }
@@ -99,12 +99,11 @@ class ChangeRecordCatalogService(
         val items = catalog.search(
             RecordCatalogQuery(
                 key, statuses,
-                if (scope != RecordScope.TEAM) actor.subject else authorId?.let { "github:$it" },
+                if (scope != RecordScope.TEAM) actor.subject else authorId?.let(ActorIdentity::githubSubject),
                 normalizedPath, cursor?.let(RecordCursor::parse), limit + 1, keyword, pullNumber,
             ),
         )
         val page = items.take(limit)
-        return ChangeRecordPage(page, if (items.size > limit) page.last().let { RecordCursor(it.createdAt, it.id).encode() } else null,
-            page = if (cursor == null) 0 else null, size = limit)
+        return ChangeRecordPage(page, if (items.size > limit) page.last().let { RecordCursor(it.createdAt, it.id).encode() } else null)
     }
 }

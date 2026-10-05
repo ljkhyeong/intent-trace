@@ -1,11 +1,12 @@
 package io.intenttrace.record.domain
 
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import java.time.Instant
 import java.util.UUID
 
 const val MAX_CODE_ANCHOR_LINE = 10_000_000L
+const val SHA_256_PATTERN = "^[0-9a-fA-F]{64}$"
+val SHA_256 = Regex(SHA_256_PATTERN)
 
 data class ChangeRecord(
     val id: UUID,
@@ -27,7 +28,7 @@ data class ChangeRecord(
     val codeAnchors: List<CodeAnchor>,
     val verifications: List<VerificationRun>,
     val openQuestions: List<String>,
-    val creationDigest: String? = null,
+    val creationDigest: String,
     val derivedFromRecordId: UUID? = null,
 ) {
     fun content(): ChangeRecordContent = ChangeRecordContent(
@@ -35,7 +36,7 @@ data class ChangeRecord(
     )
 
     fun requireSuccessorSource(actor: ActorIdentity) {
-        check(status == ChangeRecordStatus.PUBLISHED || status == ChangeRecordStatus.SUPERSEDED) {
+        check(status in TEAM_VISIBLE_STATUSES) {
             "공개하거나 대체된 기록에서만 후속 초안을 만들 수 있습니다."
         }
         check(actor.subject == createdBy.subject) { "작성자만 후속 초안을 만들 수 있습니다." }
@@ -49,7 +50,7 @@ data class ChangeRecord(
             title = content.title, requestSummary = content.requestSummary,
             decisions = content.decisions, codeAnchors = content.codeAnchors,
             verifications = content.verifications, openQuestions = content.openQuestions,
-            creationDigest = creationDigest ?: content().digest(), version = version + 1,
+            version = version + 1,
         )
     }
 
@@ -71,10 +72,8 @@ data class ChangeRecord(
         check(status == ChangeRecordStatus.DRAFT) { "초안 상태의 기록만 작성자가 확인할 수 있습니다." }
         check(actor.subject == createdBy.subject) { "기록을 만든 작성자만 확인할 수 있습니다." }
         check(snapshotDigest == currentSnapshotDigest) { "코드 스냅샷이 달라져 기록을 확인할 수 없습니다." }
-        val revision = GitRevision.parse(immutableRevision)
-
         return copy(
-            targetRevision = revision.value,
+            targetRevision = requireFullRevision(immutableRevision),
             status = ChangeRecordStatus.AUTHOR_CONFIRMED,
             confirmedAt = now,
             version = version + 1,
@@ -100,7 +99,7 @@ data class ChangeRecord(
         check(actor.subject == createdBy.subject && actor.subject == replacement.createdBy.subject) {
             "작성자가 만든 기록끼리만 대체할 수 있습니다."
         }
-        check(GitHubRepository.parse(repositoryKey).key == GitHubRepository.parse(replacement.repositoryKey).key) {
+        check(repositoryKey == replacement.repositoryKey) {
             "같은 저장소의 기록으로만 대체할 수 있습니다."
         }
         check(id != replacement.id) { "기록이 자기 자신을 대체할 수 없습니다." }
@@ -121,6 +120,10 @@ enum class ChangeRecordStatus {
     SUPERSEDED,
     DISCARDED,
 }
+
+val TEAM_VISIBLE_STATUSES: Set<ChangeRecordStatus> = setOf(ChangeRecordStatus.PUBLISHED, ChangeRecordStatus.SUPERSEDED)
+val AUTHOR_ONLY_STATUSES: Set<ChangeRecordStatus> =
+    setOf(ChangeRecordStatus.DRAFT, ChangeRecordStatus.AUTHOR_CONFIRMED, ChangeRecordStatus.DISCARDED)
 
 data class Decision(
     val summary: String,
@@ -153,10 +156,6 @@ data class CodeAnchor(
         }
         require(SHA_256.matches(contentHash)) { "코드 근거에는 SHA-256 해시가 필요합니다." }
     }
-
-    companion object {
-        private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")
-    }
 }
 
 enum class CodeSide { BASE, TARGET }
@@ -179,9 +178,6 @@ data class VerificationRun(
         require(SHA_256.matches(outputDigest)) { "검증 결과에는 SHA-256 출력 해시가 필요합니다." }
     }
 
-    fun isCurrentFor(record: ChangeRecord): Boolean = snapshotDigest == record.snapshotDigest
-
-    companion object {
-        private val SHA_256 = Regex("^[0-9a-fA-F]{64}$")
-    }
+    fun isCurrentFor(record: ChangeRecord, queryRevision: String? = null): Boolean =
+        snapshotDigest == record.snapshotDigest && (queryRevision == null || record.targetRevision == queryRevision.lowercase())
 }

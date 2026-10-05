@@ -23,7 +23,7 @@ import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.GitHubRateLimitException
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -63,10 +63,10 @@ class RecordEvidenceIntegrationTest(
         val published = records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, snapshot))
         assertEquals(CodeSide.BASE, records.get(draft.id).codeAnchors.first().side)
         assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(draft.id).verifications.first().source)
-        assertEquals(listOf(published.id), records.findIntent(repository.key, baseRevision, "old.txt", 1).map { it.id })
+        assertEquals(listOf(published.id), records.findIntent(repository.key, baseRevision, "old.txt", 1).items.map { it.id })
         assertFalse(ChangeRecordResponse.from(published, baseRevision).verifications.single().current)
         assertTrue(ChangeRecordResponse.from(published, targetRevision).verifications.single().current)
-        assertTrue(records.findIntent(repository.key, targetRevision, "old.txt", 1).isEmpty())
+        assertTrue(records.findIntent(repository.key, targetRevision, "old.txt", 1).items.isEmpty())
         val checked = evidence.check(draft.id)
         assertTrue(checked.codeVerified)
         assertFalse(checked.serverExecutionVerified)

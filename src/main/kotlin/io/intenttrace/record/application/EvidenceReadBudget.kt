@@ -11,9 +11,8 @@ class EvidenceReadStopped(val reason: HistoryStopReason) : RuntimeException("코
 class EvidenceReadBudget(
     private val timeLimit: Duration,
     private val maxRemoteCalls: Int,
-    private val nanoTime: () -> Long = System::nanoTime,
 ) {
-    private val started = nanoTime()
+    private val started = System.nanoTime()
     var remoteCalls: Int = 0
         private set
 
@@ -24,14 +23,14 @@ class EvidenceReadBudget(
 
     fun checkpoint() {
         if (Thread.currentThread().isInterrupted) throw EvidenceReadStopped(HistoryStopReason.CANCELLED)
-        if (nanoTime() - started >= timeLimit.toNanos()) throw EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
+        if (System.nanoTime() - started >= timeLimit.toNanos()) throw EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
     }
 
     fun beforeRemoteCall(): Duration {
         checkpoint()
         if (remoteCalls >= maxRemoteCalls) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
         remoteCalls++
-        return Duration.ofMillis(((timeLimit.toNanos() - (nanoTime() - started) + 999_999) / 1_000_000).coerceAtLeast(1))
+        return Duration.ofMillis(((timeLimit.toNanos() - (System.nanoTime() - started) + 999_999) / 1_000_000).coerceAtLeast(1))
     }
 }
 

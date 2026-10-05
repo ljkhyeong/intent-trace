@@ -10,7 +10,6 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
@@ -49,9 +48,7 @@ internal object IntentTraceRecordBrowser {
         ProgressManager.getInstance().run(object : Task.Modal(project, "IntentTrace 기록 조회", false) {
             override fun run(indicator: ProgressIndicator) {
                 val source = server ?: IntentTraceServer.current()
-                val token = IntentTraceCredentialStore().load(source)
-                    ?: throw IntentTraceUsageException("Tools > IntentTrace 세션 연결을 먼저 실행해 주세요.")
-                result = request(source, token)
+                result = request(source, IntentTraceCredentialStore().require(source))
             }
 
             override fun onThrowable(error: Throwable) {
@@ -79,7 +76,7 @@ internal open class RecordBrowserDialog(
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
     private val keyword = JBTextField(28).apply {
-        emptyText.text = "제목·요청·결정 검색 (최대 200자)"
+        emptyText.text = "제목·요청·결정 검색 (최대 ${MAX_KEYWORD_LENGTH}자)"
         addActionListener { search() }
     }
     private var previousQueries = emptyList<RecordListQuery>()
@@ -149,9 +146,15 @@ internal open class RecordBrowserDialog(
 
     private fun search() {
         val selected = filter.selectedItem as RecordFilter
+        val text = keyword.text.trim()
+        // 서버의 400 응답 대신 입력 위치에서 바로 안내하고 입력값은 고칠 수 있게 남긴다.
+        if (text.length > MAX_KEYWORD_LENGTH) {
+            Messages.showErrorDialog(project, "검색어는 ${MAX_KEYWORD_LENGTH}자 이하로 입력해 주세요.", "IntentTrace")
+            return
+        }
         reload(RecordListQuery(
             context.repositoryKey, selected.scope, context.relativePath.takeIf { fileOnly.isSelected }, selected.status,
-            keyword = keyword.text.trim().takeIf { it.isNotEmpty() },
+            keyword = text.takeIf { it.isNotEmpty() },
         ))
     }
 
@@ -185,6 +188,10 @@ internal open class RecordBrowserDialog(
             "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
         pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
+    }
+
+    private companion object {
+        const val MAX_KEYWORD_LENGTH = 200
     }
 }
 
@@ -220,21 +227,13 @@ internal open class RecordHistoryDialog(
                 addActionListener { browse { webRecordUri } }
             })
         }, BorderLayout.NORTH)
-        add(JBScrollPane(JBTextArea(IntentTraceTextRenderer.renderHistory(record)).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            border = JBUI.Borders.empty(12)
-            caretPosition = 0
-        }), BorderLayout.CENTER)
+        add(readOnlyTextPane(IntentTraceTextRenderer.renderHistory(record)), BorderLayout.CENTER)
         add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
             add(JButton("원래 커밋 열기").apply {
                 isEnabled = record.targetRevision != null
                 addActionListener { browse { GitHubEvidenceLinks.commit(record) } }
             })
-            val anchors = JComboBox(record.codeAnchors.map { it.label }.toTypedArray())
-            anchors.renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
-            anchors.preferredSize = Dimension(320, anchors.preferredSize.height)
+            val anchors = plainComboBox(record.codeAnchors.map { it.label })
             add(anchors)
             val openCode = JButton("당시 코드 열기").apply {
                 addActionListener {

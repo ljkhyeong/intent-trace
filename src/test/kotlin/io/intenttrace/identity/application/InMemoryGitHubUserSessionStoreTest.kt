@@ -1,5 +1,6 @@
 package io.intenttrace.identity.application
 
+import io.intenttrace.MutableClock
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
@@ -13,8 +14,6 @@ import java.net.URI
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
@@ -47,7 +46,7 @@ class InMemoryGitHubUserSessionStoreTest {
         val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
         val second = store.issue(owner, tokens(clock.instant(), "2", Duration.ofHours(8)))
 
-        store.revoke(store.resolve(first.sessionToken).localSessionId!!)
+        assertTrue(store.revoke(owner.subject, store.resolve(first.sessionToken).sessionId))
 
         assertFailsWith<GitHubUserAuthenticationException> { store.resolve(first.sessionToken) }
         assertEquals("ghu_access-2", store.resolve(second.sessionToken).accessToken)
@@ -70,6 +69,31 @@ class InMemoryGitHubUserSessionStoreTest {
         assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(first.sessionToken) }
         assertEquals("ghu_access-2", limitedStore.resolve(second.sessionToken).accessToken)
         assertEquals("ghu_access-3", limitedStore.resolve(third.sessionToken).accessToken)
+    }
+
+    @Test
+    fun `상한에서는 새 연결과 같은 종류의 오래된 session부터 폐기한다`() {
+        val limitedStore = InMemoryGitHubUserSessionStore(
+            oauth,
+            users,
+            GitHubProperties(userAuthorization = GitHubUserAuthorizationProperties(maxSessionsPerUser = 2)),
+            clock,
+        )
+        fun issue(suffix: String, channel: SessionChannel): IssuedGitHubUserSession {
+            clock.advance(Duration.ofSeconds(1))
+            return limitedStore.issue(owner, tokens(clock.instant(), suffix, Duration.ofHours(8)), channel)
+        }
+        val firstBrowser = issue("browser-1", SessionChannel.BROWSER)
+        val secondBrowser = issue("browser-2", SessionChannel.BROWSER)
+        // 같은 종류가 없으면 기존처럼 가장 오래된 연결을 폐기한다.
+        val client = issue("client", SessionChannel.CLIENT)
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(firstBrowser.sessionToken) }
+
+        repeat(2) { issue("browser-${it + 3}", SessionChannel.BROWSER) }
+
+        assertFailsWith<GitHubUserAuthenticationException> { limitedStore.resolve(secondBrowser.sessionToken) }
+        assertEquals("ghu_access-client", limitedStore.resolve(client.sessionToken).accessToken)
+        assertEquals(listOf(SessionChannel.BROWSER, SessionChannel.CLIENT), limitedStore.list(owner.subject).map { it.channel })
     }
 
     @Test
@@ -184,7 +208,7 @@ class InMemoryGitHubUserSessionStoreTest {
         val browser = store.issue(owner, tokens(clock.instant(), "browser", Duration.ofHours(8)), SessionChannel.BROWSER)
         val teammate = ActorIdentity.github(84, "teammate")
         store.issue(teammate, tokens(clock.instant(), "team", Duration.ofHours(8)))
-        val id = store.resolve(first.sessionToken).sessionId!!
+        val id = store.resolve(first.sessionToken).sessionId
         assertEquals(3, store.list(owner.subject).size)
         assertFalse(store.list(owner.subject).toString().contains("ghu_"))
         assertFalse(store.revoke(teammate.subject, id))
@@ -199,7 +223,7 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["현재", "브라우저", "선택", "전체"])
+    @ValueSource(strings = ["브라우저", "선택", "전체"])
     fun `세션 폐기는 진행 중인 갱신을 기다리지 않고 해당 인증도 거부한다`(mode: String) {
         val channel = if (mode == "브라우저") SessionChannel.BROWSER else SessionChannel.CLIENT
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)), channel)
@@ -214,9 +238,8 @@ class InMemoryGitHubUserSessionStoreTest {
             assertTrue(entered.await(5, TimeUnit.SECONDS))
             executor.submit<Unit> {
                 when (mode) {
-                    "현재" -> store.revoke(session.localSessionId!!)
                     "브라우저" -> store.revokeBrowser(issued.sessionToken)
-                    "선택" -> assertTrue(store.revoke(owner.subject, session.sessionId!!))
+                    "선택" -> assertTrue(store.revoke(owner.subject, session.sessionId))
                     "전체" -> assertEquals(1, store.revokeAll(owner.subject))
                 }
             }.get(5, TimeUnit.SECONDS)
@@ -353,20 +376,6 @@ class InMemoryGitHubUserSessionStoreTest {
             repository: GitHubRepository,
         ): RepositoryRole? =
             error("사용하지 않는 테스트 경로")
-    }
-
-    private class MutableClock(
-        private var current: Instant,
-    ) : Clock() {
-        override fun instant(): Instant = current
-
-        override fun getZone(): ZoneId = ZoneOffset.UTC
-
-        override fun withZone(zone: ZoneId): Clock = this
-
-        fun advance(duration: Duration) {
-            current = current.plus(duration)
-        }
     }
 
     companion object {

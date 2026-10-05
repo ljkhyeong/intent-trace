@@ -1,12 +1,13 @@
 package io.intenttrace.record.application
 
 import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.publication.application.GitHubApiException
+import io.intenttrace.config.GitHubApiException
 
 enum class EvidenceUnavailableReason(val message: String) {
     SIZE_LIMIT("파일 또는 응답이 지원 크기를 초과했습니다."),
     TRUNCATED_TREE("GitHub에서 전체 파일 트리를 받지 못했습니다."),
     UNSUPPORTED_OBJECT("현재 지원하지 않는 Git 객체입니다."),
+    REVISION_NOT_FOUND("GitHub에서 커밋을 찾을 수 없습니다. 원격 저장소에 푸시했는지 확인하세요."),
 }
 
 class EvidenceUnavailableException(val reason: EvidenceUnavailableReason) :

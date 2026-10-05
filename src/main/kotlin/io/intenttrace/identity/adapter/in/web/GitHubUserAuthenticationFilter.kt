@@ -1,7 +1,7 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.identity.application.CurrentGitHubUserSession
-import io.intenttrace.identity.application.GitHubUserCredentialProvider
+import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
@@ -30,7 +30,7 @@ class RequestGitHubUserSession(
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 class GitHubUserAuthenticationFilter(
-    private val credentials: GitHubUserCredentialProvider,
+    private val sessions: GitHubUserSessionStore,
     private val mapper: ObjectMapper,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
@@ -43,24 +43,19 @@ class GitHubUserAuthenticationFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val accessToken = bearerToken(request)
-        if (accessToken == null) {
-            unauthorized(response)
-            return
-        }
-
+        val accessToken = bearerToken(request) ?: return problem(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED)
         try {
-            request.setAttribute(SESSION_ATTRIBUTE, credentials.authenticate(accessToken))
+            request.setAttribute(SESSION_ATTRIBUTE, sessions.resolve(accessToken))
             filterChain.doFilter(request, response)
         } catch (exception: GitHubRateLimitException) {
             response.setHeader(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
             problem(response, 429, exception.message ?: "GitHub 호출 제한")
         } catch (_: GitHubUserAuthenticationException) {
-            unauthorized(response)
+            problem(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED)
         } catch (_: GitHubIdentityApiException) {
-            dependencyFailure(response)
+            problem(response, HttpServletResponse.SC_BAD_GATEWAY, DEPENDENCY_FAILURE)
         } catch (_: GitHubOAuthException) {
-            dependencyFailure(response)
+            problem(response, HttpServletResponse.SC_BAD_GATEWAY, DEPENDENCY_FAILURE)
         } finally {
             request.removeAttribute(SESSION_ATTRIBUTE)
         }
@@ -70,19 +65,8 @@ class GitHubUserAuthenticationFilter(
         val header = request.getHeader(HttpHeaders.AUTHORIZATION) ?: return null
         if (!header.startsWith(BEARER_PREFIX, ignoreCase = true)) return null
         val token = header.substring(BEARER_PREFIX.length).trim()
-        return token.takeIf {
-            (it.startsWith(GITHUB_USER_TOKEN_PREFIX) || it.startsWith(INTENT_TRACE_SESSION_TOKEN_PREFIX)) &&
-                it.length <= MAX_TOKEN_LENGTH &&
-                it.none(Char::isWhitespace)
-        }
-    }
-
-    private fun unauthorized(response: HttpServletResponse) {
-        problem(response, HttpServletResponse.SC_UNAUTHORIZED, "GitHub 사용자 인증 실패")
-    }
-
-    private fun dependencyFailure(response: HttpServletResponse) {
-        problem(response, HttpServletResponse.SC_BAD_GATEWAY, "GitHub 사용자 인증 서비스 오류")
+        // REST·MCP는 IntentTrace가 발급한 its_ 세션만 받는다. GitHub 토큰은 서버 메모리에만 둔다.
+        return token.takeIf { it.startsWith(SESSION_TOKEN_PREFIX) && it.length <= MAX_TOKEN_LENGTH && it.none(Char::isWhitespace) }
     }
 
     private fun problem(response: HttpServletResponse, status: Int, title: String) {
@@ -95,8 +79,9 @@ class GitHubUserAuthenticationFilter(
     companion object {
         const val SESSION_ATTRIBUTE = "io.intenttrace.github-user-session"
         private const val BEARER_PREFIX = "Bearer "
-        private const val GITHUB_USER_TOKEN_PREFIX = "ghu_"
-        private const val INTENT_TRACE_SESSION_TOKEN_PREFIX = "its_"
+        private const val SESSION_TOKEN_PREFIX = "its_"
+        private const val UNAUTHORIZED = "GitHub 사용자 인증 실패"
+        private const val DEPENDENCY_FAILURE = "GitHub 사용자 인증 서비스 오류"
         private const val MAX_TOKEN_LENGTH = 8_192
     }
 }

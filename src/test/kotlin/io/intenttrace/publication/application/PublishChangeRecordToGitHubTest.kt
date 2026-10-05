@@ -1,5 +1,7 @@
 package io.intenttrace.publication.application
 
+import io.intenttrace.config.GitHubApiException
+import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
@@ -8,6 +10,7 @@ import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
+import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
@@ -27,19 +30,19 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.TeamChangeRecordService
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import java.util.concurrent.Executors
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 class PublishChangeRecordToGitHubTest {
     private val record = publishedRecord()
     private val gateway = FakeGitHubGateway(record.targetRevision!!)
     private val publicationRepository = InMemoryGitHubPublicationRepository()
     private val publisher = PublishChangeRecordToGitHub(
-        markdownRenderer = ChangeRecordMarkdownRenderer(),
+        markdownRenderer = ChangeRecordMarkdownRenderer(GitHubProperties()),
         gitHubGateway = gateway,
         publicationRepository = publicationRepository,
         clock = fixedClock,
@@ -57,6 +60,26 @@ class PublishChangeRecordToGitHubTest {
         assertEquals("intent-trace:${record.id}", gateway.lastCommand?.externalId)
         assertEquals(publication, publicationRepository.find(record.id, target))
         assertTrue(gateway.lastCommand!!.markdown.contains("등록된 검증 결과가 없습니다."))
+        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
+    }
+
+    @Test
+    fun `코드 주석을 요청하면 변경 후 근거에만 결정 요약 주석을 50개까지 만든다`() {
+        val anchors = listOf(CodeAnchor("src/Old.kt", null, 2, 3, "e".repeat(64), side = CodeSide.BASE)) +
+            (1..51).map { CodeAnchor("src/App$it.kt", null, it, it + 1, "d".repeat(64)) }
+        val annotated = record.copy(baseRevision = "a".repeat(40), codeAnchors = anchors)
+
+        publisher.publish(annotated, PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
+
+        val annotations = gateway.lastCommand!!.annotations
+        assertEquals((1..50).map { "src/App$it.kt" }, annotations.map { it.path })
+        assertEquals(
+            CheckRunAnnotation(
+                "src/App1.kt", 1, 2, "변경 의도: GitHub PR에 변경 의도 게시",
+                "구현 결정과 이유\n- PR HEAD를 확인한다. — 사용자가 명시함\n요청·관련 코드·검증 결과는 이 Check Run 상세에서 확인하세요.",
+            ),
+            annotations.first(),
+        )
     }
 
     @Test
@@ -165,6 +188,19 @@ class PublishChangeRecordToGitHubTest {
     }
 
     @Test
+    fun `GitHub에 쓰기 전 PR 조회 실패는 결과 미확인이 아닌 실패로 남긴다`() {
+        val tracking = MemoryTracking()
+        gateway.headFailure = GitHubApiException("GitHub Pull Request 조회 요청이 실패했습니다. HTTP 404")
+
+        val failure = assertFailsWith<PullRequestUnavailableException> { teamPublisher(tracking).publish(PublishChangeRecordToGitHubCommand(record.id, target)) }
+
+        assertTrue(failure.message.orEmpty().startsWith("GitHub Pull Request 조회 요청이 실패했습니다. HTTP 404"))
+        assertEquals(PublicationAttemptStatus.FAILED, tracking.statuses.values.single())
+        assertEquals("PULL_REQUEST_UNAVAILABLE", tracking.codes.values.single())
+        assertTrue(gateway.commands.isEmpty())
+    }
+
+    @Test
     fun `게시 이력이 없는 대체 안내는 GitHub 조회 전에 거부한다`() {
         val superseded = record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = UUID.randomUUID())
 
@@ -182,8 +218,9 @@ class PublishChangeRecordToGitHubTest {
         val replacement = UUID.randomUUID()
         gateway.headRevision = "f".repeat(40)
         val result = publisher.syncSupersession(record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement),
-            PublishChangeRecordToGitHubCommand(record.id, target))
+            PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
         assertEquals(42L, result.checkRunId)
+        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
         assertEquals(record.targetRevision, gateway.lastCommand?.headRevision)
         assertTrue(gateway.lastCommand!!.markdown.contains(replacement.toString()))
         assertEquals(1, gateway.creations)
@@ -192,16 +229,21 @@ class PublishChangeRecordToGitHubTest {
     private fun teamPublisher(tracking: MemoryTracking = MemoryTracking()): TeamGitHubPublicationService {
         val records = mock(TeamChangeRecordService::class.java)
         `when`(records.requireOwnedContributor(record.id)).thenReturn(record)
-        return TeamGitHubPublicationService(records, publisher, tracking, publicationRepository)
+        return TeamGitHubPublicationService(records, publisher, tracking, publicationRepository, SimpleMeterRegistry())
     }
 
     private class MemoryTracking : GitHubPublicationTracking {
         val statuses = linkedMapOf<UUID, PublicationAttemptStatus>()
+        val codes = linkedMapOf<UUID, String?>()
         override fun start(recordId: UUID, target: GitHubPullRequestTarget, operation: PublicationOperation): UUID =
             UUID.randomUUID().also { statuses[it] = PublicationAttemptStatus.IN_PROGRESS }
-        override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) { statuses[attemptId] = status }
+        override fun finish(attemptId: UUID, status: PublicationAttemptStatus, failureCode: String?, publication: GitHubPublication?) {
+            statuses[attemptId] = status
+            codes[attemptId] = failureCode
+        }
         override fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt> = emptyList()
         override fun latest(recordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, PublicationAttempt> = emptyMap()
+        override fun latestByTarget(recordId: UUID, limit: Int): List<PublicationTargetAttempt> = emptyList()
     }
 
     private class FakeGitHubGateway(
@@ -212,12 +254,14 @@ class PublishChangeRecordToGitHubTest {
         val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
         var lastCommand: UpsertGitHubCheckRunCommand? = null
         var failAfterCreate = false
+        var headFailure: GitHubApiException? = null
         var creations = 0
         var beforeUpsert: () -> Unit = {}
         @Volatile private var checkRun: GitHubCheckRun? = null
 
         override fun getHeadRevision(target: GitHubPullRequestTarget): String {
             headRequests.incrementAndGet()
+            headFailure?.let { throw it }
             return headRevision
         }
 
@@ -249,6 +293,9 @@ class PublishChangeRecordToGitHubTest {
             records[publication.changeRecordId to publication.target] = publication
             return publication
         }
+
+        override fun findByRecord(changeRecordId: UUID, limit: Int): List<GitHubPublication> =
+            records.values.filter { it.changeRecordId == changeRecordId }.take(limit)
     }
 
     companion object {
@@ -274,6 +321,7 @@ class PublishChangeRecordToGitHubTest {
             codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 4, "d".repeat(64))),
             verifications = emptyList(),
             openQuestions = emptyList(),
+            creationDigest = "d".repeat(64),
         )
     }
 }

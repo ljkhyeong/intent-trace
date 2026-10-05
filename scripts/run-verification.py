@@ -77,10 +77,8 @@ def main() -> int:
         snapshot = hashlib.sha256(git("-c", "core.quotePath=true", "ls-tree", "-r", "--full-tree", arguments.revision)).hexdigest()
         started = now()
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        digest = hashlib.sha256()
         with process.stdout:
-            while chunk := process.stdout.read(65536):
-                digest.update(chunk)
+            digest = hashlib.file_digest(process.stdout, "sha256")
         exit_code = process.wait()
         finished = now()
         require_clean(arguments.revision)

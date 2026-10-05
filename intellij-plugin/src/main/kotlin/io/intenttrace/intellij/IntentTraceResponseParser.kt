@@ -7,11 +7,15 @@ import kotlinx.serialization.json.Json
 internal object IntentTraceResponseParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(body: String): List<ChangeIntentRecord> = decode(body)
+    fun parseLookup(body: String): ChangeIntentLookup = decode(body)
 
     fun parseRecord(body: String): ChangeIntentRecord = decode(body)
 
     fun parsePage(body: String): ChangeRecordPage = decode(body)
+
+    fun parseDiagnosis(body: String): ConnectionDiagnosis = decode(body)
+
+    fun parseHistory(body: String): ChangeIntentHistory = decode(body)
 
     fun parseHealth(body: String): String = decode<HealthResponse>(body).status
 

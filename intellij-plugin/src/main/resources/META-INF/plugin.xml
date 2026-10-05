@@ -1,8 +1,5 @@
 <idea-plugin>
-    <id>io.intenttrace.lineintent</id>
-    <name>IntentTrace</name>
-    <vendor url="https://github.com/ljkhyeong/intent-trace">IntentTrace 기여자</vendor>
-
+    <!-- id·이름·버전·설명·제공자는 build.gradle.kts의 pluginConfiguration이 빌드 때 채운다. -->
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
 
@@ -19,7 +16,7 @@
             id="io.intenttrace.intellij.OpenSettings"
             class="io.intenttrace.intellij.OpenIntentTraceSettingsAction"
             text="IntentTrace 서버 설정"
-            description="서버 주소를 변경하고 로그인 정보 없이 서버 연결을 확인합니다.">
+            description="서버 주소를 변경하고 서버 연결과 로그인 상태를 확인합니다.">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
         <action
@@ -44,6 +41,13 @@
             description="현재 Git HEAD의 파일과 줄에 연결된 IntentTrace 공개 기록을 조회합니다."
             icon="AllIcons.Actions.Find">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
+            id="io.intenttrace.intellij.DiagnoseRepository"
+            class="io.intenttrace.intellij.RepositoryDiagnosisAction"
+            text="IntentTrace 저장소 연결 진단"
+            description="현재 파일 저장소의 로그인·읽기·쓰기 권한과 HEAD 커밋 코드 읽기를 서버에서 확인합니다. 게시나 테스트 실행은 하지 않습니다.">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
         <action

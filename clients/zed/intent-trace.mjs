@@ -1,20 +1,23 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { BridgeFailure } from './errors.mjs';
+import { BridgeFailure, UsageError } from './errors.mjs';
 
 export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
+const serverEntry = url => ({ command: process.execPath, args: [script, 'serve', url.href], env: {} });
+// Zed 확장은 lsp.intent-trace.binary가 있으면 이 명령으로 hover 언어 서버를 실행한다.
+const languageServerEntry = url => ({ binary: { path: process.execPath, arguments: [script, 'lsp', url.href] } });
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
-  config: 'config [MCP 주소]\n  Zed에 등록할 연결 설정을 출력합니다. 파일은 변경하지 않습니다.',
-  configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  연결 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
+  config: 'config [MCP 주소]\n  Zed에 등록할 MCP 연결·hover 언어 서버 설정을 출력합니다. 파일은 변경하지 않습니다.',
+  configure: 'configure [MCP 주소] [--settings 설정파일] [--apply]\n  MCP 연결·hover 언어 서버 설정을 미리 봅니다. --apply를 지정하면 설정 파일에 저장합니다.',
   unconfigure: 'unconfigure [--settings 설정파일] [--apply]\n  IntentTrace 연결 제거를 미리 봅니다. --apply를 지정하면 설정에서 제거합니다.',
   check: 'check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호]\n  MCP 연결과 저장소 권한을 점검합니다. 저장소만 입력할 수 있으며 PR·커밋 옵션에는 저장소가 필요합니다.',
   serve: 'serve [MCP 주소]\n  Zed의 stdio 요청을 IntentTrace MCP 서버에 전달합니다.',
+  lsp: 'lsp [MCP 주소]\n  Zed 편집기 hover에 커밋된 현재 줄의 공개 기록 요약을 표시하는 언어 서버를 실행합니다.',
   launch: 'launch [Zed 인자]\n  세션을 전달해 Zed를 실행합니다. 뒤의 인자는 Zed에 그대로 전달합니다.',
 };
 
@@ -22,25 +25,26 @@ function printHelp(mode) {
   console.log(mode ? `사용법: intent-trace-zed ${commandUsage[mode]}`
     : `사용법: intent-trace-zed <명령> [옵션]\n\n${Object.values(commandUsage).join('\n\n')}`);
   console.log('\nMCP 주소는 INTENT_TRACE_MCP_URL 환경 변수, 없으면 http://127.0.0.1:8080/mcp를 사용합니다.');
-  console.log('check·serve에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
+  console.log('check·serve·lsp에는 INTENT_TRACE_SESSION_TOKEN 환경 변수가 필요합니다. 토큰을 명령 인자에 넣지 마세요.');
   console.log('--version 또는 -V로 설치된 연결 도구의 버전을 확인합니다.');
 }
 
 export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl) {
   let url;
-  try { url = new URL(value); } catch { throw new Error('IntentTrace MCP 주소 형식을 확인하세요.'); }
+  try { url = new URL(value); } catch { throw new UsageError('IntentTrace MCP 주소 형식을 확인하세요.'); }
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
       url.username || url.password || url.search || url.hash || url.pathname !== '/mcp') {
-    throw new Error('MCP 주소는 HTTPS 또는 로컬 HTTP의 /mcp 경로여야 하며 인증 정보와 쿼리를 넣을 수 없습니다.');
+    throw new UsageError('MCP 주소는 HTTPS 또는 로컬 HTTP의 /mcp 경로여야 하며 인증 정보와 쿼리를 넣을 수 없습니다.');
   }
   return url;
 }
 
 export function sessionToken() {
   const value = process.env.INTENT_TRACE_SESSION_TOKEN;
-  if (!value || !/^its_[A-Za-z0-9_-]{32,128}$/.test(value)) {
-    throw new Error('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
+  // 서버는 32바이트 무작위 값을 Base64URL 43자로 발급한다. IntelliJ와 같은 형식만 받는다.
+  if (!value || !/^its_[A-Za-z0-9_-]{43}$/.test(value)) {
+    throw new UsageError('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
   }
   return value;
 }
@@ -52,17 +56,17 @@ function checkOptions(args) {
       revision: { type: 'string' }, pr: { type: 'string' },
     } });
   } catch {
-    throw new Error('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
+    throw new UsageError('IntentTrace 연결 점검: check [MCP 주소] [owner/repo] [--revision 커밋] [--pr 번호] 형식을 확인하세요.');
   }
   const { values } = parsed;
   const positionals = parsed.positionals.length === 1 && /^[^:/\s]+\/[^/\s]+$/.test(parsed.positionals[0])
     ? [undefined, parsed.positionals[0]] : parsed.positionals;
   const pullNumber = values.pr === undefined ? undefined : Number(values.pr);
   if (pullNumber !== undefined && (!Number.isSafeInteger(pullNumber) || pullNumber <= 0)) {
-    throw new Error('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
+    throw new UsageError('IntentTrace 연결 점검: PR 번호는 양수인 정수여야 합니다.');
   }
   if ((values.revision !== undefined || pullNumber !== undefined) && !positionals[1]) {
-    throw new Error('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
+    throw new UsageError('IntentTrace 연결 점검: PR 또는 커밋을 확인하려면 owner/repo를 지정하세요.');
   }
   return { positionals, diagnostic: { revision: values.revision, pullNumber } };
 }
@@ -82,7 +86,7 @@ async function main() {
     const launcher = existsSync(bundled) ? bundled : new URL('../../scripts/zed-with-intent-trace.py', import.meta.url);
     const child = spawn(process.platform === 'win32' ? 'python' : 'python3', [fileURLToPath(launcher), ...arguments_], { stdio: 'inherit' });
     process.exitCode = await new Promise((resolve, reject) => {
-      child.once('error', () => reject(new Error('Zed 설정: Python 3와 Zed CLI 설치를 확인하세요.')));
+      child.once('error', () => reject(new UsageError('Zed 설정: Python 3와 Zed CLI 설치를 확인하세요.')));
       child.once('close', code => resolve(code ?? 1));
     });
     return;
@@ -96,24 +100,22 @@ async function main() {
       } });
       if (parsed.positionals.length > (mode === 'configure' ? 1 : 0)) throw new Error();
     } catch {
-      throw new Error(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
+      throw new UsageError(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    const entry = mode === 'configure'
-      ? { command: process.execPath, args: [script, 'serve', endpoint(parsed.positionals[0]).href], env: {} }
-      : undefined;
-    return configure(parsed.values.settings ?? defaultSettingsPath(), entry, parsed.values.apply);
+    const url = mode === 'configure' ? endpoint(parsed.positionals[0]) : undefined;
+    return configure(parsed.values.settings ?? defaultSettingsPath(), url ? [serverEntry(url), languageServerEntry(url)] : [undefined, undefined], parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
-  if (positionals.length > (mode === 'check' ? 2 : 1)) throw new Error('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
+  if (positionals.length > (mode === 'check' ? 2 : 1)) throw new UsageError('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   const url = endpoint(address);
   if (mode === 'config') {
-    console.log(JSON.stringify({ context_servers: { 'intent-trace': {
-      command: process.execPath, args: [script, 'serve', url.href], env: {},
-    } } }, null, 2));
+    console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) }, lsp: { 'intent-trace': languageServerEntry(url) } }, null, 2));
     return;
   }
-  sessionToken();
+  const token = sessionToken();
+  // 언어 서버는 표준 출력을 LSP 통신에만 쓴다.
+  if (mode === 'lsp') return (await import('./lsp.mjs')).serveLanguageServer(url, token);
   const bridge = await import('./bridge.mjs');
   if (mode === 'serve') await bridge.serve(url);
   else await bridge.check(script, url, repositoryKey, diagnostic);
@@ -130,8 +132,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
     // 외부 HTTP 오류·설정 값·토큰을 콘솔에 전달하지 않는다.
     const message = error?.code === 'ERR_MODULE_NOT_FOUND'
       ? '연결 도구를 다시 설치하세요. 소스 실행 시 clients/zed에서 npm ci를 실행하세요.'
-      : error?.message?.startsWith('Zed 설정:') || error?.message?.startsWith('INTENT_TRACE_SESSION_TOKEN') || error?.message?.startsWith('MCP 주소') || error?.message?.startsWith('IntentTrace MCP 주소') || error?.message?.startsWith('IntentTrace 연결 점검:')
-        ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
+      : error instanceof UsageError ? error.message : 'IntentTrace 연결을 완료하지 못했습니다. 서버 주소·세션 만료·저장소 권한을 확인하세요.';
     console.error(message);
     process.exitCode = 1;
   });

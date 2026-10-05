@@ -11,7 +11,7 @@ import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
-import org.springframework.util.LinkedMultiValueMap
+import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
@@ -53,31 +53,31 @@ class GitHubUserOAuthRestClient(
         require(PKCE_VERIFIER.matches(codeVerifier)) { "PKCE code verifier 형식이 올바르지 않습니다." }
         return tokenRequest(
             operation = "사용자 승인 code 교환",
-            form = form(
+            form = MultiValueMap.fromSingleValue(mapOf(
                 "client_id" to properties.app.clientId,
                 "client_secret" to properties.userAuthorization.clientSecret,
                 "code" to code,
                 "redirect_uri" to properties.userAuthorization.callbackUrl.toString(),
                 "code_verifier" to codeVerifier,
-            ),
+            )),
             refresh = false,
         )
     }
 
     override fun refresh(refreshToken: String): GitHubUserOAuthTokens = tokenRequest(
         operation = "사용자 token 갱신",
-        form = form(
+        form = MultiValueMap.fromSingleValue(mapOf(
             "client_id" to properties.app.clientId,
             "client_secret" to properties.userAuthorization.clientSecret,
             "grant_type" to "refresh_token",
             "refresh_token" to refreshToken,
-        ),
+        )),
         refresh = true,
     )
 
     private fun tokenRequest(
         operation: String,
-        form: LinkedMultiValueMap<String, String>,
+        form: MultiValueMap<String, String>,
         refresh: Boolean,
     ): GitHubUserOAuthTokens {
         requireConfiguration()
@@ -130,9 +130,6 @@ class GitHubUserOAuthRestClient(
             throw GitHubOAuthConfigurationException()
         }
     }
-
-    private fun form(vararg entries: Pair<String, String>): LinkedMultiValueMap<String, String> =
-        LinkedMultiValueMap<String, String>().also { form -> entries.forEach { form.add(it.first, it.second) } }
 
     companion object {
         private val PKCE_CHALLENGE = Regex("^[A-Za-z0-9_-]{43}$")

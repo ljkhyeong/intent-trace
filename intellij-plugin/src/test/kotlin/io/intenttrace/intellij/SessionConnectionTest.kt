@@ -8,6 +8,7 @@ import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -129,13 +130,13 @@ class SessionConnectionTest {
             val status = AtomicInteger()
             val authorization = AtomicReference<String>()
             val storedAtRequest = AtomicReference<String>()
-            httpServer.createContext("/api/v1/session") { exchange ->
+            httpServer.createContext("/api/v1/me/sessions/current") { exchange ->
                 authorization.set(exchange.requestHeaders.getFirst("Authorization"))
                 storedAtRequest.set(credentials.loadStored(server))
                 exchange.sendResponseHeaders(status.get(), -1)
                 exchange.close()
             }
-            for (responseStatus in listOf(204, 401)) {
+            for (responseStatus in listOf(200, 401)) {
                 status.set(responseStatus)
                 credentials.save(server, previousToken)
 
@@ -159,7 +160,7 @@ class SessionConnectionTest {
         withServer { httpServer, server ->
             val status = AtomicInteger()
             val requests = AtomicInteger()
-            httpServer.createContext("/api/v1/session") { exchange ->
+            httpServer.createContext("/api/v1/me/sessions/current") { exchange ->
                 requests.incrementAndGet()
                 exchange.sendResponseHeaders(status.get(), -1)
                 exchange.close()
@@ -170,12 +171,33 @@ class SessionConnectionTest {
                 status.set(responseStatus)
                 val requestsBefore = requests.get()
 
-                assertFailsWith<IntentTraceClientException> { disconnectSession(server, credentials) }
+                val error = assertFailsWith<IntentTraceClientException> { disconnectSession(server, credentials) }
 
+                assertEquals(responseStatus == 429, error is IntentTraceRateLimitException)
                 assertEquals(previousToken, credentials.loadStored(server))
                 assertEquals(requestsBefore + 1, requests.get())
             }
         }
+    }
+
+    @Test
+    fun `서버에 닿지 않으면 확인 후 이 PC의 저장 세션만 서버 요청 없이 삭제한다`() {
+        val unreachable = IntentTraceServer.parse("http://127.0.0.1:1")
+        val other = IntentTraceServer.parse("https://other.example.com")
+        val credentials = IntentTraceCredentialStore(MemoryCredentialStore(), environmentUrl = { unreachable.baseUri.toString() }) { newToken }
+        credentials.save(unreachable, previousToken)
+        credentials.save(other, previousToken)
+
+        val failure = assertFailsWith<IntentTraceClientException> { disconnectSession(unreachable, credentials) }
+        assertFalse(failure is IntentTraceRateLimitException)
+        assertEquals(previousToken, credentials.loadStored(unreachable))
+        assertContains(localDeletionPrompt(unreachable, failure.message.orEmpty()), "이 PC에 저장한 세션만 삭제할까요?")
+
+        assertEquals("${unreachable.baseUri}의 PasswordSafe 세션을 이 PC에서 삭제했습니다. 서버의 연결은 만료되거나 웹의 내 연결 화면에서 종료할 때까지 남습니다. " +
+            "INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다.", forgetLocalSession(unreachable, credentials))
+        assertNull(credentials.loadStored(unreachable))
+        assertEquals(previousToken, credentials.loadStored(other))
+        assertContains(forgetLocalSession(unreachable, credentials), "삭제할 저장 세션이 없습니다.")
     }
 
     private fun credentials() = IntentTraceCredentialStore(MemoryCredentialStore(), environmentUrl = { null }) { null }
