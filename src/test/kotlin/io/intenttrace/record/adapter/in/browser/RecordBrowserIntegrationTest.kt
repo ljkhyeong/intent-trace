@@ -466,6 +466,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             val recordUrl = link(listing, successor.title)
             val detail = read(recordUrl)
             assertEquals(source, link(detail, backLabel))
+            assertEquals(URI(url("/records/pull-requests", "repositoryKey" to repository, "pullNumber" to "27")), link(detail, "PR #27"))
             for (label in listOf("GitHub 코드와 비교", "기록 변경 이력")) {
                 val sectionUrl = link(detail, label)
                 val section = read(if (label == "기록 변경 이력") URI("$sectionUrl&beforeVersion=3") else sectionUrl)

@@ -14,5 +14,6 @@
 ## 변경 요청 복구
 
 - 대체 요청의 응답이 없거나 버전이 충돌하면 기존 기록을 다시 조회한다. 원하는 `supersededBy`가 이미 연결됐으면 완료다. 다른 대체 대상이나 버전 변경이 있으면 무조건 재전송하지 말고 변경 내용을 알린다.
+- 대체된 기록의 GitHub 반영을 요청받으면 `list_record_publications`로 게시한 PR과 `supersessionNoticeNeeded`를 확인하고, 사용자가 지정한 PR에만 `sync_superseded_record_to_github_pr`를 실행한다.
 - GitHub 게시 응답을 받지 못하면 `get_github_publication_status`로 먼저 확인한다. `RESULT_UNKNOWN`은 실패 확정이 아니다. 이미 요청받은 같은 게시·대체 안내를 재실행해 기존 Check Run으로 복구한다.
 - 호출 제한은 응답의 재시도 대기 시간을 따른다. 기한 전에 반복 호출하지 않는다.

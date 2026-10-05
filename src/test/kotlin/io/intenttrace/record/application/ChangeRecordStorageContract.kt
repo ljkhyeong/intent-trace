@@ -79,6 +79,34 @@ abstract class ChangeRecordStorageContract {
     }
 
     @Test
+    fun `기록별 게시 목록은 PR마다 최신 시도와 대체 안내 성공 여부를 반환한다`() {
+        val record = published()
+        val target = GitHubPullRequestTarget("ACME", "RECORD-TARGETS", 81)
+        val older = publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!,
+            81, "https://github.test/check/81", digest, Instant.EPOCH))
+        val newer = publications.save(older.copy(id = UUID.randomUUID(), target = target.copy(pullNumber = 82), checkRunId = 82,
+            publishedAt = Instant.EPOCH.plusSeconds(60)))
+        fun attempt(pullNumber: Int, operation: PublicationOperation, status: PublicationAttemptStatus, second: Long): UUID =
+            tracking.start(record.id, target.copy(pullNumber = pullNumber), operation).also {
+                storageJdbc.update("update github_publication_attempts set started_at = ? where id = ?",
+                    Instant.EPOCH.plusSeconds(second).atOffset(ZoneOffset.UTC), it.toString())
+                tracking.finish(it, status, null, null)
+            }
+        attempt(81, PublicationOperation.SUPERSESSION_NOTICE, PublicationAttemptStatus.SUCCEEDED, 10)
+        val latest81 = attempt(81, PublicationOperation.SUPERSESSION_NOTICE, PublicationAttemptStatus.FAILED, 20)
+        val latest83 = attempt(83, PublicationOperation.PUBLISH, PublicationAttemptStatus.FAILED, 30)
+
+        assertEquals(listOf(newer, older), publications.findByRecord(record.id, 10))
+        assertEquals(listOf(newer), publications.findByRecord(record.id, 1))
+        val targets = tracking.latestByTarget(record.id, 10)
+        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.target.pullNumber to it.latest.id })
+        assertEquals(listOf(false, true), targets.map { it.supersessionNoticed })
+        assertEquals(target.repositoryKey, targets.first().target.repositoryKey)
+        assertEquals(1, tracking.latestByTarget(record.id, 1).size)
+        assertTrue(publications.findByRecord(UUID.randomUUID(), 10).isEmpty())
+    }
+
+    @Test
     fun `파일 이력과 내 초안을 페이지로 조회한다`() {
         val repositoryKey = "acme/history-${UUID.randomUUID()}"
         fun draft(owner: ActorIdentity = actor, path: String = "src/Storage.kt"): ChangeRecord =

@@ -35,7 +35,7 @@ description: IntentTrace로 변경 의도 기록을 생성·조회·수정·공�
 - `revise_change_record`에는 현재 `expectedVersion`과 수정된 전체 내용을 보낸다. 최초 `requestId`와 저장소는 유지한다. 같은 생성 ID에 다른 내용을 보내 수정하지 않는다.
 - 확인된 비공개 기록은 `reopen_change_record` 후 수정한다. 요청받은 비공개 기록 폐기는 `discard_change_record`로 처리한다.
 - 본인의 공개 기록에서 이어 쓰려면 `create_successor_draft`에 새 요청 ID·스냅샷·코드 근거를 보낸다. 원본 확인·검증을 승계하지 않는다. `compare_change_record`로 변경 내용을 검토하며 `AMBIGUOUS` 항목은 양쪽 원문을 읽는다.
-- 기존 기록 대체가 요청되면 두 기록을 조회한 뒤 `supersede_change_record`에 기존 기록 ID·현재 버전·후속 공개 기록 ID를 보낸다. 같은 작성자·저장소의 공개 기록끼리 대체한다. GitHub 반영도 요청받았다면 `sync_superseded_record_to_github_pr`를 호출한다.
+- 기존 기록 대체가 요청되면 두 기록을 조회한 뒤 `supersede_change_record`에 기존 기록 ID·현재 버전·후속 공개 기록 ID를 보낸다. 같은 작성자·저장소의 공개 기록끼리 대체한다. GitHub 반영도 요청받았다면 `list_record_publications`로 게시한 PR을 찾아 `sync_superseded_record_to_github_pr`를 호출한다.
 
 ## 기록 찾기
 

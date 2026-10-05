@@ -98,6 +98,7 @@ class AuthenticatedMcpIntegrationTest(
             content { string(containsString("check_publication_credentials")) }
             content { string(containsString("list_record_activities")) }
             content { string(containsString("get_change_record_markdown")) }
+            content { string(containsString("list_record_publications")) }
         }
         val activityRecord = records.create(CreateChangeRecordRequest(
             requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),

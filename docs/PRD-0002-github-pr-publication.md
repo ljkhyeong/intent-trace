@@ -75,6 +75,14 @@ IntentTrace 공개 기록을 팀원이 별도 URL에서 찾아야 하면 PR 리�
 - 선택 `cursor`, `limit`을 받으며 생성 시각·ID 내림차순, 기본 20개·최대 100개다. `checkedAt`은 응답을 만든 시각이며 이후 PR 커밋이 바뀔 수 있다.
 - `matchesCurrentHead`는 기록 커밋 일치만 뜻한다. 대체 상태·실제 게시 결과·테스트 실행은 별도 필드를 읽어야 한다. 아직 한 번도 게시를 시도하지 않은 기록은 PR에 연결되지 않는다.
 
+## 기록별 게시 PR 목록
+
+- `GET /api/v1/change-records/{id}/github-pull-requests`와 `list_record_publications`는 기록을 게시했거나 게시를 시도한 PR을 최근 순으로 최대 100개 반환한다. 더 있으면 `truncated=true`다.
+- 단건 조회와 같은 권한을 적용한다. 권한 없는 저장소와 다른 작성자의 비공개 기록은 404다.
+- 각 항목은 `repositoryKey`, `pullNumber`, 마지막 게시 결과(`publication`), 최신 시도(`latestAttempt`)를 담는다. 게시 결과 없이 시도만 있으면 성공으로 추정하지 않는다.
+- `SUPERSEDED` 기록에서 게시 결과가 있고 그 PR에 `SUPERSESSION_NOTICE` 성공 시도가 없으면 `supersessionNoticeNeeded=true`다. 대체 안내 반영은 사용자가 요청한 PR에만 기존 대체 안내 API로 실행한다.
+- 웹 기록 상세는 공개·대체 기록에 같은 목록을 PR 기록 화면과 Check Run 링크로 표시한다. GitHub를 호출하지 않으며 PR의 현재 커밋 일치 여부는 PR 기록 화면에서 확인한다.
+
 ## 관리자용 게시 사전 점검
 
 `POST /api/v1/publication-preflight`와 `check_publication_credentials`에 `repositoryKey`를 전달한다. 저장소 MAINTAINER 권한이 필요하다. App 키 사용·원격 인증·저장소 설치·대상 한 곳으로 축소한 token 발급·실제 부여 범위와 권한을 단계별로 반환한다. 모든 단계가 확인된 경우만 `ready=true`다. 고정 token은 `CONFIGURED_UNVERIFIED`로 반환한다.

@@ -3,15 +3,48 @@ package io.intenttrace.record.adapter.`in`.browser
 import io.intenttrace.connection.application.ConnectionDiagnosis
 import io.intenttrace.connection.application.DiagnosticStatus
 import io.intenttrace.identity.domain.ActorIdentity
+import io.intenttrace.publication.application.PublicationAttempt
 import io.intenttrace.publication.application.PublicationAttemptStatus
 import io.intenttrace.publication.application.PublicationOperation
 import io.intenttrace.publication.application.PullRequestOverview
+import io.intenttrace.publication.application.RecordPublications
 import io.intenttrace.record.application.ChangeRecordComparison
 import io.intenttrace.record.application.ComparisonField
 import io.intenttrace.record.application.RecordComparisonSide
 import io.intenttrace.record.application.ItemChange
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
+
+internal fun publicationLabel(attempt: PublicationAttempt?, published: Boolean): String = when (attempt?.status) {
+    PublicationAttemptStatus.IN_PROGRESS -> "게시 요청 처리 중"
+    PublicationAttemptStatus.RESULT_UNKNOWN -> "게시 결과 미확인 · 기존 게시 요청을 다시 실행해 확인해 주세요"
+    PublicationAttemptStatus.FAILED -> "최근 게시 요청 실패"
+    PublicationAttemptStatus.SUCCEEDED -> if (attempt.operation == PublicationOperation.SUPERSESSION_NOTICE) "대체 안내 완료" else "게시 완료"
+    null -> if (published) "게시 완료" else "게시 결과 없음"
+}
+
+/** 기록 상세의 GitHub 게시 목록이다. 대체 안내 반영은 작성자가 REST·MCP로 요청한다. */
+internal fun RecordBrowserPage.publicationFacts(result: RecordPublications): String = buildString {
+    append("<h2>GitHub 게시</h2>")
+    if (result.items.isEmpty()) {
+        append("<p class=\"muted\">게시했거나 게시를 시도한 PR이 없습니다.</p>")
+        return@buildString
+    }
+    append("<ul class=\"publications\">")
+    result.items.forEach { item ->
+        append("<li><a href=\"${html(url("/records/pull-requests", "repositoryKey" to item.repositoryKey, "pullNumber" to item.pullNumber.toString()))}\">")
+        append(if (item.repositoryKey == result.record.repositoryKey) "PR #${item.pullNumber}" else html("${item.repositoryKey}#${item.pullNumber}"))
+        append("</a> · ${publicationLabel(item.latestAttempt, item.publication != null)}")
+        item.publication?.let { append(" · <a href=\"${html(it.checkRunUrl)}\">Check Run</a>") }
+        if (item.supersessionNoticeNeeded) append(" <strong>대체 안내 필요</strong>")
+        append("</li>")
+    }
+    append("</ul>")
+    if (result.truncated) append("<p class=\"muted\">최근 100개 PR만 표시합니다.</p>")
+    if (result.items.any { it.supersessionNoticeNeeded }) {
+        append("<p class=\"muted\">대체 안내는 작성자가 REST·MCP의 대체 안내 반영으로 실행합니다.</p>")
+    }
+}
 
 internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?,
     searchUrl: String? = null): String =
@@ -28,14 +61,7 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
             if (result.items.isEmpty()) append("<p class=\"empty\">이 PR에 게시했거나 게시를 시도한 기록이 없습니다.</p>")
             append("<ul class=\"records\">")
             result.items.forEach { item ->
-                val attempt = item.latestAttempt
-                val latest = when (attempt?.status) {
-                    PublicationAttemptStatus.IN_PROGRESS -> "게시 요청 처리 중"
-                    PublicationAttemptStatus.RESULT_UNKNOWN -> "게시 결과 미확인 · 기존 게시 요청을 다시 실행해 확인해 주세요"
-                    PublicationAttemptStatus.FAILED -> "최근 게시 요청 실패"
-                    PublicationAttemptStatus.SUCCEEDED -> if (attempt.operation == PublicationOperation.SUPERSESSION_NOTICE) "대체 안내 완료" else "게시 완료"
-                    null -> if (item.publication != null) "게시 완료" else "게시 결과 없음"
-                }
+                val latest = publicationLabel(item.latestAttempt, item.publication != null)
                 append("<li><div class=\"record-summary\"><span class=\"status\">${if (item.matchesCurrentHead) "현재 커밋과 일치" else "PR 최신 커밋과 다름"}</span>")
                 append("<h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
                 if (item.publication != null) append("<p class=\"muted\">마지막으로 확인한 게시: ${stamp(item.publication.publishedAt)}</p>")

@@ -8,6 +8,7 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.*
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
+import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.clearInvocations
@@ -34,6 +35,7 @@ class PullRequestOverviewIntegrationTest(
     @Autowired private val tracking: GitHubPublicationTracking,
     @Autowired private val overview: PullRequestOverviewService,
     @Autowired private val diagnostics: ConnectionDiagnostics,
+    @Autowired private val publisher: TeamGitHubPublicationService,
 ) {
     @MockitoSpyBean
     private lateinit var jdbc: JdbcTemplate
@@ -91,6 +93,44 @@ class PullRequestOverviewIntegrationTest(
     private fun queryCount(): Int = mockingDetails(jdbc).invocations.count {
         it.method.name == "query" && it.method.parameterCount == 3 &&
             it.method.parameterTypes[0] == PreparedStatementCreator::class.java
+    }
+
+    @Test
+    fun `기록별 게시 목록은 게시와 시도를 합치고 대체된 기록의 미반영 PR을 표시한다`() {
+        val target = GitHubPullRequestTarget("Acme", "RecordTargets", 21)
+        fun record() = records.create(CreateChangeRecordCommand(
+            UUID.randomUUID().toString(), target.repositoryKey, null, "a".repeat(64), "게시 대상", "게시한 PR을 모은다.",
+            listOf(Decision("기록에서 PR을 찾는다.", null, PurposeSource.STATED_BY_USER)),
+            listOf(CodeAnchor("app.kt", null, 1, 1, "a".repeat(64))), emptyList(), emptyList(),
+        )).let {
+            records.confirm(ConfirmChangeRecordCommand(it.id, 0, head, it.snapshotDigest))
+            records.publish(PublishChangeRecordCommand(it.id, 1, it.snapshotDigest))
+        }
+        val original = record()
+        assertTrue(publisher.targets(original.id).items.isEmpty())
+        for (pullNumber in listOf(21, 22)) {
+            publications.save(GitHubPublication(UUID.randomUUID(), original.id, target.copy(pullNumber = pullNumber), head,
+                pullNumber.toLong(), "https://github.com/acme/recordtargets/runs/$pullNumber", "a".repeat(64), Instant.now()))
+        }
+        tracking.start(original.id, target.copy(pullNumber = 23), PublicationOperation.PUBLISH)
+            .also { tracking.finish(it, PublicationAttemptStatus.FAILED, "PULL_REQUEST_UNAVAILABLE", null) }
+        val replacement = record()
+        records.supersede(SupersedeChangeRecordCommand(original.id, original.version, replacement.id))
+        tracking.start(original.id, target, PublicationOperation.SUPERSESSION_NOTICE)
+            .also { tracking.finish(it, PublicationAttemptStatus.SUCCEEDED, null, null) }
+
+        val result = publisher.targets(original.id)
+
+        assertEquals(ChangeRecordStatus.SUPERSEDED, result.record.status)
+        assertFalse(result.truncated)
+        val items = result.items.associateBy { it.pullNumber }
+        assertEquals(setOf(21, 22, 23), items.keys)
+        assertTrue(items.values.all { it.repositoryKey == "acme/recordtargets" })
+        assertFalse(items.getValue(21).supersessionNoticeNeeded)
+        assertTrue(items.getValue(22).supersessionNoticeNeeded)
+        assertFalse(items.getValue(23).supersessionNoticeNeeded)
+        assertNull(items.getValue(23).publication)
+        assertEquals(PublicationAttemptStatus.FAILED, items.getValue(23).latestAttempt?.status)
     }
 
     @Test

@@ -17,24 +17,30 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import io.intenttrace.publication.application.GitHubPublicationStatus
+import io.intenttrace.publication.application.RecordPublicationTarget
+import io.intenttrace.publication.application.RecordPublications
+import io.intenttrace.record.domain.ChangeRecordStatus
 import java.time.Instant
 import java.util.UUID
 
 @RestController
-@RequestMapping("/api/v1/change-records/{recordId}/github-pull-request")
+@RequestMapping("/api/v1/change-records/{recordId}")
 class GitHubPublicationController(
     private val publisher: TeamGitHubPublicationService,
 ) {
-    @GetMapping
+    @GetMapping("/github-pull-requests")
+    fun targets(@PathVariable recordId: UUID): RecordPublicationsResponse = RecordPublicationsResponse.from(publisher.targets(recordId))
+
+    @GetMapping("/github-pull-request")
     fun status(@PathVariable recordId: UUID, @RequestParam owner: String, @RequestParam repository: String,
                @RequestParam pullNumber: Int): GitHubPublicationStatus =
         publisher.status(PublishChangeRecordToGitHubCommand(recordId, GitHubPullRequestTarget(owner, repository, pullNumber)))
 
-    @PostMapping("/supersession")
+    @PostMapping("/github-pull-request/supersession")
     fun syncSupersession(@PathVariable recordId: UUID, @Valid @RequestBody request: GitHubPublicationRequest): GitHubPublicationResponse =
         GitHubPublicationResponse.from(publisher.syncSupersession(request.toCommand(recordId)))
 
-    @PostMapping
+    @PostMapping("/github-pull-request")
     fun publish(
         @PathVariable recordId: UUID,
         @Valid @RequestBody request: GitHubPublicationRequest,
@@ -83,6 +89,20 @@ data class GitHubPublicationResponse(
             checkRunUrl = publication.checkRunUrl,
             contentDigest = publication.contentDigest,
             publishedAt = publication.publishedAt,
+        )
+    }
+}
+
+data class RecordPublicationsResponse(
+    val recordId: UUID,
+    val status: ChangeRecordStatus,
+    val supersededBy: UUID?,
+    val items: List<RecordPublicationTarget>,
+    val truncated: Boolean,
+) {
+    companion object {
+        fun from(result: RecordPublications): RecordPublicationsResponse = RecordPublicationsResponse(
+            result.record.id, result.record.status, result.record.supersededBy, result.items, result.truncated,
         )
     }
 }

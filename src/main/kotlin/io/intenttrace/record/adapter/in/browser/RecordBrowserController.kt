@@ -2,6 +2,7 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.connection.application.ConnectionDiagnostics
 import io.intenttrace.publication.application.PullRequestOverviewService
+import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.identity.domain.GitHubRepository
@@ -62,6 +63,7 @@ class RecordBrowserController(
     private val comparison: RecordComparisonService,
     private val diagnostics: ConnectionDiagnostics,
     private val overview: PullRequestOverviewService,
+    private val publisher: TeamGitHubPublicationService,
     private val githubContext: GitHubContextService,
     private val history: ChangeIntentHistoryService,
     private val evidence: RecordEvidenceService,
@@ -88,7 +90,9 @@ class RecordBrowserController(
 
     @GetMapping("/{id}")
     fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        pages.record(it.actor, records.get(id), searchUrl(request))
+        // 게시 목록 조회가 같은 권한 검사로 기록을 함께 읽는다.
+        val view = publisher.targets(id)
+        pages.record(it.actor, view.record, searchUrl(request), view)
     }
 
     @GetMapping("/{id}/markdown")

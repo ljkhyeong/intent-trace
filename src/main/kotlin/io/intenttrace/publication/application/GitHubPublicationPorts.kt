@@ -39,4 +39,7 @@ interface GitHubPublicationRepository {
     fun findAll(changeRecordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, GitHubPublication>
 
     fun save(publication: GitHubPublication): GitHubPublication
+
+    /** 기록의 게시 결과를 최근 게시 순으로 최대 [limit]개 읽는다. */
+    fun findByRecord(changeRecordId: UUID, limit: Int): List<GitHubPublication>
 }

@@ -66,11 +66,26 @@ class AuthenticatedRestIntegrationTest(
             jsonPath("$.size") { value(1) }
             jsonPath("$.hasNext") { value(false) }
         }
+        mockMvc.get("/api/v1/change-records/$id/github-pull-requests") { authorized() }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("DRAFT") }
+            jsonPath("$.items") { isEmpty() }
+            jsonPath("$.truncated") { value(false) }
+        }
+        val (owner, name) = repository.split('/')
+        mockMvc.get("/api/v1/change-records/$id/github-pull-request?owner=$owner&repository=$name&pullNumber=1") { authorized() }
+            .andExpect { status { isOk() }; jsonPath("$.attempts") { isEmpty() } }
         mockMvc.get("/api/v1/change-records?repositoryKey=$repository") {
             authorized()
         }.andExpect { jsonPath("$.items") { isEmpty() } }
         userAccess.actor = ActorIdentity.github(84, "teammate")
         try {
+            for (path in listOf("", "/github-pull-requests")) {
+                mockMvc.get("/api/v1/change-records/$id$path") { authorized() }.andExpect {
+                    status { isNotFound() }
+                    content { string(not(containsString(repository))) }
+                }
+            }
             mockMvc.get("/api/v1/change-records?repositoryKey=$repository&scope=MY_DRAFTS") {
                 authorized()
             }.andExpect {

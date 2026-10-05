@@ -222,7 +222,7 @@ python3 scripts/run-verification.py "$(git rev-parse HEAD)" --summary '회귀 �
 
 GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 조회`로 같은 조건과 페이지를 다시 엽니다. 호출 제한은 안내된 대기 시간 뒤에 눌러 주세요.
 
-`/records/pull-requests`에서 PR 기록과 최신 커밋의 일치 여부를, `/records/connection`에서 연결 상태를 확인합니다. 새 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 구현 결정·출처·관련 코드·검증을 나란히 읽습니다.
+`/records/pull-requests`에서 PR 기록과 최신 커밋의 일치 여부를, `/records/connection`에서 연결 상태를 확인합니다. 공개·대체 기록 상세의 `GitHub 게시`에서 게시한 PR과 Check Run, 대체 안내가 필요한 PR을 확인합니다. 새 기록의 `/records/{UUID}/comparison`에서는 원본과 바뀐 구현 결정·출처·관련 코드·검증을 나란히 읽습니다.
 
 `/records/history`에서는 저장소·커밋 해시·파일 경로·줄 번호로 관련 기록을 찾고 확인하지 못한 기록만 재조회할 수 있습니다. 기록 화면의 ‘GitHub 코드와 비교’는 `/records/{UUID}/evidence`를 엽니다. 서버의 코드 해시 일치와 테스트 실행 증명은 구분합니다. 용량 제한·일부 트리·지원하지 않는 Git 객체는 HTTP 422와 확인 불가 사유로 안내합니다.
 
@@ -250,6 +250,7 @@ GitHub 일시 장애나 호출 제한이 발생하면 오류 화면의 `다시 �
 - `GET /api/v1/change-records/{id}/markdown`: 팀 공유용 Markdown 출력
 - `POST /api/v1/change-records/{id}/github-pull-request`: 같은 HEAD 커밋의 PR에 Check Run 게시. `codeAnnotations: true`면 변경 후 코드 근거를 PR 줄 주석으로 함께 게시
 - `GET /api/v1/change-records/{id}/github-pull-request`: 게시 대상별 결과·시도 이력 조회
+- `GET /api/v1/change-records/{id}/github-pull-requests`: 기록을 게시했거나 시도한 PR 목록과 대체 안내 필요 여부
 - `POST /api/v1/change-records/{id}/github-pull-request/supersession`: 기존 Check Run에 대체 안내 반영
 - `GET /api/v1/github-pull-request/records?owner=...&repository=...&pullNumber=...`: PR에 게시·시도한 기록과 HEAD 일치 조회
 - `GET /api/v1/connection-diagnostics?repositoryKey=owner/repo`: 연결·권한 진단 (`revision`, `pullNumber` 선택)
@@ -270,7 +271,7 @@ MCP는 REST와 같은 기능과 권한 규칙을 사용합니다.
 | 기록 조회·검색 | `list_change_records`, `get_change_record`, `get_change_record_markdown`, `find_change_intent`, `find_related_change_intent` |
 | 후속 초안·원본 비교 | `create_successor_draft`, `compare_change_record` |
 | 코드 확인·처리 이력 | `check_change_record_evidence`, `list_record_activities` |
-| PR 게시·결과·복구 | `publish_change_record_to_github_pr`, `get_github_publication_status`, `sync_superseded_record_to_github_pr`, `list_pull_request_records` |
+| PR 게시·결과·복구 | `publish_change_record_to_github_pr`, `get_github_publication_status`, `list_record_publications`, `sync_superseded_record_to_github_pr`, `list_pull_request_records` |
 | 이슈·PR 내용과 CI 결과 | `get_github_request_context`, `list_github_actions_runs` |
 | 연결 진단·게시 사전 점검 | `diagnose_connection`, `check_publication_credentials` |
 | 내 세션 관리 | `list_my_sessions`, `revoke_my_session`, `revoke_all_my_sessions` |

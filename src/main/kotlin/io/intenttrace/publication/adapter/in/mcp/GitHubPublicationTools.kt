@@ -1,6 +1,7 @@
 package io.intenttrace.publication.adapter.`in`.mcp
 
 import io.intenttrace.publication.adapter.`in`.web.GitHubPublicationResponse
+import io.intenttrace.publication.adapter.`in`.web.RecordPublicationsResponse
 import io.intenttrace.publication.application.PublishChangeRecordToGitHubCommand
 import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.publication.application.GitHubPublicationStatus
@@ -21,6 +22,11 @@ class GitHubPublicationTools(
                @McpToolParam(description = "저장소 이름", required = true) repository: String,
                @McpToolParam(description = "PR 번호", required = true) pullNumber: Int): GitHubPublicationStatus =
         publisher.status(PublishChangeRecordToGitHubCommand(parseChangeRecordId(changeRecordId), GitHubPullRequestTarget(owner, repository, pullNumber)))
+
+    @McpTool(name = "list_record_publications", description = "기록을 게시했거나 게시를 시도한 PR과 최신 결과를 최근 순으로 최대 100개 조회합니다. 대체된 기록은 대체 안내가 필요한 PR을 표시합니다.", generateOutputSchema = true,
+        annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
+    fun targets(@McpToolParam(description = "기록 UUID", required = true) changeRecordId: String): RecordPublicationsResponse =
+        RecordPublicationsResponse.from(publisher.targets(parseChangeRecordId(changeRecordId)))
 
     @McpTool(name = "sync_superseded_record_to_github_pr", description = "사용자가 GitHub 반영을 요청하면 기존 Check Run에 대체 안내를 반영합니다. 새 Check Run은 생성하지 않습니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false, idempotentHint = true, openWorldHint = true))

@@ -241,6 +241,7 @@ class PublishChangeRecordToGitHubTest {
         }
         override fun recent(recordId: UUID, target: GitHubPullRequestTarget): List<PublicationAttempt> = emptyList()
         override fun latest(recordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, PublicationAttempt> = emptyMap()
+        override fun latestByTarget(recordId: UUID, limit: Int): List<PublicationTargetAttempt> = emptyList()
     }
 
     private class FakeGitHubGateway(
@@ -290,6 +291,9 @@ class PublishChangeRecordToGitHubTest {
             records[publication.changeRecordId to publication.target] = publication
             return publication
         }
+
+        override fun findByRecord(changeRecordId: UUID, limit: Int): List<GitHubPublication> =
+            records.values.filter { it.changeRecordId == changeRecordId }.take(limit)
     }
 
     companion object {

@@ -6,6 +6,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 추가
 
+- 기록을 게시했거나 게시를 시도한 PR 목록과 대체 안내 필요 여부를 조회하는 REST `GET /api/v1/change-records/{id}/github-pull-requests`·MCP `list_record_publications`와 웹 기록 상세의 `GitHub 게시` 표시
 - 기록을 팀 공유용 Markdown으로 읽는 MCP `get_change_record_markdown`. REST Markdown 출력과 같은 권한·렌더러 사용
 - PR 게시 요청의 `codeAnnotations`로 변경 후 코드 근거를 Check Run 줄 주석으로 선택 게시. 재게시해도 주석을 중복 추가하지 않음
 - GitHub 승인 취소 웹훅으로 해당 사용자의 브라우저·도구 세션 폐기

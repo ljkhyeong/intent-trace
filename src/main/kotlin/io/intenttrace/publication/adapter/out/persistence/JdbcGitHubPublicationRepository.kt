@@ -43,6 +43,12 @@ class JdbcGitHubPublicationRepository(
         ).associateBy { it.changeRecordId }
     }
 
+    @Transactional(readOnly = true)
+    override fun findByRecord(changeRecordId: UUID, limit: Int): List<GitHubPublication> = jdbcTemplate.query(
+        "select * from github_publications where change_record_id = ? order by published_at desc, id desc limit ?",
+        { resultSet, _ -> mapPublication(resultSet) }, changeRecordId.toString(), limit,
+    )
+
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     override fun save(publication: GitHubPublication): GitHubPublication {
         val repository = GitHubRepository(publication.target.owner, publication.target.repository)
