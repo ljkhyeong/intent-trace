@@ -20,7 +20,7 @@ import javax.swing.JPanel
 
 internal open class IntentTraceResultDialog(
     project: Project,
-    lookup: LineLookup,
+    private val lookup: LineLookup,
     private val records: List<ChangeIntentRecord>,
     server: IntentTraceServer,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
@@ -28,6 +28,7 @@ internal open class IntentTraceResultDialog(
         IntentTraceRecordBrowser.open(project, it, fileOnly = true, server = server)
     },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
+    private val openLineHistory: (LineLookup) -> Unit = { LineHistory.open(project, it, server) },
 ) : DialogWrapper(project, true) {
     private val text = IntentTraceTextRenderer.render(lookup, records)
     private val context = RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)
@@ -56,6 +57,9 @@ internal open class IntentTraceResultDialog(
                 add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
                     add(JButton("이 파일의 과거 기록 보기").apply {
                         addActionListener { openHistory(context) }
+                    })
+                    add(JButton("이전 커밋에서 이 줄 찾기").apply {
+                        addActionListener { openLineHistory(lookup) }
                     })
                     add(JButton("웹에서 줄 이동·이름 변경 찾기").apply {
                         addActionListener { openBrowser(webHistoryUri) }

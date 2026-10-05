@@ -12,8 +12,16 @@ import git4idea.repo.GitRepository
 
 internal data class RepositoryFileContext(val repositoryKey: String, val relativePath: String)
 
+internal data class RepositoryRevision(val repositoryKey: String, val revision: String?)
+
 internal object CurrentLineContextResolver {
     fun history(project: Project, file: VirtualFile): RepositoryFileContext = fileContext(gitRepository(project, file), file)
+
+    /** 연결 진단은 파일 변경과 관계없이 저장소와 현재 HEAD만 사용한다. HEAD가 없으면 커밋 읽기를 확인하지 않는다. */
+    fun repository(project: Project, file: VirtualFile): RepositoryRevision {
+        val repository = gitRepository(project, file)
+        return RepositoryRevision(repositoryKey(repository), repository.currentRevision?.lowercase())
+    }
 
     fun resolve(project: Project, editor: Editor, file: VirtualFile): LineLookup {
         val repository = gitRepository(project, file)
@@ -42,13 +50,14 @@ internal object CurrentLineContextResolver {
     private fun fileContext(repository: GitRepository, file: VirtualFile): RepositoryFileContext {
         val relativePath = VfsUtilCore.getRelativePath(file, repository.root, '/')
             ?: throw IntentTraceUsageException("현재 파일의 저장소 상대 경로를 계산할 수 없습니다.")
-        val repositoryKey = repository.remotes
-            .sortedBy { if (it.name == "origin") 0 else 1 }
-            .asSequence()
-            .flatMap { (it.urls + it.pushUrls).asSequence() }
-            .mapNotNull(GitHubRemoteParser::repositoryKey)
-            .firstOrNull()
-            ?: throw IntentTraceUsageException("GitHub origin에서 owner/repository를 확인할 수 없습니다.")
-        return RepositoryFileContext(repositoryKey, relativePath)
+        return RepositoryFileContext(repositoryKey(repository), relativePath)
     }
+
+    private fun repositoryKey(repository: GitRepository): String = repository.remotes
+        .sortedBy { if (it.name == "origin") 0 else 1 }
+        .asSequence()
+        .flatMap { (it.urls + it.pushUrls).asSequence() }
+        .mapNotNull(GitHubRemoteParser::repositoryKey)
+        .firstOrNull()
+        ?: throw IntentTraceUsageException("GitHub origin에서 owner/repository를 확인할 수 없습니다.")
 }

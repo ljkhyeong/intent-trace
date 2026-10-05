@@ -48,20 +48,30 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
 
     fun lookupUri(lookup: LineLookup): URI = lineUri("/api/v1/change-records/lookup", lookup)
 
+    fun historyUri(lookup: LineLookup, cursor: String?): URI =
+        lineUri("/api/v1/change-records/history", lookup, listOfNotNull("limit" to HISTORY_LIMIT, cursor?.let { "cursor" to it }))
+
+    fun diagnosticsUri(repositoryKey: String, revision: String?): URI {
+        val query = listOfNotNull("repositoryKey" to repositoryKey, revision?.let { "revision" to it })
+            .joinToString("&") { (name, value) -> "$name=${encode(value)}" }
+        return URI.create("$baseUri/api/v1/connection-diagnostics?$query")
+    }
+
     fun webHistoryUri(lookup: LineLookup): URI = lineUri("/records/history", lookup)
 
-    private fun lineUri(path: String, lookup: LineLookup): URI {
-        val query = listOf(
+    private fun lineUri(path: String, lookup: LineLookup, extra: List<Pair<String, String>> = emptyList()): URI {
+        val query = (listOf(
             "repositoryKey" to lookup.repositoryKey,
             "revision" to lookup.revision,
             "path" to lookup.relativePath,
             "line" to lookup.line.toString(),
-        ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
+        ) + extra).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
         return URI.create("$baseUri$path?$query")
     }
 
     companion object {
         const val URL_ENV = "INTENT_TRACE_URL"
+        private const val HISTORY_LIMIT = "10"
         private const val DEFAULT_URL = "http://127.0.0.1:8080"
         private val LOOPBACK_HOSTS = setOf("127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1")
 

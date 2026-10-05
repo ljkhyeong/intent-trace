@@ -13,6 +13,10 @@ internal object IntentTraceResponseParser {
 
     fun parsePage(body: String): ChangeRecordPage = decode(body)
 
+    fun parseDiagnosis(body: String): ConnectionDiagnosis = decode(body)
+
+    fun parseHistory(body: String): ChangeIntentHistory = decode(body)
+
     fun parseHealth(body: String): String = decode<HealthResponse>(body).status
 
     fun parseLogin(body: String): String = decode<LoginResponse>(body).actor.login

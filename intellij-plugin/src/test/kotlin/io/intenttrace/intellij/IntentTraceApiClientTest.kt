@@ -333,6 +333,44 @@ class IntentTraceApiClientTest {
         }
     }
 
+    @Test
+    fun `연결 진단과 이전 커밋 조회는 세션으로 요청하고 응답을 화면 모델로 읽는다`() {
+        val authorization = AtomicReference<String>()
+        val diagnosis = """{"repositoryKey":"team/repository","checkedAt":"2026-10-05T01:00:00Z","checks":[
+            {"name":"repository_read","status":"VERIFIED","message":"GitHub 응답으로 확인했습니다."},
+            {"name":"git_tree_read","status":"FAILED","message":"GitHub에서 커밋을 찾을 수 없습니다."}]}""".toByteArray()
+        withServer(path = "/api/v1/connection-diagnostics", handler = { exchange ->
+            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+            exchange.sendResponseHeaders(200, diagnosis.size.toLong())
+            exchange.responseBody.use { it.write(diagnosis) }
+        }) { server ->
+            val result = IntentTraceApiClient().diagnose(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token, "team/repository", null)
+            assertEquals(listOf("VERIFIED", "FAILED"), result.checks.map { it.status })
+        }
+        assertEquals("Bearer $token", authorization.get())
+
+        val history = """{"queryRevision":"${"a".repeat(40)}","path":"src/main/App.kt","scannedRecords":2,"nextCursor":"h1.next",
+            "stopReason":"TIME_LIMIT","complete":false,"resumeBlocked":false,"failures":[{"recordId":"record-2","reason":"REVISION_NOT_FOUND"}],
+            "items":[{"record":{"id":"record-1","title":"이전 기록","requestSummary":"요청","repositoryKey":"team/repository",
+            "targetRevision":"${"b".repeat(40)}","status":"PUBLISHED","createdBy":{"subject":"github:1","login":"developer"},
+            "createdAt":"2026-10-01T00:00:00Z","version":3},"sourceRevision":"${"b".repeat(40)}","side":"TARGET",
+            "match":"ANCESTOR_MOVED_LINES","verificationAppliesToQuery":false,"sourcePath":"src/main/App.kt",
+            "sourceStartLine":4,"sourceEndLine":6,"currentStartLine":10,"currentEndLine":12}]}""".toByteArray()
+        withServer(path = "/api/v1/change-records/history", handler = { exchange ->
+            authorization.set(exchange.requestURI.rawQuery)
+            exchange.sendResponseHeaders(200, history.size.toLong())
+            exchange.responseBody.use { it.write(history) }
+        }) { server ->
+            val result = IntentTraceApiClient().history(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token,
+                LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12), "h1.first")
+            assertEquals("ANCESTOR_MOVED_LINES", result.items.single().match)
+            assertEquals(10, result.items.single().currentStartLine)
+            assertEquals("REVISION_NOT_FOUND", result.failures.single().reason)
+            assertEquals("h1.next", result.nextCursor)
+        }
+        assertContains(authorization.get(), "cursor=h1.first")
+    }
+
     private fun lookup(server: HttpServer): List<ChangeIntentRecord> = IntentTraceApiClient().lookup(
         server = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
         sessionToken = token,

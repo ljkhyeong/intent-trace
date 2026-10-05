@@ -83,3 +83,43 @@ internal data class ChangeVerification(
     val current: Boolean,
     val source: String? = null,
 )
+
+@Serializable
+internal data class ConnectionDiagnosis(
+    val repositoryKey: String,
+    val checkedAt: String,
+    val checks: List<ConnectionCheck>,
+)
+
+@Serializable
+internal data class ConnectionCheck(val name: String, val status: String, val message: String = "")
+
+@Serializable
+internal data class ChangeIntentHistory(
+    val queryRevision: String,
+    val path: String,
+    val items: List<HistoricalIntent>,
+    val nextCursor: String? = null,
+    val scannedRecords: Int,
+    val failures: List<HistoryFailure> = emptyList(),
+    val stopReason: String? = null,
+    val complete: Boolean = true,
+    val resumeBlocked: Boolean = false,
+)
+
+@Serializable
+internal data class HistoricalIntent(
+    val record: ChangeRecordSummary,
+    val sourceRevision: String,
+    val side: CodeSide = CodeSide.TARGET,
+    val match: String,
+    val verificationAppliesToQuery: Boolean,
+    val sourcePath: String,
+    val sourceStartLine: Int,
+    val sourceEndLine: Int,
+    val currentStartLine: Int? = null,
+    val currentEndLine: Int? = null,
+)
+
+@Serializable
+internal data class HistoryFailure(val recordId: String, val reason: String)

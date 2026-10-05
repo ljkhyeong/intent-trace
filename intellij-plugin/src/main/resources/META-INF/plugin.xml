@@ -47,6 +47,13 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
         <action
+            id="io.intenttrace.intellij.DiagnoseRepository"
+            class="io.intenttrace.intellij.RepositoryDiagnosisAction"
+            text="IntentTrace 저장소 연결 진단"
+            description="현재 파일 저장소의 로그인·읽기·쓰기 권한과 HEAD 커밋 코드 읽기를 서버에서 확인합니다. 게시나 테스트 실행은 하지 않습니다.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action
             id="io.intenttrace.intellij.SaveSessionToken"
             class="io.intenttrace.intellij.SaveSessionTokenAction"
             text="IntentTrace 세션 연결"

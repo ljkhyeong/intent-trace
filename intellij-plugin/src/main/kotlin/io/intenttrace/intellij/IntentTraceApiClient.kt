@@ -30,6 +30,13 @@ internal class IntentTraceApiClient {
     fun record(server: IntentTraceServer, sessionToken: String, id: String): ChangeIntentRecord =
         IntentTraceResponseParser.parseRecord(get(server.recordUri(id), sessionToken))
 
+    // 아래 두 조회는 서버가 GitHub 코드를 읽으므로 서버의 기본 30초 조회 기한보다 길게 기다린다.
+    fun history(server: IntentTraceServer, sessionToken: String, lookup: LineLookup, cursor: String?): ChangeIntentHistory =
+        IntentTraceResponseParser.parseHistory(get(server.historyUri(lookup, cursor), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
+
+    fun diagnose(server: IntentTraceServer, sessionToken: String, repositoryKey: String, revision: String?): ConnectionDiagnosis =
+        IntentTraceResponseParser.parseDiagnosis(get(server.diagnosticsUri(repositoryKey, revision), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
+
     fun revokeSession(server: IntentTraceServer, sessionToken: String) {
         requireSessionToken(sessionToken)
         execute {
@@ -55,12 +62,12 @@ internal class IntentTraceApiClient {
         }
     }
 
-    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false): String {
+    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false, readTimeout: Int = 10_000): String {
         sessionToken?.let(::requireSessionToken)
         return execute {
             HttpRequests.request(uri.toString())
                 .connectTimeout(5_000)
-                .readTimeout(10_000)
+                .readTimeout(readTimeout)
                 .followRedirects(false)
                 .throwStatusCodeException(false)
                 .accept("application/json")
@@ -112,6 +119,7 @@ internal class IntentTraceApiClient {
     companion object {
         const val TOKEN_ENV = "INTENT_TRACE_SESSION_TOKEN"
         private const val MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+        private const val REMOTE_READ_TIMEOUT = 40_000
         private val SESSION_TOKEN = Regex("^its_[A-Za-z0-9_-]{43}$")
 
         fun validSessionToken(value: String): Boolean = SESSION_TOKEN.matches(value)

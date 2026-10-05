@@ -80,9 +80,10 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
         val openedRecords = mutableListOf<String>()
         val openedHistories = mutableListOf<RepositoryFileContext>()
         val openedWebPages = mutableListOf<URI>()
+        val openedLineHistories = mutableListOf<LineLookup>()
         var centerPanel: JComponent? = null
         val dialog = object : IntentTraceResultDialog(project, lookup, emptyList(), server,
-            { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) }) {
+            { openedRecords.add(it) }, { openedHistories.add(it) }, { openedWebPages.add(it) }, { openedLineHistories.add(it) }) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
         }
         try {
@@ -108,6 +109,9 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
             assertEmpty(openedHistories)
             history.doClick()
             assertEquals(listOf(RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)), openedHistories)
+            assertEmpty(openedLineHistories)
+            buttons.single { it.text == "이전 커밋에서 이 줄 찾기" }.doClick()
+            assertEquals(listOf(lookup), openedLineHistories)
         } finally {
             dialog.close(0)
         }
