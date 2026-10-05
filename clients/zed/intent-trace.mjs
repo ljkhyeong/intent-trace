@@ -39,7 +39,8 @@ export function endpoint(value = process.env.INTENT_TRACE_MCP_URL || defaultUrl)
 
 export function sessionToken() {
   const value = process.env.INTENT_TRACE_SESSION_TOKEN;
-  if (!value || !/^its_[A-Za-z0-9_-]{32,128}$/.test(value)) {
+  // 서버는 32바이트 무작위 값을 Base64URL 43자로 발급한다. IntelliJ와 같은 형식만 받는다.
+  if (!value || !/^its_[A-Za-z0-9_-]{43}$/.test(value)) {
     throw new Error('INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요.');
   }
   return value;

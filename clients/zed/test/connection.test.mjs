@@ -56,12 +56,14 @@ test('설정에 토큰을 넣지 않고 절대 실행 경로를 생성한다', (
   assert.equal(config.args[0], script);
   assert.deepEqual(config.env, {});
   assert.ok(!result.stdout.includes(token));
-  const invalid = spawnSync(process.execPath, [script, 'serve'], {
-    env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: 'invalid-session-for-test' }, encoding: 'utf8',
-  });
-  assert.equal(invalid.status, 1);
-  assert.match(invalid.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
-  assert.ok(!invalid.stderr.includes('invalid-session-for-test'));
+  for (const value of ['invalid-session-for-test', token.slice(0, -1), `${token}x`]) {
+    const invalid = spawnSync(process.execPath, [script, 'serve'], {
+      env: { ...process.env, INTENT_TRACE_SESSION_TOKEN: value }, encoding: 'utf8',
+    });
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /INTENT_TRACE_SESSION_TOKEN 환경 변수/);
+    assert.ok(!invalid.stderr.includes(value));
+  }
 });
 
 test('원격 HTTP와 인증 정보가 포함된 주소를 거부한다', () => {
