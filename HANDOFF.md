@@ -17,9 +17,9 @@
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `aabfeea` | [서버 262개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-추가개선-기능-검토-반영) |
-| PostgreSQL | `f7a3c99` | [저장·조회 5개 통과, 백업·복구 확인](#2026-10-05-리팩터링-검토와-구조-정리) |
-| IntelliJ | `a787fd1` | [54개 통과, ZIP 빌드·구조 검사](#2026-10-05-추가개선-기능-검토-반영). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| 서버·MCP | `71922f5` | [서버 266개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가) |
+| PostgreSQL | `71922f5` | [저장·조회 6개 통과, 백업·복구 확인](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가) |
+| IntelliJ | `1bf460d` | [59개 통과, ZIP 빌드·구조 검사](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가). 실제 IDE 설치·수동 화면 확인은 미실행 |
 | Zed 연결 도구 | `19ebd0e` | [Node 16개·Python 3개 통과, 실제 서버 점검 테스트는 서버 검증에 포함](#2026-10-05-추가개선-기능-검토-반영) |
 | Zed 배포 패키지 | `ec00793` | [패키지·체크섬 생성](#2026-09-12-zed-연결-점검의-진단-설명-표시). 이후 서버 진단 변경으로 패키지를 다시 만들지는 않음 |
 | 검증 결과 수집·릴리스 도구 | `e6e3e5e` | [실행·정제 14개, 릴리스 2개 통과, 환경 상속 확인](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) |
@@ -220,12 +220,12 @@
 
 2026-09-05 [추가·개선 기능 검토](docs/reviews/2026-09-05-feature-review.md)의 9개 항목은 REST·MCP·로컬 실행 도구의 최소 기능을 구현했다. 계약은 PRD-0004, ADR-0007·0008과 기존 PRD의 확장 절을 따른다. 검색·브라우저 열람·후속 초안·코드 이동·PR 목록·진단과 Zed Agent 연결까지 확장했다. 외부 지표 대시보드와 편집기 인라인 UI는 후속 작업이다.
 
-2026-10-05 [추가·개선 기능 검토](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다. 검증은 [아래 상세 인계](#2026-10-05-추가개선-기능-검토-반영)를 따른다. 기록별 게시 PR 목록, 설치 웹훅, IntelliJ 저장소 진단 등 P2는 검토 문서에 남겼다.
+2026-10-05 [추가·개선 기능 검토](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다([검증](#2026-10-05-추가개선-기능-검토-반영)). 같은 날 P2의 기록별 게시 PR 목록, GitHub App 설치 변경 웹훅, IntelliJ 저장소 연결 진단·이전 커밋 조회도 반영했다([검증](#2026-10-05-기록별-게시-목록과-설치-웹훅-intellij-진단-추가)). 남은 P2는 아래 4번과 검토 문서를 따른다.
 
 1. Zed 편집기 인라인 UI를 검토한다. IntelliJ 현재 줄 조회와 Zed Agent MCP 연결은 구현했다.
 2. 실제 운영 결과를 바탕으로 encrypted session 저장 필요성을 다시 결정한다.
 3. 실제 GitHub PR의 Files changed 화면에서 코드 줄 주석 표시를 확인한다. 선택 게시와 중복 방지는 로컬 HTTP 계약으로만 검증했다.
-4. GitHub App 설치 제거·권한 변경 webhook을 검토한다. 사용자 승인 폐기 webhook은 구현했다. 설치 토큰 캐시에 미치는 영향은 [검토 문서](docs/reviews/2026-10-05-feature-review.md#10-p2-github-app-설치-제거권한-변경-웹훅)에 정리했다.
+4. IntelliJ 현재 줄 조회 전 Git 상태 갱신과 서버에 닿지 않을 때의 로컬 세션 삭제 절차를 정한다. [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 11·12번 나머지 항목도 사용량을 보고 진행한다.
 
 IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비활성화는 실제 IDE에서 추가 확인해야 한다. 메인의 자동 검증 결과만으로 이 수동 확인을 완료했다고 판단하지 않는다.
 
@@ -240,7 +240,7 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 코드 이동은 동일 blob의 고유한 이름 변경 또는 원본·현재 파일에서 고유한 전체 줄 조각에 한정한다. 수정·이름 변경 동시 발생과 중복 조각은 자동 연결하지 않는다. 조회는 후보 단위 페이지이며 빈 결과에서도 다음 커서가 있을 수 있다.
 - GitHub App 등록·설치와 private key 회전은 운영자가 수행해야 한다.
 - installation token 캐시는 프로세스 메모리에만 있어 여러 인스턴스가 공유하지 않는다.
-- Fork PR Check Run과 GitHub App 설치·권한 변경 webhook은 아직 지원하지 않는다.
+- Fork PR Check Run은 아직 지원하지 않는다. GitHub App 설치 변경 웹훅은 이 프로세스의 게시용 토큰 캐시만 비우며 여러 인스턴스 간 무효화는 없다.
 - PR 줄 주석은 변경 후 근거 50개까지 게시한다. 게시한 주석은 지울 수 없어 이미 주석이 있는 Check Run은 다시 게시해도 주석을 바꾸지 않으며 대체 뒤에도 남는다.
 - 실제 GitHub 저장소 쓰기는 자동 테스트하지 않고 로컬 HTTP 계약으로 검증한다.
 - IntelliJ 현재 줄 조회는 커밋되지 않은 파일을 지원하지 않는다. 별도 파일 이력은 조회할 수 있다.
@@ -905,3 +905,9 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `9bc5a8d`, 구현 커밋은 `aabfeea`(서버)·`19ebd0e`(Zed)·`a787fd1`(IntelliJ)·`6c1b668`(검토 문서·변경 이력)이다. 서버·클라이언트를 PRD·ADR과 비교해 [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 P1 8건을 반영했다. GitHub에 없는 커밋은 502 대신 `REVISION_NOT_FOUND`로 안내하고 이전 기록 조회는 해당 후보만 실패로 남긴다. PR 조회 단계의 게시 실패는 `FAILED`·`PULL_REQUEST_UNAVAILABLE`로 저장한다. 기록 ID 조회의 권한 없음은 404로 숨긴다. 세션 상한은 같은 채널부터 정리한다. MCP `get_change_record_markdown`을 추가했다. 연결 진단은 PR 저장소 불일치에도 계속하고, Zed `check`는 서버 입력 오류를 서버 안내로 표시한다. IntelliJ는 400·403·503 안내를 구분하고 200자 초과 검색어를 요청 전에 안내한다. 목록·변경 작업의 403, HTTP 502 응답 코드, 세션 상한 수, 저장 스키마는 유지했다. 제품 코드는 서버·IntelliJ·Zed 합계 101줄 추가·13줄 삭제다.
 - `./gradlew test bootJar`에서 서버 262개·ArchUnit 5개가 통과하고 JAR을 빌드했다. 결과 시각은 2026-10-05 10:55 KST다. Zed 실제 서버 점검(`ZedBridgeIntegrationTest`)도 여기에 포함된다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 IntelliJ 54개와 ZIP 구조 검사가 통과했다(10:45 KST). `npm test --prefix clients/zed`에서 Node 16개·Python 3개(10:56 KST), `scripts/validate-plugin.sh`가 통과했다. 서버 테스트 6개(매개변수 사례 포함)와 IntelliJ·Node 테스트 각 1개를 추가했다. 기존 테스트의 소유권 거부 기대 3곳은 기록 없음 예외로 바꿨다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. SQL·스키마는 바뀌지 않아 PostgreSQL 검증은 반복하지 않았다. 새 테스트를 반영 전 코드에서 실패시키는 확인은 하지 않았다. `quick_validate.py`는 PyYAML이 없어 실행하지 못했으며 스킬 frontmatter는 바꾸지 않았다. Zed 배포 패키지는 다시 만들지 않았다. 실제 IDE 설치·화면 확인, GitHub 게시, 원격 푸시와 배포는 하지 않았고 기존 미추적 PNG를 보존했다.
+
+## 2026-10-05 기록별 게시 목록과 설치 웹훅, IntelliJ 진단 추가
+
+- 시작 리비전은 `b5d9077`, 구현 커밋은 `62a2182`(기록별 게시 목록)·`71922f5`(설치 웹훅)·`168a6b8`·`1bf460d`(IntelliJ)다. [검토 문서](docs/reviews/2026-10-05-feature-review.md)의 P2 항목을 반영했다. REST `GET /api/v1/change-records/{id}/github-pull-requests`·MCP `list_record_publications`와 웹 기록 상세가 게시 결과와 PR별 최신 시도를 최근 순 100개까지 보여 주고, 대체된 기록은 대체 안내 성공 시도가 없는 PR을 `supersessionNoticeNeeded`로 표시한다. 서명한 `installation`·`installation_repositories` 웹훅은 해당 설치 ID로 발급한 게시용 토큰만 캐시에서 버린다. IntelliJ는 `IntentTrace 저장소 연결 진단`과 현재 줄 결과의 `이전 커밋에서 이 줄 찾기`를 추가했으며 두 요청만 응답 읽기 제한이 40초다. 기존 게시 상태·대체 안내 REST 경로, 사용자 세션, 저장 스키마는 유지했다. 제품 코드는 서버·IntelliJ 합계 546줄 추가·39줄 삭제다.
+- `./gradlew test bootJar`에서 서버 266개·ArchUnit 5개가 통과하고 JAR을 빌드했다(11:11 KST). `scripts/verify-postgres.sh`에서 PostgreSQL 6개와 백업·복구 후 기록 16건·변경 이력 37건 일치를 확인했다(11:12 KST). 새 조회의 window 함수는 H2와 PostgreSQL 양쪽 저장소 계약 테스트로 확인했다. `./gradlew -p intellij-plugin test`에서 IntelliJ 59개(11:19 KST), `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`와 `scripts/validate-plugin.sh`가 통과했다. 서버 테스트 4개·PostgreSQL 계약 1개·IntelliJ 테스트 5개를 추가하고 REST·MCP·웹·발급 테스트를 넓혔다. GitHub 공식 문서에서 설치 이벤트가 모든 App에 기본 전달되는 것을 확인했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. Zed 코드는 바뀌지 않아 Node 테스트는 반복하지 않았다. 실제 IntelliJ 설치·화면 확인, GitHub 웹훅 실제 수신·게시, 원격 푸시·배포는 하지 않았다. 새 테스트를 반영 전 코드에서 실패시키는 확인은 하지 않았고 기존 미추적 PNG를 보존했다.
