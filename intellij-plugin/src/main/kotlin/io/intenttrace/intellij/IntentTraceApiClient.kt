@@ -40,15 +40,12 @@ internal class IntentTraceApiClient {
     fun revokeSession(server: IntentTraceServer, sessionToken: String) {
         requireSessionToken(sessionToken)
         execute {
-            HttpRequests.request(server.currentSessionUri().toString())
+            HttpRequests.delete(server.currentSessionUri().toString(), null)
                 .connectTimeout(5_000)
                 .readTimeout(10_000)
                 .followRedirects(false)
                 .throwStatusCodeException(false)
-                .tuner { connection ->
-                    (connection as HttpURLConnection).requestMethod = "DELETE"
-                    connection.setRequestProperty("Authorization", "Bearer $sessionToken")
-                }
+                .tuner { connection -> connection.setRequestProperty("Authorization", "Bearer $sessionToken") }
                 .connect { request ->
                     when (val status = (request.connection as HttpURLConnection).responseCode) {
                         200, 401 -> Unit

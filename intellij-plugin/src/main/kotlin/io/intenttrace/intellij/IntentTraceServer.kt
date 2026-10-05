@@ -13,10 +13,15 @@ internal data class LineLookup(
     val line: Int,
 ) {
     init {
-        require(repositoryKey.matches(Regex("^[a-z0-9_.-]+/[a-z0-9_.-]+$")))
-        require(revision.matches(Regex("^(?:[0-9a-f]{40}|[0-9a-f]{64})$")))
+        require(REPOSITORY_KEY.matches(repositoryKey))
+        require(FULL_REVISION.matches(revision))
         require(relativePath.isNotBlank() && !relativePath.startsWith('/'))
         require(line > 0)
+    }
+
+    private companion object {
+        val REPOSITORY_KEY = Regex("^[a-z0-9_.-]+/[a-z0-9_.-]+$")
+        val FULL_REVISION = Regex("^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
     }
 }
 
@@ -33,41 +38,41 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
 
     fun webRecordUri(id: String): URI = URI.create("$baseUri/records/${UUID.fromString(id)}")
 
-    fun listUri(query: RecordListQuery): URI {
-        val parameters = listOfNotNull(
-            "repositoryKey" to query.repositoryKey,
-            "scope" to query.scope.name,
-            query.path?.let { "path" to it },
-            query.status?.let { "status" to it },
-            query.cursor?.let { "cursor" to it },
-            query.keyword?.let { "q" to it },
-            "limit" to "20",
-        ).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
-        return URI.create("$baseUri/api/v1/change-records?$parameters")
-    }
+    fun listUri(query: RecordListQuery): URI = uri(
+        "/api/v1/change-records",
+        "repositoryKey" to query.repositoryKey,
+        "scope" to query.scope.name,
+        "path" to query.path,
+        "status" to query.status,
+        "cursor" to query.cursor,
+        "q" to query.keyword,
+        "limit" to "20",
+    )
 
     fun lookupUri(lookup: LineLookup): URI = lineUri("/api/v1/change-records/lookup", lookup)
 
     fun historyUri(lookup: LineLookup, cursor: String?): URI =
-        lineUri("/api/v1/change-records/history", lookup, listOfNotNull("limit" to HISTORY_LIMIT, cursor?.let { "cursor" to it }))
+        lineUri("/api/v1/change-records/history", lookup, "limit" to HISTORY_LIMIT, "cursor" to cursor)
 
-    fun diagnosticsUri(repositoryKey: String, revision: String?): URI {
-        val query = listOfNotNull("repositoryKey" to repositoryKey, revision?.let { "revision" to it })
-            .joinToString("&") { (name, value) -> "$name=${encode(value)}" }
-        return URI.create("$baseUri/api/v1/connection-diagnostics?$query")
-    }
+    fun diagnosticsUri(repositoryKey: String, revision: String?): URI =
+        uri("/api/v1/connection-diagnostics", "repositoryKey" to repositoryKey, "revision" to revision)
 
     fun webHistoryUri(lookup: LineLookup): URI = lineUri("/records/history", lookup)
 
-    private fun lineUri(path: String, lookup: LineLookup, extra: List<Pair<String, String>> = emptyList()): URI {
-        val query = (listOf(
-            "repositoryKey" to lookup.repositoryKey,
-            "revision" to lookup.revision,
-            "path" to lookup.relativePath,
-            "line" to lookup.line.toString(),
-        ) + extra).joinToString("&") { (name, value) -> "$name=${encode(value)}" }
-        return URI.create("$baseUri$path?$query")
-    }
+    private fun lineUri(path: String, lookup: LineLookup, vararg extra: Pair<String, String?>): URI = uri(
+        path,
+        "repositoryKey" to lookup.repositoryKey,
+        "revision" to lookup.revision,
+        "path" to lookup.relativePath,
+        "line" to lookup.line.toString(),
+        *extra,
+    )
+
+    /** 값이 없는 파라미터는 빼고 이름=값을 UTF-8로 인코딩한다. */
+    private fun uri(path: String, vararg parameters: Pair<String, String?>): URI = URI.create(
+        "$baseUri$path?" + parameters.mapNotNull { (name, value) -> value?.let { "$name=${URLEncoder.encode(it, StandardCharsets.UTF_8)}" } }
+            .joinToString("&"),
+    )
 
     companion object {
         const val URL_ENV = "INTENT_TRACE_URL"
@@ -100,8 +105,6 @@ internal class IntentTraceServer private constructor(val baseUri: URI) {
         }
     }
 }
-
-private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 
 internal open class IntentTraceUserException(message: String) : RuntimeException(message)
 
