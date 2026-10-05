@@ -13,7 +13,6 @@ import io.intenttrace.record.application.IntentMatch
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
 import org.junit.jupiter.api.Test
-import org.springframework.web.util.HtmlUtils
 import java.net.URI
 import java.time.Instant
 import java.util.UUID
@@ -21,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertContains
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import io.intenttrace.htmlLink
 
 class RecordBrowserNavigationTest {
     private val actor = ActorIdentity.github(42, "author")
@@ -99,7 +99,5 @@ class RecordBrowserNavigationTest {
         }
     }
 
-    private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
-        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
-    ))
+    private fun link(body: String, label: String): URI = URI(htmlLink(body, label))
 }

@@ -38,7 +38,6 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
-import org.springframework.web.util.HtmlUtils
 import java.util.UUID
 import java.net.URI
 import java.nio.file.Files
@@ -50,6 +49,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.record.application.publish
+import io.intenttrace.htmlHref
+import io.intenttrace.htmlLink
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class],
@@ -352,7 +353,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
             cookie(cookie); param("repositoryKey", repository); param("q", "공개 기록 검색")
             param("status", "PUBLISHED"); param("path", "src/App.kt")
         }.andExpect { status { isOk() } }.andReturn().response.contentAsString
-        val mineUrl = Regex("href=\"([^\"]+)\">내 공개 기록만 보기").find(team)!!.groupValues[1].replace("&amp;", "&")
+        val mineUrl = htmlLink(team, "내 공개 기록만 보기")
         assertTrue(URI(mineUrl).query.contains("q=공개 기록 검색"))
         assertTrue(mineUrl.contains("authorId=42"))
         assertTrue(mineUrl.contains("status=PUBLISHED"))
@@ -361,7 +362,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertTrue(onlyMine.contains(mine.id.toString()))
         assertFalse(onlyMine.contains(teammate.id.toString()))
         assertFalse(onlyMine.contains(private.id.toString()))
-        val clearUrl = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(onlyMine)!!.groupValues[1].replace("&amp;", "&")
+        val clearUrl = htmlLink(onlyMine, "작성자 필터 해제")
         val cleared = mvc.get(URI(clearUrl)) { cookie(cookie) }.andExpect { status { isOk() } }.andReturn().response.contentAsString
         assertTrue(cleared.contains(mine.id.toString()))
         assertTrue(cleared.contains(teammate.id.toString()))
@@ -393,20 +394,20 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val team = mvc.get("/records") {
             cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42"); param("q", "필터 기록")
         }.andExpect { status { isOk() }; content { string(containsString("다음 기록")) } }.andReturn().response.contentAsString
-        val next = Regex("href=\"([^\"]+)\">다음 기록").find(team)!!.groupValues[1].replace("&amp;", "&")
+        val next = htmlLink(team, "다음 기록")
         assertTrue(next.contains("status=PUBLISHED")); assertTrue(next.contains("authorId=42")); assertTrue(next.contains("path=src%2FApp.kt"))
         val secondPage = mvc.get(URI(next)) { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("이 페이지 1건")) }
         }.andReturn().response.contentAsString
-        val clearAuthor = Regex("href=\"([^\"]+)\">작성자 필터 해제").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        val clearAuthor = htmlLink(secondPage, "작성자 필터 해제")
         assertFalse(clearAuthor.contains("authorId=")); assertFalse(clearAuthor.contains("cursor="))
         assertTrue(clearAuthor.contains("status=PUBLISHED")); assertTrue(clearAuthor.contains("path=src%2FApp.kt"))
         assertTrue(URI(clearAuthor).query.contains("q=필터 기록"))
-        val recordLink = Regex("<h3><a href=\"([^\"]+)\"").find(secondPage)!!.groupValues[1].replace("&amp;", "&")
+        val recordLink = htmlHref(secondPage, "<h3><a href=\"([^\"]+)\"")
         val detail = mvc.get(URI(recordLink)) { cookie(cookie) }.andExpect {
             status { isOk() }; content { string(containsString("검색 결과로 돌아가기")) }
         }.andReturn().response.contentAsString
-        val backLink = Regex("class=\"back-link\" href=\"([^\"]+)\"").find(detail)!!.groupValues[1].replace("&amp;", "&")
+        val backLink = htmlHref(detail, "class=\"back-link\" href=\"([^\"]+)\"")
         assertEquals(next, backLink)
         for (label in listOf("기록 변경 이력", "GitHub 코드와 비교")) {
             val sectionLink = link(detail, label)
@@ -521,9 +522,9 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val overview = mvc.get("/records/pull-requests") { cookie(cookie); param("repositoryKey", "acme/browser"); param("pullNumber", "12") }
             .andExpect { status { isOk() }; content { string(containsString("게시 결과 미확인")) }; content { string(containsString("PR 최신 커밋과 다름")) } }.andReturn().response.contentAsString
         preview("pull-requests", overview)
-        val ciLink = Regex("href=\"([^\"]+)\">이 커밋의 CI 결과 조회").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        val ciLink = htmlLink(overview, "이 커밋의 CI 결과 조회")
         assertEquals("/records/github?repositoryKey=acme%2Fbrowser&revision=${"c".repeat(40)}", ciLink)
-        val requestLink = Regex("href=\"([^\"]+)\">PR 내용 가져오기").find(overview)!!.groupValues[1].replace("&amp;", "&")
+        val requestLink = htmlLink(overview, "PR 내용 가져오기")
         assertEquals("/records/github?repositoryKey=acme%2Fbrowser&number=12", requestLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
         val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
@@ -621,9 +622,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         return cookie
     }
 
-    private fun link(body: String, label: String): URI = URI(HtmlUtils.htmlUnescape(
-        Regex("href=\"([^\"]+)\">$label</a>").find(body)!!.groupValues[1],
-    ))
+    private fun link(body: String, label: String): URI = URI(htmlLink(body, label))
 
     private fun preview(name: String, content: String) {
         val directory = Files.createDirectories(Path.of("build/browser-preview"))

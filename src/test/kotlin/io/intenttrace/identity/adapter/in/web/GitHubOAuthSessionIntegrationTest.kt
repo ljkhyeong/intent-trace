@@ -26,7 +26,6 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
-import org.springframework.web.util.HtmlUtils
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Clock
@@ -37,6 +36,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.htmlLink
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
@@ -258,9 +258,7 @@ class GitHubOAuthSessionIntegrationTest(
         assertFalse(callback.contentAsString.contains("ghu_"))
         assertEquals(0, callback.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }.maxAge)
 
-        val retryUrl = URI(HtmlUtils.htmlUnescape(
-            Regex("href=\"([^\"]+)\">다시 로그인</a>").find(callback.contentAsString)!!.groupValues[1],
-        ))
+        val retryUrl = URI(htmlLink(callback.contentAsString, "다시 로그인"))
         val retry = mockMvc.get(retryUrl).andExpect { status { isFound() } }.andReturn().response
         val newState = retry.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
         mockMvc.get("/auth/github/callback") {
