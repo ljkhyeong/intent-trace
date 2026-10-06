@@ -8,7 +8,6 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -38,40 +37,34 @@ class InMemoryGitHubUserSessionStore(
         val key = TokenDigests.sha256(sessionToken)
         val stored = sessions[key] ?: throw GitHubUserAuthenticationException()
         return stored.lock.withLock {
-            val now = Instant.now(clock)
-            if (!stored.active.get() || sessions[key] !== stored || stored.isExpired(now)) {
-                revoke(key, stored)
-                throw GitHubUserAuthenticationException()
-            }
-            if (!now.isBefore(stored.tokens.accessExpiresAt.minus(USER_TOKEN_REFRESH_MARGIN))) {
-                stored.tokens = try {
-                    oauthGateway.refresh(stored.tokens.refreshToken)
-                } catch (_: GitHubOAuthException) {
-                    sessions.remove(key, stored)
+            // 인증 실패는 곧 세션 폐기다. 사용자 조회 장애와 호출 제한은 세션을 유지한다.
+            try {
+                val now = Instant.now(clock)
+                if (!stored.isLive(key, now)) throw GitHubUserAuthenticationException()
+                if (!now.isBefore(stored.tokens.accessExpiresAt.minus(USER_TOKEN_REFRESH_MARGIN))) {
+                    stored.tokens = try {
+                        oauthGateway.refresh(stored.tokens.refreshToken)
+                    } catch (_: GitHubOAuthException) {
+                        throw GitHubUserAuthenticationException()
+                    }
+                }
+                val verifiedActor = userAccessGateway.authenticate(stored.tokens.accessToken)
+                val authenticatedAt = Instant.now(clock)
+                if (verifiedActor.subject != stored.actor.subject || !stored.isLive(key, authenticatedAt)) {
                     throw GitHubUserAuthenticationException()
                 }
-            }
-
-            val verifiedActor = try {
-                userAccessGateway.authenticate(stored.tokens.accessToken)
+                stored.actor = verifiedActor
+                stored.lastUsedAt = authenticatedAt
+                GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id)
             } catch (exception: GitHubUserAuthenticationException) {
                 sessions.remove(key, stored)
                 throw exception
             }
-            if (verifiedActor.subject != stored.actor.subject) {
-                sessions.remove(key, stored)
-                throw GitHubUserAuthenticationException()
-            }
-            val authenticatedAt = Instant.now(clock)
-            if (!stored.active.get() || sessions[key] !== stored || stored.isExpired(authenticatedAt)) {
-                revoke(key, stored)
-                throw GitHubUserAuthenticationException()
-            }
-            stored.actor = verifiedActor
-            stored.lastUsedAt = authenticatedAt
-            GitHubUserSession(verifiedActor, stored.tokens.accessToken, stored.id)
         }
     }
+
+    // 키는 무작위 토큰의 해시라 다시 쓰이지 않으므로 맵에 같은 객체가 남아 있으면 폐기되지 않은 세션이다.
+    private fun StoredSession.isLive(key: String, at: Instant): Boolean = sessions[key] === this && !isExpired(at)
 
     private fun removeExpiredSessions(now: Instant) {
         sessions.forEach { (key, stored) ->
@@ -79,7 +72,7 @@ class InMemoryGitHubUserSessionStore(
             if (!stored.lock.tryLock()) return@forEach
             try {
                 if (stored.isExpired(now)) {
-                    revoke(key, stored)
+                    sessions.remove(key, stored)
                 }
             } finally {
                 stored.lock.unlock()
@@ -94,13 +87,13 @@ class InMemoryGitHubUserSessionStore(
             .sortedWith(compareBy({ it.value.channel != channel }, { it.value.createdAt }))
         val removalCount = activeSessions.size - properties.userAuthorization.maxSessionsPerUser + 1
         activeSessions.take(removalCount.coerceAtLeast(0)).forEach { (key, stored) ->
-            revoke(key, stored)
+            sessions.remove(key, stored)
         }
     }
 
     override fun list(subject: String): List<UserSessionInfo> {
         val now = Instant.now(clock)
-        return sessions.values.filter { it.actor.subject == subject && it.active.get() && !it.isExpired(now) }
+        return sessions.values.filter { it.actor.subject == subject && !it.isExpired(now) }
             .map { stored ->
                 val tokens = stored.tokens
                 UserSessionInfo(stored.id, stored.createdAt, stored.lastUsedAt, tokens.accessExpiresAt, tokens.refreshExpiresAt,
@@ -109,26 +102,17 @@ class InMemoryGitHubUserSessionStore(
     }
 
     override fun revokeBrowser(sessionToken: String) {
-        if (!sessionToken.startsWith("itb_")) return
         val key = TokenDigests.sha256(sessionToken)
-        val stored = sessions[key] ?: return
-        if (stored.channel != SessionChannel.BROWSER) return
-        revoke(key, stored)
+        sessions[key]?.takeIf { it.channel == SessionChannel.BROWSER }?.let { sessions.remove(key, it) }
     }
 
-    override fun revoke(subject: String, sessionId: UUID): Boolean {
-        val entry = sessions.entries.firstOrNull { it.value.id == sessionId && it.value.actor.subject == subject } ?: return false
-        return revoke(entry.key, entry.value)
-    }
+    // 폐기 수는 맵에서 실제로 지운 경우만 센다. 동시에 폐기돼도 한 번만 집계된다.
+    override fun revoke(subject: String, sessionId: UUID): Boolean =
+        sessions.entries.firstOrNull { it.value.id == sessionId && it.value.actor.subject == subject }
+            ?.let { sessions.remove(it.key, it.value) } ?: false
 
     override fun revokeAll(subject: String): Int =
-        sessions.entries.count { (key, stored) -> stored.actor.subject == subject && revoke(key, stored) }
-
-    private fun revoke(key: String, stored: StoredSession): Boolean {
-        val revoked = stored.active.compareAndSet(true, false)
-        sessions.remove(key, stored)
-        return revoked
-    }
+        sessions.entries.count { (key, stored) -> stored.actor.subject == subject && sessions.remove(key, stored) }
 
     private class StoredSession(
         @Volatile var actor: ActorIdentity,
@@ -140,7 +124,6 @@ class InMemoryGitHubUserSessionStore(
     ) {
         val expiresAt: Instant get() = if (channel == SessionChannel.BROWSER) issuedExpiresAt else tokens.refreshExpiresAt
         val lock = ReentrantLock()
-        val active = AtomicBoolean(true)
         @Volatile var lastUsedAt: Instant = createdAt
 
         fun isExpired(at: Instant): Boolean = !at.isBefore(expiresAt) || !at.isBefore(tokens.refreshExpiresAt)
