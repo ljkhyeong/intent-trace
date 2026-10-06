@@ -106,11 +106,25 @@ abstract class ChangeRecordStorageContract {
         assertEquals(listOf(newer, older), publications.findByRecord(record.id, 10))
         assertEquals(listOf(newer), publications.findByRecord(record.id, 1))
         val targets = tracking.latestByTarget(record.id, 10)
-        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.target.pullNumber to it.latest.id })
+        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.pullNumber to it.latest.id })
         assertEquals(listOf(false, true), targets.map { it.supersessionNoticed })
-        assertEquals(target.repositoryKey, targets.first().target.repositoryKey)
+        assertEquals(target.repositoryKey, targets.first().repositoryKey)
         assertEquals(1, tracking.latestByTarget(record.id, 1).size)
         assertTrue(publications.findByRecord(UUID.randomUUID(), 10).isEmpty())
+    }
+
+    @Test
+    fun `같은 기록과 PR의 게시 이력은 한 행을 갱신한다`() {
+        val record = published()
+        val target = GitHubPullRequestTarget("ACME", "STORAGE-UPSERT", 12)
+        val first = publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!,
+            42, "https://github.test/check-runs/42", digest, Instant.EPOCH))
+        val updated = publications.save(first.copy(id = UUID.randomUUID(), target = target, checkRunId = 43,
+            checkRunUrl = "https://github.test/check-runs/43", publishedAt = Instant.EPOCH.plusSeconds(60)))
+
+        assertEquals(first.id, updated.id)
+        assertEquals(43L, updated.checkRunId)
+        assertEquals(listOf(updated), publications.findByRecord(record.id, 10))
     }
 
     @Test
@@ -210,12 +224,16 @@ abstract class ChangeRecordStorageContract {
     @Test
     fun `스키마는 대문자 저장소 키와 정규화되지 않은 코드 경로를 거부한다`() {
         val record = published()
-        tracking.start(record.id, GitHubPullRequestTarget("acme", "storage-contract", 1), PublicationOperation.PUBLISH)
+        val target = GitHubPullRequestTarget("acme", "storage-contract", 1)
+        tracking.start(record.id, target, PublicationOperation.PUBLISH)
+        publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!, 1,
+            "https://github.test/check-runs/1", digest, Instant.EPOCH))
         for (sql in listOf(
             "update change_records set repository_key = 'ACME/STORAGE' where id = ?",
             "update code_anchors set relative_path = './src/Storage.kt' where record_id = ?",
             "update code_anchors set relative_path = 'src//Storage.kt' where record_id = ?",
             "update github_publication_attempts set repository_key = 'ACME/STORAGE' where change_record_id = ?",
+            "update github_publications set repository_key = 'ACME/STORAGE' where change_record_id = ?",
         )) {
             assertFailsWith<DataIntegrityViolationException>(sql) { storageJdbc.update(sql, record.id.toString()) }
         }

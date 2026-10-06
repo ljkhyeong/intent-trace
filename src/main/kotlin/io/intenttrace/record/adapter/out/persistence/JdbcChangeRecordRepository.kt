@@ -249,10 +249,10 @@ class JdbcChangeRecordRepository(
         items: List<T>,
         values: (T) -> Array<out Any?>,
     ) {
-        val placeholders = List(columns.split(",").size + 3) { "?" }.joinToString()
+        val placeholders = List(columns.split(",").size + 2) { "?" }.joinToString()
         jdbcTemplate.batchUpdate(
-            "insert into $table (id, record_id, sequence_number, $columns) values ($placeholders)",
-            items.mapIndexed { index, item -> arrayOf<Any?>(UUID.randomUUID().toString(), record.id.toString(), index, *values(item)) },
+            "insert into $table (record_id, sequence_number, $columns) values ($placeholders)",
+            items.mapIndexed { index, item -> arrayOf<Any?>(record.id.toString(), index, *values(item)) },
         )
     }
 

@@ -152,4 +152,4 @@ docker build --tag intent-trace:<전체-commit-ID> ../intent-trace-rollback
 
 ## DB 스키마 기준
 
-운영 전에 마이그레이션을 `V1__baseline.sql` 하나로 통합했다. 통합 이전 버전으로 만든 DB(로컬 H2 `.intent-trace/data`, Compose·k3s PostgreSQL 볼륨)는 Flyway 체크섬이 달라 시작하지 않으므로 지우고 새로 만든다. 이후 스키마 변경은 `V2`부터 새 파일로 추가하고 적용된 파일은 수정하지 않는다.
+운영 전에 마이그레이션을 `V1__baseline.sql` 하나로 통합했고 2026-10-06에 운영 전 정리로 같은 파일을 다시 수정했다. 그 이전에 만든 DB(로컬 H2 `.intent-trace/data`, Compose·k3s PostgreSQL 볼륨)는 Flyway 체크섬이 달라 시작하지 않으므로 지우고 새로 만든다. 운영 시작 후 스키마 변경은 `V2`부터 새 파일로 추가하고 적용된 파일은 수정하지 않는다.

@@ -39,7 +39,7 @@ class TeamGitHubPublicationService(
     fun targets(recordId: UUID): RecordPublications {
         val record = records.get(recordId)
         val published = publications.findByRecord(record.id, MAX_TARGETS + 1).associateBy { it.target.repositoryKey to it.target.pullNumber }
-        val attempted = tracking.latestByTarget(record.id, MAX_TARGETS + 1).associateBy { it.target.repositoryKey to it.target.pullNumber }
+        val attempted = tracking.latestByTarget(record.id, MAX_TARGETS + 1).associateBy { it.repositoryKey to it.pullNumber }
         val items = (published.keys + attempted.keys).map { key ->
             val publication = published[key]
             val attempt = attempted[key]

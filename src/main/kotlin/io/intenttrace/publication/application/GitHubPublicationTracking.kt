@@ -23,7 +23,12 @@ data class PublicationAttempt(
 data class GitHubPublicationStatus(val publication: GitHubPublication?, val attempts: List<PublicationAttempt>)
 
 /** PR별 최신 시도와 대체 안내 반영에 성공한 적이 있는지 여부다. */
-data class PublicationTargetAttempt(val target: GitHubPullRequestTarget, val latest: PublicationAttempt, val supersessionNoticed: Boolean)
+data class PublicationTargetAttempt(
+    val repositoryKey: String,
+    val pullNumber: Int,
+    val latest: PublicationAttempt,
+    val supersessionNoticed: Boolean,
+)
 
 /** 기록 하나를 게시했거나 게시를 시도한 PR이다. */
 data class RecordPublicationTarget(

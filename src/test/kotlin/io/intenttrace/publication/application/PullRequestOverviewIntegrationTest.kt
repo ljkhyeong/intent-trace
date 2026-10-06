@@ -54,6 +54,8 @@ class PullRequestOverviewIntegrationTest(
             }
         }
         val old = record("1".repeat(40))
+        tracking.start(old.id, target, PublicationOperation.PUBLISH)
+            .also { tracking.finish(it, PublicationAttemptStatus.SUCCEEDED, null, null) }
         publications.save(GitHubPublication(UUID.randomUUID(), old.id, target, old.targetRevision!!, 8,
             "https://github.com/acme/overview/runs/8", "a".repeat(64), Instant.now()))
         val current = record(head)
@@ -82,7 +84,7 @@ class PullRequestOverviewIntegrationTest(
         val page = overview.overview(target, limit = 20)
         assertEquals(20, page.items.size)
         assertEquals(19, page.items.count { it.publication != null })
-        assertEquals(19, page.items.count { it.latestAttempt != null })
+        assertEquals(20, page.items.count { it.latestAttempt != null })
         assertEquals(3, queryCount())
 
         clearInvocations(jdbc)

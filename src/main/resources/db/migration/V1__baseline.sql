@@ -1,4 +1,4 @@
--- 운영 전 V1~V11을 통합한 기준 스키마다. 이후 변경은 새 버전으로 추가한다.
+-- 운영 전 V1~V11을 통합한 기준 스키마다. 운영 시작 후 변경은 새 버전으로 추가한다.
 
 create table change_records (
     id varchar(36) primary key,
@@ -30,18 +30,16 @@ create index idx_change_records_author_catalog on change_records(repository_key,
 create index idx_change_records_lookup on change_records(repository_key, target_revision, status);
 
 create table change_decisions (
-    id varchar(36) primary key,
     record_id varchar(36) not null,
     sequence_number integer not null,
     summary varchar(1000) not null,
     rationale varchar(2000),
     source varchar(48) not null,
     constraint fk_change_decisions_record foreign key (record_id) references change_records(id) on delete cascade,
-    constraint uq_change_decisions_sequence unique (record_id, sequence_number)
+    constraint pk_change_decisions primary key (record_id, sequence_number)
 );
 
 create table code_anchors (
-    id varchar(36) primary key,
     record_id varchar(36) not null,
     sequence_number integer not null,
     relative_path varchar(1000) not null,
@@ -52,7 +50,7 @@ create table code_anchors (
     anchor_side varchar(16) not null,
     related_path varchar(1000),
     constraint fk_code_anchors_record foreign key (record_id) references change_records(id) on delete cascade,
-    constraint uq_code_anchors_sequence unique (record_id, sequence_number),
+    constraint pk_code_anchors primary key (record_id, sequence_number),
     constraint ck_code_anchors_canonical_path check (
         relative_path <> ''
         and relative_path <> '.'
@@ -67,7 +65,6 @@ create table code_anchors (
 create index idx_code_anchors_path on code_anchors(relative_path, start_line, end_line);
 
 create table verification_runs (
-    id varchar(36) primary key,
     record_id varchar(36) not null,
     sequence_number integer not null,
     command_text varchar(2000) not null,
@@ -79,16 +76,15 @@ create table verification_runs (
     summary varchar(2000) not null,
     source varchar(32) not null,
     constraint fk_verification_runs_record foreign key (record_id) references change_records(id) on delete cascade,
-    constraint uq_verification_runs_sequence unique (record_id, sequence_number)
+    constraint pk_verification_runs primary key (record_id, sequence_number)
 );
 
 create table open_questions (
-    id varchar(36) primary key,
     record_id varchar(36) not null,
     sequence_number integer not null,
     description varchar(1000) not null,
     constraint fk_open_questions_record foreign key (record_id) references change_records(id) on delete cascade,
-    constraint uq_open_questions_sequence unique (record_id, sequence_number)
+    constraint pk_open_questions primary key (record_id, sequence_number)
 );
 
 create table record_activities (
@@ -107,8 +103,7 @@ create table record_activities (
 create table github_publications (
     id varchar(36) primary key,
     change_record_id varchar(36) not null,
-    repository_owner varchar(100) not null,
-    repository_name varchar(100) not null,
+    repository_key varchar(255) not null,
     pull_number integer not null,
     head_revision varchar(64) not null,
     check_run_id bigint not null,
@@ -116,10 +111,8 @@ create table github_publications (
     content_digest varchar(64) not null,
     published_at timestamp with time zone not null,
     constraint fk_github_publications_change_record foreign key (change_record_id) references change_records(id),
-    constraint uq_github_publications_target unique (change_record_id, repository_owner, repository_name, pull_number),
-    constraint ck_github_publications_repository_lowercase check (
-        repository_owner = lower(repository_owner) and repository_name = lower(repository_name)
-    )
+    constraint uq_github_publications_target unique (change_record_id, repository_key, pull_number),
+    constraint ck_github_publications_repository_lowercase check (repository_key = lower(repository_key))
 );
 
 create table github_publication_attempts (
