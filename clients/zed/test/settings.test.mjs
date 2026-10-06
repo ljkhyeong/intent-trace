@@ -9,6 +9,7 @@ import { parse } from 'jsonc-parser';
 import { prepareSettings } from '../settings.mjs';
 
 const script = fileURLToPath(new URL('../intent-trace.mjs', import.meta.url));
+const serverKey = ['context_servers', 'intent-trace'];
 
 test('JSONC 주석과 다른 연결을 보존하고 미리보기·반복 등록·실행 경로 갱신을 처리한다', () => {
   const directory = mkdtempSync(join(tmpdir(), 'intent-trace-settings-'));
@@ -43,10 +44,10 @@ test('JSONC 주석과 다른 연결을 보존하고 미리보기·반복 등록�
 
 test('설정을 처음 생성하고 잘못된 JSONC와 중복 연결은 덮어쓰지 않는다', () => {
   const entry = { command: 'node', args: [], env: {} };
-  assert.deepEqual(parse(prepareSettings('// 첫 설정\n', entry).text).context_servers['intent-trace'], entry);
+  assert.deepEqual(parse(prepareSettings('// 첫 설정\n', entry, serverKey).text).context_servers['intent-trace'], entry);
   for (const content of ['{broken', '[]', '{"context_servers":[]}', '{"context_servers":{},"context_servers":{}}',
     '{"context_servers":{"intent-trace":{},"intent-trace":{}}}']) {
-    for (const replacement of [entry, undefined]) assert.throws(() => prepareSettings(content, replacement));
+    for (const replacement of [entry, undefined]) assert.throws(() => prepareSettings(content, replacement, serverKey));
   }
 });
 
@@ -57,7 +58,7 @@ test('연결 위치와 끝 쉼표에 관계없이 다른 설정과 인접 주석
   for (const entries of [[target], [target, other], [other, target], [other, target, another]]) {
     for (const trailing of ['', ',']) {
       const original = `// 파일 주석\r\n{\r\n\t"theme": "One Dark",\r\n\t"context_servers": { /* 연결 목록 */\r\n\t${entries.join(',\r\n\t')}${trailing}\r\n\t}\r\n}\r\n`;
-      const removed = prepareSettings(original, undefined);
+      const removed = prepareSettings(original, undefined, serverKey);
       const errors = [];
       const parsed = parse(removed.text, errors, { allowTrailingComma: true });
       assert.deepEqual(errors, []);
@@ -69,11 +70,11 @@ test('연결 위치와 끝 쉼표에 관계없이 다른 설정과 인접 주석
         assert.ok(removed.text.includes(comment), comment);
       }
       assert.ok(!removed.text.includes('old-secret'));
-      assert.deepEqual(prepareSettings(removed.text, undefined), { text: removed.text, operation: '변경 없음' });
+      assert.deepEqual(prepareSettings(removed.text, undefined, serverKey), { text: removed.text, operation: '변경 없음' });
     }
   }
   for (const text of ['', '// 아직 등록하지 않음\n', '{"theme":"One Dark"}']) {
-    assert.deepEqual(prepareSettings(text, undefined), { text, operation: '변경 없음' });
+    assert.deepEqual(prepareSettings(text, undefined, serverKey), { text, operation: '변경 없음' });
   }
 });
 

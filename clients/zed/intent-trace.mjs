@@ -7,9 +7,11 @@ import { BridgeFailure, UsageError } from './errors.mjs';
 
 export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const script = fileURLToPath(import.meta.url);
-const serverEntry = url => ({ command: process.execPath, args: [script, 'serve', url.href], env: {} });
-// Zed 확장은 lsp.intent-trace.binary가 있으면 이 명령으로 hover 언어 서버를 실행한다.
-const languageServerEntry = url => ({ binary: { path: process.execPath, arguments: [script, 'lsp', url.href] } });
+// config가 출력하고 configure가 저장하는 설정이다. Zed 확장은 lsp.intent-trace.binary가 있으면 이 명령으로 hover 언어 서버를 실행한다.
+const zedSettings = url => ({
+  context_servers: { 'intent-trace': { command: process.execPath, args: [script, 'serve', url.href], env: {} } },
+  lsp: { 'intent-trace': { binary: { path: process.execPath, arguments: [script, 'lsp', url.href] } } },
+});
 const defaultUrl = 'http://127.0.0.1:8080/mcp';
 const commandUsage = {
   config: 'config [MCP 주소]\n  Zed에 등록할 MCP 연결·hover 언어 서버 설정을 출력합니다. 파일은 변경하지 않습니다.',
@@ -102,23 +104,23 @@ async function main() {
     } catch {
       throw new UsageError(`Zed 설정: ${mode}${mode === 'configure' ? ' [MCP 주소]' : ''} [--settings 설정파일] [--apply] 형식을 확인하세요.`);
     }
-    const url = mode === 'configure' ? endpoint(parsed.positionals[0]) : undefined;
-    return configure(parsed.values.settings ?? defaultSettingsPath(), url ? [serverEntry(url), languageServerEntry(url)] : [undefined, undefined], parsed.values.apply);
+    const settings = mode === 'configure' ? zedSettings(endpoint(parsed.positionals[0])) : undefined;
+    return configure(parsed.values.settings ?? defaultSettingsPath(), settings, parsed.values.apply);
   }
   const { positionals, diagnostic } = mode === 'check' ? checkOptions(arguments_) : { positionals: arguments_ };
   const [address, repositoryKey] = positionals;
   if (positionals.length > (mode === 'check' ? 2 : 1)) throw new UsageError('IntentTrace MCP 주소와 명령 인자 수를 확인하세요.');
   const url = endpoint(address);
   if (mode === 'config') {
-    console.log(JSON.stringify({ context_servers: { 'intent-trace': serverEntry(url) }, lsp: { 'intent-trace': languageServerEntry(url) } }, null, 2));
+    console.log(JSON.stringify(zedSettings(url), null, 2));
     return;
   }
   const token = sessionToken();
   // 언어 서버는 표준 출력을 LSP 통신에만 쓴다.
   if (mode === 'lsp') return (await import('./lsp.mjs')).serveLanguageServer(url, token);
   const bridge = await import('./bridge.mjs');
-  if (mode === 'serve') await bridge.serve(url);
-  else await bridge.check(script, url, repositoryKey, diagnostic);
+  if (mode === 'serve') await bridge.serve(url, token);
+  else await bridge.check(script, url, token, repositoryKey, diagnostic);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {

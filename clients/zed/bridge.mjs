@@ -4,15 +4,15 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { sessionToken, version } from './intent-trace.mjs';
+import { version } from './intent-trace.mjs';
 import { httpFailure, parseFailureLine, safeFailure } from './errors.mjs';
 
 const timeout = 60_000;
 
-export async function serve(url) {
+export async function serve(url, token) {
   const remote = new Client({ name: 'intent-trace-zed-bridge', version });
   const transport = new StreamableHTTPClientTransport(url, {
-    requestInit: { headers: { Authorization: `Bearer ${sessionToken()}` } },
+    requestInit: { headers: { Authorization: `Bearer ${token}` } },
     fetch: async (input, init) => {
       const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
       if (target.href !== url.href) throw new Error('허용한 MCP 주소가 아닙니다.');
@@ -59,11 +59,11 @@ export function toolErrorText(result) {
   return text || '서버가 진단 요청을 거부했습니다. 저장소·커밋·PR 번호를 확인하세요.';
 }
 
-export async function check(script, url, repositoryKey, diagnostic = {}) {
+export async function check(script, url, token, repositoryKey, diagnostic) {
   const client = new Client({ name: 'intent-trace-connection-check', version });
   const transport = new StdioClientTransport({
     command: process.execPath, args: [script, 'serve', url.href],
-    env: { INTENT_TRACE_SESSION_TOKEN: sessionToken() }, stderr: 'pipe',
+    env: { INTENT_TRACE_SESSION_TOKEN: token }, stderr: 'pipe',
   });
   // 정해진 오류 코드 줄만 해석하고 자식 프로세스의 다른 출력은 버린다.
   let childFailure;
