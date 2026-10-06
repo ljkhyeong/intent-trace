@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).with_name("zed-with-intent-trace.py")
+SCRIPT = Path(__file__).resolve().parents[1] / "zed-with-intent-trace.py"
 spec = importlib.util.spec_from_file_location("zed_launcher", SCRIPT)
 launcher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(launcher)

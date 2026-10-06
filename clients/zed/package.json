@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs && python3 ../../scripts/test-zed-launcher.py"
+    "test": "node --test test/*.test.mjs && python3 test/test_launcher.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

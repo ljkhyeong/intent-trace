@@ -46,7 +46,7 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 
 - `scripts/package-zed.mjs`는 `clients/zed`의 실행 파일·세션 토큰 입력 도구·사용 안내와 Node 의존성을 묶은 `.tgz` 및 SHA-256 파일을 만든다. 0.12.1부터 의존성은 아래의 잠금 파일 설치 절차로 준비한다. 저장소 전체·테스트·사용자 설정은 포함하지 않는다. 생성은 macOS·Linux에서 지원한다.
 - 기본 패키지는 로컬 설치용 `private: true`다. `intent-trace-zed` 실행 명령을 제공하며 심볼릭 링크로 설치된 명령도 실제 실행 파일에서 시작한다. 설정 생성은 설치된 경로를 사용한다.
-- `launch`는 패키지의 Python 실행 도구로 Zed에 세션을 전달한다. 저장소에서 실행할 때는 기존 스크립트를 사용한다. `INTENT_TRACE_MCP_URL`은 선택 서버 주소이며 명령 인자의 주소가 우선한다.
+- `launch`는 패키지의 Python 실행 도구로 Zed에 세션을 전달한다. `INTENT_TRACE_MCP_URL`은 선택 서버 주소이며 명령 인자의 주소가 우선한다.
 - npm 이름·MCP 이름·GitHub 저장소를 함께 지정하면 별도 배포 패키지에 `mcpName`과 저장소 정보를 넣고 `server.json`을 생성한다. 제출용 token 입력은 비밀값으로 선언하며 실제 값을 포함하지 않는다. 이 생성 작업은 외부 게시를 하지 않는다.
 - Zed는 MCP 확장 플러그인에서 공식 MCP 레지스트리로 전환할 계획을 안내한다. 배포 자료는 공식 레지스트리 형식에 맞추고 기존 사용자 지정 stdio 연결을 유지한다. [Zed 공식 안내](https://zed.dev/docs/extensions/mcp-extensions), [MCP 레지스트리 게시 절차](https://modelcontextprotocol.io/registry/quickstart)
 

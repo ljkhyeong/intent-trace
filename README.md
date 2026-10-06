@@ -398,7 +398,7 @@ Zed 연결을 제거할 때는 `node clients/zed/intent-trace.mjs unconfigure`�
 npm ci --prefix clients/zed --ignore-scripts
 node clients/zed/intent-trace.mjs configure
 node clients/zed/intent-trace.mjs configure --apply
-python3 scripts/zed-with-intent-trace.py .
+node clients/zed/intent-trace.mjs launch .
 ```
 
 마지막 명령은 Zed CLI 설치 후 사용합니다. 입력한 토큰은 화면에 표시하지 않고 설정 파일·명령 인자에 저장하지 않습니다.

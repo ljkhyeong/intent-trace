@@ -64,7 +64,7 @@
 | 번호 | 현재 문구 | 권장 문구 | 위치 |
 |---|---|---|---|
 | 23 | INTENT_TRACE_SESSION_TOKEN에 로그인 화면에서 받은 its_ 세션을 환경 변수로 전달하세요. | INTENT_TRACE_SESSION_TOKEN 환경 변수에 로그인 화면의 its_ 세션 토큰을 설정하세요. | [intent-trace.mjs:25](../../clients/zed/intent-trace.mjs#L25) |
-| 24 | IntentTrace its_ 세션:  | IntentTrace 세션 토큰(its_):  | [zed-with-intent-trace.py:22](../../scripts/zed-with-intent-trace.py#L22) |
+| 24 | IntentTrace its_ 세션:  | IntentTrace 세션 토큰(its_):  | [zed-with-intent-trace.py:22](../../clients/zed/zed-with-intent-trace.py#L22) |
 | 25 | 숨긴 입력으로 받은 세션은 Zed 실행 환경에만 전달한다. | 세션 토큰은 화면에 표시하지 않고 Zed 실행 환경에만 전달한다. | [README.md:23](../../clients/zed/README.md#L23) |
 | 26 | IntentTrace 인증이 만료되었거나 거부됐습니다. 다시 로그인한 세션으로 연결하세요. | IntentTrace 인증에 실패했습니다. 다시 로그인해 받은 세션 토큰으로 연결하세요. | [errors.mjs:3](../../clients/zed/errors.mjs#L3) |
 | 27 | 변경 요청은 기록 또는 게시 상태를 먼저 조회하세요. | 변경 요청을 다시 보내기 전에 기록·게시 상태를 확인하세요. | [errors.mjs:1](../../clients/zed/errors.mjs#L1) |

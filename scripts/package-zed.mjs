@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,14 +40,13 @@ try {
   await writeFile(join(staging, 'package-lock.json'), lockfile);
   const installed = spawnSync('npm', ['ci', '--ignore-scripts', '--omit=dev', '--include=optional', '--include=peer', '--install-strategy=hoisted', '--no-audit', '--no-fund', '--logs-max=0'], { cwd: staging, encoding: 'utf8' });
   if (installed.status !== 0) throw new Error('잠금 파일로 배포 의존성을 설치하지 못했습니다. package.json·package-lock.json 일치 여부와 npm 연결을 확인하세요.');
-  // 실행에 필요한 파일만 복사한다. 사용자 설정과 프로젝트 문서는 패키지에 넣지 않는다.
-  for (const name of ['intent-trace.mjs', 'bridge.mjs', 'lsp.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
+  // clients/zed 최상위의 실행 파일(.mjs·.py)과 사용 안내만 복사한다. 테스트·확장·node_modules·사용자 설정은 넣지 않는다.
+  for (const name of (await readdir(source)).filter(name => /\.(mjs|py)$/.test(name) || name === 'README.md')) {
     await cp(join(source, name), join(staging, name));
   }
-  await cp(join(root, 'scripts/zed-with-intent-trace.py'), join(staging, 'zed-with-intent-trace.py'));
   pkg.scripts = {};
   pkg.bin = { 'intent-trace-zed': 'intent-trace.mjs' };
-  pkg.files = ['*.mjs', 'zed-with-intent-trace.py', 'README.md', 'build-info.json'];
+  pkg.files = ['*.mjs', '*.py', 'README.md', 'build-info.json'];
   pkg.bundleDependencies = Object.keys(pkg.dependencies);
   pkg.license = 'UNLICENSED';
   let descriptor;

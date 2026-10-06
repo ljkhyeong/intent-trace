@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { realpathSync, existsSync, readFileSync } from 'node:fs';
+import { realpathSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { BridgeFailure, UsageError } from './errors.mjs';
@@ -84,9 +84,8 @@ async function main() {
   }
   if (mode !== 'launch' && arguments_.some(value => ['--help', '-h'].includes(value))) return printHelp(mode);
   if (mode === 'launch') {
-    const bundled = new URL('./zed-with-intent-trace.py', import.meta.url);
-    const launcher = existsSync(bundled) ? bundled : new URL('../../scripts/zed-with-intent-trace.py', import.meta.url);
-    const child = spawn(process.platform === 'win32' ? 'python' : 'python3', [fileURLToPath(launcher), ...arguments_], { stdio: 'inherit' });
+    const launcher = fileURLToPath(new URL('./zed-with-intent-trace.py', import.meta.url));
+    const child = spawn(process.platform === 'win32' ? 'python' : 'python3', [launcher, ...arguments_], { stdio: 'inherit' });
     process.exitCode = await new Promise((resolve, reject) => {
       child.once('error', () => reject(new UsageError('Zed 설정: Python 3와 Zed CLI 설치를 확인하세요.')));
       child.once('close', code => resolve(code ?? 1));
