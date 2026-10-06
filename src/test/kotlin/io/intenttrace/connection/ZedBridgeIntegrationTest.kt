@@ -26,13 +26,13 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.issueTestSession
+import io.intenttrace.runProcess
 import org.junit.jupiter.api.io.TempDir
 
 @SpringBootTest(
@@ -213,12 +213,8 @@ class ZedBridgeIntegrationTest(
 
     @Test
     fun `Zed hover 언어 서버는 커밋된 줄의 공개 기록을 실제 서버에서 조회한다`(@TempDir directory: Path) {
-        fun git(vararg args: String): String {
-            val process = ProcessBuilder("git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args)
-                .directory(directory.toFile()).redirectErrorStream(true).start()
-            assertTrue(process.waitFor(30, TimeUnit.SECONDS))
-            return process.inputStream.bufferedReader().readText().trim().also { assertEquals(0, process.exitValue(), it) }
-        }
+        fun git(vararg args: String): String =
+            runProcess(listOf("git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args), directory).assertSuccess().output.trim()
         git("init", "-q")
         git("remote", "add", "origin", "https://github.com/acme/intent-trace.git")
         val file = Files.writeString(directory.resolve("Hover.kt"), "fun hover() {}\nval line = 2\n")
@@ -269,17 +265,9 @@ class ZedBridgeIntegrationTest(
     /** clients/zed에서 Node를 실행하고, 종료 코드를 확인한 출력을 돌려준다. */
     private fun runNode(vararg arguments: String, env: Map<String, String>, expectedExitCode: Int = 0): String {
         assumeTrue(Files.exists(zed.resolve("node_modules/@modelcontextprotocol/sdk")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
-        val process = ProcessBuilder("node", *arguments).directory(zed.toFile()).redirectErrorStream(true)
-            .apply { environment().putAll(env) }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
-        assertTrue(finished, "Node 실행이 30초 안에 끝나야 합니다.")
-        val output = process.inputStream.bufferedReader().readText()
-        assertEquals(expectedExitCode, process.exitValue(), output)
-        return output
+        val result = runProcess(listOf("node", *arguments), zed, env)
+        assertEquals(expectedExitCode, result.exitCode, result.output)
+        return result.output
     }
 
     companion object {

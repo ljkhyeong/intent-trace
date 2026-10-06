@@ -1,5 +1,7 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.ProcessResult
+import io.intenttrace.runProcess
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -192,24 +194,14 @@ class GitEvidenceScriptTest {
         return runGit(*prefix, "rev-parse", "HEAD").output.trim()
     }
 
-    private fun runGit(vararg arguments: String): CommandResult =
-        runCommand(listOf("git", *arguments)).also { assertEquals(0, it.exitCode, it.output) }
+    private fun runGit(vararg arguments: String): ProcessResult = runCommand(listOf("git", *arguments)).assertSuccess()
 
-    private fun runEvidence(vararg arguments: String): CommandResult {
+    private fun runEvidence(vararg arguments: String): ProcessResult {
         val script = Path.of("scripts/git-evidence.sh").toAbsolutePath()
         return runCommand(listOf("/bin/sh", script.toString(), *arguments))
     }
 
-    private fun runCommand(command: List<String>): CommandResult {
-        val process = ProcessBuilder(command)
-            .directory(repository.toFile())
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        return CommandResult(process.waitFor(), output)
-    }
-
-    private data class CommandResult(val exitCode: Int, val output: String)
+    private fun runCommand(command: List<String>): ProcessResult = runProcess(command, repository)
 
     companion object {
         private val verificationScript = Path.of("scripts/run-verification.py").toAbsolutePath().toString()

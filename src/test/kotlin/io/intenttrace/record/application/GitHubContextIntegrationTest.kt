@@ -24,11 +24,11 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
+import io.intenttrace.runZedNode
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["server.shutdown=immediate"])
 @AutoConfigureMockMvc
@@ -190,12 +190,7 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 }
             } finally { await client.close(); }
         """.trimIndent()
-        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = session() }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) process.destroyForcibly()
-        assertTrue(finished, "MCP SDK 조회가 제한 시간 안에 끝나야 합니다.")
-        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        runZedNode(script, mapOf("INTENT_TRACE_SESSION_TOKEN" to session())).assertSuccess()
     }
 
     private fun session(channel: SessionChannel = SessionChannel.CLIENT): String =
