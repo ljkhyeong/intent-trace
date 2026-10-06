@@ -1,6 +1,7 @@
 package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.IntentTraceApplication
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserSessionStore
@@ -214,15 +215,47 @@ class AuthenticatedRestIntegrationTest(
     @Test
     fun `인증 실패와 GitHub 사용자 조회 장애를 구분한다`() {
         mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}")
-            .andExpect { status { isUnauthorized() } }
+            .andExpect {
+                status { isUnauthorized() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+                jsonPath("$.title") { value("GitHub 사용자 인증 실패") }
+            }
 
-        userAccess.failAuthentication = true
+        userAccess.failure = GitHubIdentityApiException("테스트 사용자 조회 장애")
         try {
             mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}") {
                 authorized()
-            }.andExpect { status { isBadGateway() } }
+            }.andExpect {
+                status { isBadGateway() }
+                content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
+                jsonPath("$.title") { value("GitHub 사용자 권한 조회 실패") }
+            }
         } finally {
-            userAccess.failAuthentication = false
+            userAccess.failure = null
+        }
+    }
+
+    @Test
+    fun `인증 단계의 호출 제한도 대기 시간과 오류 코드를 반환한다`() {
+        userAccess.failure = GitHubRateLimitException(120)
+        try {
+            mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}") {
+                authorized()
+            }.andExpect {
+                status { isTooManyRequests() }
+                header { string(HttpHeaders.RETRY_AFTER, "120") }
+                jsonPath("$.code") { value("GITHUB_RATE_LIMITED") }
+                jsonPath("$.retryAfterSeconds") { value(120) }
+            }
+        } finally {
+            userAccess.failure = null
+        }
+    }
+
+    @Test
+    fun `경로 매개변수를 붙여도 인증을 건너뛰지 않는다`() {
+        for (path in listOf("/api;x/v1/change-records/${UUID.randomUUID()}", "/api/v1;x/change-records/${UUID.randomUUID()}")) {
+            mockMvc.get(path).andExpect { status { isUnauthorized() } }
         }
     }
 
@@ -273,11 +306,11 @@ class AuthenticatedRestIntegrationTest(
     }
 
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
-        var failAuthentication = false
+        var failure: RuntimeException? = null
         var role: RepositoryRole? = RepositoryRole.MAINTAINER
 
         override fun authenticate(accessToken: String): ActorIdentity {
-            if (failAuthentication) throw GitHubIdentityApiException("테스트 사용자 조회 장애")
+            failure?.let { throw it }
             return if (accessToken == TEAMMATE_TOKEN) ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
         }
 
