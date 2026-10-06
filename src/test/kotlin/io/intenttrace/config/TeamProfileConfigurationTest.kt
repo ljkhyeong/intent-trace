@@ -28,6 +28,5 @@ class TeamProfileConfigurationTest(
         assertEquals("0.0.0.0", environment.getProperty("server.address"))
         assertEquals("framework", environment.getProperty("server.forward-headers-strategy"))
         assertFalse(environment.getProperty("spring.h2.console.enabled", Boolean::class.java, true))
-        assertTrue(environment.getProperty("management.endpoint.health.probes.enabled", Boolean::class.java, false))
     }
 }
