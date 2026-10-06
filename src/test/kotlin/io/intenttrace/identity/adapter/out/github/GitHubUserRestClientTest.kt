@@ -34,7 +34,6 @@ class GitHubUserRestClientTest {
     private val client = GitHubUserRestClient(
         client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(
             apiBaseUrl = URI.create("https://api.github.test"),
-            apiVersion = "2026-03-10",
         )),
     )
     private val actor = ActorIdentity.github(42, "lim")

@@ -40,7 +40,6 @@ class GitHubRestClientTest {
     private val client = GitHubRestClient(
         client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(
             apiBaseUrl = URI.create("https://api.github.test"),
-            apiVersion = "2026-03-10",
         )),
         tokenProvider = tokenProvider,
     )

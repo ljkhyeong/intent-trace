@@ -16,6 +16,7 @@ import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.IssuedGitHubUserSession
 import io.intenttrace.identity.application.BROWSER_SESSION_TTL
+import io.intenttrace.identity.application.OAUTH_STATE_TTL
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
@@ -48,7 +49,7 @@ class GitHubOAuthController(
         val start = flow.start(returnTo)
         return secure(ResponseEntity.status(HttpStatus.FOUND))
             .location(start.authorizationUri)
-            .header(HttpHeaders.SET_COOKIE, stateCookie(start.state, properties.userAuthorization.stateTtl))
+            .header(HttpHeaders.SET_COOKIE, stateCookie(start.state, OAUTH_STATE_TTL))
             .build()
     }
 

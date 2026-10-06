@@ -13,6 +13,9 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+// API 버전은 응답 해석 코드와 함께 바꾼다.
+private const val GITHUB_API_VERSION = "2026-03-10"
+
 class GitHubRateLimitException(val retryAfterSeconds: Long) : RuntimeException("GitHub 호출 제한에 도달했습니다. ${retryAfterSeconds}초 후 다시 시도하세요.")
 
 object GitHubRateLimit {
@@ -45,7 +48,7 @@ class GitHubHttpPolicy {
     fun githubApiRestClient(builder: RestClient.Builder, properties: GitHubProperties): RestClient = builder
         .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
         .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")
-        .defaultHeader("X-GitHub-Api-Version", properties.apiVersion)
+        .defaultHeader("X-GitHub-Api-Version", GITHUB_API_VERSION)
         .build()
 
     @Bean

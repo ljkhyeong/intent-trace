@@ -78,7 +78,7 @@ class GitHubHttpPolicyTest {
         for (token in listOf("ghu_first", "ghu_second")) {
             server.expect(requestTo("https://api.github.test$path"))
                 .andExpect(header("Accept", "application/vnd.github+json"))
-                .andExpect(header("X-GitHub-Api-Version", properties.apiVersion))
+                .andExpect(header("X-GitHub-Api-Version", "2026-03-10"))
                 .andExpect(header("Authorization", "Bearer $token"))
                 .andRespond(withStatus(HttpStatus.FORBIDDEN).header("Retry-After", "120").body("ghu_private-response"))
         }

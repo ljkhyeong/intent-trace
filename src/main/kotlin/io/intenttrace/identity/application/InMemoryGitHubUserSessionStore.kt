@@ -43,7 +43,7 @@ class InMemoryGitHubUserSessionStore(
                 revoke(key, stored)
                 throw GitHubUserAuthenticationException()
             }
-            if (!now.isBefore(stored.tokens.accessExpiresAt.minus(properties.userAuthorization.refreshBeforeExpiry))) {
+            if (!now.isBefore(stored.tokens.accessExpiresAt.minus(USER_TOKEN_REFRESH_MARGIN))) {
                 stored.tokens = try {
                     oauthGateway.refresh(stored.tokens.refreshToken)
                 } catch (_: GitHubOAuthException) {
@@ -150,3 +150,4 @@ class InMemoryGitHubUserSessionStore(
 }
 
 val BROWSER_SESSION_TTL: Duration = Duration.ofHours(8)
+private val USER_TOKEN_REFRESH_MARGIN: Duration = Duration.ofMinutes(5)

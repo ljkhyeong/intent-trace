@@ -5,6 +5,7 @@ import io.intenttrace.publication.application.InstallationTokenCache
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.stereotype.Component
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
@@ -46,5 +47,7 @@ class CachingGitHubAccessTokenProvider(
         tokens.entries.count { (key, token) -> token.installationId == installationId && tokens.remove(key, token) }
 
     private fun isUsable(token: GitHubInstallationAccessToken): Boolean =
-        Instant.now(clock).plus(properties.app.refreshBeforeExpiry).isBefore(token.expiresAt)
+        Instant.now(clock).plus(APP_TOKEN_REFRESH_MARGIN).isBefore(token.expiresAt)
 }
+
+private val APP_TOKEN_REFRESH_MARGIN: Duration = Duration.ofMinutes(5)

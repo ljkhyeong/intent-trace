@@ -381,11 +381,7 @@ class InMemoryGitHubUserSessionStoreTest {
     companion object {
         private val now = Instant.parse("2026-08-28T12:00:00Z")
         private val owner = ActorIdentity.github(42, "lim")
-        private val properties = GitHubProperties(
-            userAuthorization = GitHubUserAuthorizationProperties(
-                refreshBeforeExpiry = Duration.ofMinutes(5),
-            ),
-        )
+        private val properties = GitHubProperties()
 
         private fun tokens(now: Instant, suffix: String, accessLifetime: Duration): GitHubUserOAuthTokens =
             GitHubUserOAuthTokens(

@@ -27,9 +27,7 @@ class GitHubOAuthFlowServiceTest {
             oauthGateway = oauth,
             userAccessGateway = FakeUserAccessGateway,
             sessions = FakeSessionStore,
-            properties = GitHubProperties(
-                userAuthorization = GitHubUserAuthorizationProperties(stateTtl = Duration.ofMinutes(10)),
-            ),
+            properties = GitHubProperties(),
             clock = clock,
         )
         val returnTo = if (browser) "/records?scope=MINE" else null
@@ -60,10 +58,7 @@ class GitHubOAuthFlowServiceTest {
             userAccessGateway = FakeUserAccessGateway,
             sessions = FakeSessionStore,
             properties = GitHubProperties(
-                userAuthorization = GitHubUserAuthorizationProperties(
-                    stateTtl = Duration.ofMinutes(10),
-                    maxPendingStates = 2,
-                ),
+                userAuthorization = GitHubUserAuthorizationProperties(maxPendingStates = 2),
             ),
             clock = clock,
         )

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
@@ -60,6 +61,8 @@ interface GitHubUserSessionStore {
     fun revokeBrowser(sessionToken: String)
 }
 
+val OAUTH_STATE_TTL: Duration = Duration.ofMinutes(10)
+
 @Service
 class GitHubOAuthFlowService(
     private val oauthGateway: GitHubUserOAuthGateway,
@@ -83,7 +86,7 @@ class GitHubOAuthFlowService(
                 throw GitHubOAuthCapacityException()
             }
             pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
-                expiresAt = now.plus(properties.userAuthorization.stateTtl),
+                expiresAt = now.plus(OAUTH_STATE_TTL),
                 codeVerifier = codeVerifier,
                 returnTo = returnTo,
             )
