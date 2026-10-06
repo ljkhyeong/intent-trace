@@ -188,20 +188,6 @@ class InMemoryGitHubUserSessionStoreTest {
     }
 
     @Test
-    fun `GitHub가 refresh token을 거부하면 session을 폐기한다`() {
-        val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
-        oauth.refreshFailure = GitHubOAuthRefreshRejectedException()
-
-        assertFailsWith<GitHubUserAuthenticationException> {
-            store.resolve(issued.sessionToken)
-        }
-        assertFailsWith<GitHubUserAuthenticationException> {
-            store.resolve(issued.sessionToken)
-        }
-        assertEquals(1, oauth.refreshCount.get())
-    }
-
-    @Test
     fun `내 연결만 조회하고 폐기하며 다른 사용자의 연결은 유지한다`() {
         val first = store.issue(owner, tokens(clock.instant(), "1", Duration.ofHours(8)))
         val other = store.issue(owner, tokens(clock.instant(), "other", Duration.ofHours(8)))
@@ -306,7 +292,7 @@ class InMemoryGitHubUserSessionStoreTest {
         val issued = store.issue(owner, tokens(clock.instant(), "1", Duration.ofMinutes(4)))
         val entered = CountDownLatch(1)
         val proceed = CountDownLatch(1)
-        oauth.refreshFailure = GitHubOAuthRefreshRejectedException()
+        oauth.refreshFailure = GitHubOAuthApiException("GitHub 사용자 token 갱신 요청이 거부됐습니다.")
         oauth.beforeRefresh = {
             entered.countDown()
             check(proceed.await(5, TimeUnit.SECONDS))
@@ -341,7 +327,6 @@ class InMemoryGitHubUserSessionStoreTest {
         private val clock: Clock,
     ) : GitHubUserOAuthGateway {
         val refreshCount = AtomicInteger()
-        var rejectRefresh = false
         var refreshFailure: GitHubOAuthException? = null
         var beforeRefresh: () -> Unit = {}
 
@@ -353,7 +338,6 @@ class InMemoryGitHubUserSessionStoreTest {
         override fun refresh(refreshToken: String): GitHubUserOAuthTokens {
             refreshCount.incrementAndGet()
             beforeRefresh()
-            if (rejectRefresh) throw GitHubOAuthRefreshRejectedException()
             refreshFailure?.let { throw it }
             return tokens(clock.instant(), "2", Duration.ofHours(8))
         }

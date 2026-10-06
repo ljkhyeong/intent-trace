@@ -4,7 +4,6 @@ import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.application.GitHubOAuthApiException
-import io.intenttrace.identity.application.GitHubOAuthRefreshRejectedException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
@@ -101,11 +100,11 @@ class GitHubUserOAuthRestClientTest {
     }
 
     @Test
-    fun `거부된 refresh token은 재로그인 가능한 실패로 분류한다`() {
+    fun `GitHub가 거부한 token 요청은 연동 오류로 처리한다`() {
         server.expect(requestTo("https://github.test/login/oauth/access_token"))
             .andRespond(withSuccess("""{"error":"bad_refresh_token"}""", MediaType.APPLICATION_JSON))
 
-        assertFailsWith<GitHubOAuthRefreshRejectedException> {
+        assertFailsWith<GitHubOAuthApiException> {
             client.refresh("ghr_expired")
         }
         server.verify()
