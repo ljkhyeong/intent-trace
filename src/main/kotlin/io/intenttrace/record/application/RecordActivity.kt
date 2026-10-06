@@ -21,7 +21,6 @@ data class RecordActivity(
 )
 
 interface RecordActivityStore {
-    fun append(activity: RecordActivity)
     fun list(recordId: UUID, visibility: ActivityVisibility, beforeVersion: Long?, limit: Int): List<RecordActivity>
 }
 
