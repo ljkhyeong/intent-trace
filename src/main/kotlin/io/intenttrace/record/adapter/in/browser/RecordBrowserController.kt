@@ -1,57 +1,63 @@
 package io.intenttrace.record.adapter.`in`.browser
 
-import io.intenttrace.connection.application.ConnectionDiagnostics
-import io.intenttrace.publication.application.PullRequestOverviewService
-import io.intenttrace.publication.application.TeamGitHubPublicationService
 import io.intenttrace.config.GitHubApiException
-import io.intenttrace.publication.domain.GitHubPullRequestTarget
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.record.application.EvidenceUnavailableException
-import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.application.RecordComparisonService
-import io.intenttrace.record.application.ChangeIntentHistoryService
-import io.intenttrace.record.application.RecordEvidenceService
-import io.intenttrace.record.application.RecordActivityService
-import io.intenttrace.identity.application.MySessionService
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubRateLimitException
-import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
-import io.intenttrace.identity.adapter.`in`.web.GitHubUserAuthenticationFilter
+import io.intenttrace.connection.application.ConnectionDiagnostics
+import io.intenttrace.identity.adapter.`in`.web.GitHubUserAuthenticationFilter.Companion.SESSION_ATTRIBUTE
 import io.intenttrace.identity.adapter.`in`.web.browserSessionCookie
-import io.intenttrace.identity.application.BrowserReturnPath
 import io.intenttrace.identity.application.GitHubIdentityApiException
-import io.intenttrace.identity.application.GitHubOAuthException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.application.GitHubUserSessionStore
+import io.intenttrace.identity.application.MySessionService
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
+import io.intenttrace.identity.domain.GitHubRepository
+import io.intenttrace.publication.application.PullRequestOverviewService
+import io.intenttrace.publication.application.TeamGitHubPublicationService
+import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.intenttrace.record.application.ChangeIntentHistoryService
 import io.intenttrace.record.application.ChangeRecordCatalogService
-import io.intenttrace.record.application.ChangeRecordNotFoundException
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
+import io.intenttrace.record.application.ChangeRecordNotFoundException
 import io.intenttrace.record.application.ChangeRecordOwnershipException
-import io.intenttrace.record.application.RecordScope
-import io.intenttrace.record.application.TeamChangeRecordService
-import io.intenttrace.record.application.GitHubContextService
+import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.application.GitHubContextNotFoundException
 import io.intenttrace.record.application.GitHubContextPermissionException
+import io.intenttrace.record.application.GitHubContextService
+import io.intenttrace.record.application.RecordActivityService
+import io.intenttrace.record.application.RecordComparisonService
+import io.intenttrace.record.application.RecordEvidenceService
+import io.intenttrace.record.application.RecordScope
+import io.intenttrace.record.application.TeamChangeRecordService
+import io.intenttrace.record.domain.ChangeRecordStatus
 import jakarta.servlet.http.HttpServletRequest
-import org.springframework.http.HttpHeaders
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.propertyeditors.StringTrimmerEditor
 import org.springframework.http.ContentDisposition
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Controller
+import org.springframework.web.bind.WebDataBinder
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.InitBinder
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestAttribute
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.ModelAndView
 import org.springframework.web.util.UriComponentsBuilder
+import java.net.URI
 import java.time.Duration
 import java.util.UUID
 
-@RestController
+/** 인증과 보안 헤더는 [RecordBrowserConfiguration]의 인터셉터가 처리기보다 먼저 적용한다. */
+@Controller
 @RequestMapping("/records")
 class RecordBrowserController(
     private val records: TeamChangeRecordService,
@@ -70,148 +76,119 @@ class RecordBrowserController(
     private val activities: RecordActivityService,
     private val mySessions: MySessionService,
 ) {
+    // 폼 입력의 앞뒤 공백을 지우고 빈 값은 입력하지 않은 것으로 받는다.
+    @InitBinder
+    fun trimParameters(binder: WebDataBinder) = binder.registerCustomEditor(String::class.java, StringTrimmerEditor(true))
+
     @GetMapping
     fun search(
         request: HttpServletRequest,
-        @RequestParam(required = false) repositoryKey: String?,
-        @RequestParam(required = false) q: String?,
+        @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @RequestParam repositoryKey: String?,
+        @RequestParam q: String?,
         @RequestParam(defaultValue = "TEAM") scope: RecordScope,
-        @RequestParam(required = false) cursor: String?,
-        @RequestParam(required = false) status: ChangeRecordStatus?,
-        @RequestParam(required = false) path: String?,
-        @RequestParam(required = false) authorId: Long?,
-    ): ResponseEntity<String> = read(request) { session ->
-        val repository = repositoryKey?.trim()?.takeIf { it.isNotEmpty() }
-        pages.search(session.actor, repository, q, scope,
-            repository?.let { catalog.list(it, scope, path = path?.takeIf(String::isNotEmpty), status = status, authorId = authorId, cursor = cursor, q = q) },
-            status, path, authorId, returnTo(request))
-    }
+        @RequestParam cursor: String?,
+        @RequestParam status: ChangeRecordStatus?,
+        @RequestParam path: String?,
+        @RequestParam authorId: Long?,
+    ): ModelAndView = pages.search(session.actor, repositoryKey, q, scope,
+        repositoryKey?.let { catalog.list(it, scope, path = path, status = status, authorId = authorId, cursor = cursor, q = q) },
+        status, path, authorId, returnTo(request))
 
+    // 게시 목록 조회가 같은 권한 검사로 기록을 함께 읽는다.
     @GetMapping("/{id}")
-    fun record(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = read(request) {
-        // 게시 목록 조회가 같은 권한 검사로 기록을 함께 읽는다.
-        val view = publisher.targets(id)
-        pages.record(it.actor, view.record, searchUrl(request), view)
-    }
+    fun record(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @PathVariable id: UUID): ModelAndView = pages.record(session.actor, publisher.targets(id), searchUrl(request))
 
     @GetMapping("/{id}/markdown")
-    fun markdown(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
+    fun markdown(@PathVariable id: UUID): ResponseEntity<String> {
         val record = records.get(id)
-        browserResponseBuilder().contentType(MediaType("text", "markdown", Charsets.UTF_8))
+        return ResponseEntity.ok().contentType(MediaType("text", "markdown", Charsets.UTF_8))
             .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("intent-trace-${record.id}.md").build().toString())
             .body(markdown.render(record))
     }
 
     @GetMapping("/{id}/comparison")
-    fun compare(request: HttpServletRequest, @PathVariable id: UUID,
-        @RequestParam(defaultValue = "false") changesOnly: Boolean): ResponseEntity<String> = read(request) {
-        pages.comparison(it.actor, comparison.compare(id), changesOnly, searchUrl(request))
-    }
+    fun compare(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @PathVariable id: UUID, @RequestParam(defaultValue = "false") changesOnly: Boolean): ModelAndView =
+        pages.comparison(session.actor, comparison.compare(id), changesOnly, searchUrl(request))
 
     @GetMapping("/history")
-    fun history(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
-        @RequestParam(required = false) revision: String?, @RequestParam(required = false) path: String?,
-        @RequestParam(required = false) line: Int?, @RequestParam(required = false) cursor: String?,
-        @RequestParam(required = false) retryRecordId: UUID?): ResponseEntity<String> = read(request) {
-        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)
-        val ref = revision?.trim()?.takeIf(String::isNotEmpty)
-        val file = path?.takeIf(String::isNotEmpty)
-        val supplied = listOf(repository, ref, file, line)
-        require(supplied.all { value -> value == null } || supplied.all { value -> value != null }) { "저장소·커밋·파일·줄을 함께 입력해 주세요." }
-        require(repository != null || (cursor == null && retryRecordId == null)) { "먼저 조회 조건을 입력해 주세요." }
-        pages.history(it.actor, repository, ref, file, line, repository?.let { repo ->
-            history.find(repo, requireNotNull(ref), requireNotNull(file), requireNotNull(line), cursor, retryRecordId = retryRecordId)
+    fun history(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @RequestParam repositoryKey: String?, @RequestParam revision: String?, @RequestParam path: String?,
+        @RequestParam line: Int?, @RequestParam cursor: String?, @RequestParam retryRecordId: UUID?): ModelAndView {
+        val supplied = listOf(repositoryKey, revision, path, line)
+        require(supplied.all { it == null } || supplied.all { it != null }) { "저장소·커밋·파일·줄을 함께 입력해 주세요." }
+        require(repositoryKey != null || (cursor == null && retryRecordId == null)) { "먼저 조회 조건을 입력해 주세요." }
+        return pages.history(session.actor, repositoryKey, revision, path, line, repositoryKey?.let {
+            history.find(it, requireNotNull(revision), requireNotNull(path), requireNotNull(line), cursor, retryRecordId = retryRecordId)
         }, returnTo(request))
     }
 
     @GetMapping("/{id}/evidence")
-    fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = authenticated(request, returnTo(request)) {
-        try { browserResponse(pages.evidence(it.actor, evidence.check(id), searchUrl(request))) }
-        catch (failure: EvidenceUnavailableException) {
-            browserResponse(pages.evidenceUnavailable(it.actor, id, failure.reason, searchUrl(request)), 422)
-        }
+    fun evidence(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @PathVariable id: UUID): ModelAndView = try {
+        pages.evidence(session.actor, evidence.check(id), searchUrl(request))
+    } catch (failure: EvidenceUnavailableException) {
+        pages.evidenceUnavailable(session.actor, id, failure.reason, searchUrl(request))
     }
 
     @GetMapping("/{id}/activities")
-    fun activities(request: HttpServletRequest, @PathVariable id: UUID,
-        @RequestParam(required = false) beforeVersion: Long?): ResponseEntity<String> = read(request) {
-        pages.activities(it.actor, activities.list(id, beforeVersion), searchUrl(request))
-    }
+    fun activities(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @PathVariable id: UUID, @RequestParam beforeVersion: Long?): ModelAndView =
+        pages.activities(session.actor, activities.list(id, beforeVersion), searchUrl(request))
 
     @GetMapping("/sessions")
-    fun sessions(request: HttpServletRequest): ResponseEntity<String> = read(request) {
-        pages.sessions(it.actor, mySessions.list())
-    }
+    fun sessions(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession): ModelAndView =
+        pages.sessions(session.actor, mySessions.list())
 
     @PostMapping("/sessions/{id}/revoke")
-    fun revokeSession(request: HttpServletRequest, @PathVariable id: UUID): ResponseEntity<String> = manageSessions(request) {
+    fun revokeSession(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @PathVariable id: UUID): ResponseEntity<Void> {
         mySessions.revoke(id)
-        id == it.sessionId
+        return if (id == session.sessionId) seeOther("/records", clearSession = true) else seeOther("/records/sessions", clearSession = false)
     }
 
     @PostMapping("/sessions/revoke-all")
-    fun revokeAllSessions(request: HttpServletRequest): ResponseEntity<String> = manageSessions(request) {
+    fun revokeAllSessions(): ResponseEntity<Void> {
         mySessions.revokeAll()
-        true
-    }
-
-    private fun manageSessions(request: HttpServletRequest, action: (GitHubUserSession) -> Boolean): ResponseEntity<String> {
-        if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 연결을 종료해 주세요."), 403)
-        return authenticated(request, "/records/sessions") { session ->
-            val currentRevoked = action(session)
-            seeOther(if (currentRevoked) "/records" else "/records/sessions", clearSession = currentRevoked)
-        }
+        return seeOther("/records", clearSession = true)
     }
 
     // 현재 브라우저 세션이 끝났으면 쿠키도 지운다.
-    private fun seeOther(location: String, clearSession: Boolean): ResponseEntity<String> =
-        ResponseEntity.status(303).header(HttpHeaders.LOCATION, location).header(HttpHeaders.CACHE_CONTROL, "no-store")
+    private fun seeOther(location: String, clearSession: Boolean): ResponseEntity<Void> =
+        ResponseEntity.status(HttpStatus.SEE_OTHER).location(URI.create(location))
             .apply { if (clearSession) header(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, "", Duration.ZERO).toString()) }
-            .body("")
+            .build()
 
     @GetMapping("/pull-requests")
-    fun pullRequests(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
-        @RequestParam(required = false) pullNumber: Int?, @RequestParam(required = false) cursor: String?): ResponseEntity<String> = read(request) {
-        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)?.let(GitHubRepository::parse)
+    fun pullRequests(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
+        @RequestParam repositoryKey: String?, @RequestParam pullNumber: Int?, @RequestParam cursor: String?): ModelAndView {
+        val repository = repositoryKey?.let(GitHubRepository::parse)
         require((repository == null) == (pullNumber == null)) { "저장소와 PR 번호를 함께 입력해 주세요." }
-        pages.pullRequests(it.actor, repository?.key, pullNumber, repository?.let { repo ->
-            overview.overview(GitHubPullRequestTarget(repo.canonicalOwner, repo.canonicalName, requireNotNull(pullNumber)), cursor)
+        return pages.pullRequests(session.actor, repository?.key, pullNumber, repository?.let {
+            overview.overview(GitHubPullRequestTarget(it.canonicalOwner, it.canonicalName, requireNotNull(pullNumber)), cursor)
         }, returnTo(request))
     }
 
     @GetMapping("/github")
-    fun github(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
-        @RequestParam(required = false) number: Int?, @RequestParam(required = false) revision: String?,
-        @RequestParam(defaultValue = "1") page: Int): ResponseEntity<String> = read(request) {
-        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)
-        val ref = revision?.trim()?.takeIf(String::isNotEmpty)
-        require(repository != null || (number == null && ref == null)) { "저장소를 함께 입력해 주세요." }
-        pages.github(it.actor, repository,
-            number?.let { value -> githubContext.request(requireNotNull(repository), value) },
-            ref?.let { value -> githubContext.actions(requireNotNull(repository), value, page) }, page)
+    fun github(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @RequestParam repositoryKey: String?,
+        @RequestParam number: Int?, @RequestParam revision: String?, @RequestParam(defaultValue = "1") page: Int): ModelAndView {
+        require(repositoryKey != null || (number == null && revision == null)) { "저장소를 함께 입력해 주세요." }
+        return pages.github(session.actor, repositoryKey,
+            number?.let { githubContext.request(requireNotNull(repositoryKey), it) },
+            revision?.let { githubContext.actions(requireNotNull(repositoryKey), it, page) }, page)
     }
 
     @GetMapping("/connection")
-    fun connection(request: HttpServletRequest, @RequestParam(required = false) repositoryKey: String?,
-        @RequestParam(required = false) revision: String?, @RequestParam(required = false) pullNumber: Int?): ResponseEntity<String> = read(request) {
-        val repository = repositoryKey?.trim()?.takeIf(String::isNotEmpty)
-        val ref = revision?.trim()?.takeIf(String::isNotEmpty)
-        pages.connection(it.actor, repository, ref, pullNumber, repository?.let { repo -> diagnostics.diagnose(repo, ref, pullNumber) })
-    }
+    fun connection(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @RequestParam repositoryKey: String?,
+        @RequestParam revision: String?, @RequestParam pullNumber: Int?): ModelAndView =
+        pages.connection(session.actor, repositoryKey, revision, pullNumber,
+            repositoryKey?.let { diagnostics.diagnose(it, revision, pullNumber) })
 
     @PostMapping("/logout")
-    fun logout(request: HttpServletRequest): ResponseEntity<String> {
-        if (!sameOrigin(request)) return browserResponse(pages.error("같은 기록 화면에서 로그아웃해 주세요."), 403)
-        request.cookies?.singleOrNull { it.name == BROWSER_SESSION_COOKIE }?.let { sessions.revokeBrowser(it.value) }
+    fun logout(request: HttpServletRequest): ResponseEntity<Void> {
+        browserCookie(request)?.let { sessions.revokeBrowser(it.value) }
         return seeOther("/records", clearSession = true)
-    }
-
-    private fun sameOrigin(request: HttpServletRequest): Boolean {
-        val callback = properties.userAuthorization.callbackUrl
-        val defaultPort = (callback.scheme == "https" && callback.port == 443) || (callback.scheme == "http" && callback.port == 80)
-        val origin = UriComponentsBuilder.fromUri(callback).replacePath(null).replaceQuery(null).fragment(null)
-            .port(if (defaultPort) -1 else callback.port).build().toUriString()
-        return origin.equals(request.getHeader(HttpHeaders.ORIGIN), ignoreCase = true)
     }
 
     private fun searchUrl(request: HttpServletRequest): String? {
@@ -226,56 +203,48 @@ class RecordBrowserController(
         return builder.build().takeIf { it.queryParams.isNotEmpty() }?.toUriString()
     }
 
-    private fun returnTo(request: HttpServletRequest): String = if (request.method == "GET")
-        BrowserReturnPath.validate(request.requestURI + request.queryString?.let { "?$it" }.orEmpty()) else "/records/sessions"
-
     private fun retryUrl(request: HttpServletRequest): String? = request.takeIf { it.method == "GET" }?.let(::returnTo)
 
-    private fun read(request: HttpServletRequest, render: (GitHubUserSession) -> String): ResponseEntity<String> =
-        authenticated(request, returnTo(request)) { browserResponse(render(it)) }
-
-    private fun authenticated(request: HttpServletRequest, returnTo: String,
-        action: (GitHubUserSession) -> ResponseEntity<String>): ResponseEntity<String> {
-        val cookie = request.cookies?.singleOrNull { it.name == BROWSER_SESSION_COOKIE }
-        val session = try {
-            val token = cookie?.value?.takeIf { Regex("^itb_[A-Za-z0-9_-]{43}$").matches(it) }
-                ?: throw GitHubUserAuthenticationException()
-            sessions.resolve(token)
-        } catch (_: GitHubUserAuthenticationException) {
-            return browserResponse(pages.login(returnTo, cookie != null))
-        }
-        request.setAttribute(GitHubUserAuthenticationFilter.SESSION_ATTRIBUTE, session)
-        return try { action(session) }
-        finally { request.removeAttribute(GitHubUserAuthenticationFilter.SESSION_ATTRIBUTE) }
+    // 오류 화면을 그리기 전에 GitHub 토큰이 든 세션을 요청에서 지운다.
+    private fun failure(request: HttpServletRequest, status: HttpStatus, message: String, retryUrl: String? = null): ModelAndView {
+        request.removeAttribute(SESSION_ATTRIBUTE)
+        return pages.error(status, message, retryUrl)
     }
 
+    @ExceptionHandler(BrowserOriginException::class)
+    fun crossOrigin(exception: BrowserOriginException, request: HttpServletRequest): ModelAndView =
+        failure(request, HttpStatus.FORBIDDEN, exception.message.orEmpty())
+
     @ExceptionHandler(ChangeRecordNotFoundException::class, ChangeRecordOwnershipException::class, RepositoryAccessDeniedException::class)
-    fun unavailable(): ResponseEntity<String> = browserResponse(pages.error("기록이 없거나 열람 권한이 없습니다."), 404)
+    fun unavailable(request: HttpServletRequest): ModelAndView = failure(request, HttpStatus.NOT_FOUND, "기록이 없거나 열람 권한이 없습니다.")
 
     @ExceptionHandler(GitHubContextNotFoundException::class, GitHubContextPermissionException::class)
-    fun githubContextUnavailable(exception: RuntimeException): ResponseEntity<String> =
-        browserResponse(pages.error(exception.message.orEmpty()), if (exception is GitHubContextPermissionException) 403 else 404)
+    fun githubContextUnavailable(exception: RuntimeException, request: HttpServletRequest): ModelAndView = failure(request,
+        if (exception is GitHubContextPermissionException) HttpStatus.FORBIDDEN else HttpStatus.NOT_FOUND, exception.message.orEmpty())
 
     @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
-    fun invalid(): ResponseEntity<String> = browserResponse(pages.error("저장소, 검색어 또는 기록 주소를 확인해 주세요."), 400)
+    fun invalid(request: HttpServletRequest): ModelAndView =
+        failure(request, HttpStatus.BAD_REQUEST, "저장소, 검색어 또는 기록 주소를 확인해 주세요.")
 
     @ExceptionHandler(IllegalStateException::class)
-    fun stateConflict(): ResponseEntity<String> = browserResponse(pages.error("기록의 현재 상태에서는 확인할 수 없습니다. 먼저 작성자 확인을 완료해 주세요."), 409)
+    fun stateConflict(request: HttpServletRequest): ModelAndView =
+        failure(request, HttpStatus.CONFLICT, "기록의 현재 상태에서는 확인할 수 없습니다. 먼저 작성자 확인을 완료해 주세요.")
 
-    @ExceptionHandler(GitHubIdentityApiException::class, GitHubOAuthException::class, GitHubApiException::class)
-    fun dependencyFailure(request: HttpServletRequest): ResponseEntity<String> = browserResponse(
-        pages.error("GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", retryUrl(request)), 502)
-
-    @ExceptionHandler(GitHubUserAuthenticationException::class)
-    fun expired(request: HttpServletRequest): ResponseEntity<String> = browserResponse(pages.login(
-        returnTo(request), true,
-    ))
+    @ExceptionHandler(GitHubIdentityApiException::class, GitHubApiException::class)
+    fun dependencyFailure(request: HttpServletRequest): ModelAndView =
+        failure(request, HttpStatus.BAD_GATEWAY, "GitHub 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", retryUrl(request))
 
     @ExceptionHandler(GitHubRateLimitException::class)
-    fun rateLimited(exception: GitHubRateLimitException, request: HttpServletRequest): ResponseEntity<String> {
-        val response = browserResponse(pages.error(
-            "GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요.", retryUrl(request)), 429)
-        return ResponseEntity.status(response.statusCode).headers(response.headers)
-            .header(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString()).body(response.body)
+    fun rateLimited(exception: GitHubRateLimitException, request: HttpServletRequest, response: HttpServletResponse): ModelAndView {
+        response.setHeader(HttpHeaders.RETRY_AFTER, exception.retryAfterSeconds.toString())
+        return failure(request, HttpStatus.TOO_MANY_REQUESTS,
+            "GitHub 호출 제한에 도달했습니다. ${exception.retryAfterSeconds}초 후 다시 시도해 주세요.", retryUrl(request))
+    }
+
+    // 쿠키가 있었는데 인증하지 못했으면 만료 안내를 함께 표시한다.
+    @ExceptionHandler(GitHubUserAuthenticationException::class)
+    fun login(request: HttpServletRequest): ModelAndView {
+        request.removeAttribute(SESSION_ATTRIBUTE)
+        return pages.login(returnTo(request), browserCookie(request) != null)
     }
 }

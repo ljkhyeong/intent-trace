@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
-import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthController
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthSessionIntegrationTest
 import io.intenttrace.identity.application.BrowserReturnPath
 import io.intenttrace.identity.application.GitHubIdentityApiException
@@ -37,7 +36,6 @@ import org.springframework.http.HttpHeaders
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import org.springframework.web.util.UriComponentsBuilder
 import java.util.UUID
 import java.net.URI
 import java.nio.file.Files
@@ -49,9 +47,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.record.application.publish
+import io.intenttrace.githubCallback
 import io.intenttrace.htmlHref
 import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
+import io.intenttrace.startGitHubLogin
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class],
@@ -528,7 +528,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         val requestLink = htmlLink(overview, "PR 내용 가져오기")
         assertEquals("/records/github?repositoryKey=acme%2Fbrowser&number=12", requestLink)
         val connectionCookie = login("/records/connection?repositoryKey=acme%2Fbrowser")
-        val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", "acme/browser"); param("pullNumber", ""); param("revision", "") }
+        val diagnosis = mvc.get("/records/connection") { cookie(connectionCookie); param("repositoryKey", " acme/browser "); param("pullNumber", ""); param("revision", " ") }
             .andExpect { status { isOk() }; content { string(containsString("저장소 읽기")) }; content { string(containsString("확인 완료")) } }.andReturn().response.contentAsString
         preview("connection", diagnosis)
         val mismatched = mvc.get("/records/connection") {
@@ -581,6 +581,46 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         assertEquals(original, records.get(original.id))
     }
 
+    @Test
+    fun `다른 출처의 연결 종료와 로그아웃은 세션을 확인하기 전에 거부한다`() {
+        val cookie = login("/records/sessions")
+        val sessionId = sessionStore.resolve(cookie.value).sessionId
+        val authentications = userAccess.authentications.get()
+        for (target in listOf("/records/sessions/$sessionId/revoke", "/records/sessions/revoke-all", "/records/logout")) {
+            for (withCookie in listOf(true, false)) {
+                val page = mvc.post(target) { if (withCookie) cookie(cookie); header(HttpHeaders.ORIGIN, "https://another.example") }.andExpect {
+                    status { isForbidden() }
+                    header { string(HttpHeaders.CACHE_CONTROL, "no-store") }
+                    header { string("Content-Security-Policy", containsString("default-src 'none'")) }
+                    header { doesNotExist(HttpHeaders.SET_COOKIE) }
+                    content { string(containsString("같은 기록 화면에서")) }
+                }.andReturn().response.contentAsString
+                assertFalse(page.contains("GitHub로 로그인"))
+            }
+        }
+        // 다른 출처 요청은 GitHub 사용자 조회와 토큰 갱신을 일으키지 않는다.
+        assertEquals(authentications, userAccess.authentications.get())
+        assertEquals(sessionId, sessionStore.resolve(cookie.value).sessionId)
+    }
+
+    @Test
+    fun `조회 조건이 비어 있으면 입력 폼과 로그인 메뉴만 표시한다`() {
+        val cookie = login("/records")
+        for ((path, guide) in listOf("/records" to "저장소를 입력하세요", "/records/history" to "저장소·커밋 해시·파일 경로·줄 번호를 입력하세요.",
+            "/records/pull-requests" to "저장소와 PR 번호를 입력해 주세요.", "/records/connection" to "저장소를 입력하면 연결 상태를 확인합니다.",
+            "/records/github" to "이슈·PR 내용 가져오기")) {
+            // 공백만 입력한 값은 입력하지 않은 것으로 처리한다.
+            mvc.get(path) { cookie(cookie); param("repositoryKey", " ") }.andExpect {
+                status { isOk() }
+                header { string("Referrer-Policy", "no-referrer") }
+                header { string("X-Content-Type-Options", "nosniff") }
+                content { string(containsString(guide)) }
+                content { string(containsString("<span>@lim</span>")) }
+                content { string(containsString("로그아웃</button>")) }
+            }
+        }
+    }
+
     @TestConfiguration
     class Configuration {
         @Bean @Primary fun pullRequestReader() = object : GitHubPullRequestReader {
@@ -602,13 +642,8 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     private val restSession by lazy { sessionStore.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_browser-test") }
 
     private fun login(returnTo: String): Cookie {
-        val start = mvc.get("/auth/github/start") { param("returnTo", returnTo) }.andExpect { status { isFound() } }.andReturn()
-        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!).build().queryParams.getFirst("state")!!
-        val stateCookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val callback = mvc.get("/auth/github/callback") {
-            cookie(stateCookie); param("state", state); param("code", "authorization-code")
-            param("returnTo", "https://evil.example")
-        }.andExpect { status { isSeeOther() }; header { string(HttpHeaders.LOCATION, URI(returnTo).toASCIIString()) } }.andReturn().response
+        val callback = mvc.githubCallback(mvc.startGitHubLogin(returnTo)) { param("returnTo", "https://evil.example") }
+            .andExpect { status { isSeeOther() }; header { string(HttpHeaders.LOCATION, URI(returnTo).toASCIIString()) } }.andReturn().response
         assertFalse(callback.contentAsString.contains("its_"))
         assertFalse(callback.contentAsString.contains("ghu_"))
         val cookie = callback.cookies.single { it.name == BROWSER_SESSION_COOKIE }

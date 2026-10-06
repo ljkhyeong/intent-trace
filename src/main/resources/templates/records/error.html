@@ -1,0 +1,6 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content"><section class="empty"><h1>기록을 열 수 없습니다</h1><p th:text="${page.message}"></p>
+<p th:if="${page.retryUrl != null}"><a class="button" th:href="${page.retryUrl}">다시 조회</a></p>
+<a class="button secondary" href="/records">기록 찾기로 이동</a></section></main>
+</html>

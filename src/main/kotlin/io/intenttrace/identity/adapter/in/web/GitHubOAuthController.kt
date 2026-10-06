@@ -14,83 +14,60 @@ import io.intenttrace.identity.application.GitHubOAuthFlowService
 import io.intenttrace.identity.application.GitHubOAuthStateException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.IssuedGitHubUserSession
 import io.intenttrace.identity.application.BROWSER_SESSION_TTL
 import io.intenttrace.identity.application.OAUTH_STATE_TTL
 import jakarta.servlet.http.HttpServletResponse
-import org.springframework.core.Ordered
-import org.springframework.core.annotation.Order
-import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.bind.annotation.RestControllerAdvice
-import org.springframework.web.util.HtmlUtils
+import org.springframework.web.servlet.ModelAndView
 import org.springframework.web.util.UriComponentsBuilder
-import java.time.Duration
 import java.net.URI
+import java.time.Duration
 
-@RestController
+/** 결과 화면(`templates/auth`)은 기록 화면 틀과 보안 헤더를 함께 쓴다. */
+@Controller
 @RequestMapping("/auth/github")
 class GitHubOAuthController(
     private val flow: GitHubOAuthFlowService,
     private val properties: GitHubProperties,
 ) {
     @GetMapping("/start")
-    fun start(@RequestParam(required = false) returnTo: String?): ResponseEntity<Void> {
+    fun start(@RequestParam returnTo: String?): ResponseEntity<Void> {
         val start = flow.start(returnTo)
-        return secure(ResponseEntity.status(HttpStatus.FOUND))
+        return ResponseEntity.status(HttpStatus.FOUND)
             .location(start.authorizationUri)
             .header(HttpHeaders.SET_COOKIE, stateCookie(start.state, OAUTH_STATE_TTL))
             .build()
     }
 
+    // 브라우저 로그인은 기록 화면으로 돌아가고, 도구 연결은 its_ 세션을 이 화면에서 한 번만 표시한다.
     @GetMapping("/callback", produces = [MediaType.TEXT_HTML_VALUE])
     fun callback(
-        @RequestParam(required = false) code: String?,
-        @RequestParam(required = false) state: String?,
-        @RequestParam(required = false) error: String?,
-        @CookieValue(name = STATE_COOKIE, required = false) cookieState: String?,
+        @RequestParam code: String?,
+        @RequestParam state: String?,
+        @RequestParam error: String?,
+        @CookieValue(STATE_COOKIE) cookieState: String?,
         response: HttpServletResponse,
-    ): ResponseEntity<String> {
+    ): ModelAndView {
         response.addHeader(HttpHeaders.SET_COOKIE, stateCookie("", Duration.ZERO))
         val completion = flow.complete(code, state, cookieState, error)
         val issued = completion.session
         completion.returnTo?.let {
-            val cookie = browserSessionCookie(properties, issued.sessionToken, BROWSER_SESSION_TTL)
-            return secure(ResponseEntity.status(HttpStatus.SEE_OTHER)).location(URI.create(it))
-                .header(HttpHeaders.SET_COOKIE, cookie.toString()).body("")
+            response.addHeader(HttpHeaders.SET_COOKIE, browserSessionCookie(properties, issued.sessionToken, BROWSER_SESSION_TTL).toString())
+            return ModelAndView("redirect:${URI.create(it).toASCIIString()}", HttpStatus.SEE_OTHER)
         }
-        return secure(ResponseEntity.ok())
-            .contentType(HTML_UTF8)
-            .body(successPage(issued))
+        return ModelAndView("auth/github-success", mapOf("title" to "GitHub 연결 완료", "issued" to issued))
     }
 
-    private fun stateCookie(value: String, maxAge: Duration): String = ResponseCookie.from(STATE_COOKIE, value)
-        .httpOnly(true)
-        .secure(properties.userAuthorization.secureCookie)
-        .sameSite("Lax")
-        .path(GITHUB_OAUTH_CALLBACK_PATH)
-        .maxAge(maxAge)
-        .build()
-        .toString()
-
-    companion object {
-        const val STATE_COOKIE = "intent_trace_oauth_state"
-    }
-}
-
-@RestControllerAdvice(assignableTypes = [GitHubOAuthController::class])
-@Order(Ordered.HIGHEST_PRECEDENCE)
-class GitHubOAuthExceptionHandler {
     @ExceptionHandler(
         GitHubOAuthException::class,
         GitHubUserAuthenticationException::class,
@@ -98,7 +75,7 @@ class GitHubOAuthExceptionHandler {
         GitHubRateLimitException::class,
         IllegalArgumentException::class,
     )
-    fun failure(exception: RuntimeException): ResponseEntity<String> {
+    fun failure(exception: RuntimeException, response: HttpServletResponse): ModelAndView {
         val callback = exception as? GitHubOAuthCallbackException
         val failure = callback?.cause ?: exception
         val (status, message) = when (failure) {
@@ -115,9 +92,24 @@ class GitHubOAuthExceptionHandler {
             is IllegalArgumentException -> HttpStatus.BAD_REQUEST to "기록으로 돌아갈 주소가 올바르지 않습니다."
             else -> throw failure
         }
-        val response = secure(ResponseEntity.status(status)).contentType(HTML_UTF8)
-        if (failure is GitHubRateLimitException) response.header(HttpHeaders.RETRY_AFTER, failure.retryAfterSeconds.toString())
-        return response.body(errorPage(message, callback?.returnTo))
+        if (failure is GitHubRateLimitException) response.setHeader(HttpHeaders.RETRY_AFTER, failure.retryAfterSeconds.toString())
+        val returnTo = callback?.returnTo
+        val retryUrl = if (returnTo == null) "/auth/github/start" else UriComponentsBuilder.fromPath("/auth/github/start")
+            .queryParam("returnTo", "{returnTo}").encode().buildAndExpand(returnTo).toUriString()
+        return ModelAndView("auth/github-error", mapOf("title" to "GitHub 연결 실패", "message" to message, "retryUrl" to retryUrl), status)
+    }
+
+    private fun stateCookie(value: String, maxAge: Duration): String = ResponseCookie.from(STATE_COOKIE, value)
+        .httpOnly(true)
+        .secure(properties.userAuthorization.secureCookie)
+        .sameSite("Lax")
+        .path(GITHUB_OAUTH_CALLBACK_PATH)
+        .maxAge(maxAge)
+        .build()
+        .toString()
+
+    companion object {
+        const val STATE_COOKIE = "intent_trace_oauth_state"
     }
 }
 
@@ -126,63 +118,3 @@ const val BROWSER_SESSION_COOKIE = "intent_trace_browser"
 fun browserSessionCookie(properties: GitHubProperties, value: String, maxAge: Duration): ResponseCookie =
     ResponseCookie.from(BROWSER_SESSION_COOKIE, value).httpOnly(true)
         .secure(properties.userAuthorization.secureCookie).sameSite("Lax").path("/records").maxAge(maxAge).build()
-
-private fun successPage(session: IssuedGitHubUserSession): String =
-    page(
-        title = "GitHub 연결 완료",
-        content =
-            """
-            <p><strong>@${escapeHtml(session.actor.login)}</strong> 계정이 IntentTrace에 연결됐습니다.</p>
-            <p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. 도구의 세션 입력창에 입력하거나 <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수로 전달하세요.</p>
-            <pre><code>${session.sessionToken}</code></pre>
-            <p>IntentTrace 서버를 재시작하면 다시 로그인해야 합니다.</p>
-            """.trimIndent(),
-    )
-
-private fun errorPage(message: String, returnTo: String?): String {
-    val retryUrl = if (returnTo == null) "/auth/github/start" else UriComponentsBuilder.fromPath("/auth/github/start")
-        .queryParam("returnTo", "{returnTo}").encode().buildAndExpand(returnTo).toUriString()
-    return page(
-        title = "GitHub 연결 실패",
-        content = "<p>${escapeHtml(message)}</p><p><a href=\"${escapeHtml(retryUrl)}\">다시 로그인</a></p>",
-    )
-}
-
-private val HTML_UTF8 = MediaType("text", "html", Charsets.UTF_8)
-
-private fun page(title: String, content: String): String =
-    """
-    <!doctype html>
-    <html lang="ko">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>${escapeHtml(title)}</title>
-      <style>
-        body { max-width: 44rem; margin: 10vh auto; padding: 0 1.5rem; font: 16px/1.6 system-ui, sans-serif; color: #202124; }
-        h1 { font-size: 1.8rem; }
-        pre { padding: 1rem; overflow-wrap: anywhere; white-space: pre-wrap; background: #f4f5f7; border-radius: .5rem; }
-        code { font-family: ui-monospace, monospace; }
-        a { color: #0969da; }
-      </style>
-    </head>
-    <body>
-      <main>
-        <h1>${escapeHtml(title)}</h1>
-        $content
-      </main>
-    </body>
-    </html>
-    """.trimIndent()
-
-private fun escapeHtml(value: String): String = HtmlUtils.htmlEscape(value, Charsets.UTF_8.name())
-
-private fun <T : ResponseEntity.HeadersBuilder<T>> secure(builder: T): T = builder
-    .cacheControl(CacheControl.noStore())
-    .header("Pragma", "no-cache")
-    .header("Referrer-Policy", "no-referrer")
-    .header("X-Content-Type-Options", "nosniff")
-    .header(
-        "Content-Security-Policy",
-        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
-    )

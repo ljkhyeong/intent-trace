@@ -32,11 +32,14 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.githubCallback
 import io.intenttrace.htmlLink
+import io.intenttrace.startGitHubLogin
 
 @SpringBootTest(
     classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
@@ -65,21 +68,18 @@ class GitHubOAuthSessionIntegrationTest(
         val location = start.response.getHeader(HttpHeaders.LOCATION)
         assertNotNull(location)
         val state = UriComponentsBuilder.fromUriString(location).build().queryParams.getFirst("state")
-        assertNotNull(state)
+        assertEquals(stateCookie.value, state)
         assertTrue(stateCookie.isHttpOnly)
         assertFalse(stateCookie.secure)
         assertEquals("/auth/github/callback", stateCookie.path)
         assertEquals("Lax", stateCookie.getAttribute("SameSite"))
         assertEquals(600, stateCookie.maxAge)
 
-        val callback = mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(stateCookie)
-        }.andExpect {
+        val callback = mockMvc.githubCallback(stateCookie).andExpect {
             status { isOk() }
             header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
             header { string("Referrer-Policy", "no-referrer") }
+            header { string("Content-Security-Policy", containsString("style-src 'self'")) }
             content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
         }.andReturn()
         val expiredState = callback.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
@@ -149,70 +149,25 @@ class GitHubOAuthSessionIntegrationTest(
         }
     }
 
-    private fun issueSession(): String {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!)
-            .build()
-            .queryParams
-            .getFirst("state")!!
-        val callback = mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andReturn()
-        return Regex("its_[A-Za-z0-9_-]{40,}").find(callback.response.contentAsString)!!.value
-    }
+    private fun issueSession(): String = Regex("its_[A-Za-z0-9_-]{40,}")
+        .find(mockMvc.githubCallback(mockMvc.startGitHubLogin()).andReturn().response.contentAsString)!!.value
 
     @Test
     fun `callback state가 다르거나 재사용되면 session을 발급하지 않는다`() {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val location = start.response.getHeader(HttpHeaders.LOCATION)
-        assertNotNull(location)
-        val state = UriComponentsBuilder.fromUriString(location).build().queryParams.getFirst("state")
-        assertNotNull(state)
-
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", "different-state")
-            cookie(cookie)
-        }.andExpect {
-            status { isBadRequest() }
-        }
-
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andExpect {
-            status { isOk() }
-        }
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andExpect {
-            status { isBadRequest() }
-        }
+        val cookie = mockMvc.startGitHubLogin()
+        // 형식이 맞는 다른 state로 쿠키 비교 단계까지 확인한다.
+        mockMvc.githubCallback(cookie, state = differentState).andExpect { status { isBadRequest() } }
+        mockMvc.githubCallback(cookie).andExpect { status { isOk() } }
+        mockMvc.githubCallback(cookie).andExpect { status { isBadRequest() } }
     }
 
     @Test
     fun `callback 사용자 조회 장애는 token을 노출하지 않는 보안 오류 화면을 반환한다`() {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!)
-            .build()
-            .queryParams
-            .getFirst("state")!!
+        val cookie = mockMvc.startGitHubLogin()
         userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
 
         try {
-            mockMvc.get("/auth/github/callback") {
-                param("code", "authorization-code")
-                param("state", state)
-                cookie(cookie)
-            }.andExpect {
+            mockMvc.githubCallback(cookie).andExpect {
                 status { isBadGateway() }
                 header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
                 header { string("Referrer-Policy", "no-referrer") }
@@ -229,20 +184,16 @@ class GitHubOAuthSessionIntegrationTest(
     @CsvSource("denied, 401", "code, 400", "identity, 502", "rate, 429")
     fun `브라우저 로그인 실패 후 재시도하면 같은 검색 화면으로 돌아온다`(failure: String, expectedStatus: Int) {
         val returnTo = "/records?repository=acme/demo&q=a%2Bb%26%22%3Ctag%3E&scope=MINE"
-        val start = mockMvc.get("/auth/github/start") { param("returnTo", returnTo) }.andReturn().response
-        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        val stateCookie = mockMvc.startGitHubLogin(returnTo)
         userAccess.authenticationFailure = when (failure) {
             "identity" -> GitHubIdentityApiException("테스트 사용자 조회 장애")
             "rate" -> GitHubRateLimitException(120)
             else -> null
         }
         val callback = try {
-            mockMvc.get("/auth/github/callback") {
-                param("state", stateCookie.value)
-                if (failure != "code") param("code", "authorization-code")
+            mockMvc.githubCallback(stateCookie, code = if (failure == "code") null else "authorization-code") {
                 if (failure == "denied") param("error", "access_denied")
                 param("returnTo", "https://untrusted.example/records")
-                cookie(stateCookie)
             }.andExpect {
                 status { isEqualTo(expectedStatus) }
                 header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
@@ -261,12 +212,8 @@ class GitHubOAuthSessionIntegrationTest(
         val retryUrl = URI(htmlLink(callback.contentAsString, "다시 로그인"))
         val retry = mockMvc.get(retryUrl).andExpect { status { isFound() } }.andReturn().response
         val newState = retry.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        mockMvc.get("/auth/github/callback") {
-            param("state", stateCookie.value); param("code", "authorization-code"); cookie(stateCookie)
-        }.andExpect { status { isBadRequest() } }
-        val completed = mockMvc.get("/auth/github/callback") {
-            param("state", newState.value); param("code", "authorization-code"); cookie(newState)
-        }.andExpect {
+        mockMvc.githubCallback(stateCookie).andExpect { status { isBadRequest() } }
+        val completed = mockMvc.githubCallback(newState).andExpect {
             status { isSeeOther() }
             header { string(HttpHeaders.LOCATION, returnTo) }
         }.andReturn().response
@@ -276,14 +223,8 @@ class GitHubOAuthSessionIntegrationTest(
 
     @Test
     fun `확인되지 않은 state의 복귀 주소는 재로그인 링크에 사용하지 않는다`() {
-        val start = mockMvc.get("/auth/github/start") { param("returnTo", "/records?scope=MINE") }.andReturn().response
-        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        mockMvc.get("/auth/github/callback") {
-            param("state", "different-state")
-            param("code", "authorization-code")
-            param("returnTo", "https://untrusted.example/records")
-            cookie(stateCookie)
-        }.andExpect {
+        val stateCookie = mockMvc.startGitHubLogin("/records?scope=MINE")
+        mockMvc.githubCallback(stateCookie, state = differentState) { param("returnTo", "https://untrusted.example/records") }.andExpect {
             status { isBadRequest() }
             content { string(containsString("href=\"/auth/github/start\">다시 로그인")) }
         }
@@ -327,8 +268,10 @@ class GitHubOAuthSessionIntegrationTest(
 
     class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
         var authenticationFailure: RuntimeException? = null
+        val authentications = AtomicInteger()
 
         override fun authenticate(accessToken: String): ActorIdentity {
+            authentications.incrementAndGet()
             authenticationFailure?.let { throw it }
             return ActorIdentity.github(42, "lim")
         }
@@ -341,6 +284,7 @@ class GitHubOAuthSessionIntegrationTest(
     }
 
     companion object {
+        private val differentState = "A".repeat(43)
         private val initializeRequest =
             """
             {

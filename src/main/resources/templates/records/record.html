@@ -1,0 +1,37 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<a class="back-link" th:href="${page.back.href}" th:text="${page.back.label}"></a>
+<header class="record-heading"><span class="status" th:text="${page.status}"></span><h1 th:text="${page.title}"></h1></header>
+<aside class="notice" th:if="${page.originalUrl != null}">이 기록의 <a th:href="${page.originalUrl}">원본 공개 기록 읽기</a> · <a th:href="${page.comparisonUrl}">원본과 비교</a></aside>
+<aside class="notice" th:if="${page.successorUrl != null}">이 기록은 새 기록으로 대체됐습니다. <a th:href="${page.successorUrl}">새 기록 읽기</a></aside>
+<div class="reading-layout"><article>
+<section><h2>요청</h2><p class="prose lead" th:text="${page.requestSummary}"></p></section>
+<section><h2>구현 결정과 이유</h2><ol class="decisions">
+<li th:each="decision : ${page.decisions}"><span class="source" th:text="${decision.source}"></span><h3 th:text="${decision.summary}"></h3><p class="prose" th:if="${decision.rationale != null}" th:text="${decision.rationale}"></p></li>
+</ol></section>
+<section><h2>관련 코드</h2><ul class="evidence">
+<li th:each="anchor : ${page.anchors}"><span class="source" th:text="${anchor.side}"></span> <span th:if="${anchor.codeUrl == null}" th:text="${anchor.label}"></span><a th:if="${anchor.codeUrl != null}" th:href="${anchor.codeUrl}" th:text="${anchor.label}"></a><p th:if="${anchor.symbolName != null}" th:text="${anchor.symbolName}"></p><p class="muted" th:if="${anchor.relatedPath != null}">연결된 경로: [[${anchor.relatedPath}]]</p></li>
+</ul><p class="muted">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p>
+<a class="button secondary" th:if="${page.evidenceUrl != null}" th:href="${page.evidenceUrl}">GitHub 코드와 비교</a>
+</section>
+<section><h2>등록된 검증 결과</h2>
+<p class="muted" th:if="${page.verifications.isEmpty()}">등록된 검증 결과가 없습니다.</p>
+<div class="verification" th:each="verification : ${page.verifications}"><strong th:text="${verification.result}"></strong><pre th:text="${verification.command}"></pre><p class="prose" th:text="${verification.summary}"></p><p class="muted" th:text="${verification.origin}"></p><details><summary>검증 시각과 해시</summary><dl><dt>시작</dt><dd><time th:datetime="${verification.startedAt.iso}" th:text="${verification.startedAt.display}"></time></dd><dt>종료</dt><dd><time th:datetime="${verification.finishedAt.iso}" th:text="${verification.finishedAt.display}"></time></dd><dt>검증 스냅샷 해시</dt><dd class="hash" th:text="${verification.snapshotDigest}"></dd><dt>출력 해시</dt><dd class="hash" th:text="${verification.outputDigest}"></dd></dl></details></div>
+<p class="muted">서버는 테스트 실행 여부를 확인하지 않습니다.</p>
+<a th:if="${page.ciUrl != null}" th:href="${page.ciUrl}">이 커밋의 GitHub CI 결과 조회</a>
+</section>
+<section><h2>남은 질문</h2>
+<p class="muted" th:if="${page.openQuestions.isEmpty()}">등록된 질문이 없습니다.</p>
+<ul th:unless="${page.openQuestions.isEmpty()}"><li class="prose" th:each="question : ${page.openQuestions}" th:text="${question}"></li></ul>
+</section></article>
+<aside class="record-facts"><h2>기록 정보</h2><dl><dt>작성자</dt><dd th:text="|@${page.author}|"></dd><dt>생성</dt><dd><time th:datetime="${page.createdAt.iso}" th:text="${page.createdAt.display}"></time></dd><th:block th:if="${page.confirmedAt != null}"><dt>작성자 확인</dt><dd><time th:datetime="${page.confirmedAt.iso}" th:text="${page.confirmedAt.display}"></time></dd></th:block><th:block th:if="${page.publishedAt != null}"><dt>공개</dt><dd><time th:datetime="${page.publishedAt.iso}" th:text="${page.publishedAt.display}"></time></dd></th:block><dt>연결된 커밋</dt><dd class="hash" th:text="${page.targetRevision}"></dd><dt>스냅샷 해시</dt><dd class="hash" th:text="${page.snapshotDigest}"></dd><dt>기록 ID</dt><dd class="hash" th:text="${page.id}"></dd></dl>
+<p class="muted">시각은 UTC 기준입니다.</p><a th:href="${page.activitiesUrl}">기록 변경 이력</a><p><a class="button secondary" th:href="${page.markdownUrl}">Markdown 저장</a></p>
+<th:block th:if="${page.publications != null}" th:with="publications=${page.publications}"><h2>GitHub 게시</h2>
+<p class="muted" th:if="${publications.items.isEmpty()}">게시했거나 게시를 시도한 PR이 없습니다.</p>
+<ul class="publications" th:unless="${publications.items.isEmpty()}"><li th:each="item : ${publications.items}"><a th:href="${item.pullRequest.href}" th:text="${item.pullRequest.label}"></a> · [[${item.status}]]<th:block th:if="${item.checkRunUrl != null}"> · <a th:href="${item.checkRunUrl}">Check Run</a></th:block><th:block th:if="${item.noticeNeeded}"> <strong>대체 안내 필요</strong></th:block></li></ul>
+<p class="muted" th:if="${publications.truncated}">최근 100개 PR만 표시합니다.</p>
+<p class="muted" th:if="${publications.noticeNeeded}">대체 안내는 작성자가 REST·MCP의 대체 안내 반영으로 실행합니다.</p>
+</th:block></aside></div>
+</main>
+</html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<header class="page-heading"><h1>PR 변경 기록</h1><p>현재 PR 커밋과 게시 기록을 함께 확인하세요.</p></header>
+<form action="/records/pull-requests" class="search-form" method="get">
+<label>저장소<input name="repositoryKey" th:value="${page.repository}" placeholder="owner/repository" required></label>
+<label>PR 번호<input name="pullNumber" type="number" min="1" th:value="${page.number}" required></label><button>조회</button></form>
+<p class="empty" th:if="${page.result == null}">저장소와 PR 번호를 입력해 주세요.</p>
+<th:block th:if="${page.result != null}" th:with="result=${page.result}">
+<p>PR #[[${result.pullNumber}]] · <time th:datetime="${result.checkedAt.iso}" th:text="${result.checkedAt.display}"></time></p><p class="hash">현재 커밋 [[${result.headRevision}]]</p>
+<p><a class="button secondary" th:href="${result.contentUrl}">PR 내용 가져오기</a></p>
+<p><a class="button secondary" th:href="${result.ciUrl}">이 커밋의 CI 결과 조회</a></p>
+<aside class="notice" th:if="${result.fork}">Fork PR에는 Check Run을 게시할 수 없습니다.</aside>
+<p class="empty" th:if="${result.items.isEmpty()}">이 PR에 게시했거나 게시를 시도한 기록이 없습니다.</p>
+<ul class="records">
+<li th:each="item : ${result.items}"><div class="record-summary"><span class="status" th:text="${item.match}"></span><h2><a th:href="${item.record.href}" th:text="${item.record.label}"></a></h2><p th:text="${item.summary}"></p><p th:text="${item.publication}"></p><p class="muted" th:if="${item.publishedAt != null}">마지막으로 확인한 게시: <time th:datetime="${item.publishedAt.iso}" th:text="${item.publishedAt.display}"></time></p></div></li>
+</ul>
+<nav class="pagination" th:if="${result.nextUrl != null}"><a class="button secondary" th:href="${result.nextUrl}">다음 기록</a></nav>
+</th:block>
+</main>
+</html>

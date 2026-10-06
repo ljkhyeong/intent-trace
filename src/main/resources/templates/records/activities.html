@@ -1,0 +1,12 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<a class="back-link" th:href="${page.backUrl}">기록으로 돌아가기</a><header class="page-heading"><h1>기록 변경 이력</h1><p>저장에 성공한 작업과 처리 시각입니다. 이전 본문은 저장하지 않습니다.</p></header>
+<aside class="notice" th:if="${page.teamOnly}">팀원에게는 공개·대체 작업만 표시합니다. 비공개 작업 이력은 작성자만 읽습니다.</aside>
+<p class="empty" th:if="${page.items.isEmpty()}">표시할 변경 이력이 없습니다.</p>
+<ol class="records">
+<li th:each="activity : ${page.items}"><div><span class="status">버전 [[${activity.version}]]</span><h2 th:text="${activity.operation}"></h2><p><time th:datetime="${activity.occurredAt.iso}" th:text="${activity.occurredAt.display}"></time></p><p>처리한 사용자: [[${activity.actor}]]</p><p th:text="${activity.transition}"></p></div></li>
+</ol>
+<nav class="pagination" th:if="${page.previousUrl != null}"><a class="button secondary" th:href="${page.previousUrl}">이전 작업 더 보기</a></nav>
+</main>
+</html>
