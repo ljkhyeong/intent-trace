@@ -11,6 +11,8 @@ import io.intenttrace.config.GitHubHttpPolicy
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.test.json.JsonCompareMode
@@ -30,41 +32,39 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GitHubAppInstallationClientTest {
-    @Test
-    fun `사전 점검은 실제 발급 범위와 권한을 구분하고 token과 오류 원문은 반환하지 않는다`() {
-        for (scenario in listOf("ok", "scope", "permissions", "rejected")) {
-            val builder = RestClient.builder()
-            val server = MockRestServiceServer.bindTo(builder).build()
-            val clock = Clock.fixed(Instant.parse("2026-09-05T00:00:00Z"), ZoneOffset.UTC)
-            val client = GitHubAppInstallationClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))), GitHubAppJwtProvider { "synthetic-jwt" }, clock)
-            server.expect(requestTo("https://api.github.test/app")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
-            server.expect(requestTo("https://api.github.test/repos/acme/repo/installation"))
-                .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
-            val request = server.expect(requestTo("https://api.github.test/app/installations/901/access_tokens"))
-                .andExpect(content().json("""{"repositories":["repo"],"permissions":{"pull_requests":"read","checks":"write"}}""", JsonCompareMode.STRICT))
-            if (scenario == "rejected") request.andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("synthetic-secret-error"))
-            else request.andRespond(withSuccess("""{"token":"synthetic-secret-token","expires_at":"2026-09-05T01:00:00Z","repositories":[{"full_name":"${if (scenario == "scope") "acme/other" else "acme/repo"}"}],"permissions":{"checks":"${if (scenario == "permissions") "read" else "write"}","pull_requests":"read"}}""", MediaType.APPLICATION_JSON))
-            val result = client.inspect(GitHubRepository.parse("acme/repo"))
-            assertEquals(scenario == "ok", result.checks.all { it.status == PreflightStatus.VERIFIED })
-            if (scenario != "rejected") assertEquals("GitHub App 토큰을 발급받았습니다.", result.checks.single { it.name == "token_issuance" }.message)
-            if (scenario == "scope") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "repository_scope" }.status)
-            if (scenario == "permissions") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "permissions" }.status)
-            if (scenario == "rejected") assertEquals(PreflightStatus.NOT_CHECKED, result.checks.single { it.name == "permissions" }.status)
-            assertFalse(result.toString().contains("synthetic-secret"))
-            assertFalse(result.toString().contains("synthetic-jwt"))
-            server.verify()
-        }
+    private val builder = RestClient.builder()
+    private val server = MockRestServiceServer.bindTo(builder).build()
+    private val client = GitHubAppInstallationClient(
+        client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
+        jwtProvider = GitHubAppJwtProvider { "app-jwt" },
+        clock = Clock.fixed(Instant.parse("2026-09-05T00:00:00Z"), ZoneOffset.UTC),
+    )
+
+    @ParameterizedTest
+    @ValueSource(strings = ["ok", "scope", "permissions", "rejected"])
+    fun `사전 점검은 실제 발급 범위와 권한을 구분하고 token과 오류 원문은 반환하지 않는다`(scenario: String) {
+        server.expect(requestTo("https://api.github.test/app")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
+        server.expect(requestTo("https://api.github.test/repos/acme/repo/installation"))
+            .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
+        val request = server.expect(requestTo("https://api.github.test/app/installations/901/access_tokens"))
+            .andExpect(content().json("""{"repositories":["repo"],"permissions":{"pull_requests":"read","checks":"write"}}""", JsonCompareMode.STRICT))
+        if (scenario == "rejected") request.andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("synthetic-secret-error"))
+        else request.andRespond(withSuccess("""{"token":"synthetic-secret-token","expires_at":"2026-09-05T01:00:00Z","repositories":[{"full_name":"${if (scenario == "scope") "acme/other" else "acme/repo"}"}],"permissions":{"checks":"${if (scenario == "permissions") "read" else "write"}","pull_requests":"read"}}""", MediaType.APPLICATION_JSON))
+
+        val result = client.inspect(GitHubRepository.parse("acme/repo"))
+
+        assertEquals(scenario == "ok", result.checks.all { it.status == PreflightStatus.VERIFIED })
+        if (scenario != "rejected") assertEquals("GitHub App 토큰을 발급받았습니다.", result.checks.single { it.name == "token_issuance" }.message)
+        if (scenario == "scope") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "repository_scope" }.status)
+        if (scenario == "permissions") assertEquals(PreflightStatus.FAILED, result.checks.single { it.name == "permissions" }.status)
+        if (scenario == "rejected") assertEquals(PreflightStatus.NOT_CHECKED, result.checks.single { it.name == "permissions" }.status)
+        assertFalse(result.toString().contains("synthetic-secret"))
+        assertFalse(result.toString().contains("app-jwt"))
+        server.verify()
     }
 
     @Test
     fun `잘못된 만료 시각 응답은 token과 원문 없이 실패한다`() {
-        val builder = RestClient.builder()
-        val server = MockRestServiceServer.bindTo(builder).build()
-        val client = GitHubAppInstallationClient(
-            client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
-            jwtProvider = GitHubAppJwtProvider { "app-jwt" },
-            clock = Clock.systemUTC(),
-        )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andRespond(withSuccess("""{"id":901}""", MediaType.APPLICATION_JSON))
         server.expect(requestTo("https://api.github.test/app/installations/901/access_tokens"))
@@ -86,13 +86,6 @@ class GitHubAppInstallationClientTest {
 
     @Test
     fun `저장소 설치를 찾아 필요한 권한만 가진 installation token을 발급한다`() {
-        val builder = RestClient.builder()
-        val server = MockRestServiceServer.bindTo(builder).build()
-        val client = GitHubAppInstallationClient(
-            client = GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI.create("https://api.github.test"))),
-            jwtProvider = GitHubAppJwtProvider { "app-jwt" },
-            clock = Clock.systemUTC(),
-        )
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/installation"))
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer app-jwt"))

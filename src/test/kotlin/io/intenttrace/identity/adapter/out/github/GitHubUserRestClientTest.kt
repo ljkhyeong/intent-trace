@@ -9,6 +9,7 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.http.HttpMethod
@@ -63,22 +64,24 @@ class GitHubUserRestClientTest {
         server.verify()
     }
 
-    @Test
-    fun `저장소의 write 권한을 단건 조회해 기여자 역할로 해석한다`() {
+    @ParameterizedTest
+    @CsvSource(
+        nullValues = ["null"],
+        value = ["write, write, CONTRIBUTOR", "read, read, READER", "none, null, null", "write, maintain, MAINTAINER", "admin, admin, MAINTAINER"],
+    )
+    fun `저장소 권한을 단건 조회해 역할로 해석한다`(permission: String, roleName: String?, expected: RepositoryRole?) {
+        val role = roleName?.let { "\"$it\"" } ?: "null"
         server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/collaborators/lim/permission"))
             .andExpect(method(HttpMethod.GET))
             .andExpect(header("Authorization", "Bearer user-token"))
             .andRespond(
                 withSuccess(
-                    """{"permission":"write","role_name":"write","user":{"id":42,"login":"lim"}}""",
+                    """{"permission":"$permission","role_name":$role,"user":{"id":42,"login":"lim"}}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
 
-        assertEquals(
-            RepositoryRole.CONTRIBUTOR,
-            client.repositoryRole("user-token", actor, GitHubRepository("acme", "intent-trace")),
-        )
+        assertEquals(expected, client.repositoryRole("user-token", actor, GitHubRepository("acme", "intent-trace")))
         server.verify()
     }
 
@@ -93,37 +96,6 @@ class GitHubUserRestClientTest {
     }
 
     @Test
-    fun `저장소의 read 권한을 조회 역할로 해석한다`() {
-        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/collaborators/lim/permission"))
-            .andRespond(
-                withSuccess(
-                    """{"permission":"read","role_name":"read","user":{"id":42,"login":"lim"}}""",
-                    MediaType.APPLICATION_JSON,
-                ),
-            )
-
-        assertEquals(
-            RepositoryRole.READER,
-            client.repositoryRole("user-token", actor, GitHubRepository("acme", "intent-trace")),
-        )
-        server.verify()
-    }
-
-    @Test
-    fun `저장소의 none 권한은 역할 없음으로 해석한다`() {
-        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/collaborators/lim/permission"))
-            .andRespond(
-                withSuccess(
-                    """{"permission":"none","role_name":null,"user":{"id":42,"login":"lim"}}""",
-                    MediaType.APPLICATION_JSON,
-                ),
-            )
-
-        assertNull(client.repositoryRole("user-token", actor, GitHubRepository("acme", "intent-trace")))
-        server.verify()
-    }
-
-    @Test
     fun `거부된 사용자 토큰은 인증 실패로 변환한다`() {
         server.expect(requestTo("https://api.github.test/user"))
             .andRespond(withUnauthorizedRequest())
@@ -131,23 +103,6 @@ class GitHubUserRestClientTest {
         assertFailsWith<GitHubUserAuthenticationException> {
             client.authenticate("expired-token")
         }
-        server.verify()
-    }
-
-    @Test
-    fun `maintain 권한은 관리자 역할로 해석한다`() {
-        server.expect(requestTo("https://api.github.test/repos/acme/intent-trace/collaborators/lim/permission"))
-            .andRespond(
-                withSuccess(
-                    """{"permission":"write","role_name":"maintain","user":{"id":42,"login":"lim"}}""",
-                    MediaType.APPLICATION_JSON,
-                ),
-            )
-
-        assertEquals(
-            RepositoryRole.MAINTAINER,
-            client.repositoryRole("user-token", actor, GitHubRepository("acme", "intent-trace")),
-        )
         server.verify()
     }
 
@@ -178,7 +133,7 @@ class GitHubUserRestClientTest {
         } else {
             """{"permission":{"value":"$marker"},"role_name":"write","user":{"id":42,"login":"lim"}}"""
         }
-        server.expect { request -> assertEquals(path, request.uri.path) }
+        server.expect(requestTo("https://api.github.test$path"))
             .andRespond(withSuccess(body, MediaType.APPLICATION_JSON))
 
         val exception = assertFailsWith<GitHubIdentityApiException> {
@@ -198,7 +153,7 @@ class GitHubUserRestClientTest {
     @Test
     fun `GitHub 장애 응답 본문은 예외에 노출하지 않는다`() {
         server.expect(requestTo("https://api.github.test/user"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).body("token-secret"))
+            .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("token-secret"))
 
         val exception = assertFailsWith<GitHubIdentityApiException> {
             client.authenticate("user-token")
