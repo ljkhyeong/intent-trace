@@ -9,13 +9,6 @@ def fail(message: str) -> None:
     raise SystemExit(message)
 
 
-def network_names(service: dict) -> set[str]:
-    networks = service.get("networks", {})
-    if isinstance(networks, (dict, list)):
-        return set(networks)
-    fail("Compose service의 networks 형식을 확인할 수 없습니다.")
-
-
 def main() -> None:
     root = pathlib.Path(__file__).resolve().parent.parent
     environment_file = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".env.team.example")
@@ -40,7 +33,7 @@ def main() -> None:
     if set(services) != set(expected_networks):
         fail("Compose service는 postgres, app, caddy만 포함해야 합니다.")
     for name, expected in expected_networks.items():
-        if network_names(services[name]) != expected:
+        if set(services[name].get("networks", {})) != expected:
             fail(f"{name} service의 network 경계가 예상과 다릅니다.")
 
     published_services = {name for name, service in services.items() if service.get("ports")}

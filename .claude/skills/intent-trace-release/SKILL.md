@@ -22,7 +22,7 @@ argument-hint: "<버전, 예: 0.13.0>"
    - `src/main/resources/application.properties`의 `spring.ai.mcp.server.version`
    - `.codex-plugin/plugin.json`의 `version`
    - `intellij-plugin/gradle.properties`의 `pluginVersion`
-6. 절차 2장의 로컬 검증을 실행하고 `python3 scripts/validate-release-version.py --release-tag v<버전> --prepare-directory build/release`로 첨부 파일 네 개를 확인한다.
+6. 절차 2장의 로컬 검증을 실행하고 `python3 scripts/validate-release-version.py --release-tag v<버전>`로 `build/release`에 준비되는 첨부 파일 네 개를 확인한다.
 7. `릴리스: v<버전> 확정`으로 커밋한다. PR은 사용자가 요청하면 만든다.
 
 ## 2. 발행

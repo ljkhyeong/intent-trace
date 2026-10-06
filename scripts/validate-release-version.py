@@ -132,15 +132,11 @@ def prepare_release_artifacts(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--release-tag")
-    parser.add_argument("--prepare-directory", type=pathlib.Path)
     args = parser.parse_args()
 
     root = pathlib.Path(__file__).resolve().parent.parent
     version = project_version(root)
     server_jar = validate_server_jar(root, version)
-
-    if args.prepare_directory is not None and args.release_tag is None:
-        fail("배포 파일 준비에는 --release-tag가 필요합니다.")
 
     if args.release_tag is None:
         print(f"릴리스 version과 JAR manifest를 확인했습니다: {version}")
@@ -153,16 +149,7 @@ def main() -> None:
         fail(f"Git tag와 프로젝트 version이 다릅니다: {args.release_tag} != {expected_tag}")
 
     plugin_zip = validate_intellij_plugin(root, version)
-    if args.prepare_directory is None:
-        print(f"릴리스 tag와 서버·IntelliJ 산출물을 확인했습니다: {args.release_tag}")
-        return
-
-    artifacts = prepare_release_artifacts(
-        args.prepare_directory,
-        version,
-        server_jar,
-        plugin_zip,
-    )
+    artifacts = prepare_release_artifacts(root / "build/release", version, server_jar, plugin_zip)
     names = ", ".join(path.name for path in artifacts)
     print(f"릴리스 파일을 준비했습니다: {names}")
 

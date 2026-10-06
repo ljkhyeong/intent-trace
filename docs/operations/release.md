@@ -50,12 +50,10 @@ scripts/validate-plugin.sh
 정식 버전에서는 태그 발행 때와 같은 조건으로 배포 파일을 미리 확인할 수 있다.
 
 ```bash
-python3 scripts/validate-release-version.py \
-  --release-tag v0.7.0 \
-  --prepare-directory build/release
+python3 scripts/validate-release-version.py --release-tag v0.7.0
 ```
 
-준비되는 파일은 다음 네 개다.
+`build/release`에 준비되는 파일은 다음 네 개다.
 
 - `intent-trace-0.7.0.jar`
 - `intent-trace-0.7.0.jar.sha256`

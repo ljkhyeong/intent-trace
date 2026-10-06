@@ -51,7 +51,7 @@ jobs:
         run: ./gradlew --no-daemon -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure
 
       - name: tag와 배포 파일 확인
-        run: python3 scripts/validate-release-version.py --release-tag "${GITHUB_REF_NAME}" --prepare-directory build/release
+        run: python3 scripts/validate-release-version.py --release-tag "${GITHUB_REF_NAME}"
 
       - name: GitHub Release 발행
         env:
