@@ -34,9 +34,9 @@ class GitHubGitEvidenceClient(
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
         val ref = requireFullRevision(revision)
         // 저장소 읽기 권한을 확인한 뒤 읽으므로 커밋 조회의 404·422는 GitHub에 없는 커밋이다.
-        val commit = get(repository, "/git/commits/$ref", CommitResponse::class.java, budget, EvidenceUnavailableReason.REVISION_NOT_FOUND)
+        val commit = get(repository, CommitResponse::class.java, budget, "/git/commits/{sha}", ref, notFound = EvidenceUnavailableReason.REVISION_NOT_FOUND)
         if (commit.sha != ref) throw GitHubApiException("GitHub 커밋 응답이 요청 커밋과 다릅니다.")
-        val tree = get(repository, "/git/trees/${parseResponseRevision(commit.tree.sha)}?recursive=1", TreeResponse::class.java, budget)
+        val tree = get(repository, TreeResponse::class.java, budget, "/git/trees/{sha}?recursive=1", parseResponseRevision(commit.tree.sha))
         if (tree.truncated == true) throw EvidenceUnavailableException(EvidenceUnavailableReason.TRUNCATED_TREE)
         if (tree.truncated != false || tree.sha != commit.tree.sha) throw GitHubApiException("GitHub 전체 트리를 확인할 수 없습니다.")
         val entries = tree.tree.associateBy({ it.path }, { GitTreeEntry(it.path, it.mode, it.type, it.sha) })
@@ -51,7 +51,7 @@ class GitHubGitEvidenceClient(
     }
 
     override fun blob(repository: GitHubRepository, sha: String, budget: EvidenceReadBudget?): ByteArray {
-        val blob = get(repository, "/git/blobs/${requireFullRevision(sha)}", BlobResponse::class.java, budget)
+        val blob = get(repository, BlobResponse::class.java, budget, "/git/blobs/{sha}", requireFullRevision(sha))
         if (blob.size > MAX_BLOB_SIZE) throw EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         if (blob.encoding != "base64") throw EvidenceUnavailableException(EvidenceUnavailableReason.UNSUPPORTED_OBJECT)
         if (blob.sha != sha || blob.size < 0) {
@@ -66,7 +66,8 @@ class GitHubGitEvidenceClient(
 
     override fun isAncestor(repository: GitHubRepository, ancestor: String, descendant: String, budget: EvidenceReadBudget?): Boolean {
         if (ancestor == descendant) return true
-        val result = get(repository, "/compare/${requireFullRevision(ancestor)}...${requireFullRevision(descendant)}?per_page=1", CompareResponse::class.java, budget)
+        val result = get(repository, CompareResponse::class.java, budget, "/compare/{base}...{head}?per_page=1",
+            requireFullRevision(ancestor), requireFullRevision(descendant))
         return when (result.status) {
             "ahead", "identical" -> true
             "behind", "diverged" -> false
@@ -80,18 +81,20 @@ class GitHubGitEvidenceClient(
         throw GitHubApiException("GitHub 코드 응답의 객체 해시 형식이 올바르지 않습니다.")
     }
 
+    // path는 상수 템플릿만 받는다. 값은 변수로 넘겨 호출 지표의 uri label에 저장소·해시가 들어가지 않게 한다.
     private fun <T> get(
         repository: GitHubRepository,
-        suffix: String,
         type: Class<T>,
         budget: EvidenceReadBudget?,
+        path: String,
+        vararg variables: Any,
         notFound: EvidenceUnavailableReason? = null,
     ): T = try {
         val remaining = budget?.beforeRemoteCall()
         val requestClient = if (remaining == null) client else client.mutate().requestFactory(
             JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(remaining.coerceAtMost(Duration.ofSeconds(10))) },
         ).build()
-        requestClient.get().uri("/repos/${repository.key}$suffix")
+        requestClient.get().uri("/repos/{owner}/{repository}$path", repository.canonicalOwner, repository.canonicalName, *variables)
             .headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()

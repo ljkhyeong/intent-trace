@@ -10,7 +10,6 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.adapter.out.github.GitHubContextClient
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -26,7 +25,7 @@ import kotlin.test.*
 class GitHubContextClientTest {
     private val properties = GitHubProperties()
     private val builder = RestClient.builder().also {
-        GitHubHttpPolicy().githubRequestPolicy(properties, Clock.systemUTC(), SimpleMeterRegistry()).customize(it)
+        GitHubHttpPolicy().githubRequestPolicy(properties, Clock.systemUTC()).customize(it)
     }
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val mapper = jacksonObjectMapper()

@@ -8,6 +8,9 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.record.adapter.out.github.GitHubGitEvidenceClient
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -27,7 +30,10 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class GitHubEvidenceClientTest {
-    private val builder = RestClient.builder()
+    private val meters = SimpleMeterRegistry()
+    private val builder = RestClient.builder().observationRegistry(ObservationRegistry.create().also {
+        it.observationConfig().observationHandler(DefaultMeterObservationHandler(meters))
+    })
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val client = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))),
         object : CurrentGitHubUserSession {
@@ -83,7 +89,7 @@ class GitHubEvidenceClientTest {
     }
 
     @Test
-    fun `커밋에 고정된 전체 트리와 blob만 읽고 잘린 트리는 거부한다`() {
+    fun `커밋에 고정된 전체 트리와 blob만 읽고 잘린 트리는 거부하며 호출 지표에는 URI 템플릿만 남긴다`() {
         for (truncated in listOf(false, true)) {
             server.reset()
             server.expect(requestTo("https://api.github.test/repos/acme/repo/git/commits/$revision"))
@@ -103,6 +109,11 @@ class GitHubEvidenceClientTest {
             .andRespond(withSuccess("""{"sha":"$blob","encoding":"base64","size":2,"content":"YQo="}""", MediaType.APPLICATION_JSON))
         assertEquals("a\n", client.blob(repository, blob).toString(Charsets.UTF_8))
         server.verify()
+        // 호출 지표의 uri label에는 저장소 이름과 해시 대신 템플릿만 남는다.
+        assertEquals(
+            setOf("/repos/{owner}/{repository}/git/commits/{sha}", "/repos/{owner}/{repository}/git/trees/{sha}?recursive=1", "/repos/{owner}/{repository}/git/blobs/{sha}"),
+            meters.get("http.client.requests").timers().map { it.id.getTag("uri") }.toSet(),
+        )
     }
 
     @ParameterizedTest

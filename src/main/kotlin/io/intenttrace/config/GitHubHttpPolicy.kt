@@ -1,6 +1,5 @@
 package io.intenttrace.config
 
-import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.boot.restclient.RestClientCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -11,7 +10,6 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 // API 버전은 응답 해석 코드와 함께 바꾼다.
 private const val GITHUB_API_VERSION = "2026-03-10"
@@ -42,8 +40,6 @@ fun <T> ClientHttpResponse.readJsonWithin(mapper: ObjectMapper, type: Class<T>, 
 
 @Configuration
 class GitHubHttpPolicy {
-    private val repositoryPermissionPath = Regex("/repos/[^/]+/[^/]+/collaborators/[^/]+/permission")
-
     @Bean
     fun githubApiRestClient(builder: RestClient.Builder, properties: GitHubProperties): RestClient = builder
         .baseUrl(properties.apiBaseUrl.toString().trimEnd('/'))
@@ -51,37 +47,17 @@ class GitHubHttpPolicy {
         .defaultHeader("X-GitHub-Api-Version", GITHUB_API_VERSION)
         .build()
 
+    // 호출 지표는 Spring 기본 관측(http.client.requests)이 URI 템플릿 단위로 기록한다. 여기서는 호출 제한만 감지한다.
     @Bean
-    fun githubRequestPolicy(properties: GitHubProperties, clock: Clock, meters: MeterRegistry): RestClientCustomizer = RestClientCustomizer { builder ->
+    fun githubRequestPolicy(properties: GitHubProperties, clock: Clock): RestClientCustomizer = RestClientCustomizer { builder ->
         builder.requestInterceptor { request, body, execution ->
-            if (request.uri.host !in setOf(properties.apiBaseUrl.host, properties.userAuthorization.webBaseUrl.host)) {
-                return@requestInterceptor execution.execute(request, body)
-            }
-            val operation = when {
-                request.uri.path == "/user" -> "user"
-                repositoryPermissionPath.matches(request.uri.path) -> "repository_access"
-                request.uri.path.contains("/check-runs") -> "check_run"
-                request.uri.path.contains("/pulls/") -> "pull_request"
-                request.uri.path.contains("/issues/") -> "request_context"
-                request.uri.path.contains("/actions/runs") -> "actions_read"
-                request.uri.path.contains("/git/") || request.uri.path.contains("/compare/") -> "code_evidence"
-                request.uri.path.contains("/login/oauth/") -> "user_token"
-                else -> "installation"
-            }
-            val started = System.nanoTime()
-            var outcome = "network_error"
-            try {
-                val response = execution.execute(request, body)
-                outcome = "${response.statusCode.value() / 100}xx"
-                GitHubRateLimit.detect(response.statusCode.value(), response.headers, Instant.now(clock))?.let {
-                    response.close()
-                    outcome = "rate_limited"
-                    throw it
+            execution.execute(request, body).also { response ->
+                if (request.uri.host in setOf(properties.apiBaseUrl.host, properties.userAuthorization.webBaseUrl.host)) {
+                    GitHubRateLimit.detect(response.statusCode.value(), response.headers, Instant.now(clock))?.let {
+                        response.close()
+                        throw it
+                    }
                 }
-                response
-            } finally {
-                meters.timer("intenttrace.github.request", "operation", operation, "outcome", outcome)
-                    .record(System.nanoTime() - started, TimeUnit.NANOSECONDS)
             }
         }
     }
