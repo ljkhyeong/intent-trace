@@ -41,9 +41,7 @@ internal data class LineHistoryView(
 
 internal object LineHistory {
     fun open(project: Project, lookup: LineLookup, server: IntentTraceServer) {
-        val first = IntentTraceRecordBrowser.load(project, server) { source, token ->
-            IntentTraceApiClient().history(source, token, lookup, null)
-        } ?: return
+        val first = IntentTraceRecordBrowser.load(project, server) { IntentTraceApiClient().history(server, it, lookup, null) } ?: return
         LineHistoryDialog(project, lookup, LineHistoryView.of(first), server).show()
     }
 }
@@ -54,7 +52,7 @@ internal open class LineHistoryDialog(
     private var view: LineHistoryView,
     server: IntentTraceServer,
     private val loadNext: (String) -> ChangeIntentHistory? = { cursor ->
-        IntentTraceRecordBrowser.load(project, server) { source, token -> IntentTraceApiClient().history(source, token, lookup, cursor) }
+        IntentTraceRecordBrowser.load(project, server) { token -> IntentTraceApiClient().history(server, token, lookup, cursor) }
     },
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },

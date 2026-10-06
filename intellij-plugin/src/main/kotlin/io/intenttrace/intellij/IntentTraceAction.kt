@@ -11,10 +11,11 @@ abstract class IntentTraceAction : DumbAwareAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 }
 
-internal fun currentServerOrShowError(project: Project): IntentTraceServer? = try {
-    IntentTraceServer.current()
-} catch (exception: IntentTraceUserException) {
-    Messages.showErrorDialog(project, exception.message, "IntentTrace")
+/** 사용자 안내 오류는 오류창으로 표시하고 null을 반환한다. */
+internal inline fun <T : Any> orShowError(project: Project?, block: () -> T): T? = try {
+    block()
+} catch (error: IntentTraceUserException) {
+    Messages.showErrorDialog(project, error.message, "IntentTrace")
     null
 }
 

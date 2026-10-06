@@ -56,6 +56,7 @@ class IntentTraceCredentialStoreTest {
         credentials.save(server, savedToken)
         assertEquals(savedToken, credentials.load(server))
         assertNull(credentials.load(other))
+        assertFailsWith<IntentTraceUsageException> { credentials.require(other) }
         assertFalse(credentials.environmentSessionConfigured(other))
 
         credentials.save(other, otherToken)

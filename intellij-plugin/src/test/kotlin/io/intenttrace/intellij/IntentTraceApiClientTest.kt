@@ -36,7 +36,7 @@ class IntentTraceApiClientTest {
     }
 
     @Test
-    fun `로그인 확인에서 세션이 없거나 형식이 틀리면 서버에 요청하지 않는다`() {
+    fun `로그인 확인에서 세션 형식이 틀리면 서버에 요청하지 않는다`() {
         val calls = AtomicInteger()
         withServer(path = "/", handler = { exchange ->
             calls.incrementAndGet()
@@ -44,8 +44,8 @@ class IntentTraceApiClientTest {
             exchange.close()
         }) { server ->
             val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
-            for (session in listOf(null, "ghu_not-an-intent-trace-session")) {
-                assertFailsWith<IntentTraceUsageException> { IntentTraceApiClient().checkLogin(endpoint, session) }
+            assertFailsWith<IntentTraceUsageException> {
+                IntentTraceApiClient().checkLogin(endpoint, "ghu_not-an-intent-trace-session")
             }
         }
         assertEquals(0, calls.get())

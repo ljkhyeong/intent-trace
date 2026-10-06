@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class IntentTraceResponseParserTest {
     @Test
     fun `공개 변경 의도 응답을 화면 모델로 변환한다`() {
-        val found = IntentTraceResponseParser.parseLookup(
+        val found = decodeResponse<ChangeIntentLookup>(
             """
             {"truncated": true, "items": [
               {
@@ -58,7 +58,7 @@ class IntentTraceResponseParserTest {
     @Test
     fun `문자열 필드에 숫자가 오면 응답 형식 오류로 처리한다`() {
         assertFailsWith<IntentTraceClientException> {
-            IntentTraceResponseParser.parseLookup(
+            decodeResponse<ChangeIntentLookup>(
                 """
                 {"truncated": false, "items": [{
                   "id": "record-1", "title": 123, "requestSummary": "요청", "status": "PUBLISHED",
@@ -75,7 +75,7 @@ class IntentTraceResponseParserTest {
     fun `형식이 잘못된 응답은 원문을 남기지 않는 안내 오류로 바꾼다`() {
         val marker = "test-private-response-marker"
         val exception = assertFailsWith<IntentTraceClientException> {
-            IntentTraceResponseParser.parseLookup("""{"id":"$marker"}""")
+            decodeResponse<ChangeIntentLookup>("""{"id":"$marker"}""")
         }
 
         assertEquals("IntentTrace 조회 응답 형식을 확인할 수 없습니다.", exception.message)

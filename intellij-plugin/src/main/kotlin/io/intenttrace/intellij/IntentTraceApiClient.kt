@@ -2,6 +2,7 @@ package io.intenttrace.intellij
 
 import com.intellij.util.io.HttpRequests
 import com.intellij.util.io.RequestBuilder
+import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
@@ -10,36 +11,31 @@ import java.nio.charset.StandardCharsets
 
 internal class IntentTraceApiClient {
     fun checkConnection(server: IntentTraceServer) {
-        if (IntentTraceResponseParser.parseHealth(get(server.healthUri(), null)) != "UP") {
+        if (decodeResponse<HealthResponse>(get(server.healthUri(), null)).status != "UP") {
             throw IntentTraceClientException("IntentTrace 서버가 정상 상태(UP)가 아닙니다.")
         }
     }
 
-    fun checkLogin(server: IntentTraceServer, sessionToken: String?): String {
-        val token = sessionToken ?: throw IntentTraceUsageException(
-            "저장된 세션이 없습니다. Tools > IntentTrace 세션 연결에서 토큰을 저장해 주세요.",
-        )
-        return IntentTraceResponseParser.parseLogin(get(server.mySessionsUri(), token, sessionCheck = true))
-    }
+    fun checkLogin(server: IntentTraceServer, sessionToken: String): String =
+        decodeResponse<LoginResponse>(get(server.mySessionsUri(), sessionToken, sessionCheck = true)).actor.login
 
     fun lookup(server: IntentTraceServer, sessionToken: String, lookup: LineLookup): ChangeIntentLookup =
-        IntentTraceResponseParser.parseLookup(get(server.lookupUri(lookup), sessionToken))
+        decodeResponse(get(server.lookupUri(lookup), sessionToken))
 
     fun list(server: IntentTraceServer, sessionToken: String, query: RecordListQuery): ChangeRecordPage =
-        IntentTraceResponseParser.parsePage(get(server.listUri(query), sessionToken))
+        decodeResponse(get(server.listUri(query), sessionToken))
 
     fun record(server: IntentTraceServer, sessionToken: String, id: String): ChangeIntentRecord =
-        IntentTraceResponseParser.parseRecord(get(server.recordUri(id), sessionToken))
+        decodeResponse(get(server.recordUri(id), sessionToken))
 
     // 아래 두 조회는 서버가 GitHub 코드를 읽으므로 서버의 기본 30초 조회 기한보다 길게 기다린다.
     fun history(server: IntentTraceServer, sessionToken: String, lookup: LineLookup, cursor: String?): ChangeIntentHistory =
-        IntentTraceResponseParser.parseHistory(get(server.historyUri(lookup, cursor), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
+        decodeResponse(get(server.historyUri(lookup, cursor), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
 
     fun diagnose(server: IntentTraceServer, sessionToken: String, repositoryKey: String, revision: String?): ConnectionDiagnosis =
-        IntentTraceResponseParser.parseDiagnosis(get(server.diagnosticsUri(repositoryKey, revision), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
+        decodeResponse(get(server.diagnosticsUri(repositoryKey, revision), sessionToken, readTimeout = REMOTE_READ_TIMEOUT))
 
     fun revokeSession(server: IntentTraceServer, sessionToken: String) {
-        requireSessionToken(sessionToken)
         send(HttpRequests.delete(server.currentSessionUri().toString(), null), sessionToken) { _, status ->
             when (status) {
                 200, 401 -> Unit
@@ -49,9 +45,8 @@ internal class IntentTraceApiClient {
         }
     }
 
-    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false, readTimeout: Int = 10_000): String {
-        sessionToken?.let(::requireSessionToken)
-        return send(HttpRequests.request(uri.toString()).accept("application/json"), sessionToken, readTimeout) { request, status ->
+    private fun get(uri: URI, sessionToken: String?, sessionCheck: Boolean = false, readTimeout: Int = 10_000): String =
+        send(HttpRequests.request(uri.toString()).accept("application/json"), sessionToken, readTimeout) { request, status ->
             when (status) {
                 200 -> {
                     val bytes = request.inputStream.readNBytes(MAX_RESPONSE_BYTES + 1)
@@ -75,21 +70,28 @@ internal class IntentTraceApiClient {
                 })
             }
         }
-    }
 
-    /** 연결 제한·redirect 금지·세션 헤더·호출 제한 안내를 모든 요청에 같게 적용한다. 오류 본문은 읽지 않는다. */
+    /** 세션 형식 검사·연결 제한·redirect 금지·세션 헤더·호출 제한 안내를 모든 요청에 같게 적용한다. 오류 본문은 읽지 않는다. */
     private fun <T> send(builder: RequestBuilder, sessionToken: String?, readTimeout: Int = 10_000,
-        onStatus: (HttpRequests.Request, Int) -> T): T = execute {
-        builder.connectTimeout(5_000)
-            .readTimeout(readTimeout)
-            .followRedirects(false)
-            .throwStatusCodeException(false)
-            .tuner { connection -> sessionToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") } }
-            .connect { request ->
-                val status = (request.connection as HttpURLConnection).responseCode
-                if (status == 429) throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
-                onStatus(request, status)
-            }
+        onStatus: (HttpRequests.Request, Int) -> T): T {
+        // 형식이 틀린 값(GitHub 토큰 등)은 연결 전에 거부해 서버로 보내지 않는다.
+        sessionToken?.let(::requireSessionToken)
+        return try {
+            builder.connectTimeout(5_000)
+                .readTimeout(readTimeout)
+                .followRedirects(false)
+                .throwStatusCodeException(false)
+                .tuner { connection -> sessionToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") } }
+                .connect { request ->
+                    val status = (request.connection as HttpURLConnection).responseCode
+                    if (status == 429) throw IntentTraceRateLimitException(rateLimitMessage(request.connection.getHeaderField("Retry-After")))
+                    onStatus(request, status)
+                }
+        } catch (_: SocketTimeoutException) {
+            throw IntentTraceClientException("IntentTrace 서버의 응답 대기 시간을 초과했습니다.")
+        } catch (_: IOException) {
+            throw IntentTraceClientException("IntentTrace 서버에 연결하지 못했습니다.")
+        }
     }
 
     private fun rateLimitMessage(retryAfter: String?): String {
@@ -97,14 +99,6 @@ internal class IntentTraceApiClient {
         val guidance = seconds?.let { "${it}초 후 다시 시도해 주세요." }
             ?: "대기 시간을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
         return "호출 제한에 도달했습니다. $guidance"
-    }
-
-    private fun <T> execute(block: () -> T): T = try {
-        block()
-    } catch (_: SocketTimeoutException) {
-        throw IntentTraceClientException("IntentTrace 서버의 응답 대기 시간을 초과했습니다.")
-    } catch (_: IOException) {
-        throw IntentTraceClientException("IntentTrace 서버에 연결하지 못했습니다.")
     }
 
     companion object {
@@ -127,3 +121,9 @@ internal open class IntentTraceClientException(message: String) : IntentTraceUse
 
 /** 서버가 응답했으므로 대기 후 다시 시도할 실패다. 로컬 세션 삭제를 제안하지 않는다. */
 internal class IntentTraceRateLimitException(message: String) : IntentTraceClientException(message)
+
+@Serializable
+private data class HealthResponse(val status: String)
+
+@Serializable
+private data class LoginResponse(val actor: CreatedByResponse)

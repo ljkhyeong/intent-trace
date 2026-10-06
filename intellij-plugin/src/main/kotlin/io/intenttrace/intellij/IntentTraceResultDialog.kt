@@ -24,9 +24,7 @@ internal open class IntentTraceResultDialog(
     found: ChangeIntentLookup,
     server: IntentTraceServer,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
-    private val openHistory: (RepositoryFileContext) -> Unit = {
-        IntentTraceRecordBrowser.open(project, it, fileOnly = true, server = server)
-    },
+    private val openHistory: (RepositoryFileContext) -> Unit = { IntentTraceRecordBrowser.open(project, it, server, fileOnly = true) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
     private val openLineHistory: (LineLookup) -> Unit = { LineHistory.open(project, it, server) },
 ) : DialogWrapper(project, true) {

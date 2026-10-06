@@ -194,10 +194,10 @@ class SessionConnectionTest {
         assertContains(localDeletionPrompt(unreachable, failure.message.orEmpty()), "이 PC에 저장한 세션만 삭제할까요?")
 
         assertEquals("${unreachable.baseUri}의 PasswordSafe 세션을 이 PC에서 삭제했습니다. 서버의 연결은 만료되거나 웹의 내 연결 화면에서 종료할 때까지 남습니다. " +
-            "INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다.", forgetLocalSession(unreachable, credentials))
+            "INTENT_TRACE_SESSION_TOKEN 환경 변수의 세션은 계속 사용됩니다.", disconnectSession(unreachable, credentials, revoke = false))
         assertNull(credentials.loadStored(unreachable))
         assertEquals(previousToken, credentials.loadStored(other))
-        assertContains(forgetLocalSession(unreachable, credentials), "삭제할 저장 세션이 없습니다.")
+        assertContains(disconnectSession(unreachable, credentials, revoke = false), "삭제할 저장 세션이 없습니다.")
     }
 
     private fun credentials() = IntentTraceCredentialStore(MemoryCredentialStore(), environmentUrl = { null }) { null }

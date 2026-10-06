@@ -59,7 +59,7 @@ class RecordBrowsingTest {
 
     @Test
     fun `과거 기록은 전체 커밋과 당시 스냅샷을 표시하고 코드 링크를 인코딩한다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         val output = IntentTraceTextRenderer.renderHistory(record)
         assertNull(record.verifications.single().source)
         assertContains(output, "출처: 미확인")
@@ -82,7 +82,7 @@ class RecordBrowsingTest {
 
     @Test
     fun `변경 전 코드는 base 커밋을 열고 변경 후 코드는 target 커밋을 연다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         val before = GitHubEvidenceLinks.code(record, record.codeAnchors[0])
         val after = GitHubEvidenceLinks.code(record, record.codeAnchors[1])
         assertEquals("/team/repository/blob/$baseRevision/src/이전 #?.kt", before.path)
@@ -94,7 +94,7 @@ class RecordBrowsingTest {
 
     @Test
     fun `브라우저 링크에 브랜치명이나 경로 탈출을 넣지 않는다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.commit(record.copy(targetRevision = "main")) }
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(record.copy(baseRevision = "main"), record.codeAnchors[0]) }
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(record.copy(baseRevision = null), record.codeAnchors[0]) }

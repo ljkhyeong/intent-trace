@@ -27,28 +27,24 @@ import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 internal object IntentTraceRecordBrowser {
-    fun open(project: Project, context: RepositoryFileContext, fileOnly: Boolean = false, server: IntentTraceServer? = null) {
+    fun open(project: Project, context: RepositoryFileContext, server: IntentTraceServer, fileOnly: Boolean = false) {
         val query = RecordListQuery(context.repositoryKey, path = context.relativePath.takeIf { fileOnly })
-        val (source, page) = load(project, server) { source, token ->
-            source to IntentTraceApiClient().list(source, token, query)
-        } ?: return
-        RecordBrowserDialog(project, context, query, page, source).show()
+        val page = load(project, server) { token -> IntentTraceApiClient().list(server, token, query) } ?: return
+        RecordBrowserDialog(project, context, query, page, server).show()
     }
 
     fun showRecord(project: Project, id: String, server: IntentTraceServer) {
         // 대체 기록을 포함해 상세 조회마다 서버에서 현재 사용자의 권한을 다시 확인한다.
-        val record = load(project, server) { source, token ->
-            IntentTraceApiClient().record(source, token, id)
-        } ?: return
+        val record = load(project, server) { IntentTraceApiClient().record(server, it, id) } ?: return
         RecordHistoryDialog(project, record, server).show()
     }
 
-    fun <T> load(project: Project, server: IntentTraceServer? = null, request: (IntentTraceServer, String) -> T): T? {
+    /** 창에 토큰을 보관하지 않고 요청마다 [server]의 세션을 modal task 안에서 다시 읽는다. */
+    fun <T> load(project: Project, server: IntentTraceServer, request: (String) -> T): T? {
         var result: T? = null
         ProgressManager.getInstance().run(object : Task.Modal(project, "IntentTrace 기록 조회", false) {
             override fun run(indicator: ProgressIndicator) {
-                val source = server ?: IntentTraceServer.current()
-                result = request(source, IntentTraceCredentialStore().require(source))
+                result = request(IntentTraceCredentialStore().require(server))
             }
 
             override fun onThrowable(error: Throwable) {
@@ -68,9 +64,7 @@ internal open class RecordBrowserDialog(
     private var page: ChangeRecordPage,
     private val server: IntentTraceServer,
     private val loadPage: (RecordListQuery) -> ChangeRecordPage? = { nextQuery ->
-        IntentTraceRecordBrowser.load(project, server) { server, token ->
-            IntentTraceApiClient().list(server, token, nextQuery)
-        }
+        IntentTraceRecordBrowser.load(project, server) { token -> IntentTraceApiClient().list(server, token, nextQuery) }
     },
 ) : DialogWrapper(project, true) {
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
@@ -261,10 +255,6 @@ internal open class RecordHistoryDialog(
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
     private fun browse(uri: () -> URI) {
-        try {
-            openBrowser(uri())
-        } catch (error: IntentTraceUserException) {
-            Messages.showErrorDialog(project, error.message, "IntentTrace")
-        }
+        orShowError(project) { openBrowser(uri()) }
     }
 }
