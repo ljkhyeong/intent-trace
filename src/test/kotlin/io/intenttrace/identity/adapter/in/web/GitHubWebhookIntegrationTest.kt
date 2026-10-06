@@ -33,11 +33,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import io.intenttrace.issueTestSession
 
-@SpringBootTest(properties = [
-    "spring.datasource.url=jdbc:h2:mem:webhook-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-    "spring.h2.console.enabled=false",
-    "intent-trace.github.webhook-secret=webhook-test-secret",
-])
+@SpringBootTest(properties = ["intent-trace.github.webhook-secret=webhook-test-secret"])
 @AutoConfigureMockMvc
 class GitHubWebhookIntegrationTest(
     @Autowired private val mvc: MockMvc,

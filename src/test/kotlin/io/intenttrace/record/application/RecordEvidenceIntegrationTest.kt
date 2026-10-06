@@ -1,6 +1,5 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.domain.CodeAnchor
@@ -29,10 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, DraftManagementIntegrationTest.Configuration::class, RecordEvidenceIntegrationTest.Configuration::class],
-    properties = ["spring.datasource.url=jdbc:h2:mem:record-evidence;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"],
-)
+@SpringBootTest(classes = [DraftManagementIntegrationTest.Configuration::class, RecordEvidenceIntegrationTest.Configuration::class])
 class RecordEvidenceIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val evidence: RecordEvidenceService,

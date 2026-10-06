@@ -1,6 +1,5 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
@@ -31,9 +30,7 @@ import kotlin.test.*
 import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
 
-@SpringBootTest(classes = [IntentTraceApplication::class, GitHubContextIntegrationTest.Configuration::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["spring.datasource.url=jdbc:h2:mem:github-context;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "server.shutdown=immediate"])
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["server.shutdown=immediate"])
 @AutoConfigureMockMvc
 class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val sessions: GitHubUserSessionStore,
     @Autowired private val gateway: FakeContextGateway, @LocalServerPort private val port: Int) {

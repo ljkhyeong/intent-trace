@@ -6,7 +6,6 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
 import io.intenttrace.identity.adapter.`in`.web.GitHubOAuthSessionIntegrationTest
 import io.intenttrace.identity.application.BrowserReturnPath
@@ -53,13 +52,7 @@ import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
 import io.intenttrace.startGitHubLogin
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class],
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:record-browser;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "intent-trace.github.user-authorization.callback-url=http://127.0.0.1:8080/auth/github/callback",
-    ],
-)
+@SpringBootTest(classes = [GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class, RecordBrowserIntegrationTest.Configuration::class])
 @AutoConfigureMockMvc
 class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,

@@ -1,6 +1,5 @@
 package io.intenttrace.record.adapter.`in`.web
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
@@ -31,13 +30,7 @@ import java.util.UUID
 import kotlin.test.assertTrue
 import io.intenttrace.issueTestSession
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, AuthenticatedRestIntegrationTest.RestTestConfiguration::class],
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:authenticated-rest-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
-    ],
-)
+@SpringBootTest
 @AutoConfigureMockMvc
 class AuthenticatedRestIntegrationTest(
     @Autowired private val mockMvc: MockMvc,

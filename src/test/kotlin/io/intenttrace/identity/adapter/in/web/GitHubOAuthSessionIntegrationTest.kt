@@ -1,6 +1,5 @@
 package io.intenttrace.identity.adapter.`in`.web
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubIdentityApiException
@@ -41,16 +40,7 @@ import io.intenttrace.githubCallback
 import io.intenttrace.htmlLink
 import io.intenttrace.startGitHubLogin
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:oauth-session-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
-        "intent-trace.github.app.client-id=client-id",
-        "intent-trace.github.user-authorization.client-secret=client-secret",
-        "intent-trace.github.user-authorization.callback-url=http://127.0.0.1:8080/auth/github/callback",
-    ],
-)
+@SpringBootTest(properties = ["intent-trace.github.app.client-id=client-id", "intent-trace.github.user-authorization.client-secret=client-secret"])
 @AutoConfigureMockMvc
 class GitHubOAuthSessionIntegrationTest(
     @Autowired private val mockMvc: MockMvc,

@@ -1,6 +1,5 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserSession
@@ -24,10 +23,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, DraftManagementIntegrationTest.Configuration::class],
-    properties = ["spring.datasource.url=jdbc:h2:mem:draft-management;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"],
-)
+@SpringBootTest
 class DraftManagementIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val catalog: ChangeRecordCatalogService,

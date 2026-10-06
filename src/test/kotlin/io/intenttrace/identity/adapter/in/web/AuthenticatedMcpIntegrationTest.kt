@@ -1,6 +1,5 @@
 package io.intenttrace.identity.adapter.`in`.web
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
@@ -36,13 +35,7 @@ import io.intenttrace.record.application.confirm
 import io.intenttrace.record.application.publish
 import io.intenttrace.issueTestSession
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:authenticated-mcp-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
-    ],
-)
+@SpringBootTest
 @AutoConfigureMockMvc
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,

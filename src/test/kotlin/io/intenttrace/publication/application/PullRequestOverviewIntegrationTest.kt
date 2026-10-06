@@ -1,6 +1,5 @@
 package io.intenttrace.publication.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.connection.application.ConnectionDiagnostics
 import io.intenttrace.connection.application.DiagnosticStatus
 import io.intenttrace.publication.domain.GitHubPublication
@@ -25,10 +24,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.*
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, DraftManagementIntegrationTest.Configuration::class, PullRequestOverviewIntegrationTest.Configuration::class],
-    properties = ["spring.datasource.url=jdbc:h2:mem:pr-overview;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"],
-)
+@SpringBootTest(classes = [DraftManagementIntegrationTest.Configuration::class, PullRequestOverviewIntegrationTest.Configuration::class])
 class PullRequestOverviewIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val publications: GitHubPublicationRepository,

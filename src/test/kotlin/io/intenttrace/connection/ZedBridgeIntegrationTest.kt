@@ -1,6 +1,5 @@
 package io.intenttrace.connection
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.AuthenticatedMcpIntegrationTest
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
@@ -43,9 +42,9 @@ import io.intenttrace.record.application.publish
 import org.junit.jupiter.api.io.TempDir
 
 @SpringBootTest(
-    classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
+    classes = [AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["spring.datasource.url=jdbc:h2:mem:zed-bridge;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "spring.h2.console.enabled=false", "server.shutdown=immediate"],
+    properties = ["server.shutdown=immediate"],
 )
 class ZedBridgeIntegrationTest(
     @Autowired private val sessions: GitHubUserSessionStore,

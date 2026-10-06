@@ -16,12 +16,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-@SpringBootTest(
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:intent-trace-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
-    ],
-)
+@SpringBootTest
 class ChangeRecordFacadeIntegrationTest(
     @Autowired private val facade: ChangeRecordFacade,
 ) : ChangeRecordStorageContract() {
