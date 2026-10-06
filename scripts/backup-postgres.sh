@@ -39,7 +39,6 @@ if [ ! -s "$temporary_file" ]; then
     exit 1
 fi
 
-chmod 600 "$temporary_file"
 if ! ln -- "$temporary_file" "$output_file" 2>/dev/null; then
     if [ -e "$output_file" ] || [ -L "$output_file" ]; then
         printf '%s\n' "기존 backup 파일은 덮어쓰지 않습니다: $output_file" >&2
