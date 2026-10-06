@@ -7,9 +7,9 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.readJsonWithin
 import io.intenttrace.record.application.EvidenceReadBudget
+import org.springframework.boot.http.client.HttpClientSettings
+import org.springframework.boot.http.client.JdkHttpClientBuilder
 import org.springframework.http.client.JdkClientHttpRequestFactory
-import java.net.http.HttpClient
-import java.time.Duration
 import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.GitEvidenceGateway
@@ -28,8 +28,10 @@ class GitHubGitEvidenceClient(
     @Qualifier("githubApiRestClient") private val client: RestClient,
     private val session: CurrentGitHubUserSession,
     private val mapper: ObjectMapper,
+    private val httpSettings: HttpClientSettings,
 ) : GitEvidenceGateway {
-    private val budgetHttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build()
+    // 기한이 있는 조회도 spring.http.clients.* 설정을 따른다. 읽기 시간은 요청마다 남은 기한으로 정한다.
+    private val budgetHttpClient = JdkHttpClientBuilder().build(httpSettings.withReadTimeout(null))
 
     override fun snapshot(repository: GitHubRepository, revision: String, budget: EvidenceReadBudget?): GitEvidenceSnapshot {
         val ref = requireFullRevision(revision)
@@ -92,7 +94,7 @@ class GitHubGitEvidenceClient(
     ): T = try {
         val remaining = budget?.beforeRemoteCall()
         val requestClient = if (remaining == null) client else client.mutate().requestFactory(
-            JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(remaining.coerceAtMost(Duration.ofSeconds(10))) },
+            JdkClientHttpRequestFactory(budgetHttpClient).apply { setReadTimeout(httpSettings.readTimeout()?.let(remaining::coerceAtMost) ?: remaining) },
         ).build()
         requestClient.get().uri("/repos/{owner}/{repository}$path", repository.canonicalOwner, repository.canonicalName, *variables)
             .headers { it.setBearerAuth(session.require().accessToken) }

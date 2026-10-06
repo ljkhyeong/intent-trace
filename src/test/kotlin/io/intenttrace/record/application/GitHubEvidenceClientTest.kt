@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.boot.http.client.HttpClientSettings
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
@@ -38,7 +39,7 @@ class GitHubEvidenceClientTest {
     private val client = GitHubGitEvidenceClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties(apiBaseUrl = URI("https://api.github.test"))),
         object : CurrentGitHubUserSession {
             override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_test", java.util.UUID.randomUUID())
-        }, jacksonObjectMapper())
+        }, jacksonObjectMapper(), HttpClientSettings.defaults())
     private val repository = GitHubRepository.parse("acme/repo")
     private val revision = "a".repeat(40)
     private val tree = "b".repeat(40)
@@ -173,7 +174,7 @@ class GitHubEvidenceClientTest {
             RestClient.builder().uriBuilderFactory(org.springframework.web.util.DefaultUriBuilderFactory("http://127.0.0.1:${http.address.port}")), GitHubProperties()),
             object : CurrentGitHubUserSession {
                 override fun require() = GitHubUserSession(ActorIdentity.github(1, "test"), "ghu_local-test", java.util.UUID.randomUUID())
-            }, jacksonObjectMapper())
+            }, jacksonObjectMapper(), HttpClientSettings.defaults().withReadTimeout(java.time.Duration.ofSeconds(10)))
         try {
             val countBudget = EvidenceReadBudget(java.time.Duration.ofSeconds(5), 1)
             assertEquals(HistoryStopReason.CALL_LIMIT, assertFailsWith<EvidenceReadStopped> { remote.snapshot(repository, revision, countBudget) }.reason)
