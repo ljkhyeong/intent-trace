@@ -37,9 +37,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
             servers.zip(endpoints).forEach { (http, endpoint) ->
                 http.createContext("/api/v1/change-records") { exchange ->
                     requests.add(endpoint.baseUri.resolve(exchange.requestURI) to exchange.requestHeaders.getFirst("Authorization"))
-                    val response = """{"items":[],"nextCursor":null}""".toByteArray()
-                    exchange.sendResponseHeaders(200, response.size.toLong())
-                    exchange.responseBody.use { it.write(response) }
+                    exchange.respond(200, """{"items":[],"nextCursor":null}""")
                 }
                 http.start()
             }
@@ -75,12 +73,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     }
 
     fun testOriginalAndReplacementRecordsOpenIndependentlyOnRequest() {
-        val draft = ChangeIntentRecord(
-            id = recordId, title = "후속 기록", requestSummary = "변경 과정 확인", status = "DRAFT",
-            createdBy = CreatedByResponse("developer"), decisions = emptyList(), codeAnchors = emptyList(),
-            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
-            targetRevision = null, supersededBy = null, derivedFromRecordId = "original-id",
-        )
+        val draft = testRecord(recordId).copy(status = "DRAFT", targetRevision = null, derivedFromRecordId = "original-id")
         for (record in listOf(draft, draft.copy(status = "SUPERSEDED", supersededBy = "replacement-id"),
             draft.copy(derivedFromRecordId = null))) {
             val opened = mutableListOf<String>()
@@ -105,15 +98,9 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     }
 
     fun testCodeLinkUsesSelectedSideAndItsRevision() {
-        val record = ChangeIntentRecord(
-            id = recordId, title = "이름 변경", requestSummary = "이전 코드 확인", status = "DRAFT",
-            createdBy = CreatedByResponse("developer"), decisions = emptyList(),
-            codeAnchors = listOf(
-                ChangeCodeAnchor("src/Before.kt", 1, 2, CodeSide.BASE),
-                ChangeCodeAnchor("src/After.kt", 3, 4, CodeSide.TARGET),
-            ),
-            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
-            baseRevision = "b".repeat(40), targetRevision = null, supersededBy = null,
+        val record = testRecord(recordId).copy(
+            status = "DRAFT", baseRevision = "b".repeat(40), targetRevision = null,
+            codeAnchors = listOf(ChangeCodeAnchor("src/Before.kt", 1, 2, CodeSide.BASE), ChangeCodeAnchor("src/After.kt", 3, 4, CodeSide.TARGET)),
         )
         for (candidate in listOf(record, record.copy(baseRevision = null, targetRevision = "a".repeat(40)))) {
             var centerPanel: JComponent? = null
@@ -141,12 +128,7 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
     }
 
     fun testWebRecordOpensOnlyOnRequestAndDoesNotRequireACommit() {
-        val draft = ChangeIntentRecord(
-            id = recordId, title = "비공개 초안", requestSummary = "웹에서 변경 이력 확인", status = "DRAFT",
-            createdBy = CreatedByResponse("developer"), decisions = emptyList(), codeAnchors = emptyList(),
-            verifications = emptyList(), openQuestions = emptyList(), repositoryKey = "team/repository",
-            targetRevision = null, supersededBy = null,
-        )
+        val draft = testRecord(recordId).copy(status = "DRAFT", targetRevision = null)
         val opened = mutableListOf<URI>()
         var centerPanel: JComponent? = null
         val dialog = object : RecordHistoryDialog(project, draft, server, openBrowser = { opened.add(it) }) {

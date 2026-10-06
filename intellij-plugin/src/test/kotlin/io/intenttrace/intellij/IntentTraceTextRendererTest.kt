@@ -83,13 +83,10 @@ class IntentTraceTextRendererTest {
         assertContains(output, "- record-2: GitHub에서 커밋을 찾을 수 없습니다. 원격 저장소에 푸시했는지 확인하세요.")
     }
 
-    private val record = ChangeIntentRecord(
-        id = "record-1", title = "현재 줄 변경 의도", requestSummary = "팀원이 변경 이유를 확인한다.",
-        status = "PUBLISHED", createdBy = CreatedByResponse("developer"),
+    private val record = testRecord().copy(
         decisions = listOf(ChangeDecision("얇은 IDE client를 둔다.", null, "INFERRED")),
         codeAnchors = listOf(ChangeCodeAnchor("src/main/App.kt", 10, 15)),
         verifications = listOf(ChangeVerification("./gradlew test", 0, "통과", false)),
-        openQuestions = emptyList(), repositoryKey = "team/repository",
-        targetRevision = "a".repeat(40), supersededBy = null,
+        status = "PUBLISHED", targetRevision = "a".repeat(40),
     )
 }

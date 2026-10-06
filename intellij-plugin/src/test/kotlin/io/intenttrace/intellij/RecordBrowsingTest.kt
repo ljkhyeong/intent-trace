@@ -1,7 +1,5 @@
 package io.intenttrace.intellij
 
-import com.sun.net.httpserver.HttpServer
-import java.net.InetSocketAddress
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -15,23 +13,16 @@ class RecordBrowsingTest {
     fun `기록함과 상세 조회는 같은 세션으로 호출하고 선택 조건을 전송한다`() {
         val requests = mutableListOf<String>()
         val tokens = mutableListOf<String>()
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-            createContext("/api/v1/change-records") { exchange ->
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/change-records") { exchange ->
                 requests.add(exchange.requestURI.toString())
                 tokens.add(exchange.requestHeaders.getFirst("Authorization"))
-                val body = if (exchange.requestURI.path.endsWith(id)) recordJson else """
+                exchange.respond(200, if (exchange.requestURI.path.endsWith(id)) recordJson else """
                     {"items":[{"id":"$id","title":"비공개 기록","status":"DRAFT","targetRevision":null,
                     "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"page":null,"size":20,"hasNext":true,"nextCursor":"next-page"}
-                """.trimIndent()
-                val bytes = body.toByteArray()
-                exchange.sendResponseHeaders(200, bytes.size.toLong())
-                exchange.responseBody.use { it.write(bytes) }
+                """.trimIndent())
             }
-            start()
-        }
-        try {
             val api = IntentTraceApiClient()
-            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
             val query = RecordListQuery(
                 "team/repository", RecordListScope.MINE, "src/한 글#?.kt", "DRAFT",
                 cursor = "previous+page=", keyword = "세션 & 100%_!",
@@ -52,8 +43,6 @@ class RecordBrowsingTest {
             assertFalse(requests.first().contains("&size="))
             assertEquals("/api/v1/change-records/$id", requests.last())
             assertEquals(listOf("Bearer $token", "Bearer $token"), tokens)
-        } finally {
-            server.stop(0)
         }
     }
 

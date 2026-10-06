@@ -1,8 +1,5 @@
 package io.intenttrace.intellij
 
-import com.sun.net.httpserver.HttpHandler
-import com.sun.net.httpserver.HttpServer
-import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -21,14 +18,12 @@ class IntentTraceApiClientTest {
     fun `로그인 확인은 내 세션 API에 토큰을 보내고 서버가 확인한 GitHub 계정을 반환한다`() {
         val method = AtomicReference<String>()
         val authorization = AtomicReference<String>()
-        withServer(path = "/api/v1/me/sessions", handler = { exchange ->
-            method.set(exchange.requestMethod)
-            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-            val body = """{"actor":{"subject":"github:42","login":"developer"},"sessions":[]}""".toByteArray()
-            exchange.sendResponseHeaders(200, body.size.toLong())
-            exchange.responseBody.use { it.write(body) }
-        }) { server ->
-            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/me/sessions") { exchange ->
+                method.set(exchange.requestMethod)
+                authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+                exchange.respond(200, """{"actor":{"subject":"github:42","login":"developer"},"sessions":[]}""")
+            }
             assertEquals("developer", IntentTraceApiClient().checkLogin(endpoint, token))
         }
         assertEquals("GET", method.get())
@@ -38,12 +33,11 @@ class IntentTraceApiClientTest {
     @Test
     fun `로그인 확인에서 세션 형식이 틀리면 서버에 요청하지 않는다`() {
         val calls = AtomicInteger()
-        withServer(path = "/", handler = { exchange ->
-            calls.incrementAndGet()
-            exchange.sendResponseHeaders(200, -1)
-            exchange.close()
-        }) { server ->
-            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+        withHttpServer { http, endpoint ->
+            http.createContext("/") { exchange ->
+                calls.incrementAndGet()
+                exchange.respond(200)
+            }
             assertFailsWith<IntentTraceUsageException> {
                 IntentTraceApiClient().checkLogin(endpoint, "ghu_not-an-intent-trace-session")
             }
@@ -58,12 +52,8 @@ class IntentTraceApiClientTest {
             403 to "로그인 정보를 확인할 권한이 없습니다.",
             200 to "IntentTrace 조회 응답 형식을 확인할 수 없습니다.",
         )) {
-            withServer(path = "/api/v1/me/sessions", handler = { exchange ->
-                val body = """{"error":"test-private-response-marker"}""".toByteArray()
-                exchange.sendResponseHeaders(status, body.size.toLong())
-                exchange.responseBody.use { it.write(body) }
-            }) { server ->
-                val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+            withHttpServer { http, endpoint ->
+                http.createContext("/api/v1/me/sessions") { it.respond(status, """{"error":"test-private-response-marker"}""") }
                 val error = assertFailsWith<IntentTraceClientException> { IntentTraceApiClient().checkLogin(endpoint, token) }
                 assertEquals(message, error.message)
                 assertFalse(error.stackTraceToString().contains("test-private-response-marker"))
@@ -75,16 +65,11 @@ class IntentTraceApiClientTest {
     fun `연결 확인은 세션 없이 health를 조회하고 UP 상태만 성공으로 처리한다`() {
         val authorization = AtomicReference<String>()
         for (status in listOf("UP", "DOWN")) {
-            withServer(
-                path = "/actuator/health",
-                handler = { exchange ->
+            withHttpServer { http, target ->
+                http.createContext("/actuator/health") { exchange ->
                     authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-                    val response = """{"status":"$status"}""".toByteArray()
-                    exchange.sendResponseHeaders(200, response.size.toLong())
-                    exchange.responseBody.use { it.write(response) }
-                },
-            ) { server ->
-                val target = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+                    exchange.respond(200, """{"status":"$status"}""")
+                }
                 if (status == "UP") {
                     IntentTraceApiClient().checkConnection(target)
                 } else {
@@ -100,23 +85,16 @@ class IntentTraceApiClientTest {
     fun `health 거부는 로그인 만료로 표시하지 않고 응답 본문이나 redirect를 사용하지 않는다`() {
         for (status in listOf(401, 302, 503)) {
             val redirectedRequests = AtomicInteger()
-            withServer(
-                path = "/actuator/health",
-                handler = { exchange ->
+            withHttpServer { http, endpoint ->
+                http.createContext("/actuator/health") { exchange ->
                     exchange.responseHeaders.add("Location", "/redirected")
-                    val body = "test-private-response-marker".toByteArray()
-                    exchange.sendResponseHeaders(status, body.size.toLong())
-                    exchange.responseBody.use { it.write(body) }
-                },
-            ) { server ->
-                server.createContext("/redirected") { exchange ->
+                    exchange.respond(status, "test-private-response-marker")
+                }
+                http.createContext("/redirected") { exchange ->
                     redirectedRequests.incrementAndGet()
-                    exchange.sendResponseHeaders(200, -1)
-                    exchange.close()
+                    exchange.respond(200)
                 }
-                val exception = assertFailsWith<IntentTraceClientException> {
-                    IntentTraceApiClient().checkConnection(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"))
-                }
+                val exception = assertFailsWith<IntentTraceClientException> { IntentTraceApiClient().checkConnection(endpoint) }
                 assertEquals(if (status == 503) "IntentTrace 서버가 정상 상태(UP)가 아닙니다. HTTP 503"
                     else "IntentTrace 서버 상태 확인 요청이 거부됐습니다. HTTP $status", exception.message)
                 assertEquals(0, redirectedRequests.get())
@@ -129,17 +107,14 @@ class IntentTraceApiClientTest {
     fun `its session과 현재 줄 문맥으로 공개 기록을 조회한다`() {
         val authorization = AtomicReference<String>()
         val requestUri = AtomicReference<String>()
-        withServer(
-            handler = { exchange ->
+        withHttpServer { http, endpoint ->
+            http.createContext(LOOKUP_PATH) { exchange ->
                 authorization.set(exchange.requestHeaders.getFirst("Authorization"))
                 requestUri.set(exchange.requestURI.toString())
-                val response = EMPTY_LOOKUP.toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")
-                exchange.sendResponseHeaders(200, response.size.toLong())
-                exchange.responseBody.use { it.write(response) }
-            },
-        ) { server ->
-            assertEquals(ChangeIntentLookup(emptyList(), truncated = false), lookup(server))
+                exchange.respond(200, EMPTY_LOOKUP)
+            }
+            assertEquals(ChangeIntentLookup(emptyList(), truncated = false), lookup(endpoint))
             assertEquals("Bearer $token", authorization.get())
             assertContains(requestUri.get(), "repositoryKey=team%2Frepository")
             assertContains(requestUri.get(), "path=src%2Fmain%2FApp.kt&line=12")
@@ -151,19 +126,13 @@ class IntentTraceApiClientTest {
         for (status in listOf(200, 401)) {
             val method = AtomicReference<String>()
             val authorization = AtomicReference<String>()
-            withServer(
-                path = "/api/v1/me/sessions/current",
-                handler = { exchange ->
+            withHttpServer { http, endpoint ->
+                http.createContext("/api/v1/me/sessions/current") { exchange ->
                     method.set(exchange.requestMethod)
                     authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-                    exchange.sendResponseHeaders(status, -1)
-                    exchange.close()
-                },
-            ) { server ->
-                IntentTraceApiClient().revokeSession(
-                    IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
-                    token,
-                )
+                    exchange.respond(status)
+                }
+                IntentTraceApiClient().revokeSession(endpoint, token)
             }
 
             assertEquals("DELETE", method.get())
@@ -174,8 +143,8 @@ class IntentTraceApiClientTest {
     @Test(timeout = 20_000)
     fun `헤더 이후 본문이 멈추면 읽기 제한 시간으로 실패한다`() {
         val releaseBody = CountDownLatch(1)
-        withServer(
-            handler = { exchange ->
+        withHttpServer { http, endpoint ->
+            http.createContext(LOOKUP_PATH) { exchange ->
                 try {
                     exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
                     releaseBody.await(15, TimeUnit.SECONDS)
@@ -183,10 +152,9 @@ class IntentTraceApiClientTest {
                 } finally {
                     exchange.close()
                 }
-            },
-        ) { server ->
+            }
             try {
-                val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
+                val exception = assertFailsWith<IntentTraceClientException> { lookup(endpoint) }
                 assertEquals("IntentTrace 서버의 응답 대기 시간을 초과했습니다.", exception.message)
             } finally {
                 releaseBody.countDown()
@@ -206,20 +174,16 @@ class IntentTraceApiClientTest {
         )
         for ((status, message) in messages) {
             val redirectedRequests = AtomicInteger()
-            withServer(
-                handler = { exchange ->
+            withHttpServer { http, endpoint ->
+                http.createContext(LOOKUP_PATH) { exchange ->
                     exchange.responseHeaders.add("Location", "/redirected")
-                    val body = "test-private-response-marker".toByteArray()
-                    exchange.sendResponseHeaders(status, body.size.toLong())
-                    exchange.responseBody.use { it.write(body) }
-                },
-            ) { server ->
-                server.createContext("/redirected") { exchange ->
-                    redirectedRequests.incrementAndGet()
-                    exchange.sendResponseHeaders(200, EMPTY_LOOKUP.length.toLong())
-                    exchange.responseBody.use { it.write(EMPTY_LOOKUP.toByteArray()) }
+                    exchange.respond(status, "test-private-response-marker")
                 }
-                val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
+                http.createContext("/redirected") { exchange ->
+                    redirectedRequests.incrementAndGet()
+                    exchange.respond(200, EMPTY_LOOKUP)
+                }
+                val exception = assertFailsWith<IntentTraceClientException> { lookup(endpoint) }
 
                 assertEquals(message, exception.message)
                 assertEquals(0, redirectedRequests.get())
@@ -240,17 +204,15 @@ class IntentTraceApiClientTest {
             token to unknown,
         )) {
             val calls = AtomicInteger()
-            withServer(path = "/", handler = { exchange ->
-                calls.incrementAndGet()
-                retryAfter?.let { exchange.responseHeaders.add("Retry-After", it) }
-                val body = "test-private-response-marker $token".toByteArray()
-                exchange.sendResponseHeaders(429, body.size.toLong())
-                exchange.responseBody.use { it.write(body) }
-            }) { server ->
-                val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
+            withHttpServer { http, endpoint ->
+                http.createContext("/") { exchange ->
+                    calls.incrementAndGet()
+                    retryAfter?.let { exchange.responseHeaders.add("Retry-After", it) }
+                    exchange.respond(429, "test-private-response-marker $token")
+                }
                 val api = IntentTraceApiClient()
                 val operations = listOf<() -> Unit>(
-                    { lookup(server) },
+                    { lookup(endpoint) },
                     { api.checkConnection(endpoint) },
                     { api.checkLogin(endpoint, token) },
                     { api.revokeSession(endpoint, token) },
@@ -291,19 +253,13 @@ class IntentTraceApiClientTest {
         """.trimIndent()
         assertTrue(recordJson.toByteArray(StandardCharsets.UTF_8).size > 1_000_000)
 
-        withServer(
-            path = "/api/v1/change-records",
-            handler = { exchange ->
-                val json = if (exchange.requestURI.path.endsWith("/lookup")) """{"items":[$recordJson],"truncated":false}""" else recordJson
-                val body = json.toByteArray(StandardCharsets.UTF_8)
-                exchange.sendResponseHeaders(200, body.size.toLong())
-                exchange.responseBody.use { it.write(body) }
-            },
-        ) { server ->
-            val endpoint = IntentTraceServer.parse("http://127.0.0.1:" + server.address.port)
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/change-records") { exchange ->
+                exchange.respond(200, if (exchange.requestURI.path.endsWith("/lookup")) """{"items":[$recordJson],"truncated":false}""" else recordJson)
+            }
             val record = IntentTraceApiClient().record(endpoint, token, id)
 
-            assertEquals(record, lookup(server).items.single())
+            assertEquals(record, lookup(endpoint).items.single())
             assertEquals(50, record.verifications.size)
             assertEquals(detail, record.verifications.last().summary)
             assertEquals(summary, record.openQuestions.last())
@@ -313,17 +269,12 @@ class IntentTraceApiClientTest {
     @Test
     fun `4MiB 응답까지 읽고 한 바이트라도 넘으면 JSON을 해석하지 않는다`() {
         for (size in listOf(4 * 1024 * 1024, 4 * 1024 * 1024 + 1)) {
-            withServer(
-                handler = { exchange ->
-                    val body = (EMPTY_LOOKUP + " ".repeat(size - EMPTY_LOOKUP.length)).toByteArray(StandardCharsets.UTF_8)
-                    exchange.sendResponseHeaders(200, body.size.toLong())
-                    exchange.responseBody.use { it.write(body) }
-                },
-            ) { server ->
+            withHttpServer { http, endpoint ->
+                http.createContext(LOOKUP_PATH) { it.respond(200, EMPTY_LOOKUP + " ".repeat(size - EMPTY_LOOKUP.length)) }
                 if (size == 4 * 1024 * 1024) {
-                    assertEquals(emptyList(), lookup(server).items)
+                    assertEquals(emptyList(), lookup(endpoint).items)
                 } else {
-                    val exception = assertFailsWith<IntentTraceClientException> { lookup(server) }
+                    val exception = assertFailsWith<IntentTraceClientException> { lookup(endpoint) }
                     assertEquals("IntentTrace 조회 응답이 허용 크기를 초과했습니다.", exception.message)
                 }
             }
@@ -335,13 +286,13 @@ class IntentTraceApiClientTest {
         val authorization = AtomicReference<String>()
         val diagnosis = """{"repositoryKey":"team/repository","checkedAt":"2026-10-05T01:00:00Z","checks":[
             {"name":"repository_read","status":"VERIFIED","message":"GitHub 응답으로 확인했습니다."},
-            {"name":"git_tree_read","status":"FAILED","message":"GitHub에서 커밋을 찾을 수 없습니다."}]}""".toByteArray()
-        withServer(path = "/api/v1/connection-diagnostics", handler = { exchange ->
-            authorization.set(exchange.requestHeaders.getFirst("Authorization"))
-            exchange.sendResponseHeaders(200, diagnosis.size.toLong())
-            exchange.responseBody.use { it.write(diagnosis) }
-        }) { server ->
-            val result = IntentTraceApiClient().diagnose(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token, "team/repository", null)
+            {"name":"git_tree_read","status":"FAILED","message":"GitHub에서 커밋을 찾을 수 없습니다."}]}"""
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/connection-diagnostics") { exchange ->
+                authorization.set(exchange.requestHeaders.getFirst("Authorization"))
+                exchange.respond(200, diagnosis)
+            }
+            val result = IntentTraceApiClient().diagnose(endpoint, token, "team/repository", null)
             assertEquals(listOf("VERIFIED", "FAILED"), result.checks.map { it.status })
         }
         assertEquals("Bearer $token", authorization.get())
@@ -352,13 +303,13 @@ class IntentTraceApiClientTest {
             "targetRevision":"${"b".repeat(40)}","status":"PUBLISHED","createdBy":{"subject":"github:1","login":"developer"},
             "createdAt":"2026-10-01T00:00:00Z","version":3},"sourceRevision":"${"b".repeat(40)}","side":"TARGET",
             "match":"ANCESTOR_MOVED_LINES","verificationAppliesToQuery":false,"sourcePath":"src/main/App.kt",
-            "sourceStartLine":4,"sourceEndLine":6,"currentStartLine":10,"currentEndLine":12}]}""".toByteArray()
-        withServer(path = "/api/v1/change-records/history", handler = { exchange ->
-            authorization.set(exchange.requestURI.rawQuery)
-            exchange.sendResponseHeaders(200, history.size.toLong())
-            exchange.responseBody.use { it.write(history) }
-        }) { server ->
-            val result = IntentTraceApiClient().history(IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"), token,
+            "sourceStartLine":4,"sourceEndLine":6,"currentStartLine":10,"currentEndLine":12}]}"""
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/change-records/history") { exchange ->
+                authorization.set(exchange.requestURI.rawQuery)
+                exchange.respond(200, history)
+            }
+            val result = IntentTraceApiClient().history(endpoint, token,
                 LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12), "h1.first")
             assertEquals("ANCESTOR_MOVED_LINES", result.items.single().match)
             assertEquals(10, result.items.single().currentStartLine)
@@ -368,25 +319,14 @@ class IntentTraceApiClientTest {
         assertContains(authorization.get(), "cursor=h1.first")
     }
 
-    private fun lookup(server: HttpServer): ChangeIntentLookup = IntentTraceApiClient().lookup(
-        server = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}"),
+    private fun lookup(endpoint: IntentTraceServer): ChangeIntentLookup = IntentTraceApiClient().lookup(
+        server = endpoint,
         sessionToken = token,
         lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12),
     )
 
-    private fun withServer(handler: HttpHandler, path: String = "/api/v1/change-records/lookup", test: (HttpServer) -> Unit) {
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-            createContext(path, handler)
-            start()
-        }
-        try {
-            test(server)
-        } finally {
-            server.stop(0)
-        }
-    }
-
     private val token = "its_${"A".repeat(43)}"
 }
 
+private const val LOOKUP_PATH = "/api/v1/change-records/lookup"
 private const val EMPTY_LOOKUP = """{"items":[],"truncated":false}"""

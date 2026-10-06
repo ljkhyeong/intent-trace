@@ -11,19 +11,9 @@ import javax.swing.JComponent
 class IntentTraceResultDialogTest : LightPlatformTestCase() {
     fun testSelectedRecordAndFileHistoryOpenOnlyWhenRequested() {
         val lookup = LineLookup("team/repository", "a".repeat(40), "src/한글 파일.kt", 12)
-        val original = ChangeIntentRecord(
-            id = "record-1",
-            title = "같은 제목의 기록",
-            requestSummary = "현재 줄에서 상세 기록을 연다.",
-            status = "SUPERSEDED",
-            createdBy = CreatedByResponse("developer"),
-            decisions = emptyList(),
-            codeAnchors = listOf(ChangeCodeAnchor(lookup.relativePath, 10, 15)),
-            verifications = emptyList(),
-            openQuestions = emptyList(),
-            repositoryKey = lookup.repositoryKey,
-            targetRevision = lookup.revision,
-            supersededBy = "record-2",
+        val original = testRecord("record-1").copy(
+            title = "같은 제목의 기록", status = "SUPERSEDED", codeAnchors = listOf(ChangeCodeAnchor(lookup.relativePath, 10, 15)),
+            repositoryKey = lookup.repositoryKey, targetRevision = lookup.revision, supersededBy = "record-2",
         )
         val replacement = original.copy(id = "record-2", status = "PUBLISHED", supersededBy = null)
         val openedRecords = mutableListOf<String>()

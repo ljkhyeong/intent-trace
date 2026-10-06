@@ -1,8 +1,5 @@
 package io.intenttrace.intellij
 
-import com.intellij.credentialStore.CredentialAttributes
-import com.intellij.credentialStore.CredentialStore
-import com.intellij.credentialStore.Credentials
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -72,15 +69,5 @@ class IntentTraceCredentialStoreTest {
 
         assertEquals(token, credentials.load(IntentTraceServer.parse(null)))
         assertNull(credentials.load(IntentTraceServer.parse("https://trace.example.com")))
-    }
-}
-
-private class MemoryCredentialStore : CredentialStore {
-    private val credentials = mutableMapOf<CredentialAttributes, Credentials>()
-
-    override fun get(attributes: CredentialAttributes): Credentials? = credentials[attributes]
-
-    override fun set(attributes: CredentialAttributes, credentials: Credentials?) {
-        if (credentials == null) this.credentials.remove(attributes) else this.credentials[attributes] = credentials
     }
 }
