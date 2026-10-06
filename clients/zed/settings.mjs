@@ -51,7 +51,7 @@ export function prepareSettings(text, entry, key = managedKeys[0]) {
 async function readSettings(path) {
   try {
     const stat = await lstat(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new UsageError('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
+    if (!stat.isFile()) throw new UsageError('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
     return { text: await readFile(path, 'utf8'), mode: stat.mode & 0o777 };
   } catch (error) {
     if (error.code === 'ENOENT') return { text: '', mode: 0o600 };

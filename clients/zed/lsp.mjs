@@ -4,14 +4,13 @@ import { dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { createConnection, MarkupKind, TextDocumentSyncKind } from 'vscode-languageserver/node';
-import { BridgeFailure, httpFailure, safeFailure } from './errors.mjs';
+import { httpFailure, safeFailure } from './errors.mjs';
 import { version } from './intent-trace.mjs';
 
 const run = promisify(execFile);
 const FILE_TTL = 5 * 60_000;
 const LINE_TTL = 60_000;
 const FAILURE_SECONDS = 30;
-const MAX_RESPONSE_CHARS = 4 * 1024 * 1024;
 const MAX_RECORDS = 3;
 const statusLabels = { PUBLISHED: '팀 공개', SUPERSEDED: '대체됨' };
 
@@ -54,18 +53,12 @@ export async function lineContext(file) {
 function createApi(url, token) {
   async function get(path, parameters) {
     const target = new URL(path, url);
-    for (const [name, value] of Object.entries(parameters)) target.searchParams.set(name, String(value));
+    target.search = new URLSearchParams(parameters);
     const response = await fetch(target, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) {
-      const failure = httpFailure(response.status, response.headers.get('Retry-After'));
-      await response.body?.cancel().catch(() => {});
-      throw failure;
-    }
-    const text = await response.text();
-    if (text.length > MAX_RESPONSE_CHARS) throw new BridgeFailure('UPSTREAM_UNAVAILABLE');
-    return JSON.parse(text);
+    if (!response.ok) throw await httpFailure(response);
+    return response.json();
   }
   return {
     // 파일 단위로 공개 기록이 있는지 먼저 확인해 기록이 없는 파일에서는 줄마다 조회하지 않는다.
@@ -91,10 +84,8 @@ export function renderHover(found, context, line, url) {
   ].join('\n'));
   const lines = [`**IntentTrace 변경 의도** · ${plain(context.relativePath, 300)}:${line}`, '', ...items];
   if (found.truncated || found.items.length > MAX_RECORDS) {
-    const history = new URL('/records/history', url);
-    for (const [name, value] of Object.entries({ repositoryKey: context.repositoryKey, revision: context.revision, path: context.relativePath, line })) {
-      history.searchParams.set(name, String(value));
-    }
+    const query = new URLSearchParams({ repositoryKey: context.repositoryKey, revision: context.revision, path: context.relativePath, line });
+    const history = new URL(`/records/history?${query}`, url);
     lines.push('', `최근 공개 기록 ${MAX_RECORDS}건만 표시합니다. [웹에서 모두 보기](${history.href})`);
   }
   return lines.join('\n');

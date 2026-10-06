@@ -33,10 +33,13 @@ export class BridgeFailure extends Error {
   }
 }
 
-export function httpFailure(status, retryAfter) {
+/** HTTP 실패 응답을 분류한다. 오류 본문은 읽지 않고 닫는다. */
+export async function httpFailure(response) {
+  await response.body?.cancel().catch(() => {});
+  const { status } = response;
   const code = status === 401 ? 'AUTHENTICATION_REQUIRED' : status === 403 ? 'ACCESS_DENIED'
     : status === 429 ? 'RATE_LIMITED' : status >= 500 ? 'UPSTREAM_UNAVAILABLE' : 'CONNECTION_FAILED';
-  return new BridgeFailure(code, retryAfterSeconds(retryAfter));
+  return new BridgeFailure(code, response.headers.get('Retry-After'));
 }
 
 export function safeFailure(error) {

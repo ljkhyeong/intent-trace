@@ -63,6 +63,6 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 - 언어 서버는 같은 Node 패키지의 `lsp` 명령이며 `vscode-languageserver`를 사용한다. 표준 출력은 LSP 통신에만 쓴다. `configure`는 MCP 연결과 함께 `lsp.intent-trace` 실행 명령과 서버 주소를 저장하고 `unconfigure`는 둘 다 제거한다.
 - 조회 전에 Git으로 HEAD·저장소·상대 경로를 계산한다. 원격 주소 해석은 IntelliJ와 같은 규칙이다. 저장하지 않았거나 커밋되지 않은 파일은 서버를 호출하지 않는다.
 - 서버는 REST 요청마다 GitHub 권한을 확인한다. 그래서 `GET /api/v1/change-records?scope=TEAM&path=…&limit=1`로 파일에 공개 기록이 있는지 먼저 확인해 5분 캐시하고, 있을 때만 `GET /api/v1/change-records/lookup`을 1분 캐시로 호출한다. 403 저장소는 5분간 조용히 건너뛴다. 그 밖의 실패는 30초 또는 `Retry-After` 동안 같은 안내를 재사용한다.
-- 토큰은 `INTENT_TRACE_SESSION_TOKEN`으로만 받는다. redirect를 따르지 않고 응답은 4M 문자까지만 해석한다. 기록 문구는 Markdown 문법으로 해석되지 않게 escape하고 오류 원문은 표시하지 않는다.
+- 토큰은 `INTENT_TRACE_SESSION_TOKEN`으로만 받는다. redirect를 따르지 않는다. 응답 크기는 서버의 줄 조회 상한(20건)을 따르며 hover에는 최근 3건만 요약한다. 기록 문구는 Markdown 문법으로 해석되지 않게 escape하고 오류 원문은 표시하지 않는다.
 - 코드 렌즈는 문서 전체의 렌즈를 한 번에 요청해 줄마다 조회가 필요하므로 보류한다. 웹 화면을 여는 code action은 Zed가 `window/showDocument`의 `external`을 지원하지 않아 보류한다.
 - 새 기록이 hover에 보이기까지 최대 5분이 걸리고, 다른 언어 서버와 hover가 함께 표시되는지는 실제 Zed에서 확인해야 한다.
