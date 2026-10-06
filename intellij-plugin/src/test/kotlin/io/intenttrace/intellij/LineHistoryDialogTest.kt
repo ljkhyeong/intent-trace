@@ -20,7 +20,7 @@ class LineHistoryDialogTest : LightPlatformTestCase() {
         val opened = mutableListOf<String>()
         val webPages = mutableListOf<URI>()
         var centerPanel: JComponent? = null
-        val dialog = object : LineHistoryDialog(project, lookup, LineHistoryView.of(first), server,
+        val dialog = object : LineHistoryDialog(project, lookup, first, server,
             { cursors.add(it); response }, { opened.add(it) }, { webPages.add(it) }) {
             override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
         }
@@ -53,6 +53,25 @@ class LineHistoryDialogTest : LightPlatformTestCase() {
             assertEquals(listOf("record-3"), opened)
             buttons.single { it.text == "웹에서 다시 조회" }.doClick()
             assertEquals(listOf(server.webHistoryUri(lookup)), webPages)
+        } finally {
+            dialog.close(0)
+        }
+    }
+
+    fun testSameLabelResultsOpenSelectedRecord() {
+        val first = item("record-1")
+        val second = first.copy(record = first.record.copy(id = "record-2"))
+        val opened = mutableListOf<String>()
+        var centerPanel: JComponent? = null
+        val dialog = object : LineHistoryDialog(project, lookup, history(listOf(first, second), null), server,
+            { null }, { opened.add(it) }, {}) {
+            override fun createCenterPanel(): JComponent = super.createCenterPanel().also { centerPanel = it }
+        }
+        try {
+            val panel = requireNotNull(centerPanel)
+            requireNotNull(UIUtil.findComponentOfType(panel, JComboBox::class.java)).selectedIndex = 1
+            UIUtil.findComponentsOfType(panel, JButton::class.java).single { it.text == "선택 기록 열기" }.doClick()
+            assertEquals(listOf("record-2"), opened)
         } finally {
             dialog.close(0)
         }

@@ -127,10 +127,10 @@ class RecordBrowserDialogTest : LightPlatformTestCase() {
                 val code = buttons.single { it.text == "당시 코드 열기" }
                 val commit = buttons.single { it.text == "원래 커밋 열기" }
                 assertEquals(candidate.targetRevision != null, commit.isEnabled)
-                assertTrue(anchors.selectedItem.toString().startsWith("[변경 전]"))
+                assertEquals(CodeSide.BASE, (anchors.selectedItem as ChangeCodeAnchor).side)
                 assertEquals(candidate.baseRevision != null, code.isEnabled)
                 anchors.selectedIndex = 1
-                assertTrue(anchors.selectedItem.toString().startsWith("[변경 후]"))
+                assertEquals(CodeSide.TARGET, (anchors.selectedItem as ChangeCodeAnchor).side)
                 assertEquals(candidate.targetRevision != null, code.isEnabled)
                 anchors.selectedIndex = 0
                 assertEquals(candidate.baseRevision != null, code.isEnabled)

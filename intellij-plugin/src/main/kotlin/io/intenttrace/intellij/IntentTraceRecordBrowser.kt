@@ -7,23 +7,24 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.CollectionListModel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
-import com.intellij.util.ui.JBUI
-import java.awt.BorderLayout
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.COLUMNS_LARGE
+import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
+import com.intellij.ui.layout.selectedValueMatches
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.net.URI
 import javax.swing.Action
-import javax.swing.DefaultListCellRenderer
-import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
-import javax.swing.JPanel
 import javax.swing.ListSelectionModel
 
 internal object IntentTraceRecordBrowser {
@@ -74,7 +75,7 @@ internal open class RecordBrowserDialog(
         addActionListener { search() }
     }
     private var previousQueries = emptyList<RecordListQuery>()
-    private val rows = DefaultListModel<ChangeRecordSummary>()
+    private val rows = CollectionListModel<ChangeRecordSummary>()
     private val list = JBList(rows)
     private val pageLabel = JLabel()
     private val previous = JButton("이전 페이지")
@@ -84,17 +85,9 @@ internal open class RecordBrowserDialog(
     init {
         title = "IntentTrace 기록함 · ${context.repositoryKey}"
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: javax.swing.JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean,
-            ): java.awt.Component {
-                super.getListCellRendererComponent(list, value, index, selected, focused)
-                putClientProperty("html.disable", true)
-                val record = value as ChangeRecordSummary
-                text = "[${IntentTraceTextRenderer.status(record.status)}] ${record.title} · @${record.createdBy.login} · " +
-                    "${record.targetRevision?.take(12) ?: "커밋 미확인"} · ${record.createdAt}"
-                return this
-            }
+        list.cellRenderer = textListCellRenderer { record ->
+            "[${IntentTraceTextRenderer.status(record.status)}] ${record.title} · @${record.createdBy.login} · " +
+                "${record.targetRevision?.take(12) ?: "커밋 미확인"} · ${record.createdAt}"
         }
         list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
         open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id, server) } }
@@ -108,33 +101,24 @@ internal open class RecordBrowserDialog(
         displayPage()
     }
 
-    override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, 8)).apply {
-        border = JBUI.Borders.empty(8)
-        add(JPanel(BorderLayout()).apply {
-            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                add(filter)
-                add(fileOnly)
-            }, BorderLayout.NORTH)
-            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                add(JLabel("검색어").apply { labelFor = keyword })
-                add(keyword)
-                add(JButton("조회").apply { addActionListener { search() } })
-            }, BorderLayout.SOUTH)
-        }, BorderLayout.NORTH)
-        add(JBScrollPane(list), BorderLayout.CENTER)
-        add(JPanel(BorderLayout()).apply {
-            add(pageLabel, BorderLayout.NORTH)
-            add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                add(previous)
-                add(next)
-                add(JButton("새로고침").apply {
-                    addActionListener { reload(query, previousQueries, list.selectedValue?.id) }
-                })
-                add(open)
-            }, BorderLayout.SOUTH)
-        }, BorderLayout.SOUTH)
-        preferredSize = Dimension(960, 480)
-    }
+    override fun createCenterPanel(): JComponent = panel {
+        row {
+            cell(filter)
+            cell(fileOnly)
+        }
+        row("검색어") {
+            cell(keyword)
+            button("조회") { search() }
+        }
+        row { scrollCell(list).align(Align.FILL) }.resizableRow()
+        row { cell(pageLabel) }
+        row {
+            cell(previous)
+            cell(next)
+            button("새로고침") { reload(query, previousQueries, list.selectedValue?.id) }
+            cell(open)
+        }
+    }.apply { preferredSize = Dimension(960, 480) }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 
@@ -172,15 +156,13 @@ internal open class RecordBrowserDialog(
 
     private fun displayPage(selectedRecordId: String? = null) {
         restoreFilters()
-        rows.clear()
-        rows.addAll(page.items)
+        rows.replaceAll(page.items)
         list.selectedIndex = page.items.indexOfFirst { it.id == selectedRecordId }
         previous.isEnabled = previousQueries.isNotEmpty()
         next.isEnabled = page.nextCursor != null
         open.isEnabled = list.selectedValue != null
         pageLabel.text = "${filter.selectedItem} · ${query.path ?: "저장소 전체"} · " +
             "${previousQueries.size + 1}페이지 · ${page.items.size}건 (생성일 내림차순)"
-        pageLabel.putClientProperty("html.disable", true)
         list.emptyText.text = "조건에 맞는 기록이 없습니다. 파일 이름 변경 전 이력은 저장소 전체에서 찾아보세요."
     }
 
@@ -215,42 +197,19 @@ internal open class RecordHistoryDialog(
         init()
     }
 
-    override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
-        add(JPanel(FlowLayout(FlowLayout.TRAILING)).apply {
-            add(JButton("웹에서 기록 열기").apply {
-                addActionListener { browse { webRecordUri } }
-            })
-        }, BorderLayout.NORTH)
-        add(readOnlyTextPane(IntentTraceTextRenderer.renderHistory(record)), BorderLayout.CENTER)
-        add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-            add(JButton("원래 커밋 열기").apply {
-                isEnabled = record.targetRevision != null
-                addActionListener { browse { GitHubEvidenceLinks.commit(record) } }
-            })
-            val anchors = plainComboBox(record.codeAnchors.map { it.label })
-            add(anchors)
-            val openCode = JButton("당시 코드 열기").apply {
-                addActionListener {
-                    record.codeAnchors.getOrNull(anchors.selectedIndex)?.let { anchor -> browse { GitHubEvidenceLinks.code(record, anchor) } }
-                }
-            }
-            fun updateCodeLink() {
-                openCode.isEnabled = record.codeAnchors.getOrNull(anchors.selectedIndex)?.let(record::revisionFor) != null
-            }
-            anchors.addActionListener { updateCodeLink() }
-            updateCodeLink()
-            add(openCode)
-            add(JButton("원본 기록 열기").apply {
-                isEnabled = record.derivedFromRecordId != null
-                addActionListener { record.derivedFromRecordId?.let(openRecord) }
-            })
-            add(JButton("대체 기록 열기").apply {
-                isEnabled = record.supersededBy != null
-                addActionListener { record.supersededBy?.let(openRecord) }
-            })
-        }, BorderLayout.SOUTH)
-        preferredSize = Dimension(960, 560)
-    }
+    override fun createCenterPanel(): JComponent = panel {
+        row { button("웹에서 기록 열기") { browse { webRecordUri } }.align(AlignX.RIGHT) }
+        row { cell(readOnlyTextPane(IntentTraceTextRenderer.renderHistory(record))).align(Align.FILL) }.resizableRow()
+        row {
+            button("원래 커밋 열기") { browse { GitHubEvidenceLinks.commit(record) } }.enabled(record.targetRevision != null)
+            val anchors = comboBox(record.codeAnchors, textListCellRenderer<ChangeCodeAnchor?> { it?.label })
+                .columns(COLUMNS_LARGE).component
+            button("당시 코드 열기") { anchors.item?.let { anchor -> browse { GitHubEvidenceLinks.code(record, anchor) } } }
+                .enabledIf(anchors.selectedValueMatches { it?.let(record::revisionFor) != null })
+            button("원본 기록 열기") { record.derivedFromRecordId?.let(openRecord) }.enabled(record.derivedFromRecordId != null)
+            button("대체 기록 열기") { record.supersededBy?.let(openRecord) }.enabled(record.supersededBy != null)
+        }
+    }.apply { preferredSize = Dimension(960, 560) }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 

@@ -57,7 +57,7 @@ class IntentTraceResultDialogTest : LightPlatformTestCase() {
             open.doClick()
             selection.selectedIndex = 1
             assertEquals(listOf(original.id), openedRecords)
-            assertTrue(selection.selectedItem.toString().contains("팀 공개"))
+            assertEquals(replacement, selection.selectedItem)
             open.doClick()
             assertEquals(listOf(original.id, replacement.id), openedRecords)
 

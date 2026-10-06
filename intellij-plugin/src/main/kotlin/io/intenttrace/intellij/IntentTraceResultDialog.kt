@@ -5,18 +5,16 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.COLUMNS_LARGE
+import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.util.ui.JBUI
-import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.net.URI
 import javax.swing.Action
-import javax.swing.DefaultListCellRenderer
-import javax.swing.JButton
-import javax.swing.JComboBox
 import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JPanel
 
 internal open class IntentTraceResultDialog(
     project: Project,
@@ -38,36 +36,20 @@ internal open class IntentTraceResultDialog(
         init()
     }
 
-    override fun createCenterPanel(): JComponent {
-        return JPanel(BorderLayout()).apply {
-            add(readOnlyTextPane(text), BorderLayout.CENTER)
-            add(JPanel(BorderLayout()).apply {
-                add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                    val selection = plainComboBox(records.map {
-                        "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.createdBy.login}"
-                    }).apply { isEnabled = records.isNotEmpty() }
-                    add(JLabel("기록"))
-                    add(selection)
-                    add(JButton("선택 기록 열기").apply {
-                        isEnabled = records.isNotEmpty()
-                        addActionListener { records.getOrNull(selection.selectedIndex)?.let { openRecord(it.id) } }
-                    })
-                }, BorderLayout.NORTH)
-                add(JPanel(FlowLayout(FlowLayout.LEADING)).apply {
-                    add(JButton("이 파일의 과거 기록 보기").apply {
-                        addActionListener { openHistory(context) }
-                    })
-                    add(JButton("이전 커밋에서 이 줄 찾기").apply {
-                        addActionListener { openLineHistory(lookup) }
-                    })
-                    add(JButton("웹에서 줄 이동·이름 변경 찾기").apply {
-                        addActionListener { openBrowser(webHistoryUri) }
-                    })
-                }, BorderLayout.SOUTH)
-            }, BorderLayout.SOUTH)
-            preferredSize = Dimension(760, 520)
+    override fun createCenterPanel(): JComponent = panel {
+        row { cell(readOnlyTextPane(text)).align(Align.FILL) }.resizableRow()
+        row("기록") {
+            val selection = comboBox(records, textListCellRenderer<ChangeIntentRecord?> { record ->
+                record?.let { "[${IntentTraceTextRenderer.status(it.status)}] ${it.title} · @${it.createdBy.login}" }
+            }).columns(COLUMNS_LARGE).enabled(records.isNotEmpty()).component
+            button("선택 기록 열기") { selection.item?.let { openRecord(it.id) } }.enabled(records.isNotEmpty())
         }
-    }
+        row {
+            button("이 파일의 과거 기록 보기") { openHistory(context) }
+            button("이전 커밋에서 이 줄 찾기") { openLineHistory(lookup) }
+            button("웹에서 줄 이동·이름 변경 찾기") { openBrowser(webHistoryUri) }
+        }
+    }.apply { preferredSize = Dimension(760, 520) }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
 }
@@ -79,9 +61,4 @@ internal fun readOnlyTextArea(text: String = ""): JBTextArea = JBTextArea(text).
     lineWrap = true
     wrapStyleWord = true
     border = JBUI.Borders.empty(12)
-}
-
-internal fun plainComboBox(items: List<String>): JComboBox<String> = JComboBox(items.toTypedArray()).apply {
-    renderer = DefaultListCellRenderer().apply { putClientProperty("html.disable", true) }
-    preferredSize = Dimension(320, preferredSize.height)
 }
