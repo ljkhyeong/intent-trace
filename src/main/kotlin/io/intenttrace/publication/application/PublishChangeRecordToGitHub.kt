@@ -30,16 +30,11 @@ class PublishChangeRecordToGitHub(
     }
 
     private fun send(record: ChangeRecord, command: PublishChangeRecordToGitHubCommand, supersession: Boolean): GitHubPublication {
-        require(record.id == command.changeRecordId) { "GitHub 게시 명령과 변경 의도 기록이 일치하지 않습니다." }
         check(record.status == if (supersession) ChangeRecordStatus.SUPERSEDED else ChangeRecordStatus.PUBLISHED) {
             "기록 상태가 GitHub 게시 또는 대체 안내 작업과 일치하지 않습니다."
         }
 
         val target = command.target
-        if (record.repositoryKey != target.repositoryKey) {
-            throw GitHubRepositoryMismatchException(record.repositoryKey, target.repositoryKey)
-        }
-
         val markdown = markdownRenderer.render(record)
         if (markdown.length > MAX_GITHUB_OUTPUT_LENGTH) {
             throw GitHubPublicationContentTooLargeException()
@@ -50,7 +45,7 @@ class PublishChangeRecordToGitHub(
         check(!supersession || previous != null) { "대체 안내를 반영할 GitHub 게시 이력이 없습니다." }
 
         val pullRequestRevision = try {
-            gitHubGateway.getHeadRevision(target).lowercase()
+            gitHubGateway.getHeadRevision(target)
         } catch (failure: GitHubApiException) {
             throw PullRequestUnavailableException(failure)
         }

@@ -35,9 +35,6 @@ class GitHubAppInstallationClient(
         val jwt = jwtProvider.create()
         val installationId = findInstallation(jwt, target.owner, target.repository).id
         val response = requestToken(jwt, installationId, target.repository)
-        if (response.token.isBlank()) {
-            throw GitHubApiException("GitHub App token 발급 응답에 token이 없습니다.")
-        }
         GitHubInstallationAccessToken(response.token, response.expiresAt, installationId)
     }
 
@@ -56,14 +53,12 @@ class GitHubAppInstallationClient(
             verified("GitHub가 App JWT 인증을 수락했습니다.")
             stage = "installation"
             val installation = findInstallation(jwt, repository.canonicalOwner, repository.canonicalName)
-            check(installation.id > 0) { "설치 ID를 확인할 수 없습니다." }
             installationId = installation.id
             verified("대상 저장소의 App 설치를 확인했습니다.")
             stage = "token_issuance"
             val token = requestToken(jwt, installation.id, repository.canonicalName)
-            check(token.token.isNotBlank()) { "발급 token이 없습니다." }
             expiresAt = token.expiresAt
-            check(expiresAt.isAfter(Instant.now(clock))) { "발급 token이 만료됐습니다." }
+            check(expiresAt.isAfter(Instant.now(clock)))
             verified("GitHub App 토큰을 발급받았습니다.")
             stage = "repository_scope"
             val scopeMatches = token.repositories?.map { it.fullName.lowercase() } == listOf(repository.key)
@@ -90,7 +85,7 @@ class GitHubAppInstallationClient(
         .headers { it.setBearerAuth(jwt) }
         .retrieve()
         .body(InstallationResponse::class.java)
-        ?: throw GitHubApiException("GitHub App 설치 조회 응답이 비어 있습니다.")
+        ?.takeIf { it.id > 0 } ?: throw GitHubApiException("GitHub App 설치 조회 응답이 올바르지 않습니다.")
 
     private fun requestToken(jwt: String, installationId: Long, repository: String): InstallationTokenResponse = client.post()
         .uri("/app/installations/{installationId}/access_tokens", installationId)
@@ -98,7 +93,7 @@ class GitHubAppInstallationClient(
         .body(InstallationTokenRequest(listOf(repository), mapOf("pull_requests" to "read", "checks" to "write")))
         .retrieve()
         .body(InstallationTokenResponse::class.java)
-        ?: throw GitHubApiException("GitHub App token 발급 응답이 비어 있습니다.")
+        ?.takeIf { it.token.isNotBlank() } ?: throw GitHubApiException("GitHub App token 발급 응답에 token이 없습니다.")
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)

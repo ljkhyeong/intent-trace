@@ -57,10 +57,11 @@ class PublishChangeRecordToGitHubTest {
 
         assertEquals(record.targetRevision, publication.headRevision)
         assertEquals(42L, publication.checkRunId)
-        assertEquals("intent-trace:${record.id}", gateway.lastCommand?.externalId)
+        val sent = gateway.commands.last()
+        assertEquals("intent-trace:${record.id}", sent.externalId)
         assertEquals(publication, publicationRepository.find(record.id, target))
-        assertTrue(gateway.lastCommand!!.markdown.contains("등록된 검증 결과가 없습니다."))
-        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
+        assertTrue(sent.markdown.contains("등록된 검증 결과가 없습니다."))
+        assertEquals(emptyList(), sent.annotations)
     }
 
     @Test
@@ -71,7 +72,7 @@ class PublishChangeRecordToGitHubTest {
 
         publisher.publish(annotated, PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
 
-        val annotations = gateway.lastCommand!!.annotations
+        val annotations = gateway.commands.last().annotations
         assertEquals((1..50).map { "src/App$it.kt" }, annotations.map { it.path })
         assertEquals(
             CheckRunAnnotation(
@@ -90,7 +91,7 @@ class PublishChangeRecordToGitHubTest {
             publisher.publish(record, PublishChangeRecordToGitHubCommand(record.id, target))
         }
 
-        assertEquals(null, gateway.lastCommand)
+        assertTrue(gateway.commands.isEmpty())
         assertEquals(null, publicationRepository.find(record.id, target))
     }
 
@@ -153,22 +154,18 @@ class PublishChangeRecordToGitHubTest {
                 PublishChangeRecordToGitHubCommand(record.id, target),
             )
         }
-        assertFailsWith<GitHubRepositoryMismatchException> {
-            publisher.publish(
-                record,
-                PublishChangeRecordToGitHubCommand(
-                    record.id,
-                    GitHubPullRequestTarget("acme", "other", 12),
-                ),
-            )
+        val tracking = MemoryTracking()
+        assertFailsWith<IllegalArgumentException> {
+            teamPublisher(tracking).publish(PublishChangeRecordToGitHubCommand(record.id, GitHubPullRequestTarget("acme", "other", 12)))
         }
 
+        assertTrue(tracking.statuses.isEmpty())
         assertEquals(0, gateway.headRequests.get())
         assertEquals(0, gateway.commands.size)
     }
 
     @Test
-    fun `동시 최초 게시는 한 Check Run으로 모으고 응답 유실도 같은 실행으로 복구한다`() {
+    fun `결과 미확인 뒤 동시 재시도는 한 Check Run으로 모은다`() {
         val tracking = MemoryTracking()
         val team = teamPublisher(tracking)
         val command = PublishChangeRecordToGitHubCommand(record.id, target)
@@ -182,7 +179,6 @@ class PublishChangeRecordToGitHubTest {
             val calls = (1..2).map { executor.submit<GitHubPublication> { start.await(); team.publish(command) } }
             start.countDown()
             assertEquals(setOf(42L), calls.map { it.get(5, TimeUnit.SECONDS).checkRunId }.toSet())
-            assertEquals(1, gateway.creations)
             assertEquals(2, tracking.statuses.values.count { it == PublicationAttemptStatus.SUCCEEDED })
         } finally { executor.shutdownNow() }
     }
@@ -220,10 +216,10 @@ class PublishChangeRecordToGitHubTest {
         val result = publisher.syncSupersession(record.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement),
             PublishChangeRecordToGitHubCommand(record.id, target, codeAnnotations = true))
         assertEquals(42L, result.checkRunId)
-        assertEquals(emptyList(), gateway.lastCommand!!.annotations)
-        assertEquals(record.targetRevision, gateway.lastCommand?.headRevision)
-        assertTrue(gateway.lastCommand!!.markdown.contains(replacement.toString()))
-        assertEquals(1, gateway.creations)
+        val sent = gateway.commands.last()
+        assertEquals(emptyList(), sent.annotations)
+        assertEquals(record.targetRevision, sent.headRevision)
+        assertTrue(sent.markdown.contains(replacement.toString()))
     }
 
     private fun teamPublisher(tracking: MemoryTracking = MemoryTracking()): TeamGitHubPublicationService {
@@ -252,10 +248,8 @@ class PublishChangeRecordToGitHubTest {
         val headRequests = AtomicInteger()
         val initialUpserts = AtomicInteger()
         val commands = CopyOnWriteArrayList<UpsertGitHubCheckRunCommand>()
-        var lastCommand: UpsertGitHubCheckRunCommand? = null
         var failAfterCreate = false
         var headFailure: GitHubApiException? = null
-        var creations = 0
         var beforeUpsert: () -> Unit = {}
         @Volatile private var checkRun: GitHubCheckRun? = null
 
@@ -266,8 +260,6 @@ class PublishChangeRecordToGitHubTest {
         }
 
         override fun upsertCheckRun(command: UpsertGitHubCheckRunCommand): GitHubCheckRun {
-            lastCommand = command
-            if (creations == 0) creations++
             if (failAfterCreate) throw GitHubApiException("원격 결과를 확인하지 못했습니다.")
             commands += command
             val existing = checkRun
