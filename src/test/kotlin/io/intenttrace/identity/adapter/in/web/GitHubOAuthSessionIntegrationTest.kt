@@ -15,6 +15,7 @@ import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
@@ -23,7 +24,6 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.delete
-import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import java.security.MessageDigest
@@ -36,15 +36,25 @@ import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.call
 import io.intenttrace.githubCallback
 import io.intenttrace.htmlLink
+import io.intenttrace.mcpClient
 import io.intenttrace.startGitHubLogin
 
-@SpringBootTest(properties = ["intent-trace.github.app.client-id=client-id", "intent-trace.github.user-authorization.client-secret=client-secret"])
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = [
+        "server.shutdown=immediate",
+        "intent-trace.github.app.client-id=client-id",
+        "intent-trace.github.user-authorization.client-secret=client-secret",
+    ],
+)
 @AutoConfigureMockMvc
 class GitHubOAuthSessionIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val userAccess: TestGitHubUserAccessGateway,
+    @LocalServerPort private val port: Int,
 ) {
     @Test
     fun `GitHub callback에서 받은 로컬 session으로 MCP 도구를 호출한다`() {
@@ -85,27 +95,11 @@ class GitHubOAuthSessionIntegrationTest(
         assertFalse(body.contains("ghu_access"))
         assertFalse(body.contains("ghr_refresh"))
 
-        val initialized = mockMvc.post("/mcp") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-            contentType = MediaType.APPLICATION_JSON
-            header(HttpHeaders.ACCEPT, "application/json, text/event-stream")
-            content = initializeRequest
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.result.serverInfo.name") { value("intent-trace") }
-        }.andReturn()
-        val mcpSessionId = initialized.response.getHeader("Mcp-Session-Id")
-        assertNotNull(mcpSessionId)
-
-        mockMvc.post("/mcp") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-            header("Mcp-Session-Id", mcpSessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header(HttpHeaders.ACCEPT, "application/json, text/event-stream")
-            content = findRequest
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":false")) }
+        mcpClient(port, sessionToken).use { mcp ->
+            val found = mcp.call("find_change_intent", mapOf(
+                "repositoryKey" to "acme/intent-trace", "revision" to "b".repeat(40), "path" to "src/App.kt", "line" to 1,
+            ))
+            assertEquals(false, found.isError, found.toString())
         }
 
         val listed = mockMvc.get("/api/v1/me/sessions") {
@@ -275,35 +269,5 @@ class GitHubOAuthSessionIntegrationTest(
 
     companion object {
         private val differentState = "A".repeat(43)
-        private val initializeRequest =
-            """
-            {
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "initialize",
-              "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "intent-trace-oauth-test", "version": "1.0"}
-              }
-            }
-            """.trimIndent()
-        private val findRequest =
-            """
-            {
-              "jsonrpc": "2.0",
-              "id": 2,
-              "method": "tools/call",
-              "params": {
-                "name": "find_change_intent",
-                "arguments": {
-                  "repositoryKey": "acme/intent-trace",
-                  "revision": "${"b".repeat(40)}",
-                  "path": "src/App.kt",
-                  "line": 1
-                }
-              }
-            }
-            """.trimIndent()
     }
 }
