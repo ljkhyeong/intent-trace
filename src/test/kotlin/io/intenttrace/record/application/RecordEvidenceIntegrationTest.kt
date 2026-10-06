@@ -188,6 +188,9 @@ class RecordEvidenceIntegrationTest(
             for (invalid in listOf(1, 6, 201)) {
                 assertFailsWith<IllegalArgumentException> { HistoryReadPolicy(java.time.Duration.ofSeconds(30), invalid) }
             }
+            for (invalid in listOf(java.time.Duration.ZERO, java.time.Duration.ofSeconds(41))) {
+                assertFailsWith<IllegalArgumentException> { HistoryReadPolicy(invalid, 40) }
+            }
             val minimum = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 7))
             val limited = minimum.find(repo, movedRevision, "new.txt", 2, limit = 1)
             assertEquals(HistoryStopReason.CALL_LIMIT, limited.stopReason)

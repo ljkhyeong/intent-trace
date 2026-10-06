@@ -1,7 +1,6 @@
 package io.intenttrace.record.application
 
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.stereotype.Component
+import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
 
 enum class HistoryStopReason { TIME_LIMIT, CALL_LIMIT, CANCELLED }
@@ -16,11 +15,6 @@ class EvidenceReadBudget(
     var remoteCalls: Int = 0
         private set
 
-    init {
-        require(timeLimit.isPositive && timeLimit <= Duration.ofSeconds(40))
-        require(maxRemoteCalls in 1..200)
-    }
-
     fun checkpoint() {
         if (Thread.currentThread().isInterrupted) throw EvidenceReadStopped(HistoryStopReason.CANCELLED)
         if (System.nanoTime() - started >= timeLimit.toNanos()) throw EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
@@ -30,19 +24,20 @@ class EvidenceReadBudget(
         checkpoint()
         if (remoteCalls >= maxRemoteCalls) throw EvidenceReadStopped(HistoryStopReason.CALL_LIMIT)
         remoteCalls++
-        return Duration.ofMillis(((timeLimit.toNanos() - (System.nanoTime() - started) + 999_999) / 1_000_000).coerceAtLeast(1))
+        // 읽기 시간 제한은 밀리초 미만을 버리므로 0ms가 되지 않게 최소 1ms로 둔다.
+        return timeLimit.minusNanos(System.nanoTime() - started).coerceAtLeast(Duration.ofMillis(1))
     }
 }
 
-@Component
+@ConfigurationProperties("intent-trace.history")
 class HistoryReadPolicy(
-    @Value("\${intent-trace.history.time-limit:30s}") private val timeLimit: Duration,
-    @Value("\${intent-trace.history.max-remote-calls:40}") private val maxRemoteCalls: Int,
+    private val timeLimit: Duration = Duration.ofSeconds(30),
+    private val maxRemoteCalls: Int = 40,
 ) {
     init {
+        require(timeLimit.isPositive && timeLimit <= Duration.ofSeconds(40)) { "intent-trace.history.time-limit은 0보다 크고 40초 이하로 설정해 주세요." }
         // 빈 캐시에서도 원본·대상 커밋과 트리 4회, 조상 비교 1회, 두 blob 2회를 읽을 수 있어야 한다.
         require(maxRemoteCalls in 7..200) { "intent-trace.history.max-remote-calls는 코드 근거 하나를 확인할 수 있도록 7~200으로 설정해 주세요." }
-        EvidenceReadBudget(timeLimit, maxRemoteCalls)
     }
     fun start() = EvidenceReadBudget(timeLimit, maxRemoteCalls)
 }
