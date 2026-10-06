@@ -27,7 +27,7 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 ## 구현 시 주의할 점
 
 - 상태 전이는 `domain`, 사용 사례와 포트는 `application`, REST·MCP는 `adapter/in`, JDBC·외부 HTTP는 `adapter/out`에 둔다. REST와 MCP는 같은 서비스를 호출한다.
-- Spring AI MCP는 Jakarta Validation을 자동 실행하지 않는다. 생성·수정 DTO는 `Validator`로 검증하고 선택 입력은 `McpToolParam(required = false)`로 등록한다. 전체 커밋 형식은 도메인 `GitRevision`에서도 검사한다.
+- Spring AI MCP는 Jakarta Validation을 자동 실행하지 않는다. 도구 클래스에 `@Validated`를 붙이고 DTO 인자는 `@Valid`, 단일 인자는 제약 애너테이션으로 검증한다. 검증은 Spring AI가 호출하는 프록시에서 실행되므로 `/mcp` 호출 테스트로 확인한다. 선택 입력은 `McpToolParam(required = false)`로 등록한다. 전체 커밋 형식은 도메인 `requireFullRevision`에서도 검사한다.
 - MCP 응답의 최상위 값은 객체로 유지하고 목록은 `items`에 넣는다. 도구 계약을 바꾸면 표준 SDK로 실제 서버 연결을 확인한다.
 - DB 변경은 새 Flyway 버전으로 추가한다. 적용된 migration을 수정하지 않는다. GitHub 호출은 DB 트랜잭션 밖에서 실행한다.
 - 테스트는 관련 기능부터 실행한다. 외부 게시는 fake·로컬 stub으로 검증하고 실제 GitHub PR을 테스트용으로 변경하지 않는다.

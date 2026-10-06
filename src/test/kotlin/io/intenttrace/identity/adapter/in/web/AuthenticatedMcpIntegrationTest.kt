@@ -6,7 +6,6 @@ import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
-import io.intenttrace.record.adapter.`in`.mcp.IntentTraceTools
 import io.intenttrace.record.adapter.`in`.web.CodeAnchorRequest
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.DecisionRequest
@@ -15,7 +14,6 @@ import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.PurposeSource
-import jakarta.validation.ConstraintViolationException
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -32,7 +30,6 @@ import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
@@ -49,7 +46,6 @@ import io.intenttrace.issueTestSession
 @AutoConfigureMockMvc
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
-    @Autowired private val tools: IntentTraceTools,
     @Autowired private val records: io.intenttrace.record.application.ChangeRecordFacade,
     @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val facade: ChangeRecordFacade,
@@ -269,31 +265,9 @@ class AuthenticatedMcpIntegrationTest(
         val original = publishedRecord()
         val replacement = publishedRecord()
 
-        fun callSupersede(accessToken: String): JsonNode {
-            val session = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer $accessToken")
-                contentType = MediaType.APPLICATION_JSON
-                header("Accept", "application/json, text/event-stream")
-                content = initialize
-            }.andExpect { status { isOk() } }.andReturn().response.getHeader("Mcp-Session-Id")
-            assertNotNull(session)
-            val response = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer $accessToken")
-                header("Mcp-Session-Id", session)
-                contentType = MediaType.APPLICATION_JSON
-                header("Accept", "application/json, text/event-stream")
-                content = """
-                    {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-                      "name":"supersede_change_record","arguments":{
-                        "recordId":"${original.id}","expectedVersion":${original.version},
-                        "replacementRecordId":"${replacement.id}"
-                      }
-                    }}
-                """.trimIndent()
-            }.andExpect { status { isOk() } }.andReturn().response.contentAsString
-            val data = response.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
-            return objectMapper.readTree(data).get("result")
-        }
+        fun callSupersede(accessToken: String): JsonNode = callTool(accessToken, "supersede_change_record", """
+            {"recordId":"${original.id}","expectedVersion":${original.version},"replacementRecordId":"${replacement.id}"}
+        """)
 
         assertTrue(callSupersede(otherSession).get("isError").booleanValue())
         assertEquals(original, facade.get(original.id))
@@ -313,26 +287,43 @@ class AuthenticatedMcpIntegrationTest(
     }
 
     @Test
-    fun `MCP 생성 입력에도 Jakarta 제약을 적용한다`() {
-        val exception = assertFailsWith<ConstraintViolationException> {
-            tools.create(
-                CreateChangeRecordRequest(
-                    requestId = "request-1",
-                    repositoryKey = "acme/intent-trace",
-                    snapshotDigest = "a".repeat(64),
-                    title = "MCP 입력 검증",
-                    requestSummary = "MCP 입력도 REST와 같은 제약을 적용한다.",
-                    decisions = listOf(
-                        DecisionRequest("", null, PurposeSource.STATED_BY_USER),
-                    ),
-                    codeAnchors = listOf(
-                        CodeAnchorRequest("src/App.kt", "App", 1, 1, "b".repeat(64)),
-                    ),
-                ),
-            )
-        }
+    fun `MCP 도구 호출에도 Jakarta 제약을 적용한다`() {
+        // Spring AI가 검증 프록시를 거쳐 도구를 호출하는지 실제 /mcp 요청으로 확인한다.
+        val created = callTool(userSession, "create_change_record", """
+            {"request":{
+              "requestId":"mcp-validation","repositoryKey":"acme/intent-trace","snapshotDigest":"${"a".repeat(64)}",
+              "title":"MCP 입력 검증","requestSummary":"MCP 입력도 REST와 같은 제약을 적용한다.",
+              "decisions":[{"summary":"","source":"STATED_BY_USER"}],
+              "codeAnchors":[{"relativePath":"src/App.kt","startLine":1,"endLine":1,"contentHash":"${"b".repeat(64)}"}]
+            }}
+        """)
+        assertTrue(created.get("isError").booleanValue())
+        assertTrue(created.toString().contains("summary"), created.toString())
 
-        assertTrue(exception.constraintViolations.any { it.propertyPath.toString().endsWith("summary") })
+        val confirmed = callTool(userSession, "confirm_change_record", """
+            {"recordId":"${UUID.randomUUID()}","expectedVersion":0,"immutableRevision":"main","currentSnapshotDigest":"${"a".repeat(64)}"}
+        """)
+        assertTrue(confirmed.get("isError").booleanValue())
+        assertTrue(confirmed.toString().contains("immutableRevision"), confirmed.toString())
+    }
+
+    private fun callTool(accessToken: String, name: String, arguments: String): JsonNode {
+        val session = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer $accessToken")
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = initialize
+        }.andExpect { status { isOk() } }.andReturn().response.getHeader("Mcp-Session-Id")
+        assertNotNull(session)
+        val response = mockMvc.post("/mcp") {
+            header("Authorization", "Bearer $accessToken")
+            header("Mcp-Session-Id", session)
+            contentType = MediaType.APPLICATION_JSON
+            header("Accept", "application/json, text/event-stream")
+            content = """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"$name","arguments":$arguments}}"""
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray.toString(Charsets.UTF_8)
+        val data = response.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
+        return objectMapper.readTree(data).get("result")
     }
 
     @TestConfiguration
