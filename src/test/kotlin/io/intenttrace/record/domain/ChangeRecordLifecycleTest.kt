@@ -73,8 +73,14 @@ class ChangeRecordLifecycleTest {
     }
 
     @Test
-    fun `상위 이동과 Windows 절대 경로는 코드 근거로 받지 않는다`() {
-        listOf("src/../secret.txt", "C:\\Users\\lim\\secret.txt").forEach { path ->
+    fun `상위 이동·Windows 절대 경로·제어 문자는 코드 근거로 받지 않는다`() {
+        listOf(
+            "src/../secret.txt",
+            "C:\\Users\\lim\\secret.txt",
+            "C:/Users/lim/secret.txt",
+            "C:/Users/lim/a\nb",
+            "x\n/Users/lim/b",
+        ).forEach { path ->
             assertFailsWith<IllegalArgumentException> {
                 CodeAnchor(path, null, 1, 1, "a".repeat(64))
             }

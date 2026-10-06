@@ -8,8 +8,9 @@ fun requireRepositoryRelativePath(value: String): String {
     require(
         value.isNotBlank() &&
             !path.isAbsolute &&
-            !WINDOWS_ABSOLUTE_PATH.matches(value) &&
+            !WINDOWS_DRIVE_PATH.containsMatchIn(value) &&
             '\\' !in value &&
+            value.none(Char::isISOControl) &&
             path.none { it.toString() == ".." },
     ) { PATH_ERROR_MESSAGE }
 
@@ -19,4 +20,5 @@ fun requireRepositoryRelativePath(value: String): String {
 }
 
 private const val PATH_ERROR_MESSAGE = "코드 경로는 저장소 기준 상대 경로여야 합니다."
-private val WINDOWS_ABSOLUTE_PATH = Regex("^[A-Za-z]:[/\\\\].*")
+// Path.isAbsolute는 서버 운영체제 기준이므로 Windows 드라이브 경로를 따로 막는다. 역슬래시는 위에서 거부한다.
+private val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:/")
