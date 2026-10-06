@@ -17,8 +17,8 @@ GitHub Check Run의 대체 기록 링크는 Bearer 인증을 요구하는 API �
 - 기존 cookie·일회성 state·TTL·PKCE 검증을 모두 통과한 뒤 브라우저용 `itb_` 세션을 발급한다. `HttpOnly`, `SameSite=Lax`, `Path=/records`를 적용하고 HTTPS 환경에서는 `Secure`도 적용한다.
 - `itb_`는 서버 메모리에 digest로 저장하고 발급 후 8시간에 만료한다. GitHub 토큰을 갱신해도 브라우저 세션 만료 시각은 바뀌지 않는다. 인증 응답을 기다리는 동안 만료된 세션도 폐기한다. GitHub access·refresh token은 계속 서버 메모리에만 둔다.
 - 브라우저 세션은 REST·MCP Bearer나 cookie 인증으로 사용하지 않는다. 기존 `/auth/github/start`의 CLI 연결은 `its_`를 한 번 표시하는 계약을 유지한다.
-- 화면의 변경 동작은 로그아웃과 본인 연결의 선택·전체 종료로 제한한다. 설정한 공개 origin과 요청의 `Origin`을 비교한다. `POST /records/logout`은 해당 브라우저 세션을 폐기하고 cookie를 지우며 GitHub 장애 중에도 로컬에서 처리한다. 다른 연결의 종료는 인증된 본인 세션 관리 서비스를 거친다.
-- HTML에는 사용자 입력을 이스케이프한다. 기록 Markdown을 그대로 HTML로 해석하지 않는다. 외부 스크립트·폰트·이미지는 불러오지 않고 `no-store`, `no-referrer`, 제한된 CSP를 적용한다.
+- 화면의 변경 동작은 로그아웃과 본인 연결의 선택·전체 종료로 제한한다. 설정한 공개 origin과 요청의 `Origin`을 세션 확인보다 먼저 비교해 다른 출처 요청이 GitHub 호출이나 토큰 갱신을 일으키지 않게 한다. `POST /records/logout`은 해당 브라우저 세션을 폐기하고 cookie를 지우며 GitHub 장애 중에도 로컬에서 처리한다. 다른 연결의 종료는 인증된 본인 세션 관리 서비스를 거친다.
+- 화면은 Thymeleaf 템플릿(`templates/records`)으로 그리고 모든 값을 기본 이스케이프로 출력한다. 주소·문구·시각은 Kotlin 뷰 모델이 만들고 템플릿은 출력만 한다. `th:utext`·`[(...)]`·`__${...}__` 전처리는 쓰지 않고 모델에 세션·GitHub 토큰을 넣지 않는다. 기록 Markdown을 그대로 HTML로 해석하지 않는다. 외부 스크립트·폰트·이미지는 불러오지 않고 `no-store`, `no-referrer`, 제한된 CSP를 적용한다. GitHub 로그인 결과 화면도 같은 틀과 헤더를 쓴다.
 - 공유 Markdown의 기본·대체 링크는 브라우저 기록 주소로 생성한다. 이미 게시된 Check Run은 사용자가 다시 게시하거나 대체 안내를 요청할 때 새 링크가 반영된다.
 - `GET /records/{UUID}/markdown`은 로그인과 기존 기록 열람 권한을 확인한 뒤 `text/markdown; charset=UTF-8` 첨부 파일로 응답한다. 파일명은 `intent-trace-{UUID}.md`이며 REST와 같은 생성기를 사용한다. HTML 응답과 캐시 방지·보안 헤더를 공유하고 기록 상태는 변경하지 않는다. 미로그인·권한 거부·조회 실패는 기존 HTML 안내로 응답한다.
 

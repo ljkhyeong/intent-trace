@@ -27,9 +27,10 @@ description: IntentTrace 저장소의 서버, Codex·IntelliJ·Zed 연동, 배�
 ## 구현 시 주의할 점
 
 - 상태 전이는 `domain`, 사용 사례와 포트는 `application`, REST·MCP는 `adapter/in`, JDBC·외부 HTTP는 `adapter/out`에 둔다. REST와 MCP는 같은 서비스를 호출한다.
+- 브라우저 화면은 `record/adapter/in/browser`의 뷰 모델이 주소·문구를 만들고 `templates/records`는 `th:text`·`th:href`·`th:value`로 출력만 한다. `th:utext`·`[(...)]`는 쓰지 않는다. 출처 확인·세션 인증·보안 헤더는 `RecordBrowserConfiguration`의 인터셉터가 처리한다.
 - Spring AI MCP는 Jakarta Validation을 자동 실행하지 않는다. 도구 클래스에 `@Validated`를 붙이고 DTO 인자는 `@Valid`, 단일 인자는 제약 애너테이션으로 검증한다. 검증은 Spring AI가 호출하는 프록시에서 실행되므로 `/mcp` 호출 테스트로 확인한다. 선택 입력은 `McpToolParam(required = false)`로 등록한다. 전체 커밋 형식은 도메인 `requireFullRevision`에서도 검사한다.
 - MCP 응답의 최상위 값은 객체로 유지하고 목록은 `items`에 넣는다. 도구 계약을 바꾸면 표준 SDK로 실제 서버 연결을 확인한다.
-- DB 변경은 새 Flyway 버전으로 추가한다. 적용된 migration을 수정하지 않는다. GitHub 호출은 DB 트랜잭션 밖에서 실행한다.
+- 운영 시작 전에는 보존할 데이터가 없어 `V1__baseline.sql`을 직접 고친다. 운영을 시작한 뒤의 DB 변경은 새 Flyway 버전으로 추가하고 적용된 migration을 수정하지 않는다. GitHub 호출은 DB 트랜잭션 밖에서 실행한다.
 - 테스트는 관련 기능부터 실행한다. 외부 게시는 fake·로컬 stub으로 검증하고 실제 GitHub PR을 테스트용으로 변경하지 않는다.
 
 ## 변경별 검증

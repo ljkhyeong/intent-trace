@@ -55,7 +55,7 @@
 | GitHub 응답 크기·조회 시간·호출 수 제한 | 외부 응답과 반복 조회의 자원 사용을 제한한다. 단순 `body()` 호출로 바꾸면서 제거하면 안 된다. |
 | 고정 형식의 내용 해시, OAuth state·세션 갱신 제어 | 저장된 멱등성 해시와 일회성·동시성 계약이 있다. JSON 직렬화나 일반 캐시로 바꾸면 동작이 달라질 수 있다. |
 
-HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HTML 이스케이프는 `HtmlUtils`, 쿠키는 `ResponseCookie`, URI 구성은 `UriComponentsBuilder`를 사용한다. IntelliJ도 SDK `HttpRequests`와 Kotlin Serialization을 사용한다. 이 부분을 다시 감싸는 공통 클래스를 추가할 필요는 없다.
+HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HTML 이스케이프는 Thymeleaf 템플릿의 기본 출력(2026-10-06에 `HtmlUtils` 직접 호출에서 전환), 쿠키는 `ResponseCookie`, URI 구성은 `UriComponentsBuilder`를 사용한다. IntelliJ도 SDK `HttpRequests`와 Kotlin Serialization을 사용한다. 이 부분을 다시 감싸는 공통 클래스를 추가할 필요는 없다.
 
 ## 최초 검토에서 확인한 내용
 
