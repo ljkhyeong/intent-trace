@@ -13,7 +13,8 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-enum class RecordScope { MINE, TEAM }
+/** 기록 목록 조회 범위다. [statuses]는 범위별로 조회할 수 있는 상태다. */
+enum class RecordScope(val statuses: Set<ChangeRecordStatus>) { MINE(AUTHOR_ONLY_STATUSES), TEAM(TEAM_VISIBLE_STATUSES) }
 
 data class ChangeRecordSummary(
     val id: UUID,
@@ -89,10 +90,7 @@ class ChangeRecordCatalogService(
         require(authorId == null || authorId > 0) { "작성자 GitHub ID는 양수여야 합니다." }
         val key = GitHubRepository.parse(repositoryKey).key
         val actor = access.requireReader(key)
-        val allowed = when (scope) {
-            RecordScope.MINE -> AUTHOR_ONLY_STATUSES
-            RecordScope.TEAM -> TEAM_VISIBLE_STATUSES
-        }
+        val allowed = scope.statuses
         require(status == null || status in allowed) { "조회 범위에 맞지 않는 기록 상태입니다." }
         require(scope == RecordScope.TEAM || authorId == null) { "내 초안 목록에는 다른 작성자 필터를 지정할 수 없습니다." }
         val statuses = status?.let(::setOf) ?: (allowed - ChangeRecordStatus.DISCARDED)

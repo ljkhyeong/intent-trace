@@ -5,7 +5,6 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.application.RecordPublications
 import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.RecordScope
-import io.intenttrace.record.domain.AUTHOR_ONLY_STATUSES
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.PurposeSource
@@ -36,11 +35,11 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     fun search(actor: ActorIdentity, repository: String?, q: String?, scope: RecordScope, page: ChangeRecordPage?,
         status: ChangeRecordStatus?, path: String?, authorId: Long?, searchUrl: String): ModelAndView {
         val mine = scope == RecordScope.MINE
-        val tabs = listOf(RecordScope.MINE, RecordScope.TEAM).map { option ->
+        val tabs = RecordScope.entries.map { option ->
             ScopeTab(url("/records", "repositoryKey" to repository, "q" to q, "path" to path, "scope" to option.name),
                 scopeLabel(option), option == scope)
         }
-        val statuses = (if (mine) AUTHOR_ONLY_STATUSES else TEAM_VISIBLE_STATUSES).map { StatusOption(it.name, it.label, it == status) }
+        val statuses = scope.statuses.map { StatusOption(it.name, it.label, it == status) }
         val authorFilter = if (mine) null else {
             val mineOnly = authorId == actor.githubUserId()
             Link(url("/records", "repositoryKey" to repository, "q" to q, "path" to path, "scope" to scope.name,
