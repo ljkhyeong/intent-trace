@@ -40,7 +40,7 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 ### 변경
 
 - 웹 기록 화면과 GitHub 로그인 결과 화면을 문자열 조립 대신 Thymeleaf 템플릿으로 그려 모든 값을 기본 이스케이프로 출력. 세션 확인·출처 검사·보안 헤더는 Spring MVC 인터셉터가 처리하고, 다른 출처의 POST는 세션 확인 전에 403으로 거부. 로그인 결과 화면도 기록 화면의 틀과 CSP(`style-src 'self'`)를 쓰고 `Pragma` 헤더 제거
-- 웹 조회 입력의 앞뒤 공백을 모든 항목에서 지우고 공백만 입력한 값은 입력하지 않은 것으로 처리. 로그인하지 않은 요청은 주소의 기록 ID·조회 값 형식과 관계없이 로그인 안내를 먼저 표시
+- 웹 조회 입력의 앞뒤 공백을 모든 항목에서 지우고 공백만 입력한 값은 입력하지 않은 것으로 처리. 로그인하지 않은 요청은 조회 값 형식과 관계없이 로그인 안내를 먼저 표시. 기록 화면이 아닌 주소(형식이 틀린 기록 ID 포함)는 기존처럼 400
 - REST·MCP 인증 필터 단계의 401·429·502 응답을 컨트롤러와 같은 ProblemDetail로 통일. 인증 단계 429에도 `code=GITHUB_RATE_LIMITED`·`retryAfterSeconds`가 붙고 502 title은 `GitHub 사용자 권한 조회 실패`. 상태 코드와 `Retry-After`는 같음
 - REST `POST .../github-pull-request`·`.../supersession`과 MCP `publish_change_record_to_github_pr`·`sync_superseded_record_to_github_pr` 응답을 `get_github_publication_status`의 `publication`과 같은 형식으로 통일. 최상위 `repository`·`pullNumber` 대신 `target`(`owner`·`repository`·`pullNumber`·`repositoryKey`) 반환
 - MCP 기록 도구의 입력 검증을 Spring `@Validated` 메서드 검증으로 변경. 검증 오류의 필드 경로 앞에 도구 메서드·인자 이름이 붙음(예: `create.request.decisions[0].summary`)

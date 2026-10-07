@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
+import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
 import org.springframework.web.servlet.ModelAndView
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry
@@ -53,7 +54,9 @@ private class RecordBrowserInterceptor(
     private val properties: GitHubProperties,
 ) : HandlerInterceptor {
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
-        val logout = request.requestURI == "${request.contextPath}/records/logout"
+        // 기록 화면 처리기만 확인한다. 정적 자원·CORS preflight 처리기에는 화면 예외 처리기가 적용되지 않는다.
+        if (handler !is HandlerMethod || handler.beanType != RecordBrowserController::class.java) return true
+        val logout = request.method == "POST" && request.requestURI == "${request.contextPath}/records/logout"
         if (request.method == "POST" && !sameOrigin(request)) {
             throw BrowserOriginException(if (logout) "같은 기록 화면에서 로그아웃해 주세요." else "같은 기록 화면에서 연결을 종료해 주세요.")
         }

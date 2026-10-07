@@ -29,8 +29,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.options
 import org.springframework.test.web.servlet.post
 import java.util.UUID
 import java.net.URI
@@ -573,6 +575,21 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         // 다른 출처 요청은 GitHub 사용자 조회와 토큰 갱신을 일으키지 않는다.
         assertEquals(authentications, userAccess.authentications.get())
         assertEquals(sessionId, sessionStore.resolve(cookie.value).sessionId)
+    }
+
+    @Test
+    fun `기록 화면이 아닌 주소와 preflight는 화면 인증을 거치지 않고 로그아웃은 POST만 세션 확인을 건너뛴다`() {
+        val cookie = login("/records")
+        val authentications = userAccess.authentications.get()
+        mvc.post("/records/unknown/path") { cookie(cookie); header(HttpHeaders.ORIGIN, "https://another.example") }
+            .andExpect { status { isNotFound() } }
+        mvc.options("/records/sessions/${UUID.randomUUID()}/revoke") {
+            header(HttpHeaders.ORIGIN, "https://another.example"); header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        }.andExpect { status { isOk() } }
+        mvc.get("/records/logout") { cookie(cookie) }.andExpect {
+            status { isBadRequest() }; content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
+        }
+        assertEquals(authentications, userAccess.authentications.get())
     }
 
     @Test

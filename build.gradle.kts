@@ -54,6 +54,8 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
+	// 개발자 셸의 GitHub 설정은 relaxed binding으로 설정 파일보다 우선하므로 테스트 JVM에 넘기지 않는다.
+	environment.keys.removeIf { it.startsWith("INTENT_TRACE_GITHUB_") }
 }
 
 val postgresTestClass = "**/PostgresRepositorySmokeTest.class"

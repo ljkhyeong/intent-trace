@@ -6,6 +6,9 @@ import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.CheckRunAnnotation
 import io.intenttrace.publication.application.UpsertGitHubCheckRunCommand
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
 import org.hamcrest.Matchers.startsWith
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -34,7 +37,10 @@ import kotlin.test.assertContains
 import kotlin.test.assertFalse
 
 class GitHubRestClientTest {
-    private val builder = RestClient.builder()
+    private val meters = SimpleMeterRegistry()
+    private val builder = RestClient.builder().observationRegistry(ObservationRegistry.create().also {
+        it.observationConfig().observationHandler(DefaultMeterObservationHandler(meters))
+    })
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val tokenProvider = TestTokenProvider()
     private val client = GitHubRestClient(
@@ -94,6 +100,11 @@ class GitHubRestClientTest {
 
         assertEquals(77L, result.id)
         server.verify()
+        // 호출 지표의 uri label에는 저장소·커밋 대신 템플릿만 남는다.
+        assertEquals(
+            setOf("/repos/{owner}/{repository}/commits/{revision}/check-runs", "/repos/{owner}/{repository}/check-runs/{checkRunId}"),
+            meters.get("http.client.requests").timers().map { it.id.getTag("uri") }.toSet(),
+        )
     }
 
     @Test
