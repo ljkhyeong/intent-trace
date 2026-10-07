@@ -71,7 +71,7 @@ git tag -a v0.7.0 -m "릴리스: v0.7.0"
 git push origin v0.7.0
 ```
 
-`.github/workflows/release.yml`은 일반 CI와 같은 Node.js 버전과 잠금 파일로 Zed 의존성을 준비하고 서버·플러그인을 검증한다. 태그와 프로젝트 버전도 정확히 일치하면 네 개의 파일을 GitHub Release에 첨부한다. 개발용 `-SNAPSHOT` 버전이나 다른 버전의 태그는 발행하지 않는다.
+`.github/workflows/release.yml`은 태그 커밋에서 일반 CI와 같은 `verify.yml` 검증을 먼저 실행한다. 검증이 통과하면 실행 JAR과 IntelliJ 설치 ZIP을 만들고, 태그와 프로젝트 버전이 정확히 일치할 때만 네 개의 파일을 GitHub Release에 첨부한다. 개발용 `-SNAPSHOT` 버전이나 다른 버전의 태그는 발행하지 않는다. 쓰기 권한은 발행 job에만 준다.
 
 ## 4. 발행 후 확인
 
