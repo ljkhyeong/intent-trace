@@ -56,7 +56,8 @@ private class RecordBrowserInterceptor(
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         // 기록 화면 처리기만 확인한다. 정적 자원·CORS preflight 처리기에는 화면 예외 처리기가 적용되지 않는다.
         if (handler !is HandlerMethod || handler.beanType != RecordBrowserController::class.java) return true
-        val logout = request.method == "POST" && request.requestURI == "${request.contextPath}/records/logout"
+        // 원문 주소 대신 연결된 처리기로 판별한다. `;` 경로 매개변수가 붙은 주소도 logout()으로 연결된다.
+        val logout = handler.method.name == RecordBrowserController::logout.name
         if (request.method == "POST" && !sameOrigin(request)) {
             throw BrowserOriginException(if (logout) "같은 기록 화면에서 로그아웃해 주세요." else "같은 기록 화면에서 연결을 종료해 주세요.")
         }

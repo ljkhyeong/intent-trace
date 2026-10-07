@@ -589,6 +589,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         mvc.get("/records/logout") { cookie(cookie) }.andExpect {
             status { isBadRequest() }; content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
         }
+        // 경로 매개변수가 붙어도 logout()으로 연결되므로 세션을 확인하지 않는다.
+        mvc.post("/records/logout;x=1") { cookie(cookie); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }.andExpect {
+            status { isSeeOther() }; header { string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")) }
+        }
         assertEquals(authentications, userAccess.authentications.get())
     }
 
