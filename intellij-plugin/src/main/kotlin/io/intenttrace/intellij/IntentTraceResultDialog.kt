@@ -16,8 +16,8 @@ import java.net.URI
 import javax.swing.Action
 import javax.swing.JComponent
 
-internal open class IntentTraceResultDialog(
-    project: Project,
+internal class IntentTraceResultDialog(
+    private val project: Project,
     private val lookup: LineLookup,
     found: ChangeIntentLookup,
     server: IntentTraceServer,
@@ -25,18 +25,13 @@ internal open class IntentTraceResultDialog(
     private val openHistory: (RepositoryFileContext) -> Unit = { IntentTraceRecordBrowser.open(project, it, server, fileOnly = true) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
     private val openLineHistory: (LineLookup) -> Unit = { LineHistory.open(project, it, server) },
-) : DialogWrapper(project, true) {
+) {
     private val text = IntentTraceTextRenderer.render(lookup, found)
     private val records = found.items
     private val context = RepositoryFileContext(lookup.repositoryKey, lookup.relativePath)
     private val webHistoryUri = server.webHistoryUri(lookup)
 
-    init {
-        title = "IntentTrace 변경 의도"
-        init()
-    }
-
-    override fun createCenterPanel(): JComponent = panel {
+    internal val content = panel {
         row { cell(readOnlyTextPane(text)).align(Align.FILL) }.resizableRow()
         row("기록") {
             val selection = comboBox(records, textListCellRenderer<ChangeIntentRecord?> { record ->
@@ -51,7 +46,21 @@ internal open class IntentTraceResultDialog(
         }
     }.apply { preferredSize = Dimension(760, 520) }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    fun show() = showContentDialog(project, "IntentTrace 변경 의도", content)
+}
+
+/** 확인 버튼 하나만 있는 modal 창으로 [content]를 연다. 처음 포커스는 확인 버튼이다. */
+internal fun showContentDialog(project: Project, dialogTitle: String, content: JComponent) {
+    object : DialogWrapper(project, true) {
+        init {
+            title = dialogTitle
+            init()
+        }
+
+        override fun createCenterPanel(): JComponent = content
+
+        override fun createActions(): Array<Action> = arrayOf(okAction)
+    }.show()
 }
 
 internal fun readOnlyTextPane(text: String): JComponent = JBScrollPane(readOnlyTextArea(text).apply { caretPosition = 0 })

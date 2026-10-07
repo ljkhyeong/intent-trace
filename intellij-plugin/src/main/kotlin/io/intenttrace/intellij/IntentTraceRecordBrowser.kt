@@ -5,7 +5,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.components.JBCheckBox
@@ -20,10 +19,8 @@ import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.ui.layout.selectedValueMatches
 import java.awt.Dimension
 import java.net.URI
-import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComboBox
-import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.ListSelectionModel
 
@@ -58,7 +55,7 @@ internal object IntentTraceRecordBrowser {
     }
 }
 
-internal open class RecordBrowserDialog(
+internal class RecordBrowserDialog(
     private val project: Project,
     private val context: RepositoryFileContext,
     private var query: RecordListQuery,
@@ -67,7 +64,7 @@ internal open class RecordBrowserDialog(
     private val loadPage: (RecordListQuery) -> ChangeRecordPage? = { nextQuery ->
         IntentTraceRecordBrowser.load(project, server) { token -> IntentTraceApiClient().list(server, token, nextQuery) }
     },
-) : DialogWrapper(project, true) {
+) {
     private val filter = JComboBox(RecordFilter.entries.toTypedArray())
     private val fileOnly = JBCheckBox("현재 파일만", query.path != null)
     private val keyword = JBTextField(28).apply {
@@ -82,26 +79,7 @@ internal open class RecordBrowserDialog(
     private val next = JButton("다음 페이지")
     private val open = JButton("선택 기록 열기")
 
-    init {
-        title = "IntentTrace 기록함 · ${context.repositoryKey}"
-        list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = textListCellRenderer { record ->
-            "[${IntentTraceTextRenderer.status(record.status)}] ${record.title} · @${record.createdBy.login} · " +
-                "${record.targetRevision?.take(12) ?: "커밋 미확인"} · ${record.createdAt}"
-        }
-        list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
-        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id, server) } }
-        previous.addActionListener {
-            previousQueries.lastOrNull()?.let { reload(it, previousQueries.dropLast(1)) }
-        }
-        next.addActionListener {
-            page.nextCursor?.let { reload(query.copy(cursor = it), previousQueries + query) }
-        }
-        init()
-        displayPage()
-    }
-
-    override fun createCenterPanel(): JComponent = panel {
+    internal val content = panel {
         row {
             cell(filter)
             cell(fileOnly)
@@ -120,7 +98,24 @@ internal open class RecordBrowserDialog(
         }
     }.apply { preferredSize = Dimension(960, 480) }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    init {
+        list.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        list.cellRenderer = textListCellRenderer { record ->
+            "[${IntentTraceTextRenderer.status(record.status)}] ${record.title} · @${record.createdBy.login} · " +
+                "${record.targetRevision?.take(12) ?: "커밋 미확인"} · ${record.createdAt}"
+        }
+        list.addListSelectionListener { open.isEnabled = list.selectedValue != null }
+        open.addActionListener { list.selectedValue?.let { IntentTraceRecordBrowser.showRecord(project, it.id, server) } }
+        previous.addActionListener {
+            previousQueries.lastOrNull()?.let { reload(it, previousQueries.dropLast(1)) }
+        }
+        next.addActionListener {
+            page.nextCursor?.let { reload(query.copy(cursor = it), previousQueries + query) }
+        }
+        displayPage()
+    }
+
+    fun show() = showContentDialog(project, "IntentTrace 기록함 · ${context.repositoryKey}", content)
 
     private fun search() {
         val selected = filter.selectedItem as RecordFilter
@@ -183,21 +178,16 @@ private enum class RecordFilter(private val label: String, val scope: RecordList
     override fun toString(): String = label
 }
 
-internal open class RecordHistoryDialog(
+internal class RecordHistoryDialog(
     private val project: Project,
     private val record: ChangeIntentRecord,
     server: IntentTraceServer,
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
-) : DialogWrapper(project, true) {
+) {
     private val webRecordUri = server.webRecordUri(record.id)
 
-    init {
-        title = "IntentTrace 기록 상세 · 당시 스냅샷 기준"
-        init()
-    }
-
-    override fun createCenterPanel(): JComponent = panel {
+    internal val content = panel {
         row { button("웹에서 기록 열기") { browse { webRecordUri } }.align(AlignX.RIGHT) }
         row { cell(readOnlyTextPane(IntentTraceTextRenderer.renderHistory(record))).align(Align.FILL) }.resizableRow()
         row {
@@ -211,7 +201,7 @@ internal open class RecordHistoryDialog(
         }
     }.apply { preferredSize = Dimension(960, 560) }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    fun show() = showContentDialog(project, "IntentTrace 기록 상세 · 당시 스냅샷 기준", content)
 
     private fun browse(uri: () -> URI) {
         orShowError(project) { openBrowser(uri()) }

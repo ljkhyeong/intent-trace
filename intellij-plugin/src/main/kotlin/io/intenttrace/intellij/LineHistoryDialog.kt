@@ -3,7 +3,6 @@ package io.intenttrace.intellij
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.columns
@@ -11,10 +10,8 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import java.awt.Dimension
 import java.net.URI
-import javax.swing.Action
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
-import javax.swing.JComponent
 
 internal object LineHistory {
     fun open(project: Project, lookup: LineLookup, server: IntentTraceServer) {
@@ -30,8 +27,8 @@ private fun ChangeIntentHistory.append(next: ChangeIntentHistory): ChangeIntentH
     return next.copy(items = (items + next.items).distinct(), failures = failures, complete = next.complete && failures.isEmpty())
 }
 
-internal open class LineHistoryDialog(
-    project: Project,
+internal class LineHistoryDialog(
+    private val project: Project,
     private val lookup: LineLookup,
     first: ChangeIntentHistory,
     server: IntentTraceServer,
@@ -40,7 +37,7 @@ internal open class LineHistoryDialog(
     },
     private val openRecord: (String) -> Unit = { IntentTraceRecordBrowser.showRecord(project, it, server) },
     private val openBrowser: (URI) -> Unit = { BrowserUtil.browse(it) },
-) : DialogWrapper(project, true) {
+) {
     private var view = ChangeIntentHistory(emptyList(), scannedRecords = 0).append(first)
     private val webHistoryUri = server.webHistoryUri(lookup)
     private val text = readOnlyTextArea()
@@ -52,13 +49,7 @@ internal open class LineHistoryDialog(
     private val open = JButton("선택 기록 열기").apply { addActionListener { selection.item?.let { openRecord(it.record.id) } } }
     private val next = JButton().apply { addActionListener { loadMore() } }
 
-    init {
-        title = "IntentTrace 이전 커밋 기록 · 당시 스냅샷 기준"
-        init()
-        display()
-    }
-
-    override fun createCenterPanel(): JComponent = panel {
+    internal val content = panel {
         row { scrollCell(text).align(Align.FILL) }.resizableRow()
         row("결과") {
             cell(selection).columns(COLUMNS_LARGE)
@@ -70,7 +61,11 @@ internal open class LineHistoryDialog(
         }
     }.apply { preferredSize = Dimension(820, 560) }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    init {
+        display()
+    }
+
+    fun show() = showContentDialog(project, "IntentTrace 이전 커밋 기록 · 당시 스냅샷 기준", content)
 
     private fun loadMore() {
         val cursor = view.nextCursor ?: return
