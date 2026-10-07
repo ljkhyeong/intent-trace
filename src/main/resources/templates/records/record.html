@@ -11,7 +11,7 @@
 <li th:each="decision : ${page.decisions}"><span class="source" th:text="${decision.source}"></span><h3 th:text="${decision.summary}"></h3><p class="prose" th:if="${decision.rationale != null}" th:text="${decision.rationale}"></p></li>
 </ol></section>
 <section><h2>관련 코드</h2><ul class="evidence">
-<li th:each="anchor : ${page.anchors}"><span class="source" th:text="${anchor.side}"></span> <span th:if="${anchor.codeUrl == null}" th:text="${anchor.label}"></span><a th:if="${anchor.codeUrl != null}" th:href="${anchor.codeUrl}" th:text="${anchor.label}"></a><p th:if="${anchor.symbolName != null}" th:text="${anchor.symbolName}"></p><p class="muted" th:if="${anchor.relatedPath != null}">연결된 경로: [[${anchor.relatedPath}]]</p></li>
+<li th:each="anchor : ${page.anchors}"><span class="source" th:text="${anchor.side}"></span> <span th:if="${anchor.codeUrl == null}" th:text="${anchor.label}"></span><a th:if="${anchor.codeUrl != null}" th:href="${anchor.codeUrl}" th:text="${anchor.label}"></a><p th:if="${anchor.symbolName != null}" th:text="${anchor.symbolName}"></p><p class="muted" th:if="${anchor.relatedPath != null}">연결된 경로: <th:block th:text="${anchor.relatedPath}"></th:block></p></li>
 </ul><p class="muted">코드 링크는 기록에 연결된 커밋을 엽니다. 코드 해시는 제출된 값이며, 서버 확인은 별도 요청으로 실행합니다.</p>
 <a class="button secondary" th:if="${page.evidenceUrl != null}" th:href="${page.evidenceUrl}">GitHub 코드와 비교</a>
 </section>
@@ -29,7 +29,7 @@
 <p class="muted">시각은 UTC 기준입니다.</p><a th:href="${page.activitiesUrl}">기록 변경 이력</a><p><a class="button secondary" th:href="${page.markdownUrl}">Markdown 저장</a></p>
 <th:block th:if="${page.publications != null}" th:with="publications=${page.publications}"><h2>GitHub 게시</h2>
 <p class="muted" th:if="${publications.items.isEmpty()}">게시했거나 게시를 시도한 PR이 없습니다.</p>
-<ul class="publications" th:unless="${publications.items.isEmpty()}"><li th:each="item : ${publications.items}"><a th:href="${item.pullRequest.href}" th:text="${item.pullRequest.label}"></a> · [[${item.status}]]<th:block th:if="${item.checkRunUrl != null}"> · <a th:href="${item.checkRunUrl}">Check Run</a></th:block><th:block th:if="${item.noticeNeeded}"> <strong>대체 안내 필요</strong></th:block></li></ul>
+<ul class="publications" th:unless="${publications.items.isEmpty()}"><li th:each="item : ${publications.items}"><a th:href="${item.pullRequest.href}" th:text="${item.pullRequest.label}"></a> · <th:block th:text="${item.status}"></th:block><th:block th:if="${item.checkRunUrl != null}"> · <a th:href="${item.checkRunUrl}">Check Run</a></th:block><th:block th:if="${item.noticeNeeded}"> <strong>대체 안내 필요</strong></th:block></li></ul>
 <p class="muted" th:if="${publications.truncated}">최근 100개 PR만 표시합니다.</p>
 <p class="muted" th:if="${publications.noticeNeeded}">대체 안내는 작성자가 REST·MCP의 대체 안내 반영으로 실행합니다.</p>
 </th:block></aside></div>

@@ -22,7 +22,7 @@ import java.util.UUID
 
 /**
  * 기록 화면의 표시 값을 만든다. 주소·문구·시각은 여기서 계산하고 `templates/records`는 값을 출력만 한다.
- * 템플릿은 `th:text`·`th:href`·`th:value`로 출력해 Thymeleaf가 이스케이프하며 `th:utext`는 쓰지 않는다.
+ * 템플릿은 `th:text`·`th:href`·`th:value`로 출력해 Thymeleaf가 이스케이프하며 `th:utext`와 인라인 표현식은 쓰지 않는다.
  */
 @Component
 class RecordBrowserPage(private val properties: GitHubProperties) {

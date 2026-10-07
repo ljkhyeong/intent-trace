@@ -7,7 +7,7 @@
 <label>이슈·PR 번호<input name="number" type="number" min="1" th:value="${page.number}" required></label>
 <button>내용 가져오기</button></form>
 <th:block th:if="${page.request != null}" th:with="context=${page.request}">
-<h3 th:text="${context.title}"></h3><p>[[${context.label}]] · <a th:href="${context.sourceUrl}">GitHub 원문</a></p>
+<h3 th:text="${context.title}"></h3><p><th:block th:text="${context.label}"></th:block> · <a th:href="${context.sourceUrl}">GitHub 원문</a></p>
 <p th:if="${context.recordsUrl != null}"><a class="button secondary" th:href="${context.recordsUrl}">이 PR의 변경 기록 보기</a></p>
 <label>초안에 사용할 요청 내용<textarea rows="8" readonly th:text="${context.requestSummary}"></textarea></label>
 <p class="muted">가져온 내용을 검토한 뒤 Agent에서 초안을 만드세요. 작성자 확인과 공개는 별도로 진행합니다.</p>
@@ -24,7 +24,7 @@
 <p class="empty" th:if="${actions.emptyMessage != null}" th:text="${actions.emptyMessage}"></p>
 <ul class="records">
 <li th:each="run : ${actions.runs}"><div><span class="status" th:text="${run.status}"></span><h3><a th:href="${run.url}" th:text="${run.name}"></a></h3><p th:text="${run.detail}"></p><p class="muted"><th:block th:if="${run.startedAt != null}">시작 <time th:datetime="${run.startedAt.iso}" th:text="${run.startedAt.display}"></time> · </th:block>최근 갱신 <time th:datetime="${run.updatedAt.iso}" th:text="${run.updatedAt.display}"></time></p></div></li>
-</ul><p class="muted">[[${actions.page}]]페이지 · [[${actions.runs.size()}]]건 · 조회 <time th:datetime="${actions.fetchedAt.iso}" th:text="${actions.fetchedAt.display}"></time></p>
+</ul><p class="muted"><th:block th:text="${actions.page}"></th:block>페이지 · <th:block th:text="${actions.runs.size()}"></th:block>건 · 조회 <time th:datetime="${actions.fetchedAt.iso}" th:text="${actions.fetchedAt.display}"></time></p>
 <nav class="pagination" aria-label="CI 결과 페이지"><a class="button secondary" th:if="${actions.previousUrl != null}" th:href="${actions.previousUrl}">이전 실행 결과</a><a class="button secondary" th:if="${actions.nextUrl != null}" th:href="${actions.nextUrl}">다음 실행 결과</a><a class="button secondary" th:href="${actions.refreshUrl}">결과 새로고침</a></nav>
 <p class="notice" th:if="${actions.searchLimited}">GitHub 검색 한도로 최대 1,000개까지만 조회할 수 있습니다. 전체 결과는 GitHub에서 확인하세요.</p>
 </th:block>

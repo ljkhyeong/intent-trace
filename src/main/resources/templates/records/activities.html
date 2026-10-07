@@ -5,7 +5,7 @@
 <aside class="notice" th:if="${page.teamOnly}">팀원에게는 공개·대체 작업만 표시합니다. 비공개 작업 이력은 작성자만 읽습니다.</aside>
 <p class="empty" th:if="${page.items.isEmpty()}">표시할 변경 이력이 없습니다.</p>
 <ol class="records">
-<li th:each="activity : ${page.items}"><div><span class="status">버전 [[${activity.version}]]</span><h2 th:text="${activity.operation}"></h2><p><time th:datetime="${activity.occurredAt.iso}" th:text="${activity.occurredAt.display}"></time></p><p>처리한 사용자: [[${activity.actor}]]</p><p th:text="${activity.transition}"></p></div></li>
+<li th:each="activity : ${page.items}"><div><span class="status">버전 <th:block th:text="${activity.version}"></th:block></span><h2 th:text="${activity.operation}"></h2><p><time th:datetime="${activity.occurredAt.iso}" th:text="${activity.occurredAt.display}"></time></p><p>처리한 사용자: <th:block th:text="${activity.actor}"></th:block></p><p th:text="${activity.transition}"></p></div></li>
 </ol>
 <nav class="pagination" th:if="${page.previousUrl != null}"><a class="button secondary" th:href="${page.previousUrl}">이전 작업 더 보기</a></nav>
 </main>

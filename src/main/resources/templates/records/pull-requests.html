@@ -7,7 +7,7 @@
 <label>PR 번호<input name="pullNumber" type="number" min="1" th:value="${page.number}" required></label><button>조회</button></form>
 <p class="empty" th:if="${page.result == null}">저장소와 PR 번호를 입력해 주세요.</p>
 <th:block th:if="${page.result != null}" th:with="result=${page.result}">
-<p>PR #[[${result.pullNumber}]] · <time th:datetime="${result.checkedAt.iso}" th:text="${result.checkedAt.display}"></time></p><p class="hash">현재 커밋 [[${result.headRevision}]]</p>
+<p>PR #<th:block th:text="${result.pullNumber}"></th:block> · <time th:datetime="${result.checkedAt.iso}" th:text="${result.checkedAt.display}"></time></p><p class="hash">현재 커밋 <th:block th:text="${result.headRevision}"></th:block></p>
 <p><a class="button secondary" th:href="${result.contentUrl}">PR 내용 가져오기</a></p>
 <p><a class="button secondary" th:href="${result.ciUrl}">이 커밋의 CI 결과 조회</a></p>
 <aside class="notice" th:if="${result.fork}">Fork PR에는 Check Run을 게시할 수 없습니다.</aside>
