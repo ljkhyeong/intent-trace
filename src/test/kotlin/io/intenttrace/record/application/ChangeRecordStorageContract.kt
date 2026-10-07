@@ -10,8 +10,6 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
@@ -130,11 +128,7 @@ abstract class ChangeRecordStorageContract {
     @Test
     fun `현재 줄 조회는 최근 공개 순 상한까지 반환하고 같은 공개 시각은 ID 순서로 고정한다`() {
         val repositoryKey = "acme/line-limit-${UUID.randomUUID()}"
-        val records = List(LINE_INTENT_LIMIT + 1) {
-            val draft = storageFacade.create(command().copy(repositoryKey = repositoryKey), actor)
-            val confirmed = storageFacade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-            storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-        }
+        val records = List(LINE_INTENT_LIMIT + 1) { storageFacade.createPublished(command().copy(repositoryKey = repositoryKey), actor) }
         storageJdbc.update("update change_records set published_at = ? where repository_key = ?",
             Instant.EPOCH.atOffset(ZoneOffset.UTC), repositoryKey)
 
@@ -266,26 +260,10 @@ abstract class ChangeRecordStorageContract {
         assertEquals(ChangeRecordStatus.PUBLISHED, storageFacade.get(requireNotNull(stored.supersededBy)).status)
     }
 
-    private fun published(): ChangeRecord {
-        val draft = storageFacade.create(command(), actor)
-        val confirmed = storageFacade.confirm(
-            ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest),
-            actor,
-        )
-        return storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-    }
+    private fun published(): ChangeRecord = storageFacade.createPublished(command(), actor)
 
-    private fun command() = CreateChangeRecordCommand(
-        requestId = "storage-${UUID.randomUUID()}",
-        repositoryKey = "acme/storage-contract",
-        snapshotDigest = digest,
-        title = "저장 계약 검증",
-        requestSummary = "DB 왕복과 동시 갱신을 확인한다.",
-        decisions = listOf(Decision("저장 계약을 유지한다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/Storage.kt", "Storage", 1, 2, digest)),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-    )
+    private fun command() = createCommand("acme/storage-contract")
+        .copy(codeAnchors = listOf(CodeAnchor("src/Storage.kt", "Storage", 1, 2, digest)))
 
     companion object {
         private val actor = ActorIdentity.github(1, "storage-test")

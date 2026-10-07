@@ -8,16 +8,10 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.issueTestSession
 import io.intenttrace.mcpClient
-import io.intenttrace.record.adapter.`in`.web.CodeAnchorRequest
-import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
-import io.intenttrace.record.adapter.`in`.web.DecisionRequest
 import io.intenttrace.record.application.ChangeRecordFacade
-import io.intenttrace.record.application.ConfirmChangeRecordCommand
-import io.intenttrace.record.application.PublishChangeRecordCommand
-import io.intenttrace.record.application.confirm
-import io.intenttrace.record.application.publish
+import io.intenttrace.record.application.createCommand
+import io.intenttrace.record.application.createPublished
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.structured
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult
 import io.modelcontextprotocol.spec.McpSchema.TextContent
@@ -52,12 +46,7 @@ class AuthenticatedMcpIntegrationTest(
     fun `MCP는 인증된 사용자만 초기화하고 목록 기본값과 전체 revision 계약을 적용한다`() {
         mockMvc.post("/mcp").andExpect { status { isUnauthorized() } }
 
-        val record = facade.create(CreateChangeRecordRequest(
-            requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
-            title = "변경 이력 조회", requestSummary = "선택 버전을 생략하고 이력을 조회한다.",
-            decisions = listOf(DecisionRequest("기록과 이력을 함께 저장한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchorRequest("src/App.kt", null, 1, 2, "b".repeat(64))),
-        ).toCommand(), ActorIdentity.github(42, "lim"))
+        val record = facade.create(createCommand("acme/intent-trace", "변경 이력 조회"), ActorIdentity.github(42, "lim"))
 
         mcpClient(port, userSession).use { mcp ->
             assertEquals("intent-trace", mcp.serverInfo.name())
@@ -115,27 +104,8 @@ class AuthenticatedMcpIntegrationTest(
     fun `MCP 대체 도구는 기존 작성자와 버전 검사를 거쳐 공개 기록을 대체한다`() {
         val actor = ActorIdentity.github(42, "lim")
         val repository = "acme/mcp-supersede-${UUID.randomUUID()}"
-        val digest = "a".repeat(64)
-        fun publishedRecord() = facade.create(
-            CreateChangeRecordRequest(
-                requestId = UUID.randomUUID().toString(),
-                repositoryKey = repository,
-                snapshotDigest = digest,
-                title = "MCP 기록 대체",
-                requestSummary = "공개 기록의 본문을 유지하고 후속 기록을 연결한다.",
-                decisions = listOf(DecisionRequest("기존 대체 서비스를 사용한다.", null, PurposeSource.STATED_BY_USER)),
-                codeAnchors = listOf(CodeAnchorRequest("src/App.kt", "App", 1, 1, digest)),
-            ).toCommand(),
-            actor,
-        ).let { draft ->
-            facade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-        }.let { confirmed ->
-            facade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-        }.let { published ->
-            facade.get(published.id)
-        }
-        val original = publishedRecord()
-        val replacement = publishedRecord()
+        val original = facade.createPublished(createCommand(repository), actor)
+        val replacement = facade.createPublished(createCommand(repository), actor)
 
         fun supersede(session: String): CallToolResult = mcpClient(port, session).use {
             it.call("supersede_change_record", mapOf(

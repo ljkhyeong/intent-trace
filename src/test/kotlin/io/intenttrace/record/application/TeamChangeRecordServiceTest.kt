@@ -10,9 +10,6 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
@@ -35,7 +32,7 @@ class TeamChangeRecordServiceTest {
 
     @Test
     fun `기여자가 만든 초안의 작성자는 요청값이 아니라 인증 사용자다`() {
-        val created = service.create(createCommand("team-create"))
+        val created = service.create(createCommand(repositoryKey))
 
         assertEquals(owner, created.createdBy)
     }
@@ -75,7 +72,7 @@ class TeamChangeRecordServiceTest {
         gateway.role = RepositoryRole.READER
 
         assertFailsWith<RepositoryAccessDeniedException> {
-            service.create(createCommand("reader-create"))
+            service.create(createCommand(repositoryKey))
         }
     }
 
@@ -107,18 +104,6 @@ class TeamChangeRecordServiceTest {
         assertEquals(1, gateway.repositoryRoleCount)
         assertEquals(ChangeRecordStatus.SUPERSEDED, repository.records[current.id]?.status)
     }
-
-    private fun createCommand(requestId: String) = CreateChangeRecordCommand(
-        requestId = requestId,
-        repositoryKey = repositoryKey,
-        snapshotDigest = "a".repeat(64),
-        title = "팀 인증 기록",
-        requestSummary = "인증 사용자를 작성자로 저장한다.",
-        decisions = listOf(Decision("작성자 입력을 받지 않는다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-    )
 
     private fun draft(actor: ActorIdentity) = draftRecord(actor, repositoryKey)
 

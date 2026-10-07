@@ -7,12 +7,12 @@ import io.intenttrace.publication.domain.GitHubCheckRun
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordMarkdownRenderer
-import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
+import io.intenttrace.record.domain.draftRecord
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -38,7 +38,10 @@ import java.util.concurrent.Executors
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 
 class PublishChangeRecordToGitHubTest {
-    private val record = publishedRecord()
+    private val record = draftRecord(ActorIdentity.github(1, "lim")).copy(
+        status = ChangeRecordStatus.PUBLISHED, targetRevision = "b".repeat(40), title = "GitHub PR에 변경 의도 게시",
+        decisions = listOf(Decision("PR HEAD를 확인한다.", null, PurposeSource.STATED_BY_USER)),
+    )
     private val gateway = FakeGitHubGateway(record.targetRevision!!)
     private val publicationRepository = InMemoryGitHubPublicationRepository()
     private val publisher = PublishChangeRecordToGitHub(
@@ -293,27 +296,5 @@ class PublishChangeRecordToGitHubTest {
     companion object {
         private val fixedClock = Clock.fixed(Instant.parse("2026-08-27T15:00:00Z"), ZoneOffset.UTC)
         private val target = GitHubPullRequestTarget("acme", "intent-trace", 12)
-
-        private fun publishedRecord(): ChangeRecord = ChangeRecord(
-            id = UUID.fromString("8c766289-5c2c-4b1f-90e6-376058868c42"),
-            requestId = "github-publication-test",
-            repositoryKey = "acme/intent-trace",
-            targetRevision = "b".repeat(40),
-            snapshotDigest = "a".repeat(64),
-            title = "GitHub PR에 변경 의도 게시",
-            requestSummary = "공개 기록을 같은 커밋의 PR에 연결한다.",
-            status = ChangeRecordStatus.PUBLISHED,
-            createdBy = ActorIdentity.github(1, "lim"),
-            createdAt = Instant.parse("2026-08-27T14:00:00Z"),
-            confirmedAt = Instant.parse("2026-08-27T14:01:00Z"),
-            publishedAt = Instant.parse("2026-08-27T14:02:00Z"),
-            supersededBy = null,
-            version = 2,
-            decisions = listOf(Decision("PR HEAD를 확인한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 4, "d".repeat(64))),
-            verifications = emptyList(),
-            openQuestions = emptyList(),
-            creationDigest = "d".repeat(64),
-        )
     }
 }

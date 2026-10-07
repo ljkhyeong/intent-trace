@@ -32,7 +32,7 @@ class PostgresRepositorySmokeTest(
 ) : ChangeRecordStorageContract() {
     @Test
     fun `PostgreSQL에서 migration과 변경 기록 조회를 확인한다`() {
-        val draft = facade.create(
+        val published = facade.createPublished(
             CreateChangeRecordCommand(
                 requestId = "postgres-smoke",
                 repositoryKey = "Acme/Intent-Trace",
@@ -48,14 +48,7 @@ class PostgresRepositorySmokeTest(
                 openQuestions = emptyList(),
             ),
             actor,
-        )
-        val confirmed = facade.confirm(
-            ConfirmChangeRecordCommand(draft.id, draft.version, revision, digest),
-            actor,
-        )
-        val published = facade.publish(
-            PublishChangeRecordCommand(confirmed.id, confirmed.version, digest),
-            actor,
+            revision,
         )
 
         val found = facade.findIntent("ACME/INTENT-TRACE", revision, "src/App.kt", 5).items

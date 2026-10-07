@@ -95,16 +95,10 @@ class RecordEvidenceIntegrationTest(
     fun `후보 실패와 재조회를 구분하고 공유 Git 객체는 한 번 읽되 인증 실패는 중단한다`() {
         val repo = "acme/partial-history"
         val badRevision = "6".repeat(40)
-        fun create(revision: String) = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), repo, null, "a".repeat(64), "과거 기록", "후보를 확인한다.",
-            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
-        )).let { draft ->
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest))
-            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest))
-        }
-        val good = listOf(create(targetRevision), create(targetRevision))
-        val bad = create(badRevision)
+        fun publish(revision: String) = records.createPublished(
+            createCommand(repo).copy(codeAnchors = listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes)))), revision)
+        val good = listOf(publish(targetRevision), publish(targetRevision))
+        val bad = publish(badRevision)
         gateway.snapshotCalls.clear(); gateway.blobCalls = 0; gateway.ancestryCalls = 0
         gateway.failure = badRevision to EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         try {
@@ -136,17 +130,11 @@ class RecordEvidenceIntegrationTest(
     @Test
     fun `조회 중단 후 같은 기록의 미완료 근거부터 재개하고 다음 후보도 빠짐없이 읽는다`() {
         val repo = "acme/resume-history"
-        fun publish(title: String) = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), repo, nextRevision, "a".repeat(64), title, "중단한 근거부터 이어 읽는다.",
-            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes), CodeSide.BASE),
-                CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
-        )).let {
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(it.id, it.version, targetRevision, it.snapshotDigest))
-            records.publish(PublishChangeRecordCommand(it.id, confirmed.version, it.snapshotDigest))
-        }
-        val older = publish("다음 페이지의 기록")
-        val newer = publish("중단할 기록")
+        fun publish() = records.createPublished(createCommand(repo).copy(baseRevision = nextRevision, codeAnchors = listOf(
+            CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes), CodeSide.BASE),
+            CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes)))), targetRevision)
+        val older = publish()
+        val newer = publish()
         gateway.failure = targetRevision to EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
         val service = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 40))
         try {

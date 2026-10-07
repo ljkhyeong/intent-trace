@@ -12,9 +12,6 @@ import io.intenttrace.identity.application.BrowserReturnPath
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordFacade
-import io.intenttrace.record.application.ConfirmChangeRecordCommand
-import io.intenttrace.record.application.CreateChangeRecordCommand
-import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.*
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.UserSessionManagement
@@ -44,8 +41,6 @@ import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import io.intenttrace.record.application.confirm
-import io.intenttrace.record.application.publish
 import io.intenttrace.githubCallback
 import io.intenttrace.htmlHref
 import io.intenttrace.htmlLink
@@ -177,12 +172,9 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     fun `웹 줄 조회의 부분 실패를 재조회하고 코드 확인과 이력은 접근 범위를 지킨다`() {
         val actor = ActorIdentity.github(42, "lim")
         val repository = "acme/history-browser"
-        fun publish(revision: String, title: String): io.intenttrace.record.domain.ChangeRecord {
-            val draft = records.create(command(title).copy(repositoryKey = repository, snapshotDigest = evidenceSnapshot.digest,
-                codeAnchors = listOf(CodeAnchor("src/App.kt", null, 1, 2, GitEvidenceDigest.sha256(evidenceBytes)))), actor)
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, evidenceSnapshot.digest), actor)
-            return records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, evidenceSnapshot.digest), actor)
-        }
+        fun publish(revision: String, title: String) = records.createPublished(command(title).copy(repositoryKey = repository,
+            snapshotDigest = evidenceSnapshot.digest, codeAnchors = listOf(CodeAnchor("src/App.kt", null, 1, 2, GitEvidenceDigest.sha256(evidenceBytes)))),
+            actor, revision)
         val matched = publish("b".repeat(40), "줄 조회 성공")
         val failed = publish("f".repeat(40), "트리 확인 불가")
         repeat(4) { publish("b".repeat(40), "줄 조회 추가 $it") }
@@ -238,14 +230,12 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `기록 링크는 로그인 후 원래 기록으로 돌아오고 브라우저 세션은 API에서 사용할 수 없다`() {
         val actor = ActorIdentity.github(42, "lim")
-        val draft = records.create(command("브라우저 <script>alert(1)</script>"), actor)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-        records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), actor)
-        val path = "/records/${draft.id}"
+        val record = records.createPublished(command("브라우저 <script>alert(1)</script>"), actor)
+        val path = "/records/${record.id}"
         val anonymous = mvc.get(path).andExpect { status { isOk() } }.andReturn().response.contentAsString
         preview("login", anonymous)
         assertTrue(anonymous.contains("GitHub로 로그인"))
-        assertFalse(anonymous.contains(draft.title))
+        assertFalse(anonymous.contains(record.title))
         val cookie = login(path)
         val displayed = mvc.get(path) { cookie(cookie) }.andExpect {
             status { isOk() }
@@ -256,11 +246,11 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         }.andReturn().response.contentAsString
         preview("record", displayed)
         val search = mvc.get("/records") { cookie(cookie); param("repositoryKey", "acme/browser"); param("q", "브라우저") }.andExpect {
-            status { isOk() }; content { string(containsString(draft.id.toString())) }
+            status { isOk() }; content { string(containsString(record.id.toString())) }
         }.andReturn().response.contentAsString
         preview("search", search)
-        mvc.get("/api/v1/change-records/${draft.id}") { cookie(cookie) }.andExpect { status { isUnauthorized() } }
-        mvc.get("/api/v1/change-records/${draft.id}") { header(HttpHeaders.AUTHORIZATION, "Bearer ${cookie.value}") }.andExpect { status { isUnauthorized() } }
+        mvc.get("/api/v1/change-records/${record.id}") { cookie(cookie) }.andExpect { status { isUnauthorized() } }
+        mvc.get("/api/v1/change-records/${record.id}") { header(HttpHeaders.AUTHORIZATION, "Bearer ${cookie.value}") }.andExpect { status { isUnauthorized() } }
         mvc.post("/records/logout") { cookie(cookie); header(HttpHeaders.ORIGIN, "https://another.example") }.andExpect { status { isForbidden() } }
         mvc.post("/records/logout") { cookie(cookie); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }.andExpect {
             status { isSeeOther() }; header { string(HttpHeaders.LOCATION, "/records") }
@@ -335,10 +325,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     fun `내 공개 기록 바로가기는 로그인 사용자를 필터하고 해제하면 팀 기록을 함께 보여준다`() {
         val actor = ActorIdentity.github(42, "lim")
         val repository = "acme/my-public-records"
-        fun publish(owner: ActorIdentity) = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), owner).let { draft ->
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), owner)
-            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), owner)
-        }
+        fun publish(owner: ActorIdentity) = records.createPublished(command("내 공개 기록 검색").copy(repositoryKey = repository), owner)
         val mine = publish(actor)
         val teammate = publish(ActorIdentity.github(99, "other"))
         val private = records.create(command("내 공개 기록 검색").copy(repositoryKey = repository), actor)
@@ -380,11 +367,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         preview("search-discarded", mine)
         val defaults = mvc.get("/records") { cookie(cookie); param("repositoryKey", repo); param("scope", "MINE") }.andReturn().response.contentAsString
         assertFalse(defaults.contains(discarded.id.toString()))
-        repeat(21) {
-            val d = draft()
-            val c = records.confirm(ConfirmChangeRecordCommand(d.id, d.version, "b".repeat(40), digest), actor)
-            records.publish(PublishChangeRecordCommand(d.id, c.version, digest), actor)
-        }
+        repeat(21) { records.createPublished(command("필터 기록").copy(repositoryKey = repo), actor) }
         val team = mvc.get("/records") {
             cookie(cookie); param("repositoryKey", repo); param("status", "PUBLISHED"); param("path", "src/App.kt"); param("authorId", "42"); param("q", "필터 기록")
         }.andExpect { status { isOk() }; content { string(containsString("다음 기록")) } }.andReturn().response.contentAsString
@@ -439,11 +422,8 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     fun `파일 줄과 PR 조회에서 관련 화면을 거쳐도 원래 조건과 커서로 돌아온다`() {
         val actor = ActorIdentity.github(42, "lim")
         val repository = "acme/browser-navigation"
-        fun publish(title: String, originalId: UUID? = null): io.intenttrace.record.domain.ChangeRecord {
-            val draft = records.create(command(title).copy(repositoryKey = repository, derivedFromRecordId = originalId), actor)
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-            return records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, digest), actor)
-        }
+        fun publish(title: String, originalId: UUID? = null) =
+            records.createPublished(command(title).copy(repositoryKey = repository, derivedFromRecordId = originalId), actor)
         val original = publish("원본 이동 기록")
         val successor = publish("후속 이동 기록", original.id)
         val boundary = publish("이전 페이지 마지막 기록")
@@ -503,9 +483,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `브라우저에서 PR 게시 미확인과 연결 진단 및 원본 비교를 읽고 다른 작성자의 비교는 숨긴다`() {
         val actor = ActorIdentity.github(42, "lim")
-        val originalDraft = records.create(command("<원본 판단>"), actor)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(originalDraft.id, originalDraft.version, "b".repeat(40), digest), actor)
-        val original = records.publish(PublishChangeRecordCommand(originalDraft.id, confirmed.version, digest), actor)
+        val original = records.createPublished(command("<원본 판단>"), actor)
         val successor = records.create(command("<후속 판단>").copy(derivedFromRecordId = original.id,
             decisions = listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.CONFIRMED_AI_SUMMARY)),
             codeAnchors = listOf(CodeAnchor("src/New.kt", null, 2, 3, "d".repeat(64)))), actor)
@@ -654,11 +632,9 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         Files.writeString(directory.resolve("$name.html"), content)
     }
 
-    private fun command(title: String) = CreateChangeRecordCommand(
-        UUID.randomUUID().toString(), "acme/browser", null, digest, title, "브라우저에서 요청과 검증을 읽는다.",
-        listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.STATED_BY_USER)),
-        listOf(CodeAnchor("src/App.kt", null, 1, 2, "c".repeat(64))), emptyList(), emptyList(),
-    )
+    // 후속 기록 비교가 출처 변경만 표시하도록 원본 판단의 내용과 이유를 고정한다.
+    private fun command(title: String) = createCommand("acme/browser", title)
+        .copy(decisions = listOf(Decision("공개 본문을 보존한다.", "작성자가 확인한 내용을 유지한다.", PurposeSource.STATED_BY_USER)))
     companion object {
         private val digest = "a".repeat(64)
         private val evidenceBytes = "first\nsecond\n".toByteArray()

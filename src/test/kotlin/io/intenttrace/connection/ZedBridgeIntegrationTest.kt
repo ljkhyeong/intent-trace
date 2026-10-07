@@ -12,13 +12,12 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.ChangeRecordFacade
-import io.intenttrace.record.application.CreateChangeRecordCommand
+import io.intenttrace.record.application.createCommand
+import io.intenttrace.record.application.createPublished
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -29,7 +28,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -37,8 +35,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.issueTestSession
-import io.intenttrace.record.application.PublishChangeRecordCommand
-import io.intenttrace.record.application.publish
 import org.junit.jupiter.api.io.TempDir
 
 @SpringBootTest(
@@ -146,11 +142,7 @@ class ZedBridgeIntegrationTest(
         ).mapIndexed { index, (reason, message) ->
             val revision = (index + 1).toString().repeat(40)
             Mockito.`when`(evidence.snapshot(repository, revision)).thenThrow(EvidenceUnavailableException(reason))
-            val draft = records.create(CreateChangeRecordCommand(
-                UUID.randomUUID().toString(), repository.key, null, "a".repeat(64), "코드 확인 불가", "확인 불가 사유를 구분한다.",
-                listOf(Decision("원격 코드 확인", null, PurposeSource.STATED_BY_USER)),
-                listOf(CodeAnchor("sample.kt", null, 1, 1, "b".repeat(64))), emptyList(), emptyList(),
-            ), actor)
+            val draft = records.create(createCommand(repository.key), actor)
             records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest), actor)
             "['${draft.id}', '$revision', '${reason.name}', '$message']"
         }
@@ -257,13 +249,8 @@ class ZedBridgeIntegrationTest(
         git("add", ".")
         git("commit", "-q", "-m", "hover")
         val actor = ActorIdentity.github(42, "lim")
-        val draft = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), "acme/intent-trace", null, "a".repeat(64), "Zed hover 기록", "편집기에서 현재 줄 기록을 본다.",
-            listOf(Decision("언어 서버 hover를 쓴다.", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("Hover.kt", null, 2, 2, "b".repeat(64))), emptyList(), emptyList(),
-        ), actor)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, git("rev-parse", "HEAD"), draft.snapshotDigest), actor)
-        records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest), actor)
+        val record = records.createPublished(createCommand("acme/intent-trace", "Zed hover 기록")
+            .copy(codeAnchors = listOf(CodeAnchor("Hover.kt", null, 2, 2, "b".repeat(64)))), actor, git("rev-parse", "HEAD"))
         val script = """
             import assert from 'node:assert/strict';
             import { spawn } from 'node:child_process';
@@ -280,7 +267,7 @@ class ZedBridgeIntegrationTest(
                 client.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId: 'kotlin', version: 1, text: '' } });
                 const found = await hover(1);
                 assert.match(found.contents.value, /Zed hover 기록/);
-                assert.ok(found.contents.value.includes('http://127.0.0.1:$port/records/${draft.id}'), found.contents.value);
+                assert.ok(found.contents.value.includes('http://127.0.0.1:$port/records/${record.id}'), found.contents.value);
                 assert.equal(await hover(0), null);
                 await client.sendRequest('shutdown');
                 client.sendNotification('exit');

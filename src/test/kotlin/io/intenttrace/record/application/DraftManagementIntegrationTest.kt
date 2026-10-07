@@ -7,7 +7,6 @@ import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
@@ -62,9 +61,7 @@ class DraftManagementIntegrationTest(
         record = records.revise(record.id, record.version, input.copy(title = "수정한 초안"))
         record = records.confirm(ConfirmChangeRecordCommand(record.id, record.version, revision, digest))
         record = records.publish(PublishChangeRecordCommand(record.id, record.version, digest))
-        var next = records.create(command("replacement-${UUID.randomUUID()}"))
-        next = records.confirm(ConfirmChangeRecordCommand(next.id, next.version, revision, digest))
-        next = records.publish(PublishChangeRecordCommand(next.id, next.version, digest))
+        val next = records.createPublished(command("replacement-${UUID.randomUUID()}"), revision)
         record = records.supersede(SupersedeChangeRecordCommand(record.id, record.version, next.id))
         assertEquals(record.id, records.create(input).id)
         assertFailsWith<ConcurrentChangeRecordUpdateException> { records.supersede(SupersedeChangeRecordCommand(record.id, 5, next.id)) }
@@ -216,10 +213,6 @@ class DraftManagementIntegrationTest(
         private val other = ActorIdentity.github(2, "other")
         private val digest = "a".repeat(64)
         private val revision = "b".repeat(40)
-        private fun command(id: String, repo: String = "acme/drafts") = CreateChangeRecordCommand(
-            id, repo, null, digest, "초안 수정", "작성자 피드백을 반영한다.",
-            listOf(Decision("공개 본문은 보존한다.", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("src/App.kt", null, 1, 2, "c".repeat(64))), emptyList(), emptyList(),
-        )
+        private fun command(id: String, repo: String = "acme/drafts") = createCommand(repo, requestId = id)
     }
 }
