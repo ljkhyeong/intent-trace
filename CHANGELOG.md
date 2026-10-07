@@ -53,6 +53,8 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 - Zed hover가 4M 문자를 넘는 줄 조회 응답도 30초 응답 없음 안내 대신 최근 공개 기록 3건으로 표시
 - Zed 실행 도구를 `clients/zed/zed-with-intent-trace.py`로 이동. 저장소에서는 `node clients/zed/intent-trace.mjs launch .`를 사용하며 설치 패키지 구성은 같음
 - `scripts/validate-release-version.py --release-tag v<버전>`이 tag 확인 뒤 `build/release`에 첨부 파일 네 개를 바로 준비. `--prepare-directory` 제거
+- 웹 `POST /records/logout`에 `;` 경로 매개변수가 붙어도 세션 확인·GitHub 호출 없이 로그아웃하고 cookie를 지움
+- 릴리스 태그 푸시가 일반 CI(`verify.yml`)를 먼저 모두 통과해야 실행 JAR·IntelliJ ZIP을 발행. `contents: write` 권한은 발행 job에만 부여
 - REST·MCP가 `its_` 세션만 받도록 `ghu_` 직접 Bearer 인증을 제거하고, 중복된 `DELETE /api/v1/session`을 `DELETE /api/v1/me/sessions/current`로 일원화. 세션 목록 응답의 `authentication` 필드 제거. IntelliJ 세션 삭제도 같은 API 사용
 - 운영 전 정리로 Flyway V1~V11을 기준 스키마 `V1__baseline.sql` 하나로 통합. 이전 버전으로 만든 로컬 H2·PostgreSQL DB는 지우고 새로 만든다. 작성자 로그인 열은 `created_by_login`으로 바꾸고 최초 내용 해시를 필수로 저장
 - 목록 조회의 페이지 번호 방식(`MY_DRAFTS`·`page`·`size`)을 제거하고 커서 조회(`items`·`nextCursor`)만 제공
