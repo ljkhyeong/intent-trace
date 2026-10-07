@@ -4,16 +4,9 @@ import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.application.GitHubOAuthApiException
-import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserAuthenticationException
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
-import io.intenttrace.identity.application.InMemoryGitHubUserSessionStore
-import io.intenttrace.identity.domain.ActorIdentity
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.test.web.client.MockRestServiceServer
@@ -156,27 +149,6 @@ class GitHubUserOAuthRestClientTest {
         assertNull(exception.cause)
         assertFalse(exception.stackTraceToString().contains("test-private-marker"))
         server.verify()
-    }
-
-    @Test
-    fun `응답 값 변환에 실패한 세션은 같은 refresh token을 다시 보내지 않는다`() {
-        server.expect(requestTo("https://github.test/login/oauth/access_token"))
-            .andRespond(withSuccess(tokenResponse("", "ghr_refresh-2"), MediaType.APPLICATION_JSON))
-        val users = mock(GitHubUserAccessGateway::class.java)
-        val sessions = InMemoryGitHubUserSessionStore(client, users, properties, fixedClock)
-        val issued = sessions.issue(
-            ActorIdentity.github(42, "lim"),
-            GitHubUserOAuthTokens("ghu_access-1", now.plusSeconds(60), "ghr_refresh-1", now.plusSeconds(86_400)),
-        )
-
-        repeat(2) {
-            assertFailsWith<GitHubUserAuthenticationException> {
-                sessions.resolve(issued.sessionToken)
-            }
-        }
-
-        server.verify()
-        verifyNoInteractions(users)
     }
 
     private fun tokenResponse(

@@ -109,28 +109,13 @@ class GitHubOAuthSessionIntegrationTest(
         mockMvc.delete("/api/v1/me/sessions/current") {
             header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
         }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
-        mockMvc.get("/api/v1/me/sessions") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect { status { isUnauthorized() } }
-    }
-
-    @Test
-    fun `현재 로컬 session을 폐기하면 이후 요청은 인증되지 않고 GitHub 토큰 직접 인증은 받지 않는다`() {
-        val sessionToken = issueSession()
-
-        mockMvc.delete("/api/v1/me/sessions/current") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
-
+        // 폐기한 세션과 GitHub 토큰 직접 인증은 모두 거부한다.
         for (token in listOf(sessionToken, "ghu_direct-access")) {
             mockMvc.get("/api/v1/me/sessions") {
                 header(HttpHeaders.AUTHORIZATION, "Bearer $token")
             }.andExpect { status { isUnauthorized() } }
         }
     }
-
-    private fun issueSession(): String = Regex("its_[A-Za-z0-9_-]{40,}")
-        .find(mockMvc.githubCallback(mockMvc.startGitHubLogin()).andReturn().response.contentAsString)!!.value
 
     @Test
     fun `callback state가 다르거나 재사용되면 session을 발급하지 않는다`() {
