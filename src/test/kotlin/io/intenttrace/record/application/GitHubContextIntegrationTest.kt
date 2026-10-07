@@ -30,7 +30,7 @@ import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
 import io.intenttrace.runZedNode
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["server.shutdown=immediate"])
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val sessions: GitHubUserSessionStore,
     @Autowired private val gateway: FakeContextGateway, @LocalServerPort private val port: Int) {

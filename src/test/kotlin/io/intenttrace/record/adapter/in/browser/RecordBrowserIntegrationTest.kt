@@ -15,7 +15,6 @@ import io.intenttrace.record.application.ChangeRecordFacade
 import io.intenttrace.record.application.*
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.UserSessionManagement
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.domain.GitHubRepository
 import java.time.Instant
 import io.intenttrace.record.domain.CodeAnchor
@@ -133,12 +132,10 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
     @Test
     fun `웹 연결 목록은 본인 연결만 보이고 동일 출처에서 선택 및 전체 종료한다`() {
         val actor = ActorIdentity.github(42, "lim")
-        val now = Instant.now()
-        fun issue(owner: ActorIdentity) = sessionStore.issue(owner, GitHubUserOAuthTokens("ghu_browser-session", now.plusSeconds(7200), "ghr_browser-session", now.plusSeconds(14400)))
-        val client = issue(actor)
-        val clientId = sessionStore.resolve(client.sessionToken).sessionId
+        val client = sessionStore.issueTestSession(actor, "ghu_browser-session")
+        val clientId = sessionStore.resolve(client).sessionId
         val other = ActorIdentity.github(99, "other")
-        issue(other)
+        sessionStore.issueTestSession(other, "ghu_browser-session")
         val otherId = sessionManagement.list(other.subject).first().id
         val cookie = login("/records/sessions")
         val currentId = sessionStore.resolve(cookie.value).sessionId
@@ -148,7 +145,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         }.andReturn().response.contentAsString
         preview("sessions", page)
         assertFalse(page.contains(otherId.toString()))
-        assertFalse(page.contains(cookie.value)); assertFalse(page.contains(client.sessionToken)); assertFalse(page.contains("ghu_"))
+        assertFalse(page.contains(cookie.value)); assertFalse(page.contains(client)); assertFalse(page.contains("ghu_"))
         mvc.post("/records/sessions/$clientId/revoke") { cookie(cookie) }.andExpect { status { isForbidden() } }
         mvc.post("/records/sessions/$clientId/revoke") { cookie(cookie); header(HttpHeaders.ORIGIN, "https://another.example") }.andExpect { status { isForbidden() } }
         assertTrue(sessionManagement.list(actor.subject).any { it.id == clientId })
@@ -163,7 +160,7 @@ class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
         }
         val renewed = login("/records/sessions")
         val anotherBrowser = login("/records/sessions")
-        issue(actor)
+        sessionStore.issueTestSession(actor, "ghu_browser-session")
         mvc.post("/records/sessions/revoke-all") { cookie(renewed); header(HttpHeaders.ORIGIN, "http://127.0.0.1:8080") }.andExpect { status { isSeeOther() } }
         assertTrue(sessionManagement.list(actor.subject).isEmpty())
         assertTrue(sessionManagement.list(other.subject).isNotEmpty())

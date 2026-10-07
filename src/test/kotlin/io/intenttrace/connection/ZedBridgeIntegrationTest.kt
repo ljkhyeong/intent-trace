@@ -38,7 +38,6 @@ import org.junit.jupiter.api.io.TempDir
 @SpringBootTest(
     classes = [AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["server.shutdown=immediate"],
 )
 class ZedBridgeIntegrationTest(
     @Autowired private val sessions: GitHubUserSessionStore,

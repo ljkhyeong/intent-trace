@@ -54,16 +54,14 @@ class RecordEvidenceIntegrationTest(
             listOf(VerificationRun("test", 0, Instant.EPOCH, Instant.EPOCH, snapshot, "d".repeat(64), "로컬 수집", VerificationSource.LOCAL_RUNNER_REPORTED)),
             emptyList(),
         )
-        val draft = records.create(command)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, targetRevision, snapshot))
-        val published = records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, snapshot))
-        assertEquals(CodeSide.BASE, records.get(draft.id).codeAnchors.first().side)
-        assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(draft.id).verifications.first().source)
+        val published = records.createPublished(command, targetRevision)
+        assertEquals(CodeSide.BASE, records.get(published.id).codeAnchors.first().side)
+        assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(published.id).verifications.first().source)
         assertEquals(listOf(published.id), records.findIntent(repository.key, baseRevision, "old.txt", 1).items.map { it.id })
         assertFalse(ChangeRecordResponse.from(published, baseRevision).verifications.single().current)
         assertTrue(ChangeRecordResponse.from(published, targetRevision).verifications.single().current)
         assertTrue(records.findIntent(repository.key, targetRevision, "old.txt", 1).items.isEmpty())
-        val checked = evidence.check(draft.id)
+        val checked = evidence.check(published.id)
         assertTrue(checked.codeVerified)
         assertFalse(checked.serverExecutionVerified)
         val related = history.find(repository.key, nextRevision, "new.txt", 1).items

@@ -41,7 +41,6 @@ import io.intenttrace.startGitHubLogin
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "server.shutdown=immediate",
         "intent-trace.github.app.client-id=client-id",
         "intent-trace.github.user-authorization.client-secret=client-secret",
     ],
