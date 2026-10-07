@@ -39,6 +39,20 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 변경
 
+- 웹 기록 화면과 GitHub 로그인 결과 화면을 문자열 조립 대신 Thymeleaf 템플릿으로 그려 모든 값을 기본 이스케이프로 출력. 세션 확인·출처 검사·보안 헤더는 Spring MVC 인터셉터가 처리하고, 다른 출처의 POST는 세션 확인 전에 403으로 거부. 로그인 결과 화면도 기록 화면의 틀과 CSP(`style-src 'self'`)를 쓰고 `Pragma` 헤더 제거
+- 웹 조회 입력의 앞뒤 공백을 모든 항목에서 지우고 공백만 입력한 값은 입력하지 않은 것으로 처리. 로그인하지 않은 요청은 주소의 기록 ID·조회 값 형식과 관계없이 로그인 안내를 먼저 표시
+- REST·MCP 인증 필터 단계의 401·429·502 응답을 컨트롤러와 같은 ProblemDetail로 통일. 인증 단계 429에도 `code=GITHUB_RATE_LIMITED`·`retryAfterSeconds`가 붙고 502 title은 `GitHub 사용자 권한 조회 실패`. 상태 코드와 `Retry-After`는 같음
+- REST `POST .../github-pull-request`·`.../supersession`과 MCP `publish_change_record_to_github_pr`·`sync_superseded_record_to_github_pr` 응답을 `get_github_publication_status`의 `publication`과 같은 형식으로 통일. 최상위 `repository`·`pullNumber` 대신 `target`(`owner`·`repository`·`pullNumber`·`repositoryKey`) 반환
+- MCP 기록 도구의 입력 검증을 Spring `@Validated` 메서드 검증으로 변경. 검증 오류의 필드 경로 앞에 도구 메서드·인자 이름이 붙음(예: `create.request.decisions[0].summary`)
+- PR 기록 목록이 목록 크기·커서·저장소 읽기 권한을 GitHub PR 조회 전에 한 번만 확인. 잘못된 목록 크기 문구는 `목록 크기는 1~100이어야 합니다.`
+- 운영 전 기준 스키마 `V1__baseline.sql`을 다시 수정. `github_publications`는 `repository_key` 한 열을 쓰고 기록 하위 테이블 4개는 미사용 `id` 없이 `(record_id, sequence_number)`를 기본 키로 사용. 이전에 만든 로컬 H2 `.intent-trace/data`와 Compose·k3s PostgreSQL 볼륨은 지우고 새로 만든다
+- GitHub 호출 지표 `intenttrace.github.request`를 Spring 기본 `http.client.requests`로 대체. `uri` label은 저장소·커밋·번호를 뺀 URI 템플릿이고 호출 제한은 `exception=GitHubRateLimitException`으로 구분
+- 기한이 있는 코드 조회도 `spring.http.clients.*`(연결·읽기 시간, redirect)를 따르고, `intent-trace.history.*`는 `@ConfigurationProperties`로 바인딩해 잘못된 `time-limit`을 한국어 문구로 거부
+- IntelliJ 결과·기록함·상세·이전 커밋 창을 Kotlin UI DSL로 구성하고 기록 목록·콤보를 HTML을 해석하지 않는 렌더러로 표시. 표시 문구가 같은 이전 커밋 결과·현재 줄 기록도 선택한 항목을 열도록 수정
+- IntelliJ 설정의 `로그인 확인`에서 세션이 없으면 기록 조회와 같은 세션 연결 안내를 표시하고, 형식이 틀린 토큰은 서버 요청·PasswordSafe 변경 없이 거부
+- Zed hover가 4M 문자를 넘는 줄 조회 응답도 30초 응답 없음 안내 대신 최근 공개 기록 3건으로 표시
+- Zed 실행 도구를 `clients/zed/zed-with-intent-trace.py`로 이동. 저장소에서는 `node clients/zed/intent-trace.mjs launch .`를 사용하며 설치 패키지 구성은 같음
+- `scripts/validate-release-version.py --release-tag v<버전>`이 tag 확인 뒤 `build/release`에 첨부 파일 네 개를 바로 준비. `--prepare-directory` 제거
 - REST·MCP가 `its_` 세션만 받도록 `ghu_` 직접 Bearer 인증을 제거하고, 중복된 `DELETE /api/v1/session`을 `DELETE /api/v1/me/sessions/current`로 일원화. 세션 목록 응답의 `authentication` 필드 제거. IntelliJ 세션 삭제도 같은 API 사용
 - 운영 전 정리로 Flyway V1~V11을 기준 스키마 `V1__baseline.sql` 하나로 통합. 이전 버전으로 만든 로컬 H2·PostgreSQL DB는 지우고 새로 만든다. 작성자 로그인 열은 `created_by_login`으로 바꾸고 최초 내용 해시를 필수로 저장
 - 목록 조회의 페이지 번호 방식(`MY_DRAFTS`·`page`·`size`)을 제거하고 커서 조회(`items`·`nextCursor`)만 제공
@@ -128,11 +142,16 @@ IntentTrace의 사용자와 운영자에게 영향을 주는 변경을 기록합
 
 ### 제거
 
+- 문서화되지 않은 설정 `intent-trace.github.api-version`·`intent-trace.github.app.refresh-before-expiry`·`intent-trace.github.user-authorization.state-ttl`·`intent-trace.github.user-authorization.refresh-before-expiry`. ADR에 정한 값(API 2026-03-10, state 10분, 만료 5분 전 갱신)을 상수로 사용
+- 사용 버전의 기본값과 같은 설정(`server.port`, H2 console 원격 허용, MCP type, health 상세, team 프로필의 graceful 종료·풀 크기·probe). `spring.ai.mcp.server.protocol=STREAMABLE`은 유지
+- 세션 저장소의 중복 폐기 상태, 구분하지 않는 refresh 거부 예외, 실패할 수 없는 PKCE 재검증, 기록 이력 포트의 `append`, 게시기의 도달할 수 없는 검증과 Zed·배포 스크립트의 실행되지 않는 분기
 - 사용되지 않는 이전 목록 응답 DTO·변환 함수와 미사용 import 정리
 - 코드 변경마다 IntentTrace 기록을 제안하던 세션 시작 훅과 해당 훅 전용 검사
 
 ### 보안
 
+- `/api;x/v1/...`, `/%61pi/v1/...`처럼 경로 매개변수·인코딩을 붙인 REST 요청이 인증 필터를 건너뛰던 문제 수정. 적용 경로를 서블릿 url pattern으로 판정
+- 코드 경로 검사가 줄바꿈을 섞은 `C:/` 드라이브 경로와 제어 문자가 든 경로를 통과시키던 문제 수정
 - 기록 ID로 읽는 REST·MCP 조회가 403 응답에 권한 없는 저장소 이름과 다른 작성자 비공개 기록의 존재를 드러내던 문제 수정. 웹 화면과 같은 404로 응답
 - 이스케이프된 따옴표 뒤의 비밀값이 제거되지 않고 남던 문제 수정
 - IntelliJ에서 서버 주소를 바꿔도 다른 서버의 환경 변수 세션이 전송되지 않도록 사용 범위 제한
