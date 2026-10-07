@@ -968,4 +968,5 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - `./gradlew test bootJar`에서 서버 264개·ArchUnit 5개가 통과하고 JAR을 빌드했다(2026-10-07 16:17 KST, `46c8193`). `scripts/verify-postgres.sh`에서 PostgreSQL 9개가 통과했고 백업·복구 후 기록 39건·변경 이력 106건이 일치했다(16:17 KST). 이 실행으로 `--wait` 대기와 `doNotTrackState`도 확인했다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 62개와 ZIP 구조 검사가 통과했다(16:17 KST). `scripts/validate-plugin.sh`, `python3 -m unittest discover -s scripts -p 'test_*.py'`(16개), `scripts/validate-compose.py`도 통과했다.
 - 로그아웃 경로 매개변수 테스트와 이스케이프된 경로 테스트는 반영 전 코드에서 먼저 실패하는 것을 확인했다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했고 diff를 검토했다. GitHub Actions의 `workflow_call` 재사용과 job 권한은 로컬에서 실행할 수 없어 다음 `v*.*.*` 태그 푸시에서 확인한다. Zed 코드는 안내 문구만 바뀌어 Node 테스트를 반복하지 않았다.
+- PR #29 리뷰에 따라 템플릿의 `[[...]]` 인라인 출력 18곳을 `<th:block th:text>`로 바꾸고 금지 구문 테스트에 `[[`·`th:inline`을 더했다. 출력 HTML은 같다. `./gradlew test`에서 서버 264개·ArchUnit 5개가 통과했다(16:56 KST).
 - 실제 IntelliJ 창의 포커스·Enter 동작과 배치, GitHub 게시, 배포는 하지 않았다. 기존 미추적 PNG를 보존했다.
