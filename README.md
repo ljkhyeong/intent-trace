@@ -155,7 +155,7 @@ bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
 
 `codex mcp list`로 연결 대상을 확인합니다. 플러그인이 제공한 로컬 `intent-trace` 서버와 팀 서버를 동시에 쓸 필요가 없으면 Codex의 MCP 서버 설정에서 로컬 서버를 비활성화합니다. 자세한 설정 형식은 [Codex MCP 문서](https://learn.chatgpt.com/docs/extend/mcp)를 따릅니다.
 
-IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로세스 메모리에만 보관합니다. 액세스 토큰 만료가 가까우면 새 토큰 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` 사용자 액세스 토큰을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
+IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로세스 메모리에만 보관합니다. 액세스 토큰 만료가 가까우면 새 토큰 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다.
 
 토큰 갱신에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내합니다. GitHub 사용자 조회의 일시 장애는 `502`를 반환하며 세션을 유지합니다. 로그인 검증·갱신·대기 요청 제한은 [세션 관리 규칙](docs/ADR-0005-github-web-oauth-memory-session.md)을 참고하세요.
 
