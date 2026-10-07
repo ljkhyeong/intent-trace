@@ -1,11 +1,10 @@
 package io.intenttrace.identity.application
 
 import io.intenttrace.MutableClock
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.config.GitHubUserAuthorizationProperties
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -25,11 +24,9 @@ class GitHubOAuthFlowServiceTest {
         val oauth = FakeOAuthGateway(clock)
         val flow = GitHubOAuthFlowService(
             oauthGateway = oauth,
-            userAccessGateway = FakeUserAccessGateway,
+            userAccessGateway = TestGitHubUserAccessGateway(),
             sessions = FakeSessionStore,
-            properties = GitHubProperties(
-                userAuthorization = GitHubUserAuthorizationProperties(stateTtl = Duration.ofMinutes(10)),
-            ),
+            properties = GitHubProperties(),
             clock = clock,
         )
         val returnTo = if (browser) "/records?scope=MINE" else null
@@ -57,13 +54,10 @@ class GitHubOAuthFlowServiceTest {
         val oauth = FakeOAuthGateway(clock)
         val flow = GitHubOAuthFlowService(
             oauthGateway = oauth,
-            userAccessGateway = FakeUserAccessGateway,
+            userAccessGateway = TestGitHubUserAccessGateway(),
             sessions = FakeSessionStore,
             properties = GitHubProperties(
-                userAuthorization = GitHubUserAuthorizationProperties(
-                    stateTtl = Duration.ofMinutes(10),
-                    maxPendingStates = 2,
-                ),
+                userAuthorization = GitHubUserAuthorizationProperties(maxPendingStates = 2),
             ),
             clock = clock,
         )
@@ -93,17 +87,6 @@ class GitHubOAuthFlowServiceTest {
         }
 
         override fun refresh(refreshToken: String): GitHubUserOAuthTokens = error("사용하지 않는 테스트 경로")
-    }
-
-    private object FakeUserAccessGateway : GitHubUserAccessGateway {
-        override fun authenticate(accessToken: String): ActorIdentity = ActorIdentity.github(42, "lim")
-
-        override fun repositoryRole(
-            accessToken: String,
-            actor: ActorIdentity,
-            repository: GitHubRepository,
-        ): RepositoryRole? =
-            error("사용하지 않는 테스트 경로")
     }
 
     private object FakeSessionStore : GitHubUserSessionStore {

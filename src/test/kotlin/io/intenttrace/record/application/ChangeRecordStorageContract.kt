@@ -10,8 +10,6 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import io.intenttrace.record.domain.TEAM_VISIBLE_STATUSES
 import io.intenttrace.record.domain.VerificationRun
 import org.junit.jupiter.api.Test
@@ -106,21 +104,31 @@ abstract class ChangeRecordStorageContract {
         assertEquals(listOf(newer, older), publications.findByRecord(record.id, 10))
         assertEquals(listOf(newer), publications.findByRecord(record.id, 1))
         val targets = tracking.latestByTarget(record.id, 10)
-        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.target.pullNumber to it.latest.id })
+        assertEquals(listOf(83 to latest83, 81 to latest81), targets.map { it.pullNumber to it.latest.id })
         assertEquals(listOf(false, true), targets.map { it.supersessionNoticed })
-        assertEquals(target.repositoryKey, targets.first().target.repositoryKey)
+        assertEquals(target.repositoryKey, targets.first().repositoryKey)
         assertEquals(1, tracking.latestByTarget(record.id, 1).size)
         assertTrue(publications.findByRecord(UUID.randomUUID(), 10).isEmpty())
     }
 
     @Test
+    fun `같은 기록과 PR의 게시 이력은 한 행을 갱신한다`() {
+        val record = published()
+        val target = GitHubPullRequestTarget("ACME", "STORAGE-UPSERT", 12)
+        val first = publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!,
+            42, "https://github.test/check-runs/42", digest, Instant.EPOCH))
+        val updated = publications.save(first.copy(id = UUID.randomUUID(), target = target, checkRunId = 43,
+            checkRunUrl = "https://github.test/check-runs/43", publishedAt = Instant.EPOCH.plusSeconds(60)))
+
+        assertEquals(first.id, updated.id)
+        assertEquals(43L, updated.checkRunId)
+        assertEquals(listOf(updated), publications.findByRecord(record.id, 10))
+    }
+
+    @Test
     fun `현재 줄 조회는 최근 공개 순 상한까지 반환하고 같은 공개 시각은 ID 순서로 고정한다`() {
         val repositoryKey = "acme/line-limit-${UUID.randomUUID()}"
-        val records = List(LINE_INTENT_LIMIT + 1) {
-            val draft = storageFacade.create(command().copy(repositoryKey = repositoryKey), actor)
-            val confirmed = storageFacade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-            storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-        }
+        val records = List(LINE_INTENT_LIMIT + 1) { storageFacade.createPublished(command().copy(repositoryKey = repositoryKey), actor) }
         storageJdbc.update("update change_records set published_at = ? where repository_key = ?",
             Instant.EPOCH.atOffset(ZoneOffset.UTC), repositoryKey)
 
@@ -210,12 +218,16 @@ abstract class ChangeRecordStorageContract {
     @Test
     fun `스키마는 대문자 저장소 키와 정규화되지 않은 코드 경로를 거부한다`() {
         val record = published()
-        tracking.start(record.id, GitHubPullRequestTarget("acme", "storage-contract", 1), PublicationOperation.PUBLISH)
+        val target = GitHubPullRequestTarget("acme", "storage-contract", 1)
+        tracking.start(record.id, target, PublicationOperation.PUBLISH)
+        publications.save(GitHubPublication(UUID.randomUUID(), record.id, target, record.targetRevision!!, 1,
+            "https://github.test/check-runs/1", digest, Instant.EPOCH))
         for (sql in listOf(
             "update change_records set repository_key = 'ACME/STORAGE' where id = ?",
             "update code_anchors set relative_path = './src/Storage.kt' where record_id = ?",
             "update code_anchors set relative_path = 'src//Storage.kt' where record_id = ?",
             "update github_publication_attempts set repository_key = 'ACME/STORAGE' where change_record_id = ?",
+            "update github_publications set repository_key = 'ACME/STORAGE' where change_record_id = ?",
         )) {
             assertFailsWith<DataIntegrityViolationException>(sql) { storageJdbc.update(sql, record.id.toString()) }
         }
@@ -248,26 +260,10 @@ abstract class ChangeRecordStorageContract {
         assertEquals(ChangeRecordStatus.PUBLISHED, storageFacade.get(requireNotNull(stored.supersededBy)).status)
     }
 
-    private fun published(): ChangeRecord {
-        val draft = storageFacade.create(command(), actor)
-        val confirmed = storageFacade.confirm(
-            ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest),
-            actor,
-        )
-        return storageFacade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-    }
+    private fun published(): ChangeRecord = storageFacade.createPublished(command(), actor)
 
-    private fun command() = CreateChangeRecordCommand(
-        requestId = "storage-${UUID.randomUUID()}",
-        repositoryKey = "acme/storage-contract",
-        snapshotDigest = digest,
-        title = "저장 계약 검증",
-        requestSummary = "DB 왕복과 동시 갱신을 확인한다.",
-        decisions = listOf(Decision("저장 계약을 유지한다.", null, PurposeSource.STATED_BY_USER)),
-        codeAnchors = listOf(CodeAnchor("src/Storage.kt", "Storage", 1, 2, digest)),
-        verifications = emptyList(),
-        openQuestions = emptyList(),
-    )
+    private fun command() = createCommand("acme/storage-contract")
+        .copy(codeAnchors = listOf(CodeAnchor("src/Storage.kt", "Storage", 1, 2, digest)))
 
     companion object {
         private val actor = ActorIdentity.github(1, "storage-test")

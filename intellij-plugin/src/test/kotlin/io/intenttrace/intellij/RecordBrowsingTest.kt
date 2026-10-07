@@ -1,13 +1,10 @@
 package io.intenttrace.intellij
 
-import com.sun.net.httpserver.HttpServer
-import java.net.InetSocketAddress
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class RecordBrowsingTest {
@@ -15,23 +12,16 @@ class RecordBrowsingTest {
     fun `기록함과 상세 조회는 같은 세션으로 호출하고 선택 조건을 전송한다`() {
         val requests = mutableListOf<String>()
         val tokens = mutableListOf<String>()
-        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-            createContext("/api/v1/change-records") { exchange ->
+        withHttpServer { http, endpoint ->
+            http.createContext("/api/v1/change-records") { exchange ->
                 requests.add(exchange.requestURI.toString())
                 tokens.add(exchange.requestHeaders.getFirst("Authorization"))
-                val body = if (exchange.requestURI.path.endsWith(id)) recordJson else """
+                exchange.respond(200, if (exchange.requestURI.path.endsWith(id)) recordJson else """
                     {"items":[{"id":"$id","title":"비공개 기록","status":"DRAFT","targetRevision":null,
-                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"page":null,"size":20,"hasNext":true,"nextCursor":"next-page"}
-                """.trimIndent()
-                val bytes = body.toByteArray()
-                exchange.sendResponseHeaders(200, bytes.size.toLong())
-                exchange.responseBody.use { it.write(bytes) }
+                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"nextCursor":"next-page"}
+                """.trimIndent())
             }
-            start()
-        }
-        try {
             val api = IntentTraceApiClient()
-            val endpoint = IntentTraceServer.parse("http://127.0.0.1:${server.address.port}")
             val query = RecordListQuery(
                 "team/repository", RecordListScope.MINE, "src/한 글#?.kt", "DRAFT",
                 cursor = "previous+page=", keyword = "세션 & 100%_!",
@@ -48,18 +38,14 @@ class RecordBrowsingTest {
             assertContains(requests.first(), "scope=MINE")
             assertContains(requests.first(), "path=src%2F%ED%95%9C+%EA%B8%80%23%3F.kt&status=DRAFT")
             assertContains(requests.first(), "cursor=previous%2Bpage%3D&q=%EC%84%B8%EC%85%98+%26+100%25_%21&limit=20")
-            assertFalse(requests.first().contains("&page="))
-            assertFalse(requests.first().contains("&size="))
             assertEquals("/api/v1/change-records/$id", requests.last())
             assertEquals(listOf("Bearer $token", "Bearer $token"), tokens)
-        } finally {
-            server.stop(0)
         }
     }
 
     @Test
     fun `과거 기록은 전체 커밋과 당시 스냅샷을 표시하고 코드 링크를 인코딩한다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         val output = IntentTraceTextRenderer.renderHistory(record)
         assertNull(record.verifications.single().source)
         assertContains(output, "출처: 미확인")
@@ -82,7 +68,7 @@ class RecordBrowsingTest {
 
     @Test
     fun `변경 전 코드는 base 커밋을 열고 변경 후 코드는 target 커밋을 연다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         val before = GitHubEvidenceLinks.code(record, record.codeAnchors[0])
         val after = GitHubEvidenceLinks.code(record, record.codeAnchors[1])
         assertEquals("/team/repository/blob/$baseRevision/src/이전 #?.kt", before.path)
@@ -94,7 +80,7 @@ class RecordBrowsingTest {
 
     @Test
     fun `브라우저 링크에 브랜치명이나 경로 탈출을 넣지 않는다`() {
-        val record = IntentTraceResponseParser.parseRecord(recordJson)
+        val record = decodeResponse<ChangeIntentRecord>(recordJson)
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.commit(record.copy(targetRevision = "main")) }
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(record.copy(baseRevision = "main"), record.codeAnchors[0]) }
         assertFailsWith<IntentTraceUsageException> { GitHubEvidenceLinks.code(record.copy(baseRevision = null), record.codeAnchors[0]) }

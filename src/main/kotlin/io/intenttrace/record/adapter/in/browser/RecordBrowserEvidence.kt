@@ -1,96 +1,93 @@
 package io.intenttrace.record.adapter.`in`.browser
 
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.AnchorCheckStatus
 import io.intenttrace.record.application.ChangeIntentHistory
 import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.application.HistoryStopReason
 import io.intenttrace.record.application.IntentMatch
 import io.intenttrace.record.application.RecordEvidenceCheck
-import io.intenttrace.record.domain.CodeSide
+import org.springframework.http.HttpStatus
+import org.springframework.web.servlet.ModelAndView
+import java.util.UUID
 
-internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?, revision: String?, path: String?, line: Int?,
-    result: ChangeIntentHistory?, searchUrl: String? = null): String =
-    layout("파일·줄로 기록 찾기", actor, buildString {
-        append("<header class=\"page-heading\"><h1>파일·줄로 기록 찾기</h1><p>이 코드에 연결된 요청과 구현 결정을 찾아보세요.</p></header>")
-        append("""<form action="/records/history" method="get" class="search-form">
-            <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required></label>
-            <label>커밋 해시(전체 길이)<input name="revision" value="${html(revision.orEmpty())}" minlength="40" maxlength="64" required></label>
-            <label>파일 경로<input name="path" value="${html(path.orEmpty())}" placeholder="src/App.kt" required></label>
-            <label>줄 번호<input name="line" type="number" min="1" value="${line ?: ""}" required></label><button>기록 찾기</button></form>""")
-        if (result == null) append("<p class=\"empty\">저장소·커밋 해시·파일 경로·줄 번호를 입력하세요.</p>") else {
-            fun query(extra: String, value: String) = html(url("/records/history", "repositoryKey" to repository,
-                "revision" to revision, "path" to path, "line" to line.toString(), extra to value))
-            append("<p>조회한 기록 ${result.scannedRecords}건 · 관련 결과 ${result.items.size}건</p>")
-            if (result.items.isEmpty()) append("<p class=\"empty\">${if (result.complete) "조회한 기록에서 관련 결과를 찾지 못했습니다." else "표시할 결과가 없습니다. 아직 확인하지 못한 코드가 있습니다."}</p>")
-            if (result.failures.isNotEmpty()) append("<aside class=\"notice\">확인하지 못한 기록이 있습니다. 사유를 확인한 뒤 다시 조회하세요.</aside>")
-            result.stopReason?.let {
-                val reason = when (it) {
-                    HistoryStopReason.TIME_LIMIT -> "조회 제한 시간에 도달해 중단했습니다."
-                    HistoryStopReason.CALL_LIMIT -> "이번 조회의 GitHub 호출 한도에 도달했습니다."
-                    HistoryStopReason.CANCELLED -> "취소 요청으로 조회를 중단했습니다."
-                }
-                val guidance = if (result.resumeBlocked) {
+internal fun RecordBrowserPage.history(repository: String?, revision: String?, path: String?, line: Int?,
+    result: ChangeIntentHistory?, searchUrl: String?): ModelAndView {
+    fun query(extra: String, value: String) = url("/records/history", "repositoryKey" to repository,
+        "revision" to revision, "path" to path, "line" to line.toString(), extra to value)
+    return view("history", "파일·줄로 기록 찾기", HistoryView(repository.orEmpty(), revision.orEmpty(), path.orEmpty(),
+        line?.toString().orEmpty(), result?.let {
+            val stopped = it.stopReason?.let { reason ->
+                val guidance = if (it.resumeBlocked) {
                     "코드 확인을 완료하지 못했습니다. 반복 조회 전에 관리자에게 조회 제한과 GitHub 지연을 확인해 달라고 요청하세요."
                 } else "중단 위치부터 계속 조회할 수 있습니다."
-                append("<aside class=\"notice\">$reason $guidance</aside>")
+                "${reason.message} $guidance"
             }
-            append("<ul class=\"records\">")
-            val labels = mapOf(IntentMatch.EXACT_REVISION to "커밋·줄 일치", IntentMatch.ANCESTOR_UNCHANGED_FILE to "과거 파일과 내용 일치",
-                IntentMatch.ANCESTOR_RENAMED_FILE to "파일 이름 변경 확인", IntentMatch.ANCESTOR_UNCHANGED_LINES to "과거 코드 조각과 내용 일치",
-                IntentMatch.ANCESTOR_MOVED_LINES to "코드 줄 이동 확인", IntentMatch.RELATED_UNVERIFIED to "관련 기록 · 코드 일치 미확인")
-            result.items.forEach { item ->
-                append("<li><div><span class=\"status\">${labels.getValue(item.match)}</span><h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p>")
-                append("<p>원본: ${html(item.sourcePath)}:${item.sourceStartLine}–${item.sourceEndLine} · ${if (item.side == CodeSide.BASE) "변경 전" else "변경 후"}</p><p class=\"hash\">${html(item.sourceRevision)}</p>")
-                if (item.currentStartLine != null) append("<p>조회한 파일의 줄: ${item.currentStartLine}–${item.currentEndLine}</p>")
-                append("<p><a href=\"${html(codeUrl(item.record.repositoryKey, item.sourceRevision, item.sourcePath, item.sourceStartLine, item.sourceEndLine))}\">당시 코드 열기</a>")
-                if (item.currentStartLine != null && item.currentEndLine != null) {
-                    append(" · <a href=\"${html(codeUrl(item.record.repositoryKey, result.queryRevision, result.path, item.currentStartLine, item.currentEndLine))}\">조회한 커밋의 코드 열기</a>")
-                }
-                append("</p>")
-                if (!item.verificationAppliesToQuery) append("<p class=\"muted\">이 기록의 테스트 결과로 조회한 커밋이 검증됐다고 볼 수 없습니다.</p>")
-                append("</div></li>")
-            }
-            append("</ul>")
-            if (result.failures.isNotEmpty()) {
-                append("<section><h2>확인하지 못한 기록</h2><ul class=\"records\">")
-                result.failures.forEach { failure ->
-                    val reason = failure.reason.message
-                    append("<li><div><a href=\"${html(recordUrl(failure.recordId, searchUrl))}\">기록 읽기</a><p>$reason</p><a class=\"button secondary\" href=\"${query("retryRecordId", failure.recordId.toString())}\">이 기록 다시 조회</a></div></li>")
-                }
-                append("</ul><p class=\"muted\">파일·응답 크기와 Git 객체 형식이 그대로라면 재조회해도 같은 오류가 날 수 있습니다.</p></section>")
-            }
-            result.nextCursor?.let {
-                val label = when {
-                    result.resumeBlocked -> "원인 확인 후 다시 조회"
-                    result.stopReason != null -> "중단 위치부터 계속 조회"
-                    else -> "다음 기록 조회"
-                }
-                append("<nav class=\"pagination\"><a class=\"button\" href=\"${query("cursor", it)}\">$label</a><p>아직 조회할 기록이 남아 있습니다.</p></nav>")
-            }
-        }
-    })
+            HistoryResultView(it.scannedRecords, it.items.size,
+                if (it.items.isNotEmpty()) null else if (it.complete) "조회한 기록에서 관련 결과를 찾지 못했습니다." else "표시할 결과가 없습니다. 아직 확인하지 못한 코드가 있습니다.",
+                it.failures.isNotEmpty(), stopped, it.items.map { item ->
+                    val current = item.currentStartLine?.let { start -> item.currentEndLine?.let { end -> start to end } }
+                    HistoryItemView(item.match.label, Link(recordUrl(item.record.id, searchUrl), item.record.title),
+                        item.record.requestSummary, "${item.sourcePath}:${item.sourceStartLine}–${item.sourceEndLine} · ${item.side.label}",
+                        item.sourceRevision, item.currentStartLine?.let { start -> "$start–${item.currentEndLine}" },
+                        codeUrl(item.record.repositoryKey, item.sourceRevision, item.sourcePath, item.sourceStartLine, item.sourceEndLine),
+                        current?.let { (start, end) -> codeUrl(item.record.repositoryKey, it.queryRevision, it.path, start, end) },
+                        item.verificationAppliesToQuery)
+                }, it.failures.map { failure ->
+                    HistoryFailureView(recordUrl(failure.recordId, searchUrl), failure.reason.message, query("retryRecordId", failure.recordId.toString()))
+                }, it.nextCursor?.let { cursor ->
+                    Link(query("cursor", cursor), when {
+                        it.resumeBlocked -> "원인 확인 후 다시 조회"
+                        it.stopReason != null -> "중단 위치부터 계속 조회"
+                        else -> "다음 기록 조회"
+                    })
+                })
+        }))
+}
 
-internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck, searchUrl: String? = null): String =
-    layout("GitHub 코드와 비교", actor, buildString {
-        append("<a class=\"back-link\" href=\"${html(recordUrl(result.recordId, searchUrl))}\">기록으로 돌아가기</a><header class=\"page-heading\"><h1>GitHub 코드와 비교</h1></header>")
-        append("<aside class=\"notice\">${if (result.codeVerified) "스냅샷 해시와 모든 관련 코드가 일치합니다." else "스냅샷 해시 또는 관련 코드가 일치하지 않습니다."} 서버는 테스트 실행 여부를 확인하지 않습니다.</aside>")
-        append("<dl class=\"evidence-facts\"><dt>기록 버전</dt><dd>${result.recordVersion}</dd><dt>확인 시각</dt><dd>${stamp(result.checkedAt)}</dd><dt>커밋 해시(전체 길이)</dt><dd class=\"hash\">${html(result.targetRevision)}</dd><dt>기록의 스냅샷 해시</dt><dd class=\"hash\">${html(result.snapshotDigest)}</dd><dt>스냅샷 해시 비교</dt><dd>${if (result.snapshotMatches) "일치" else "불일치"}</dd></dl><ul class=\"records\">")
-        result.anchors.forEach { anchor ->
-            val status = when (anchor.status) {
-                AnchorCheckStatus.MATCHED -> "줄 해시 일치"; AnchorCheckStatus.HASH_MISMATCH -> "줄 해시 불일치"
-                AnchorCheckStatus.FILE_MISSING -> "파일 없음"; AnchorCheckStatus.LINE_RANGE_MISSING -> "줄 범위 없음"
-                AnchorCheckStatus.UNSUPPORTED_OBJECT -> "지원하지 않는 Git 객체"
-            }
-            append("<li><div><span class=\"status\">$status</span><h2>${html(anchor.path)}:${anchor.startLine}–${anchor.endLine}</h2><p>${if (anchor.side == CodeSide.BASE) "변경 전" else "변경 후"}</p><p class=\"hash\">${html(anchor.revision)}</p></div></li>")
-        }
-        append("</ul>")
-    })
+internal fun RecordBrowserPage.evidence(result: RecordEvidenceCheck, searchUrl: String?): ModelAndView =
+    view("evidence", "GitHub 코드와 비교", EvidenceView(recordUrl(result.recordId, searchUrl),
+        if (result.codeVerified) "스냅샷 해시와 모든 관련 코드가 일치합니다." else "스냅샷 해시 또는 관련 코드가 일치하지 않습니다.",
+        result.recordVersion, time(result.checkedAt), result.targetRevision, result.snapshotDigest,
+        if (result.snapshotMatches) "일치" else "불일치", result.anchors.map {
+            EvidenceAnchorView(it.status.label, "${it.path}:${it.startLine}–${it.endLine}", it.side.label, it.revision)
+        }))
 
-internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: java.util.UUID, reason: EvidenceUnavailableReason, searchUrl: String? = null): String =
-    layout("코드 확인 불가", actor, """
-        <a class="back-link" href="${html(recordUrl(recordId, searchUrl))}">기록으로 돌아가기</a>
-        <section class="empty"><h1>코드를 확인하지 못했습니다</h1><p>${reason.message}</p>
-        <p>파일·응답 크기와 Git 객체 형식이 그대로라면 다시 확인해도 같은 오류가 날 수 있습니다.</p>
-        <p class="muted">코드 일치 여부는 미확인입니다. 코드 불일치나 테스트 실패를 뜻하지 않습니다.</p></section>
-    """)
+internal fun RecordBrowserPage.evidenceUnavailable(recordId: UUID, reason: EvidenceUnavailableReason, searchUrl: String?): ModelAndView =
+    view("evidence-unavailable", "코드 확인 불가", EvidenceUnavailableView(recordUrl(recordId, searchUrl), reason.message), HttpStatus.UNPROCESSABLE_CONTENT)
+
+private val HistoryStopReason.message: String get() = when (this) {
+    HistoryStopReason.TIME_LIMIT -> "조회 제한 시간에 도달해 중단했습니다."
+    HistoryStopReason.CALL_LIMIT -> "이번 조회의 GitHub 호출 한도에 도달했습니다."
+    HistoryStopReason.CANCELLED -> "취소 요청으로 조회를 중단했습니다."
+}
+
+private val IntentMatch.label: String get() = when (this) {
+    IntentMatch.EXACT_REVISION -> "커밋·줄 일치"; IntentMatch.ANCESTOR_UNCHANGED_FILE -> "과거 파일과 내용 일치"
+    IntentMatch.ANCESTOR_RENAMED_FILE -> "파일 이름 변경 확인"; IntentMatch.ANCESTOR_UNCHANGED_LINES -> "과거 코드 조각과 내용 일치"
+    IntentMatch.ANCESTOR_MOVED_LINES -> "코드 줄 이동 확인"; IntentMatch.RELATED_UNVERIFIED -> "관련 기록 · 코드 일치 미확인"
+}
+
+private val AnchorCheckStatus.label: String get() = when (this) {
+    AnchorCheckStatus.MATCHED -> "줄 해시 일치"; AnchorCheckStatus.HASH_MISMATCH -> "줄 해시 불일치"
+    AnchorCheckStatus.FILE_MISSING -> "파일 없음"; AnchorCheckStatus.LINE_RANGE_MISSING -> "줄 범위 없음"
+    AnchorCheckStatus.UNSUPPORTED_OBJECT -> "지원하지 않는 Git 객체"
+}
+
+data class HistoryView(val repository: String, val revision: String, val path: String, val line: String, val result: HistoryResultView?)
+
+/** [emptyMessage]는 결과가 없을 때만, [stopNotice]는 조회가 중단됐을 때만 값이 있다. */
+data class HistoryResultView(val scanned: Int, val found: Int, val emptyMessage: String?, val failed: Boolean,
+    val stopNotice: String?, val items: List<HistoryItemView>, val failures: List<HistoryFailureView>, val next: Link?)
+
+data class HistoryItemView(val match: String, val record: Link, val summary: String, val source: String,
+    val sourceRevision: String, val currentLines: String?, val sourceCodeUrl: String, val currentCodeUrl: String?,
+    val verificationApplies: Boolean)
+
+data class HistoryFailureView(val recordUrl: String, val reason: String, val retryUrl: String)
+
+data class EvidenceView(val backUrl: String, val notice: String, val version: Long, val checkedAt: TimeView,
+    val targetRevision: String, val snapshotDigest: String, val snapshotMatch: String, val anchors: List<EvidenceAnchorView>)
+
+data class EvidenceAnchorView(val status: String, val location: String, val side: String, val revision: String)
+
+data class EvidenceUnavailableView(val backUrl: String, val reason: String)

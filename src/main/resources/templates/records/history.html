@@ -1,0 +1,30 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<header class="page-heading"><h1>파일·줄로 기록 찾기</h1><p>이 코드에 연결된 요청과 구현 결정을 찾아보세요.</p></header>
+<form action="/records/history" method="get" class="search-form">
+<label>저장소<input name="repositoryKey" th:value="${page.repository}" placeholder="owner/repository" required></label>
+<label>커밋 해시(전체 길이)<input name="revision" th:value="${page.revision}" minlength="40" maxlength="64" required></label>
+<label>파일 경로<input name="path" th:value="${page.path}" placeholder="src/App.kt" required></label>
+<label>줄 번호<input name="line" type="number" min="1" th:value="${page.line}" required></label><button>기록 찾기</button></form>
+<p class="empty" th:if="${page.result == null}">저장소·커밋 해시·파일 경로·줄 번호를 입력하세요.</p>
+<th:block th:if="${page.result != null}" th:with="result=${page.result}">
+<p>조회한 기록 <th:block th:text="${result.scanned}"></th:block>건 · 관련 결과 <th:block th:text="${result.found}"></th:block>건</p>
+<p class="empty" th:if="${result.emptyMessage != null}" th:text="${result.emptyMessage}"></p>
+<aside class="notice" th:if="${result.failed}">확인하지 못한 기록이 있습니다. 사유를 확인한 뒤 다시 조회하세요.</aside>
+<aside class="notice" th:if="${result.stopNotice != null}" th:text="${result.stopNotice}"></aside>
+<ul class="records">
+<li th:each="item : ${result.items}"><div><span class="status" th:text="${item.match}"></span><h2><a th:href="${item.record.href}" th:text="${item.record.label}"></a></h2><p th:text="${item.summary}"></p>
+<p>원본: <th:block th:text="${item.source}"></th:block></p><p class="hash" th:text="${item.sourceRevision}"></p>
+<p th:if="${item.currentLines != null}">조회한 파일의 줄: <th:block th:text="${item.currentLines}"></th:block></p>
+<p><a th:href="${item.sourceCodeUrl}">당시 코드 열기</a><th:block th:if="${item.currentCodeUrl != null}"> · <a th:href="${item.currentCodeUrl}">조회한 커밋의 코드 열기</a></th:block></p>
+<p class="muted" th:unless="${item.verificationApplies}">이 기록의 테스트 결과로 조회한 커밋이 검증됐다고 볼 수 없습니다.</p>
+</div></li>
+</ul>
+<section th:unless="${result.failures.isEmpty()}"><h2>확인하지 못한 기록</h2><ul class="records">
+<li th:each="failure : ${result.failures}"><div><a th:href="${failure.recordUrl}">기록 읽기</a><p th:text="${failure.reason}"></p><a class="button secondary" th:href="${failure.retryUrl}">이 기록 다시 조회</a></div></li>
+</ul><p class="muted">파일·응답 크기와 Git 객체 형식이 그대로라면 재조회해도 같은 오류가 날 수 있습니다.</p></section>
+<nav class="pagination" th:if="${result.next != null}"><a class="button" th:href="${result.next.href}" th:text="${result.next.label}"></a><p>아직 조회할 기록이 남아 있습니다.</p></nav>
+</th:block>
+</main>
+</html>

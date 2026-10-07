@@ -13,17 +13,17 @@
 
 ## 최근 검증
 
-2026-10-05 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
+2026-10-07 기준이다. 새 검증을 마치면 해당 행과 상세 인계를 갱신한다. 재사용 전에는 검증 리비전 이후의 관련 코드·테스트·의존성·환경 변경을 확인한다. 명령과 로그는 각 상세 인계에 있다.
 
 | 대상 | 검증한 코드 | 결과·상세 인계 |
 | --- | --- | --- |
-| 서버·MCP | `b7ac92a` | [서버 264개·ArchUnit 5개 통과, JAR 빌드](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
-| PostgreSQL | `b7ac92a` | [저장·조회 8개 통과, 백업·복구 확인](#2026-10-05-프로젝트-점검과-불필요한-코드-정리) |
-| IntelliJ | `9f2896f` | [61개 통과, ZIP 빌드·구조 검사](#2026-10-05-프로젝트-점검과-불필요한-코드-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
-| Zed 연결 도구 | `5b2c11b` | [Node 21개·Python 4개, 실제 서버 연결·hover 통합 7개 통과](#2026-10-05-zed-편집기-hover-구현) |
+| 서버·MCP | `46c8193` | [서버 264개·ArchUnit 5개 통과, JAR 빌드](#2026-10-07-표준-api-전환-2차-정리) |
+| PostgreSQL | `46c8193` | [저장·조회 9개 통과, 백업·복구 확인](#2026-10-07-표준-api-전환-2차-정리) |
+| IntelliJ | `46c8193` | [62개 통과, ZIP 빌드·구조 검사](#2026-10-07-표준-api-전환-2차-정리). 실제 IDE 설치·수동 화면 확인은 미실행 |
+| Zed 연결 도구 | `02f238a` | [Node 21개·Python 4개 통과](#2026-10-07-표준-api-전환과-불필요한-코드-정리). 실제 서버 연결·hover 통합 7개는 `46c8193` 서버 전체 테스트에 포함 |
 | Zed hover 확장 | `5b2c11b` | [wasm32-wasip2 빌드·clippy·형식 검사 통과](#2026-10-05-zed-편집기-hover-구현). 실제 Zed 앱 설치·hover 확인과 확장 저장소 등록은 미실행 |
-| Zed 배포 패키지 | `df139d7` | [임시 폴더에 패키지·체크섬 생성, 잘못된 인자 거부 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 저장소의 배포 폴더는 다시 만들지 않음 |
-| 검증 결과 수집·릴리스 도구 | `df139d7` | [실행 도구 출력 해시는 서버 테스트로 확인](#2026-10-05-운영-전-호환-코드-제거와-표준-api-정리). 릴리스 도구는 [`e6e3e5e` 결과](#2026-09-12-보조-도구의-해시-계산과-환경-상속-단순화) 이후 변경 없음 |
+| Zed 배포 패키지 | `554eb93` | [임시 폴더에 패키지 생성, 이전과 같은 파일 목록 확인](#2026-10-07-표준-api-전환과-불필요한-코드-정리). 저장소의 배포 폴더는 다시 만들지 않음 |
+| 검증 결과 수집·릴리스 도구 | `46c8193` | [스크립트 테스트 16개·Compose 검증 통과, 실행 도구 출력 해시는 서버 테스트로 확인](#2026-10-07-표준-api-전환-2차-정리). 릴리스 workflow 재사용은 다음 태그에서 확인 |
 | Git 근거·검증 루프 | `f7d03cd` | [검증 루프 9개 통과, 시간 예산 초과 안내 확인](#2026-10-05-남은-검토-항목-반영). Git 근거 스크립트는 [`ad3b998` 결과](#2026-10-05-중복-코드-정리) 이후 변경 없음 |
 | Claude Code 설정 | `e70edca` | [검증 루프 8개 통과, 훅 명령·스킬 형식·MCP 헤더 설정 확인](#2026-10-04-claude-code-스킬과-검증-훅-추가). 실제 서버 MCP 연결은 미확인. 새 세션의 스킬 로드·명령 주입은 [2026-10-05](#2026-10-05-중복-코드-정리)에 확인 |
 
@@ -941,3 +941,32 @@ IntelliJ의 기록함 선택 팝업과 커밋 없는 초안의 이동 버튼 비
 - 시작 리비전은 `631fdab`, 구현 커밋은 `fbf384e`·`5b2c11b`, 문서 커밋은 `d5f2c5b`다. [Zed 인라인 UI 검토](docs/reviews/2026-10-05-zed-inline-ui-review.md)의 1번을 반영했다. Rust Zed 확장 `clients/zed/extension`(`zed_extension_api` 0.7.0)이 보조 언어 서버 `intent-trace`를 등록한다. 확장은 언어 서버를 포함하지 않고 `configure`가 저장한 `lsp.intent-trace.binary`나 PATH의 `intent-trace-zed lsp`를 실행한다. 연결 도구의 `lsp` 명령(`vscode-languageserver` 10.1.2)은 hover만 제공한다. Git으로 HEAD·origin·상대 경로를 구하고, 저장하지 않았거나 커밋되지 않은 파일은 조회하지 않는다. 기존 목록 API로 파일 단위 공개 기록 여부를 5분 캐시한 뒤 `/lookup`을 1분 캐시로 호출한다. 403 저장소는 조용히 건너뛰고 세션 만료·호출 제한·장애는 안내 후 30초 또는 `Retry-After` 동안 다시 부르지 않는다. 기록 문구는 Markdown escape한다. `configure`·`unconfigure`가 `lsp.intent-trace`도 관리하고 배포 패키지에 `lsp.mjs`를 넣었다. CI에 `Zed 확장 검증` 작업을 추가했다. 검토 문서와 달리 편집 중·미커밋 파일은 안내 대신 hover를 표시하지 않는다. 제품·도구 코드는 294줄 추가·27줄 삭제, 테스트는 213줄 추가·4줄 삭제다.
 - `npm test --prefix clients/zed`에서 Node 21개·Python 4개가 통과했다(2026-10-05 16:35 KST). 원격 주소 해석, 미커밋·미추적 판정, Markdown escape, 파일·줄 캐시, 편집 중 파일, 호출 제한 대기, 세션 없는 시작 거부, 설정 등록·제거, 배포 패키지의 `lsp.mjs` 로드를 확인했다. `./gradlew focusedTest --tests '*ZedBridgeIntegrationTest'`에서 7개가 통과했다(16:35 KST). 이 중 새 테스트는 실제 Spring 서버에 공개 기록을 만들고 임시 Git 저장소의 커밋된 줄에서 hover로 조회한다. Docker `rust:1-slim`에서 CI와 같은 `cargo fmt --check`, `cargo clippy --locked --target wasm32-wasip2 -- -D warnings`, `cargo build --locked --release --target wasm32-wasip2`가 통과했다. 서버 제품 코드는 바꾸지 않아 전체 서버·PostgreSQL·IntelliJ 검증은 반복하지 않았다.
 - 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했다. 최종 검토에서 언어 서버의 미사용 주입 인자를 지웠다. 실제 Zed 앱 설치·hover 확인, Zed 확장 저장소 등록, 원격 푸시·PR 생성은 하지 않았다. 원격 푸시는 이 세션의 자동 승인 정책에서 거부됐다. 기존 미추적 PNG를 보존했다.
+
+## 2026-10-07 표준 API 전환과 불필요한 코드 정리
+
+- 시작 리비전은 `504e365`, 구현 커밋은 `eb34694`부터 `20b728a`까지 32개와 검토 반영 `917c917`이고 변경 이력은 `704d85b`다. 서버·IntelliJ·Zed·스크립트·테스트 7개 영역에서 직접 구현과 불필요한 코드를 감사해 61건을 찾았고, 반박 검증을 거쳐 49건을 반영했다. Spring Security 전환은 GitHub OAuth 응답(HTTP 200의 오류 본문)과 메모리 `its_` 세션 모델에 맞지 않아 제외했다. 내부 API 의존, 줄만 옮기는 제안 등 12건도 근거와 함께 제외했다.
+- 브라우저 화면 13종과 GitHub 로그인 결과 2종은 Kotlin 문자열 조립에서 Thymeleaf 템플릿과 Kotlin 뷰 모델로 바꿨다. 한국어 라벨은 exhaustive `when`에 남기고 `th:utext`·`[(...)]`·전처리·bean 참조는 테스트로 막는다. 세션 확인·출처 검사·보안 헤더는 `HandlerInterceptor`가 처리하며, POST 출처 검사는 세션 확인 전에 한다. 2026-10-05의 '템플릿 엔진 미도입'은 사유 기록이 없었고, 이번 요청에 따라 번복했다.
+- REST·MCP 인증 필터는 `@FilterRegistration`과 `HandlerExceptionResolver`를 써서 필터 단계 오류도 ProblemDetail로 응답한다. 이 변경으로 `/api;x/v1` 경로 우회를 막았다. GitHub 호출 지표는 Spring 기본 `http.client.requests`가 URI 템플릿 단위로 기록한다. `HistoryReadPolicy`는 `@ConfigurationProperties`로, 기한 있는 코드 조회는 Boot `HttpClientSettings`로, MCP 입력은 `@Validated` 메서드 검증으로 바꿨다.
+- `V1__baseline.sql`을 직접 고쳐 게시 저장소 열을 `repository_key` 하나로 합치고 하위 테이블 대리 키를 지웠다. 게시 응답은 상태 조회의 `publication` 형식으로 통일했다. IntelliJ 대화상자 4개는 Kotlin UI DSL로 바꿨고, Zed·스크립트의 도달하지 않는 분기를 지웠다.
+- 테스트는 MCP Java SDK 클라이언트, 공용 생성·공개 helper·GitHub 사용자 대역·외부 프로세스 helper, 테스트용 설정 파일로 정리했다.
+- 변경 줄 수(추가/삭제)는 서버 Kotlin 835/1027, 템플릿 261/0, IntelliJ 190/334, Zed·스크립트 177/221, 서버 테스트 902/1666, IntelliJ 테스트 186/275다.
+- 전체 diff를 영역별로 독립 검토하고 지적마다 반박 검증해 5건을 `917c917`에 반영했다. 기록 화면 인터셉터는 매핑되지 않은 주소와 CORS preflight에서 500을 내던 문제가 있어 컨트롤러 처리기에만 적용한다. 로그아웃의 세션 확인 생략은 POST로 한정했다. Check Run 목록 조회도 URI 템플릿으로 기록한다. 테스트 JVM에는 `INTENT_TRACE_GITHUB_*` 환경 변수를 넘기지 않는다. 변경 이력 문구도 실제 동작에 맞췄다. 새 회귀 테스트는 수정 전 코드에서 실패했고, 환경 변수 격리를 뺀 상태에서는 기록 화면 테스트 3개가 실패하는 것을 확인했다.
+- `./gradlew test bootJar`에서 서버 264개·ArchUnit 5개가 통과하고 JAR을 빌드했다(2026-10-07 09:35 KST, `917c917`). `scripts/verify-postgres.sh`에서 PostgreSQL 9개가 통과했고 백업·복구 후 기록 39건·변경 이력 106건이 일치했다(09:36 KST). `./gradlew -p intellij-plugin test`에서 62개가 통과했다(09:15 KST, `20b728a`). IntelliJ는 그 뒤 바뀌지 않았다.
+- `buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`와 `scripts/validate-plugin.sh`는 IntelliJ 제품 코드가 같은 `02f238a`에서 통과했다(08:37 KST). `npm test --prefix clients/zed`에서 Node 21개·Python 4개가 통과했다(08:36 KST, `02f238a`). Zed 코드는 그 뒤 바뀌지 않았다. `scripts/test_validate_release_version.py` 2개, `scripts/test_backup_postgres.py` 2개, `scripts/validate-compose.py`도 통과했다(09:17 KST).
+- 추가한 테스트는 인증 필터 우회·필터 단계 429, 다른 출처 POST 403과 GitHub 호출 없음, 템플릿 금지 구문, 같은 문구 콤보 선택, 호출 지표 URI 템플릿이다. 반영 전 코드에서 먼저 실패시키는 확인은 필터 우회, 콤보 선택, 검토 반영의 인터셉터 범위 테스트만 했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했고 전체 diff를 검토했다. 이전 버전으로 만든 로컬 H2 `.intent-trace/data`와 Compose·k3s PostgreSQL 볼륨은 Flyway 체크섬이 달라 새로 만들어야 한다. Zed hover 확장(Rust), `git-evidence.sh`, `feedback.py`, Claude Code 설정은 바뀌지 않아 해당 검증은 반복하지 않았다.
+- 실제 IntelliJ 화면 확인(UI DSL 간격·콤보 폭, 기록함 필터 팝업), Zed 앱 확인, GitHub 게시, 원격 푸시·배포는 하지 않았다. 기존 미추적 PNG를 보존했다.
+
+## 2026-10-07 표준 API 전환 2차 정리
+
+- 시작 리비전은 `791bec3`, 구현 커밋은 `0994003`부터 `46c8193`까지 16개다. 1차 반영·제외 근거를 넘겨 주제별로 다시 감사했다. 주제는 Kotlin·Java 표준 라이브러리, Spring 추상화, 1차 잔재, IntelliJ 플랫폼, 도구·CI 5개다. 21건 중 18건을 반박 검증으로 채택했고 중복 1건을 합쳐 17건을 반영했다. 기각한 3건은 `runWithModalProgressBlocking` 전환(Task.Modal 동작 차이), 저장소 입력칸 fragment화, MCP `find_change_intent` 제약 추가다.
+- 서버 변경은 다음과 같다. 기록 화면 머리글의 로그인 이름은 컨트롤러 `@ModelAttribute`가 넣고, 화면 함수 10개에서 actor 인자를 지웠다. 조회 범위별 허용 상태는 `RecordScope`에 모았다. 로그아웃 판별은 처리기 메서드로 바꿨으며, 이 변경으로 `/records/logout;x=1`이 세션 확인을 거치던 문제를 고쳤다. 경로 인코딩은 `UriUtils.encodePath`, 422 상수는 `UNPROCESSABLE_CONTENT`로 바꿨다. 연결 진단은 캡처 변수 대신 반환값으로 결과를 전달하고, MCP 대체 도구는 application 명령을 직접 만든다.
+- 비밀값 제거기와 `run-verification.py`는 JSON으로 이스케이프된 home 경로(`C:\\Users\\…`, `\/Users\/…`)도 지운다. 이 공백은 실패 테스트로 먼저 확인했다.
+- IntelliJ는 기록 창 4개의 `DialogWrapper` 하위 클래스를 공용 `showContentDialog`로 바꿨다. 첫 포커스는 지금처럼 확인 버튼이다. 원격 저장소 키 검증은 `REPOSITORY_KEY` 하나로 합쳤다.
+- 도구는 `verify-postgres.sh`의 대기 루프를 `docker compose up --wait`로 바꿨다. Gradle Test 작업의 classpath를 공통 블록으로 모으고 `postgresTest`는 `doNotTrackState`를 쓴다. CI의 Python 단위 테스트는 `unittest discover`로 합쳤고, `release.yml`은 `verify.yml`을 `workflow_call`로 재사용한 뒤 발행 job에만 쓰기 권한을 준다.
+- 변경 줄 수(추가/삭제)는 서버 Kotlin 95/108, IntelliJ 58/71, 스크립트·CI·Gradle 30/56, 서버 테스트 30/44, IntelliJ 테스트 259/350이다.
+- `./gradlew test bootJar`에서 서버 264개·ArchUnit 5개가 통과하고 JAR을 빌드했다(2026-10-07 16:17 KST, `46c8193`). `scripts/verify-postgres.sh`에서 PostgreSQL 9개가 통과했고 백업·복구 후 기록 39건·변경 이력 106건이 일치했다(16:17 KST). 이 실행으로 `--wait` 대기와 `doNotTrackState`도 확인했다. `./gradlew -p intellij-plugin test buildPlugin verifyPluginProjectConfiguration verifyPluginStructure`에서 62개와 ZIP 구조 검사가 통과했다(16:17 KST). `scripts/validate-plugin.sh`, `python3 -m unittest discover -s scripts -p 'test_*.py'`(16개), `scripts/validate-compose.py`도 통과했다.
+- 로그아웃 경로 매개변수 테스트와 이스케이프된 경로 테스트는 반영 전 코드에서 먼저 실패하는 것을 확인했다.
+- 지역 검사와 시작 커밋 기준 전체 diff·구조 검사를 적용했고 diff를 검토했다. GitHub Actions의 `workflow_call` 재사용과 job 권한은 로컬에서 실행할 수 없어 다음 `v*.*.*` 태그 푸시에서 확인한다. Zed 코드는 안내 문구만 바뀌어 Node 테스트를 반복하지 않았다.
+- PR #29 리뷰에 따라 템플릿의 `[[...]]` 인라인 출력 18곳을 `<th:block th:text>`로 바꾸고 금지 구문 테스트에 `[[`·`th:inline`을 더했다. 출력 HTML은 같다. `./gradlew test`에서 서버 264개·ArchUnit 5개가 통과했다(16:56 KST).
+- 실제 IntelliJ 창의 포커스·Enter 동작과 배치, GitHub 게시, 배포는 하지 않았다. 기존 미추적 PNG를 보존했다.

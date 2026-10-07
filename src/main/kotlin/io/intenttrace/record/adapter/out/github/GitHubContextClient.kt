@@ -26,7 +26,8 @@ class GitHubContextClient(
     private val properties: GitHubProperties,
 ) : GitHubContextGateway {
     override fun request(repository: GitHubRepository, number: Int): GitHubRequestContent {
-        val response = get("/repos/${repository.key}/issues/$number", RequestResponse::class.java)
+        val response = get(RequestResponse::class.java, "/repos/{owner}/{repository}/issues/{number}",
+            repository.canonicalOwner, repository.canonicalName, number)
         val kind = if (response.pullRequest == null || response.pullRequest.isNull) GitHubRequestKind.ISSUE else GitHubRequestKind.PULL_REQUEST
         val path = if (kind == GitHubRequestKind.ISSUE) "issues" else "pull"
         val url = webUrl(repository, "$path/$number")
@@ -37,7 +38,8 @@ class GitHubContextClient(
     }
 
     override fun actions(repository: GitHubRepository, revision: String, page: Int): GitHubActionsPage {
-        val response = get("/repos/${repository.key}/actions/runs?head_sha=$revision&per_page=20&page=$page", ActionsResponse::class.java)
+        val response = get(ActionsResponse::class.java, "/repos/{owner}/{repository}/actions/runs?head_sha={revision}&per_page=20&page={page}",
+            repository.canonicalOwner, repository.canonicalName, revision, page)
         if (response.totalCount < 0 || response.runs.size > 20) throw GitHubApiException("GitHub Actions 목록 크기가 올바르지 않습니다.")
         val runs = response.runs.map { run ->
             if (run.id <= 0 || run.runAttempt <= 0 || !run.repository.fullName.equals(repository.key, ignoreCase = true) || run.headSha != revision) {
@@ -52,8 +54,9 @@ class GitHubContextClient(
     private fun webUrl(repository: GitHubRepository, path: String): String =
         properties.userAuthorization.webBaseUrl.resolve("/${repository.key}/$path").toString()
 
-    private fun <T> get(path: String, type: Class<T>): T = try {
-        client.get().uri(path).headers { it.setBearerAuth(session.require().accessToken) }
+    // 값을 URI 템플릿 변수로 넘겨 호출 지표의 uri label에 저장소·커밋이 들어가지 않게 한다.
+    private fun <T> get(type: Class<T>, template: String, vararg variables: Any): T = try {
+        client.get().uri(template, *variables).headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()
                 if (response.statusCode.value() == 403) throw GitHubContextPermissionException()

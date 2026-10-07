@@ -26,6 +26,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-jdbc")
 	implementation("org.springframework.boot:spring-boot-starter-flyway")
 	implementation("org.springframework.boot:spring-boot-starter-restclient")
+	implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.security:spring-security-oauth2-jose")
@@ -53,16 +54,19 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
 	useJUnitPlatform()
+	// 직접 등록한 Test 작업은 기본 classpath가 없으므로 기본 test와 같은 테스트 소스를 지정한다.
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	// 개발자 셸의 GitHub 설정은 relaxed binding으로 설정 파일보다 우선하므로 테스트 JVM에 넘기지 않는다.
+	environment.keys.removeIf { it.startsWith("INTENT_TRACE_GITHUB_") }
 }
 
 val postgresTestClass = "**/PostgresRepositorySmokeTest.class"
 val architectureTestClass = "**/ArchitectureTest.class"
 
-val architectureTest by tasks.registering(Test::class) {
+val architectureTest = tasks.register<Test>("architectureTest") {
 	description = "Controller·MCP, application, domain의 의존 규칙을 검사합니다."
 	group = "verification"
-	testClassesDirs = sourceSets["test"].output.classesDirs
-	classpath = sourceSets["test"].runtimeClasspath
 	include(architectureTestClass)
 }
 
@@ -75,8 +79,6 @@ tasks.test {
 tasks.register<Test>("focusedTest") {
 	description = "--tests로 지정한 관련 테스트를 실행하고 전체 테스트 결과를 보존합니다."
 	group = "verification"
-	testClassesDirs = sourceSets["test"].output.classesDirs
-	classpath = sourceSets["test"].runtimeClasspath
 	exclude(postgresTestClass)
 }
 
@@ -91,12 +93,8 @@ tasks.withType<Test>().matching { it.name != "postgresTest" }.configureEach {
 tasks.register<Test>("postgresTest") {
 	description = "별도 PostgreSQL에서 DB 계약을 검증합니다. scripts/verify-postgres.sh로 실행하세요."
 	group = "verification"
-	testClassesDirs = sourceSets["test"].output.classesDirs
-	classpath = sourceSets["test"].runtimeClasspath
 	include(postgresTestClass)
-	// 검증 스크립트가 매번 새 DB를 만들므로 이전 실행 결과를 재사용하지 않는다.
-	outputs.upToDateWhen { false }
-	outputs.doNotCacheIf("새 PostgreSQL에 테스트 데이터를 다시 생성해야 합니다.") { true }
+	doNotTrackState("검증 스크립트가 매번 새 PostgreSQL에 테스트 데이터를 다시 생성합니다.")
 	doFirst {
 		check(System.getenv("INTENT_TRACE_POSTGRES_SMOKE") == "true") {
 			"PostgreSQL 검증은 scripts/verify-postgres.sh로 실행하세요."

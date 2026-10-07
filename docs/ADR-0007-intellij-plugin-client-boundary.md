@@ -29,7 +29,7 @@
 - 현재 줄의 검증 표시는 조회 커밋과 기록의 `targetRevision`을 먼저 비교한다. 다르면 `다른 커밋의 결과`, 같거나 단건 상세이면 `current`에 따른 스냅샷 일치 여부를 표시한다. `source`는 수집 출처로만 표시하고 누락·알 수 없는 값은 미확인으로 남긴다. 서버의 테스트 실행 확인을 뜻하지 않는다.
 - GitHub App user access·refresh token은 플러그인에 전달하지 않는다. 플러그인은 `its_` session token만 IntelliJ PasswordSafe 또는 환경 변수에서 읽는다.
 - server URL은 `Settings > Tools > IntentTrace`의 값, `INTENT_TRACE_URL`, 기본값 `http://127.0.0.1:8080` 순서로 선택한다. 빈 설정은 환경 변수 또는 기본값으로 돌아가며, 적용 뒤 새로 여는 조회와 연결 작업부터 반영한다. HTTP는 loopback host에만 허용하고 그 밖의 주소는 HTTPS만 허용한다.
-- 서버 주소는 IDE 공용 로컬 설정으로 둔다. IntelliJ `SimplePersistentStateComponent`와 `BaseState`로 정규화한 주소만 저장하고 `RoamingType.DISABLED`로 동기화에서 제외한다. 프로젝트 파일에서 자격 증명의 전송 대상을 바꿀 수 없게 한다. 설정 화면은 `BoundConfigurable`과 Kotlin UI DSL로 구성한다.
+- 서버 주소는 IDE 공용 로컬 설정으로 둔다. IntelliJ `SimplePersistentStateComponent`와 `BaseState`로 정규화한 주소만 저장하고 `RoamingType.DISABLED`로 동기화에서 제외한다. 프로젝트 파일에서 자격 증명의 전송 대상을 바꿀 수 없게 한다. 설정 화면은 `BoundConfigurable`과 Kotlin UI DSL로, 결과·기록함·상세·이전 커밋 창은 Kotlin UI DSL로 구성한다. 기록 문구를 표시하는 목록·콤보는 HTML을 해석하지 않는 `textListCellRenderer`를 사용한다.
 - PasswordSafe 세션은 서버 주소별로 보관하며 주소 변경 시 복사하거나 삭제하지 않는다. 환경 변수 세션은 현재 서버가 `INTENT_TRACE_URL`의 서버(미설정 시 기본 서버)와 같을 때만 사용한다.
 - 세션 연결은 입력한 토큰으로 기존 `GET /api/v1/me/sessions`의 `actor.login`을 확인한 뒤 PasswordSafe에 저장한다. 계정 확인과 저장은 같은 background task에서 순서대로 실행한다. 확인 실패 시 저장하지 않고 기존 오류 안내를 사용한다. 기존 세션이나 환경 변수 세션을 확인 요청에 대신 보내지 않는다.
 - 연결 확인은 입력 중인 주소로 기존 `GET /actuator/health`를 호출하며 인증 정보를 읽거나 전달하지 않는다. HTTP 200과 JSON `status: UP`만 성공으로 표시하고, 설정 저장이나 로그인·저장소 권한·서버 신원 확인으로 해석하지 않는다.

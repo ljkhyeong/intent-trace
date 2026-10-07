@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
@@ -60,6 +61,8 @@ interface GitHubUserSessionStore {
     fun revokeBrowser(sessionToken: String)
 }
 
+val OAUTH_STATE_TTL: Duration = Duration.ofMinutes(10)
+
 @Service
 class GitHubOAuthFlowService(
     private val oauthGateway: GitHubUserOAuthGateway,
@@ -83,7 +86,7 @@ class GitHubOAuthFlowService(
                 throw GitHubOAuthCapacityException()
             }
             pendingStates[TokenDigests.sha256(state)] = PendingAuthorization(
-                expiresAt = now.plus(properties.userAuthorization.stateTtl),
+                expiresAt = now.plus(OAUTH_STATE_TTL),
                 codeVerifier = codeVerifier,
                 returnTo = returnTo,
             )
@@ -161,9 +164,7 @@ class GitHubOAuthDeniedException : GitHubOAuthException("GitHub 사용자 승인
 
 class GitHubOAuthCapacityException : GitHubOAuthException("GitHub 사용자 승인 대기 요청이 너무 많습니다.")
 
-class GitHubOAuthApiException(message: String, cause: Throwable? = null) : GitHubOAuthException(message, cause)
-
-class GitHubOAuthRefreshRejectedException : GitHubOAuthException("GitHub refresh token이 거부됐습니다.")
+class GitHubOAuthApiException(message: String) : GitHubOAuthException(message)
 
 private object Pkce {
     private val encoder = Base64.getUrlEncoder().withoutPadding()

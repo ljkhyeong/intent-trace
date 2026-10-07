@@ -7,25 +7,11 @@ import io.intenttrace.record.application.RecordOperation
 import io.intenttrace.record.domain.ChangeRecordStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 @Repository
 class JdbcRecordActivityStore(private val jdbc: JdbcTemplate) : RecordActivityStore {
-    // 기록 갱신이 실패하면 이력도 함께 취소해야 한다.
-    @Transactional(propagation = Propagation.MANDATORY)
-    override fun append(activity: RecordActivity) {
-        jdbc.update("""insert into record_activities
-            (record_id, operation, actor_subject, previous_version, version, previous_status, status, occurred_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?)""",
-            activity.recordId.toString(), activity.operation.name, activity.actorSubject, activity.previousVersion,
-            activity.version, activity.previousStatus?.name, activity.status.name,
-            activity.occurredAt.atOffset(ZoneOffset.UTC))
-    }
-
     override fun list(recordId: UUID, visibility: ActivityVisibility, beforeVersion: Long?, limit: Int): List<RecordActivity> {
         val parameters = mutableListOf<Any>(recordId.toString())
         val sql = buildString {

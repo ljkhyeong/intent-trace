@@ -1,35 +1,13 @@
 package io.intenttrace.intellij
 
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
-internal object IntentTraceResponseParser {
-    private val json = Json { ignoreUnknownKeys = true }
+internal val responseJson = Json { ignoreUnknownKeys = true }
 
-    fun parseLookup(body: String): ChangeIntentLookup = decode(body)
-
-    fun parseRecord(body: String): ChangeIntentRecord = decode(body)
-
-    fun parsePage(body: String): ChangeRecordPage = decode(body)
-
-    fun parseDiagnosis(body: String): ConnectionDiagnosis = decode(body)
-
-    fun parseHistory(body: String): ChangeIntentHistory = decode(body)
-
-    fun parseHealth(body: String): String = decode<HealthResponse>(body).status
-
-    fun parseLogin(body: String): String = decode<LoginResponse>(body).actor.login
-
-    private inline fun <reified T> decode(body: String): T = try {
-        json.decodeFromString<T>(body)
-    } catch (_: SerializationException) {
-        throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.")
-    }
+/** 응답 원문을 포함할 수 있는 원인 예외 대신 고정 문구만 전달한다. */
+internal inline fun <reified T> decodeResponse(body: String): T = try {
+    responseJson.decodeFromString<T>(body)
+} catch (_: SerializationException) {
+    throw IntentTraceClientException("IntentTrace 조회 응답 형식을 확인할 수 없습니다.")
 }
-
-@Serializable
-private data class HealthResponse(val status: String)
-
-@Serializable
-private data class LoginResponse(val actor: CreatedByResponse)

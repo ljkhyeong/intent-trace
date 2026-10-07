@@ -8,7 +8,6 @@ import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.GitHubRepositoryMismatchException
-import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.EvidenceUnavailableException
@@ -34,40 +33,38 @@ class ConnectionDiagnostics(
         val ref = revision?.let { requireFullRevision(it) }
         require(pullNumber == null || pullNumber > 0) { "PR 번호는 양수여야 합니다." }
         val checks = mutableListOf(ConnectionCheck("authentication", DiagnosticStatus.VERIFIED, "현재 요청의 GitHub 사용자 인증을 확인했습니다."))
-        fun check(name: String, action: () -> Unit): Boolean {
-            val failure = try {
-                action()
-                null
-            } catch (error: RuntimeException) {
-                // 코드 확인 불가는 GitHubApiException의 하위 예외라 먼저 구분한다.
-                when (error) {
-                    is RepositoryAccessDeniedException -> "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요."
-                    is GitHubRepositoryMismatchException -> "PR의 병합 대상 저장소가 입력한 저장소와 다릅니다. 저장소 이름 변경이나 이전 여부를 확인하세요."
-                    is EvidenceUnavailableException -> error.reason.message
-                    is GitHubApiException -> "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요."
-                    is GitHubIdentityApiException -> "GitHub 권한 조회를 완료하지 못했습니다. 연결 상태를 확인하세요."
-                    else -> throw error
-                }
-            }
-            checks += ConnectionCheck(name, if (failure == null) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED, failure ?: "GitHub 응답으로 확인했습니다.")
-            return failure == null
+        fun <T : Any> check(name: String, action: () -> T): T? = try {
+            action().also { checks += ConnectionCheck(name, DiagnosticStatus.VERIFIED, "GitHub 응답으로 확인했습니다.") }
+        } catch (error: RuntimeException) {
+            // 코드 확인 불가는 GitHubApiException의 하위 예외라 먼저 구분한다.
+            checks += ConnectionCheck(name, DiagnosticStatus.FAILED, when (error) {
+                is RepositoryAccessDeniedException -> "대상 저장소의 접근 권한을 확인할 수 없습니다. GitHub App 설치와 사용자 권한을 확인하세요."
+                is GitHubRepositoryMismatchException -> "PR의 병합 대상 저장소가 입력한 저장소와 다릅니다. 저장소 이름 변경이나 이전 여부를 확인하세요."
+                is EvidenceUnavailableException -> error.reason.message
+                is GitHubApiException -> "GitHub 조회를 완료하지 못했습니다. PR 번호·커밋 해시와 App 읽기 권한을 확인하세요."
+                is GitHubIdentityApiException -> "GitHub 권한 조회를 완료하지 못했습니다. 연결 상태를 확인하세요."
+                else -> throw error
+            })
+            null
         }
-        val readable = check("repository_read") { access.requireReader(repository.key) }
+        val readable = check("repository_read") { access.requireReader(repository.key) } != null
         if (readable) check("repository_write") { access.requireContributor(repository.key) }
-        var pr: PullRequestSnapshot? = null
-        if (readable && pullNumber != null) {
-            check("pull_request_read") { pr = pullRequests.read(GitHubPullRequestTarget(repository.canonicalOwner, repository.canonicalName, pullNumber)) }
-            pr?.let {
-                checks += ConnectionCheck("pull_request_publication", if (it.fork) DiagnosticStatus.FAILED else DiagnosticStatus.VERIFIED,
-                    if (it.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR 원본 저장소와 병합 대상 저장소가 같습니다.")
-                if (ref != null) {
-                    val matches = ref == it.headRevision
-                    checks += ConnectionCheck("pull_request_revision", if (matches) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED,
-                        if (matches) "입력한 커밋이 PR의 현재 커밋과 같습니다."
-                        else "입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다.")
-                }
+        val pr = if (readable && pullNumber != null) {
+            check("pull_request_read") { pullRequests.read(GitHubPullRequestTarget(repository.canonicalOwner, repository.canonicalName, pullNumber)) }
+        } else {
+            checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
+            null
+        }
+        if (pr != null) {
+            checks += ConnectionCheck("pull_request_publication", if (pr.fork) DiagnosticStatus.FAILED else DiagnosticStatus.VERIFIED,
+                if (pr.fork) "Fork PR에는 Check Run을 게시할 수 없습니다." else "PR 원본 저장소와 병합 대상 저장소가 같습니다.")
+            if (ref != null) {
+                val matches = ref == pr.headRevision
+                checks += ConnectionCheck("pull_request_revision", if (matches) DiagnosticStatus.VERIFIED else DiagnosticStatus.FAILED,
+                    if (matches) "입력한 커밋이 PR의 현재 커밋과 같습니다."
+                    else "입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다.")
             }
-        } else checks += ConnectionCheck("pull_request_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 PR 번호가 필요합니다.")
+        }
         val evidenceRevision = ref ?: pr?.headRevision
         if (readable && evidenceRevision != null) check("git_tree_read") { evidence.snapshot(repository, evidenceRevision) }
         else checks += ConnectionCheck("git_tree_read", DiagnosticStatus.NOT_CHECKED, "저장소 읽기 권한과 커밋 해시 또는 PR 번호가 필요합니다.")

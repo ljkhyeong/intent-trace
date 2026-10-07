@@ -91,7 +91,7 @@ internal object IntentTraceTextRenderer {
     }
 
     /** 이전 커밋 조회 결과다. 여러 번 이어 읽은 결과를 합쳐 표시하며 과거 검증을 현재 검증으로 표시하지 않는다. */
-    fun renderLineHistory(lookup: LineLookup, view: LineHistoryView): String = buildString {
+    fun renderLineHistory(lookup: LineLookup, view: ChangeIntentHistory): String = buildString {
         appendLine("${lookup.repositoryKey} · ${lookup.revision.take(12)}")
         appendLine("${lookup.relativePath}:${lookup.line}")
         appendLine("마지막 조회에서 살펴본 기록 ${view.scannedRecords}건 · 누적 관련 결과 ${view.items.size}건")

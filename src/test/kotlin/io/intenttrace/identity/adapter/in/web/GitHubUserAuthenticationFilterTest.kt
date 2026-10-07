@@ -1,52 +1,75 @@
 package io.intenttrace.identity.adapter.`in`.web
 
+import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.IssuedGitHubUserSession
 import io.intenttrace.identity.application.SessionChannel
 import io.intenttrace.identity.application.GitHubUserSession
 import io.intenttrace.identity.application.GitHubIdentityApiException
+import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.ActorIdentity
 import jakarta.servlet.FilterChain
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.web.servlet.HandlerExceptionResolver
+import org.springframework.web.servlet.ModelAndView
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
-import tools.jackson.databind.ObjectMapper
 
 class GitHubUserAuthenticationFilterTest {
     private val credentials = FakeSessionStore()
-    private val mapper = ObjectMapper()
-    private val filter = GitHubUserAuthenticationFilter(credentials, mapper)
+    private var resolved: Exception? = null
+    private val errors = HandlerExceptionResolver { _, response, _, exception ->
+        resolved = exception
+        response.status = 418
+        ModelAndView()
+    }
+    private val filter = GitHubUserAuthenticationFilter(credentials, errors)
 
     @Test
-    fun `보호 경로에 Bearer 토큰이 없으면 요청을 거부한다`() {
-        val request = MockHttpServletRequest("GET", "/api/v1/change-records/1")
-        val response = MockHttpServletResponse()
-        var continued = false
+    fun `Bearer 토큰이 없거나 GitHub 토큰을 직접 보내면 세션 조회 없이 인증 실패로 넘긴다`() {
+        for (authorization in listOf(null, "Bearer ghu_user-token")) {
+            resolved = null
+            val request = MockHttpServletRequest("POST", "/mcp")
+            authorization?.let { request.addHeader("Authorization", it) }
+            val response = MockHttpServletResponse()
 
-        filter.doFilter(request, response, FilterChain { _, _ -> continued = true })
+            filter.doFilter(request, response, FilterChain { _, _ -> error("호출하면 안 되는 경로") })
 
-        assertEquals(401, response.status)
-        assertFalse(continued)
-        assertNull(credentials.authenticatedToken)
-        assertEquals("application/problem+json", response.contentType?.substringBefore(';'))
-        assertEquals(mapper.readTree("""{"status":401,"title":"GitHub 사용자 인증 실패"}"""), mapper.readTree(response.contentAsString))
+            assertIs<GitHubUserAuthenticationException>(resolved)
+            assertEquals(418, response.status)
+            assertNull(credentials.authenticatedToken)
+        }
     }
 
     @Test
-    fun `GitHub 토큰을 직접 보내면 세션 조회 없이 거부한다`() {
-        val request = MockHttpServletRequest("POST", "/mcp")
-        request.addHeader("Authorization", "Bearer ghu_user-token")
-        val response = MockHttpServletResponse()
+    fun `세션 조회 중 호출 제한과 사용자 조회 장애는 같은 예외로 전역 처리에 넘긴다`() {
+        for (failure in listOf(GitHubRateLimitException(120), GitHubIdentityApiException("테스트 사용자 조회 장애"))) {
+            resolved = null
+            val failing = GitHubUserAuthenticationFilter(FakeSessionStore { throw failure }, errors)
+            val request = MockHttpServletRequest("POST", "/mcp")
+            request.addHeader("Authorization", "Bearer $sessionToken")
 
-        filter.doFilter(request, response, FilterChain { _, _ -> error("호출하면 안 되는 경로") })
+            failing.doFilter(request, MockHttpServletResponse(), FilterChain { _, _ -> error("호출하면 안 되는 경로") })
 
-        assertEquals(401, response.status)
-        assertNull(credentials.authenticatedToken)
+            assertSame(failure, resolved)
+        }
+    }
+
+    @Test
+    fun `전역 처리가 다루지 않는 예외는 다시 던진다`() {
+        val unresolved = GitHubUserAuthenticationFilter(credentials) { _, _, _, _ -> null }
+        val request = MockHttpServletRequest("GET", "/api/v1/change-records")
+
+        assertFailsWith<GitHubUserAuthenticationException> {
+            unresolved.doFilter(request, MockHttpServletResponse(), FilterChain { _, _ -> error("호출하면 안 되는 경로") })
+        }
     }
 
     @Test
@@ -66,32 +89,8 @@ class GitHubUserAuthenticationFilterTest {
 
         assertEquals(sessionToken, credentials.authenticatedToken)
         assertTrue(sessionVisible)
+        assertNull(resolved)
         assertNull(request.getAttribute(GitHubUserAuthenticationFilter.SESSION_ATTRIBUTE))
-    }
-
-    @Test
-    fun `인증 중 호출 제한도 429와 재시도 대기 시간을 반환한다`() {
-        val limited = GitHubUserAuthenticationFilter(FakeSessionStore { throw io.intenttrace.config.GitHubRateLimitException(120) }, mapper)
-        val request = MockHttpServletRequest("POST", "/mcp")
-        request.addHeader("Authorization", "Bearer its_test")
-        val response = MockHttpServletResponse()
-        limited.doFilter(request, response, FilterChain { _, _ -> error("호출하면 안 되는 경로") })
-        assertEquals(429, response.status)
-        assertEquals("120", response.getHeader("Retry-After"))
-        assertEquals(mapper.readTree("""{"status":429,"title":"GitHub 호출 제한에 도달했습니다. 120초 후 다시 시도하세요."}"""), mapper.readTree(response.contentAsString))
-    }
-
-    @Test
-    fun `인증 서버 실패는 원문 없는 502 JSON 응답으로 반환한다`() {
-        val failing = GitHubUserAuthenticationFilter(FakeSessionStore { throw GitHubIdentityApiException("외부 응답 원문") }, mapper)
-        val request = MockHttpServletRequest("POST", "/mcp")
-        request.addHeader("Authorization", "Bearer its_test")
-        val response = MockHttpServletResponse()
-
-        failing.doFilter(request, response, FilterChain { _, _ -> error("호출하면 안 되는 경로") })
-
-        assertEquals(502, response.status)
-        assertEquals(mapper.readTree("""{"status":502,"title":"GitHub 사용자 인증 서비스 오류"}"""), mapper.readTree(response.contentAsString))
     }
 
     private val sessionToken = "its_${"A".repeat(43)}"

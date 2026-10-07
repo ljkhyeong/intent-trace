@@ -2,7 +2,6 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.connection.application.ConnectionDiagnosis
 import io.intenttrace.connection.application.DiagnosticStatus
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.application.PublicationAttempt
 import io.intenttrace.publication.application.PublicationAttemptStatus
 import io.intenttrace.publication.application.PublicationOperation
@@ -10,10 +9,11 @@ import io.intenttrace.publication.application.PullRequestOverview
 import io.intenttrace.publication.application.RecordPublications
 import io.intenttrace.record.application.ChangeRecordComparison
 import io.intenttrace.record.application.ComparisonField
-import io.intenttrace.record.application.RecordComparisonSide
 import io.intenttrace.record.application.ItemChange
+import io.intenttrace.record.application.RecordComparisonSide
 import io.intenttrace.record.domain.CodeSide
 import io.intenttrace.record.domain.VerificationSource
+import org.springframework.web.servlet.ModelAndView
 
 internal fun publicationLabel(attempt: PublicationAttempt?, published: Boolean): String = when (attempt?.status) {
     PublicationAttemptStatus.IN_PROGRESS -> "게시 요청 처리 중"
@@ -24,129 +24,92 @@ internal fun publicationLabel(attempt: PublicationAttempt?, published: Boolean):
 }
 
 /** 기록 상세의 GitHub 게시 목록이다. 대체 안내 반영은 작성자가 REST·MCP로 요청한다. */
-internal fun RecordBrowserPage.publicationFacts(result: RecordPublications): String = buildString {
-    append("<h2>GitHub 게시</h2>")
-    if (result.items.isEmpty()) {
-        append("<p class=\"muted\">게시했거나 게시를 시도한 PR이 없습니다.</p>")
-        return@buildString
-    }
-    append("<ul class=\"publications\">")
-    result.items.forEach { item ->
-        append("<li><a href=\"${html(url("/records/pull-requests", "repositoryKey" to item.repositoryKey, "pullNumber" to item.pullNumber.toString()))}\">")
-        append(if (item.repositoryKey == result.record.repositoryKey) "PR #${item.pullNumber}" else html("${item.repositoryKey}#${item.pullNumber}"))
-        append("</a> · ${publicationLabel(item.latestAttempt, item.publication != null)}")
-        item.publication?.let { append(" · <a href=\"${html(it.checkRunUrl)}\">Check Run</a>") }
-        if (item.supersessionNoticeNeeded) append(" <strong>대체 안내 필요</strong>")
-        append("</li>")
-    }
-    append("</ul>")
-    if (result.truncated) append("<p class=\"muted\">최근 100개 PR만 표시합니다.</p>")
-    if (result.items.any { it.supersessionNoticeNeeded }) {
-        append("<p class=\"muted\">대체 안내는 작성자가 REST·MCP의 대체 안내 반영으로 실행합니다.</p>")
-    }
+internal fun publicationFacts(result: RecordPublications) = PublicationsView(result.items.map { item ->
+    PublicationView(Link(url("/records/pull-requests", "repositoryKey" to item.repositoryKey, "pullNumber" to item.pullNumber.toString()),
+        if (item.repositoryKey == result.record.repositoryKey) "PR #${item.pullNumber}" else "${item.repositoryKey}#${item.pullNumber}"),
+        publicationLabel(item.latestAttempt, item.publication != null), item.publication?.checkRunUrl, item.supersessionNoticeNeeded)
+}, result.truncated, result.items.any { it.supersessionNoticeNeeded })
+
+internal fun RecordBrowserPage.pullRequests(repository: String?, number: Int?, result: PullRequestOverview?,
+    searchUrl: String): ModelAndView = view("pull-requests", "PR 변경 기록", PullRequestsView(repository.orEmpty(),
+    number?.toString().orEmpty(), result?.let {
+        PullRequestResultView(it.pullNumber, time(it.checkedAt), it.headRevision,
+            url("/records/github", "repositoryKey" to it.repositoryKey, "number" to it.pullNumber.toString()),
+            url("/records/github", "repositoryKey" to it.repositoryKey, "revision" to it.headRevision), it.fork,
+            it.items.map { item ->
+                PullRequestItemView(if (item.matchesCurrentHead) "현재 커밋과 일치" else "PR 최신 커밋과 다름",
+                    Link(recordUrl(item.record.id, searchUrl), item.record.title), item.record.requestSummary,
+                    publicationLabel(item.latestAttempt, item.publication != null), item.publication?.publishedAt?.let(::time))
+            },
+            it.nextCursor?.let { cursor -> url("/records/pull-requests", "repositoryKey" to repository, "pullNumber" to number.toString(), "cursor" to cursor) })
+    }))
+
+internal fun RecordBrowserPage.connection(repository: String?, revision: String?, number: Int?, result: ConnectionDiagnosis?): ModelAndView =
+    view("connection", "연결 진단", ConnectionView(repository.orEmpty(), number?.toString().orEmpty(), revision.orEmpty(),
+        result?.let {
+            ConnectionResultView(time(it.checkedAt), it.checks.map { check ->
+                ConnectionCheckView(check.status.label, checkNames[check.name] ?: check.name, check.message)
+            })
+        }))
+
+private val checkNames = mapOf("authentication" to "사용자 인증", "repository_read" to "저장소 읽기", "repository_write" to "저장소 쓰기",
+    "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "pull_request_revision" to "PR 커밋 일치",
+    "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
+
+private val DiagnosticStatus.label: String get() = when (this) {
+    DiagnosticStatus.VERIFIED -> "확인 완료"; DiagnosticStatus.FAILED -> "확인 실패"
+    DiagnosticStatus.CONFIGURED_UNVERIFIED -> "설정됨 · 유효성 미확인"; DiagnosticStatus.NOT_CONFIGURED -> "설정 필요"; DiagnosticStatus.NOT_CHECKED -> "확인하지 않음"
 }
 
-internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?,
-    searchUrl: String? = null): String =
-    layout("PR 변경 기록", actor, buildString {
-        append("<header class=\"page-heading\"><h1>PR 변경 기록</h1><p>현재 PR 커밋과 게시 기록을 함께 확인하세요.</p></header>")
-        append("""<form action="/records/pull-requests" class="search-form" method="get">
-            <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required></label>
-            <label>PR 번호<input name="pullNumber" type="number" min="1" value="${number ?: ""}" required></label><button>조회</button></form>""")
-        if (result == null) append("<p class=\"empty\">저장소와 PR 번호를 입력해 주세요.</p>") else {
-            append("<p>PR #${result.pullNumber} · ${stamp(result.checkedAt)}</p><p class=\"hash\">현재 커밋 ${html(result.headRevision)}</p>")
-            append("<p><a class=\"button secondary\" href=\"${html(url("/records/github", "repositoryKey" to result.repositoryKey, "number" to result.pullNumber.toString()))}\">PR 내용 가져오기</a></p>")
-            append("<p><a class=\"button secondary\" href=\"${html(url("/records/github", "repositoryKey" to result.repositoryKey, "revision" to result.headRevision))}\">이 커밋의 CI 결과 조회</a></p>")
-            if (result.fork) append("<aside class=\"notice\">Fork PR에는 Check Run을 게시할 수 없습니다.</aside>")
-            if (result.items.isEmpty()) append("<p class=\"empty\">이 PR에 게시했거나 게시를 시도한 기록이 없습니다.</p>")
-            append("<ul class=\"records\">")
-            result.items.forEach { item ->
-                val latest = publicationLabel(item.latestAttempt, item.publication != null)
-                append("<li><div class=\"record-summary\"><span class=\"status\">${if (item.matchesCurrentHead) "현재 커밋과 일치" else "PR 최신 커밋과 다름"}</span>")
-                append("<h2><a href=\"${html(recordUrl(item.record.id, searchUrl))}\">${html(item.record.title)}</a></h2><p>${html(item.record.requestSummary)}</p><p>$latest</p>")
-                if (item.publication != null) append("<p class=\"muted\">마지막으로 확인한 게시: ${stamp(item.publication.publishedAt)}</p>")
-                append("</div></li>")
-            }
-            append("</ul>")
-            result.nextCursor?.let { append("<nav class=\"pagination\"><a class=\"button secondary\" href=\"${html(url("/records/pull-requests", "repositoryKey" to repository, "pullNumber" to number.toString(), "cursor" to it))}\">다음 기록</a></nav>") }
-        }
-    })
+internal fun RecordBrowserPage.comparison(result: ChangeRecordComparison, changesOnly: Boolean, searchUrl: String?): ModelAndView {
+    val sections = ComparisonField.entries.filter { !changesOnly || it in result.changedFields }.map { field ->
+        val changed = field in result.changedFields
+        val details = result.details.filter { it.field == field }
+        val before = comparisonItems(field, result.original)
+        val after = comparisonItems(field, result.successor)
+        val originalText = before.joinToString("\n\n").ifEmpty { EMPTY }
+        val successorText = after.joinToString("\n\n").ifEmpty { EMPTY }
+        val highlighted = details.isEmpty() && changed
+        ComparisonSectionView(field.label, if (changed) "변경됨" else "같음", details.map { detail ->
+            val properties = detail.changedProperties.takeIf { it.isNotEmpty() }?.joinToString(", ", " · ") { propertyLabels[it] ?: it }.orEmpty()
+            val left = detail.originalIndex?.let { before[it] }.orEmpty()
+            val right = detail.successorIndex?.let { after[it] }.orEmpty()
+            val position = listOfNotNull(detail.originalIndex?.let { "원본 ${it + 1}번" }, detail.successorIndex?.let { "새 기록 ${it + 1}번" })
+                .joinToString(" → ") + if (detail.moved && detail.change != ItemChange.MOVED) " · 순서도 변경" else ""
+            ComparisonDetailView(detail.change.label + properties, detail.change == ItemChange.AMBIGUOUS, position,
+                highlight(left, right, "del"), highlight(right, left, "ins"))
+        }, if (highlighted) highlight(originalText, successorText, "del") else listOf(DiffPart(originalText, null)),
+            if (highlighted) highlight(successorText, originalText, "ins") else listOf(DiffPart(successorText, null)))
+    }
+    return view("comparison", "원본과 새 기록 비교", ComparisonView(result.successor.content.verifications.isEmpty(),
+        recordUrl(result.original.id, searchUrl), result.original.version, recordUrl(result.successor.id, searchUrl),
+        result.successor.version, Link(recordUrl(result.successor.id, searchUrl, "comparison", "changesOnly" to !changesOnly),
+            if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"),
+        if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중", sections))
+}
 
-internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: String?, revision: String?, number: Int?, result: ConnectionDiagnosis?): String =
-    layout("연결 진단", actor, buildString {
-        append("<header class=\"page-heading\"><h1>연결 진단</h1><p>저장소 권한과 PR·코드 읽기를 확인하세요.</p></header>")
-        append("""<form action="/records/connection" class="search-form" method="get">
-            <label>저장소<input name="repositoryKey" value="${html(repository.orEmpty())}" placeholder="owner/repository" required></label>
-            <label>PR 번호 · 선택<input name="pullNumber" type="number" min="1" value="${number ?: ""}"></label>
-            <label>커밋 해시(전체 길이) · 선택<input name="revision" value="${html(revision.orEmpty())}" placeholder="PR을 입력하면 현재 커밋 사용" maxlength="64"></label><button>진단</button></form>""")
-        if (result == null) append("<p class=\"empty\">저장소를 입력하면 연결 상태를 확인합니다.</p>") else {
-            append("<p>${stamp(result.checkedAt)}</p><ul class=\"records\">")
-            val names = mapOf("authentication" to "사용자 인증", "repository_read" to "저장소 읽기", "repository_write" to "저장소 쓰기",
-                "pull_request_read" to "PR 읽기", "pull_request_publication" to "PR 게시 대상", "pull_request_revision" to "PR 커밋 일치",
-                "git_tree_read" to "커밋 트리 읽기", "publication_credentials" to "GitHub 게시 인증 설정")
-            result.checks.forEach { check ->
-                val status = when (check.status) {
-                    DiagnosticStatus.VERIFIED -> "확인 완료"; DiagnosticStatus.FAILED -> "확인 실패"
-                    DiagnosticStatus.CONFIGURED_UNVERIFIED -> "설정됨 · 유효성 미확인"; DiagnosticStatus.NOT_CONFIGURED -> "설정 필요"; DiagnosticStatus.NOT_CHECKED -> "확인하지 않음"
-                }
-                append("<li><div><span class=\"status\">$status</span><h2>${html(names[check.name] ?: check.name)}</h2><p>${html(check.message)}</p></div></li>")
-            }
-            append("</ul><p class=\"notice\">게시 키·설치·실제 발급 권한은 관리자가 연결된 Agent에서 ‘GitHub 게시 인증 점검’을 요청해 확인할 수 있습니다.</p>")
-        }
-    })
+private const val EMPTY = "등록된 내용 없음"
 
-internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean = false, searchUrl: String? = null): String =
-    layout("원본과 새 기록 비교", actor, buildString {
-        append("<header class=\"page-heading\"><h1>원본과 새 기록 비교</h1><p>원본과 새 기록의 변경 내용을 확인하세요.</p></header>")
-        if (result.successor.content.verifications.isEmpty()) append("<aside class=\"notice\">새 기록에 등록된 검증 결과가 없습니다. 원본의 검증 결과는 복사하지 않습니다.</aside>")
-        append("<div class=\"comparison-columns comparison-heading\"><p><a href=\"${html(recordUrl(result.original.id, searchUrl))}\">원본 기록</a> · 버전 ${result.original.version}</p><p><a href=\"${html(recordUrl(result.successor.id, searchUrl))}\">새 기록</a> · 버전 ${result.successor.version}</p></div>")
-        append("<nav class=\"comparison-filter\"><a class=\"button secondary\" href=\"${html(recordUrl(result.successor.id, searchUrl, "comparison", "changesOnly" to !changesOnly))}\">${if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"}</a><p>${if (changesOnly) "변경된 항목만 표시 중" else "전체 항목 표시 중"}</p></nav>")
-        val labels = mapOf(ComparisonField.TITLE to "제목", ComparisonField.REQUEST to "요청", ComparisonField.DECISIONS to "구현 결정과 출처",
-            ComparisonField.CODE_ANCHORS to "관련 코드", ComparisonField.VERIFICATIONS to "검증", ComparisonField.OPEN_QUESTIONS to "남은 질문",
-            ComparisonField.BASE_REVISION to "변경 전 커밋", ComparisonField.TARGET_REVISION to "변경 후 커밋", ComparisonField.SNAPSHOT to "스냅샷 해시")
-        labels.filterKeys { !changesOnly || it in result.changedFields }.forEach { (field, label) ->
-            val details = result.details.filter { it.field == field }
-            val before = comparisonItems(field, result.original)
-            val after = comparisonItems(field, result.successor)
-            append("<section class=\"comparison-section\"><h2>$label <span class=\"status\">${if (field in result.changedFields) "변경됨" else "같음"}</span></h2>")
-            details.forEach { detail ->
-                val name = when (detail.change) {
-                    ItemChange.ADDED -> "추가"; ItemChange.REMOVED -> "삭제"; ItemChange.MODIFIED -> "내용 변경"
-                    ItemChange.MOVED -> "순서 변경"; ItemChange.AMBIGUOUS -> "중복 항목 · 비교 대상 불명확"
-                }
-                val propertyLabels = mapOf("source" to "출처", "rationale" to "결정 이유", "summary" to "요약", "contentHash" to "줄 해시",
-                    "symbolName" to "심볼", "relatedPath" to "이름 변경 경로", "exitCode" to "종료 코드", "snapshotDigest" to "스냅샷 해시", "outputDigest" to "출력 해시")
-                append("<div class=\"comparison-detail\"><h3>$name${detail.changedProperties.takeIf { it.isNotEmpty() }?.joinToString(", ", " · ") { propertyLabels[it] ?: it }.orEmpty()}</h3>")
-                if (detail.change == ItemChange.AMBIGUOUS) append("<p>중복 항목은 개별 변경을 구분하지 않습니다. 전체 내용을 확인하세요.</p>")
-                else {
-                    append("<p>${detail.originalIndex?.let { "원본 ${it + 1}번" }.orEmpty()}${if (detail.originalIndex != null && detail.successorIndex != null) " → " else ""}${detail.successorIndex?.let { "새 기록 ${it + 1}번" }.orEmpty()}${if (detail.moved && detail.change != ItemChange.MOVED) " · 순서도 변경" else ""}</p>")
-                    val left = detail.originalIndex?.let { before[it] }.orEmpty()
-                    val right = detail.successorIndex?.let { after[it] }.orEmpty()
-                    append("<div class=\"comparison-columns\"><div><h4>원본</h4><p class=\"prose\">${highlightChangedLines(left, right, "del")}</p></div><div><h4>새 기록</h4><p class=\"prose\">${highlightChangedLines(right, left, "ins")}</p></div></div>")
-                }
-                append("</div>")
-            }
-            if (details.isNotEmpty()) append("<details><summary>원본과 새 기록 전체 보기</summary>")
-            append("<div class=\"comparison-columns\">")
-            val originalText = before.joinToString("\n\n").ifEmpty { "등록된 내용 없음" }
-            val successorText = after.joinToString("\n\n").ifEmpty { "등록된 내용 없음" }
-            listOf("원본" to originalText, "새 기록" to successorText).forEach { (side, text) ->
-                val other = if (side == "원본") successorText else originalText
-                val displayed = if (details.isEmpty() && field in result.changedFields) highlightChangedLines(text, other, if (side == "원본") "del" else "ins") else html(text)
-                append("<div class=\"comparison-value\"><h3>$side</h3><p class=\"prose\">$displayed</p></div>")
-            }
-            append("</div>")
-            if (details.isNotEmpty()) append("</details>")
-            append("</section>")
-        }
-    })
+private val ComparisonField.label: String get() = when (this) {
+    ComparisonField.TITLE -> "제목"; ComparisonField.REQUEST -> "요청"; ComparisonField.DECISIONS -> "구현 결정과 출처"
+    ComparisonField.CODE_ANCHORS -> "관련 코드"; ComparisonField.VERIFICATIONS -> "검증"; ComparisonField.OPEN_QUESTIONS -> "남은 질문"
+    ComparisonField.BASE_REVISION -> "변경 전 커밋"; ComparisonField.TARGET_REVISION -> "변경 후 커밋"; ComparisonField.SNAPSHOT -> "스냅샷 해시"
+}
+
+private val ItemChange.label: String get() = when (this) {
+    ItemChange.ADDED -> "추가"; ItemChange.REMOVED -> "삭제"; ItemChange.MODIFIED -> "내용 변경"
+    ItemChange.MOVED -> "순서 변경"; ItemChange.AMBIGUOUS -> "중복 항목 · 비교 대상 불명확"
+}
+
+private val propertyLabels = mapOf("source" to "출처", "rationale" to "결정 이유", "summary" to "요약", "contentHash" to "줄 해시",
+    "symbolName" to "심볼", "relatedPath" to "이름 변경 경로", "exitCode" to "종료 코드", "snapshotDigest" to "스냅샷 해시", "outputDigest" to "출력 해시")
 
 private fun comparisonItems(field: ComparisonField, side: RecordComparisonSide): List<String> = with(side.content) {
     when (field) {
         ComparisonField.TITLE -> listOf(title)
         ComparisonField.REQUEST -> listOf(requestSummary)
         ComparisonField.DECISIONS -> decisions.map { "${it.source.label}\n${it.summary}\n${it.rationale.orEmpty()}" }
-        ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${if (it.side == CodeSide.BASE) "변경 전" else "변경 후"} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n${if (it.side == CodeSide.BASE) "변경 후" else "변경 전"} 파일 경로 $path" }.orEmpty()}" }
+        ComparisonField.CODE_ANCHORS -> codeAnchors.map { "${it.side.label} ${it.relativePath}:${it.startLine}–${it.endLine}\n${it.symbolName.orEmpty()}\n줄 해시 ${it.contentHash}${it.relatedPath?.let { path -> "\n${if (it.side == CodeSide.BASE) "변경 후" else "변경 전"} 파일 경로 $path" }.orEmpty()}" }
         ComparisonField.VERIFICATIONS -> verifications.map { "${it.command}\n종료 코드 ${it.exitCode} · ${if (it.source == VerificationSource.LOCAL_RUNNER_REPORTED) "로컬 실행 도구 수집" else "클라이언트 제출"}\n${it.summary}\n${it.startedAt} ~ ${it.finishedAt}\n스냅샷 해시 ${it.snapshotDigest}\n출력 해시 ${it.outputDigest}" }
         ComparisonField.OPEN_QUESTIONS -> openQuestions
         ComparisonField.BASE_REVISION -> listOf(baseRevision.orEmpty())
@@ -155,11 +118,45 @@ private fun comparisonItems(field: ComparisonField, side: RecordComparisonSide):
     }
 }
 
-private fun highlightChangedLines(value: String, other: String, tag: String): String {
-    if (value.isEmpty()) return "등록된 내용 없음"
-    if (value == other) return html(value)
+/** 앞뒤가 같은 줄을 뺀 나머지 줄에 [mark](`del`·`ins`)를 붙인다. 줄바꿈은 표시 문자열로 남긴다. */
+private fun highlight(value: String, other: String, mark: String): List<DiffPart> {
+    if (value.isEmpty()) return listOf(DiffPart(EMPTY, null))
+    if (value == other) return listOf(DiffPart(value, null))
     val lines = value.split('\n'); val otherLines = other.split('\n')
     val prefix = lines.zip(otherLines).takeWhile { it.first == it.second }.size
     val suffix = lines.drop(prefix).asReversed().zip(otherLines.drop(prefix).asReversed()).takeWhile { it.first == it.second }.size
-    return lines.mapIndexed { index, line -> if (index >= prefix && index < lines.size - suffix) "<$tag>${html(line)}</$tag>" else html(line) }.joinToString("\n")
+    return lines.flatMapIndexed { index, line ->
+        listOfNotNull(DiffPart("\n", null).takeIf { index > 0 }, DiffPart(line, mark.takeIf { index >= prefix && index < lines.size - suffix }))
+    }
 }
+
+data class PublicationsView(val items: List<PublicationView>, val truncated: Boolean, val noticeNeeded: Boolean)
+
+data class PublicationView(val pullRequest: Link, val status: String, val checkRunUrl: String?, val noticeNeeded: Boolean)
+
+data class PullRequestsView(val repository: String, val number: String, val result: PullRequestResultView?)
+
+data class PullRequestResultView(val pullNumber: Int, val checkedAt: TimeView, val headRevision: String, val contentUrl: String,
+    val ciUrl: String, val fork: Boolean, val items: List<PullRequestItemView>, val nextUrl: String?)
+
+data class PullRequestItemView(val match: String, val record: Link, val summary: String, val publication: String, val publishedAt: TimeView?)
+
+data class ConnectionView(val repository: String, val number: String, val revision: String, val result: ConnectionResultView?)
+
+data class ConnectionResultView(val checkedAt: TimeView, val checks: List<ConnectionCheckView>)
+
+data class ConnectionCheckView(val status: String, val name: String, val message: String)
+
+data class ComparisonView(val missingVerifications: Boolean, val originalUrl: String, val originalVersion: Long,
+    val successorUrl: String, val successorVersion: Long, val filter: Link, val filterState: String,
+    val sections: List<ComparisonSectionView>)
+
+/** [details]가 있으면 전체 내용은 접어서 표시한다. */
+data class ComparisonSectionView(val label: String, val state: String, val details: List<ComparisonDetailView>,
+    val original: List<DiffPart>, val successor: List<DiffPart>)
+
+data class ComparisonDetailView(val heading: String, val ambiguous: Boolean, val position: String,
+    val original: List<DiffPart>, val successor: List<DiffPart>)
+
+/** 비교 본문 조각이다. [mark]가 `del`·`ins`이면 해당 태그로 강조한다. */
+data class DiffPart(val text: String, val mark: String?)

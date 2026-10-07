@@ -1,14 +1,10 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
-import io.intenttrace.identity.application.CurrentGitHubUserSession
-import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserSession
+import io.intenttrace.TestCurrentGitHubUserSession
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.domain.CodeAnchor
 import io.intenttrace.record.domain.Decision
 import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
@@ -24,14 +20,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, DraftManagementIntegrationTest.Configuration::class],
-    properties = ["spring.datasource.url=jdbc:h2:mem:draft-management;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"],
-)
+@SpringBootTest
 class DraftManagementIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val catalog: ChangeRecordCatalogService,
-    @Autowired private val session: TestSession,
+    @Autowired private val session: TestCurrentGitHubUserSession,
     @Autowired private val activities: RecordActivityService,
     @Autowired private val jdbc: org.springframework.jdbc.core.JdbcTemplate,
 ) {
@@ -66,9 +59,7 @@ class DraftManagementIntegrationTest(
         record = records.revise(record.id, record.version, input.copy(title = "수정한 초안"))
         record = records.confirm(ConfirmChangeRecordCommand(record.id, record.version, revision, digest))
         record = records.publish(PublishChangeRecordCommand(record.id, record.version, digest))
-        var next = records.create(command("replacement-${UUID.randomUUID()}"))
-        next = records.confirm(ConfirmChangeRecordCommand(next.id, next.version, revision, digest))
-        next = records.publish(PublishChangeRecordCommand(next.id, next.version, digest))
+        val next = records.createPublished(command("replacement-${UUID.randomUUID()}"), revision)
         record = records.supersede(SupersedeChangeRecordCommand(record.id, record.version, next.id))
         assertEquals(record.id, records.create(input).id)
         assertFailsWith<ConcurrentChangeRecordUpdateException> { records.supersede(SupersedeChangeRecordCommand(record.id, 5, next.id)) }
@@ -202,17 +193,10 @@ class DraftManagementIntegrationTest(
         session.actor = owner
     }
 
-    class TestSession(var actor: ActorIdentity = owner) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token", java.util.UUID.randomUUID())
-    }
-
     @TestConfiguration
     class Configuration {
-        @Bean @Primary fun currentSession() = TestSession()
-        @Bean @Primary fun accessGateway() = object : GitHubUserAccessGateway {
-            override fun authenticate(accessToken: String) = owner
-            override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository) = RepositoryRole.CONTRIBUTOR
-        }
+        @Bean @Primary fun currentSession() = TestCurrentGitHubUserSession(owner)
+        @Bean @Primary fun accessGateway() = TestGitHubUserAccessGateway(RepositoryRole.CONTRIBUTOR, defaultActor = owner)
     }
 
     companion object {
@@ -220,10 +204,6 @@ class DraftManagementIntegrationTest(
         private val other = ActorIdentity.github(2, "other")
         private val digest = "a".repeat(64)
         private val revision = "b".repeat(40)
-        private fun command(id: String, repo: String = "acme/drafts") = CreateChangeRecordCommand(
-            id, repo, null, digest, "초안 수정", "작성자 피드백을 반영한다.",
-            listOf(Decision("공개 본문은 보존한다.", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("src/App.kt", null, 1, 2, "c".repeat(64))), emptyList(), emptyList(),
-        )
+        private fun command(id: String, repo: String = "acme/drafts") = createCommand(repo, requestId = id)
     }
 }

@@ -64,7 +64,7 @@ class GitHubContextService(
             content.updatedAt, Instant.now(clock))
     }
 
-    fun actions(repositoryKey: String, revision: String, page: Int = 1): GitHubActionsResults {
+    fun actions(repositoryKey: String, revision: String, page: Int): GitHubActionsResults {
         val repository = GitHubRepository.parse(repositoryKey)
         val ref = requireFullRevision(revision)
         require(page in 1..50) { "Actions 조회 페이지는 1~50이어야 합니다." }

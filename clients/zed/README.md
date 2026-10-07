@@ -42,7 +42,7 @@ IntentTrace 로그인 화면에서 `its_` 세션을 받은 뒤 Zed를 완전히 
 npm uninstall --prefix ~/.local/share/intent-trace --ignore-scripts intent-trace-zed
 ```
 
-`unconfigure`는 `context_servers.intent-trace`만 제거하고 다른 연결·주석·파일 권한을 유지한다. 별도 설정 파일은 `--settings`로 지정한다. 연결이 없으면 파일을 바꾸지 않으며, 서버 주소와 세션 없이 실행할 수 있다. 패키지와 서버 세션은 별도로 관리한다. 공개 배포용으로 이름을 바꾼 패키지는 해당 이름으로 제거하고, 사용하지 않는 세션은 서버의 내 연결 화면에서 종료한다.
+`unconfigure`는 `context_servers.intent-trace`와 hover 언어 서버의 `lsp.intent-trace`만 제거하고 다른 연결·주석·파일 권한을 유지한다. 별도 설정 파일은 `--settings`로 지정한다. 연결이 없으면 파일을 바꾸지 않으며, 서버 주소와 세션 없이 실행할 수 있다. 패키지와 서버 세션은 별도로 관리한다. 공개 배포용으로 이름을 바꾼 패키지는 해당 이름으로 제거하고, 사용하지 않는 세션은 서버의 내 연결 화면에서 종료한다.
 
 ## 지원 범위
 

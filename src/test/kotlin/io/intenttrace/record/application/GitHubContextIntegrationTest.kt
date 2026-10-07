@@ -1,6 +1,5 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.identity.adapter.`in`.web.BROWSER_SESSION_COOKIE
@@ -25,15 +24,13 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 import io.intenttrace.htmlLink
 import io.intenttrace.issueTestSession
+import io.intenttrace.runZedNode
 
-@SpringBootTest(classes = [IntentTraceApplication::class, GitHubContextIntegrationTest.Configuration::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["spring.datasource.url=jdbc:h2:mem:github-context;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "server.shutdown=immediate"])
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val sessions: GitHubUserSessionStore,
     @Autowired private val gateway: FakeContextGateway, @LocalServerPort private val port: Int) {
@@ -193,12 +190,7 @@ class GitHubContextIntegrationTest(@Autowired private val mvc: MockMvc, @Autowir
                 }
             } finally { await client.close(); }
         """.trimIndent()
-        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = session() }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) process.destroyForcibly()
-        assertTrue(finished, "MCP SDK 조회가 제한 시간 안에 끝나야 합니다.")
-        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        runZedNode(script, mapOf("INTENT_TRACE_SESSION_TOKEN" to session())).assertSuccess()
     }
 
     private fun session(channel: SessionChannel = SessionChannel.CLIENT): String =

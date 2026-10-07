@@ -1,5 +1,6 @@
 package io.intenttrace.record.application
 
+import io.intenttrace.runProcess
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -15,11 +16,12 @@ class SensitiveTextRedactorTest {
             session=its_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
             browser=itb_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
             /Users/lim/devProject/intent-trace C:\Users\lim\intent-trace
+            {"cwd":"C:\\Users\\lim\\x","home":"\/Users\/lim\/y"}
         """.trimIndent()
 
         val redacted = redactBoth(source)
 
-        assertEquals(6, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
+        assertEquals(8, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
         assertFalse(redacted.contains("ghu_userToken123"))
         assertFalse(redacted.contains("itb_" + "B".repeat(43)))
         assertFalse(redacted.contains("lim"))
@@ -86,12 +88,9 @@ class SensitiveTextRedactorTest {
 
     private fun redactBoth(source: String): String {
         val expected = redactor.redact(source)
-        val script = java.nio.file.Path.of("scripts/run-verification.py").toAbsolutePath().toString()
-        val process = ProcessBuilder("python3", "-c",
-            "import runpy,sys; print(runpy.run_path(sys.argv[1])['redact'](sys.stdin.read()))", script).start()
-        process.outputStream.bufferedWriter().use { it.write(source) }
-        assertEquals(expected, process.inputStream.bufferedReader().readText().removeSuffix("\n"))
-        assertEquals(0, process.waitFor())
+        val script = "import runpy,sys; print(runpy.run_path(sys.argv[1])['redact'](sys.argv[2]))"
+        val actual = runProcess(listOf("python3", "-c", script, "scripts/run-verification.py", source)).assertSuccess().output
+        assertEquals(expected, actual.removeSuffix("\n"))
         return expected
     }
 }

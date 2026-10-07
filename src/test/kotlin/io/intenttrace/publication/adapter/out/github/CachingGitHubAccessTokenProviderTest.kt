@@ -1,7 +1,6 @@
 package io.intenttrace.publication.adapter.out.github
 
 import io.intenttrace.MutableClock
-import io.intenttrace.config.GitHubAppProperties
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import org.junit.jupiter.api.Test
@@ -18,9 +17,7 @@ class CachingGitHubAccessTokenProviderTest {
         val clock = MutableClock(Instant.parse("2026-08-28T00:00:00Z"))
         var issued = 0
         val provider = CachingGitHubAccessTokenProvider(
-            properties = GitHubProperties(
-                app = GitHubAppProperties(refreshBeforeExpiry = Duration.ofMinutes(5)),
-            ),
+            properties = GitHubProperties(),
             tokenIssuer = GitHubInstallationTokenIssuer {
                 issued += 1
                 GitHubInstallationAccessToken("token-$issued", clock.instant().plus(Duration.ofHours(1)), 1)
@@ -43,7 +40,7 @@ class CachingGitHubAccessTokenProviderTest {
         val clock = MutableClock(Instant.parse("2026-08-28T00:00:00Z"))
         var issued = 0
         val provider = CachingGitHubAccessTokenProvider(
-            properties = GitHubProperties(app = GitHubAppProperties(refreshBeforeExpiry = Duration.ofMinutes(5))),
+            properties = GitHubProperties(),
             tokenIssuer = GitHubInstallationTokenIssuer {
                 issued += 1
                 GitHubInstallationAccessToken("token-$issued", clock.instant().plus(Duration.ofHours(1)), if (it.owner == "acme") 7 else 8)

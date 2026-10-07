@@ -75,9 +75,9 @@ class GitHubRestClient(
         for (page in 1..MAX_CHECK_RUN_PAGES) {
             val response = authenticated(command.target) { token ->
                 client.get()
-                    .uri { builder ->
+                    // 경로를 템플릿으로 넘겨 호출 지표의 uri label에 저장소·커밋 대신 템플릿이 남게 한다.
+                    .uri("/repos/{owner}/{repository}/commits/{revision}/check-runs") { builder ->
                         builder
-                            .path("/repos/{owner}/{repository}/commits/{revision}/check-runs")
                             .queryParam("check_name", CHECK_NAME)
                             .queryParam("filter", "all")
                             .queryParam("per_page", CHECK_RUN_PAGE_SIZE)

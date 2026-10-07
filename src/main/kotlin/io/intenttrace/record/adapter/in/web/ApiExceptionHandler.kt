@@ -75,7 +75,7 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(GitHubPublicationContentTooLargeException::class)
     fun githubContentTooLarge(exception: GitHubPublicationContentTooLargeException): ProblemDetail =
-        problem(HttpStatus.UNPROCESSABLE_ENTITY, "GitHub 게시 글자 수 초과", exception.message)
+        problem(HttpStatus.UNPROCESSABLE_CONTENT, "GitHub 게시 글자 수 초과", exception.message)
 
     @ExceptionHandler(GitHubApiException::class)
     fun githubApiFailure(exception: GitHubApiException): ProblemDetail =
@@ -83,7 +83,7 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(EvidenceUnavailableException::class)
     fun evidenceUnavailable(exception: EvidenceUnavailableException): ProblemDetail =
-        problem(HttpStatus.UNPROCESSABLE_ENTITY, "코드 확인 불가", exception.reason.message).also {
+        problem(HttpStatus.UNPROCESSABLE_CONTENT, "코드 확인 불가", exception.reason.message).also {
             it.setProperty("code", "EVIDENCE_UNAVAILABLE")
             it.setProperty("reason", exception.reason.name)
         }

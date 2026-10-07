@@ -3,9 +3,6 @@ package io.intenttrace.record.application
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordContent
-import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Test
 import org.springframework.dao.DuplicateKeyException
 import java.time.Clock
@@ -97,17 +94,7 @@ class ChangeRecordFacadeTest {
         private val actor = ActorIdentity.github(1, "lim")
         private val fixedClock = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), ZoneOffset.UTC)
 
-        private fun command() = CreateChangeRecordCommand(
-            requestId = "concurrent-request",
-            repositoryKey = "Acme/Intent-Trace",
-            snapshotDigest = "a".repeat(64),
-            title = "동시 요청",
-            requestSummary = "같은 요청을 한 번만 저장한다.",
-            decisions = listOf(Decision("DB unique 제약으로 판정한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchor("src/App.kt", "App", 1, 2, "b".repeat(64))),
-            verifications = emptyList(),
-            openQuestions = emptyList(),
-        )
+        private fun command() = createCommand("Acme/Intent-Trace", requestId = "concurrent-request")
 
         // 같은 요청의 재시도는 생성 명령과 같은 내용 해시로 판정한다.
         private fun record() = command().let {

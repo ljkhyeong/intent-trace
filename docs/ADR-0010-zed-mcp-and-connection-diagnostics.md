@@ -46,7 +46,7 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 
 - `scripts/package-zed.mjs`는 `clients/zed`의 실행 파일·세션 토큰 입력 도구·사용 안내와 Node 의존성을 묶은 `.tgz` 및 SHA-256 파일을 만든다. 0.12.1부터 의존성은 아래의 잠금 파일 설치 절차로 준비한다. 저장소 전체·테스트·사용자 설정은 포함하지 않는다. 생성은 macOS·Linux에서 지원한다.
 - 기본 패키지는 로컬 설치용 `private: true`다. `intent-trace-zed` 실행 명령을 제공하며 심볼릭 링크로 설치된 명령도 실제 실행 파일에서 시작한다. 설정 생성은 설치된 경로를 사용한다.
-- `launch`는 패키지의 Python 실행 도구로 Zed에 세션을 전달한다. 저장소에서 실행할 때는 기존 스크립트를 사용한다. `INTENT_TRACE_MCP_URL`은 선택 서버 주소이며 명령 인자의 주소가 우선한다.
+- `launch`는 패키지의 Python 실행 도구로 Zed에 세션을 전달한다. `INTENT_TRACE_MCP_URL`은 선택 서버 주소이며 명령 인자의 주소가 우선한다.
 - npm 이름·MCP 이름·GitHub 저장소를 함께 지정하면 별도 배포 패키지에 `mcpName`과 저장소 정보를 넣고 `server.json`을 생성한다. 제출용 token 입력은 비밀값으로 선언하며 실제 값을 포함하지 않는다. 이 생성 작업은 외부 게시를 하지 않는다.
 - Zed는 MCP 확장 플러그인에서 공식 MCP 레지스트리로 전환할 계획을 안내한다. 배포 자료는 공식 레지스트리 형식에 맞추고 기존 사용자 지정 stdio 연결을 유지한다. [Zed 공식 안내](https://zed.dev/docs/extensions/mcp-extensions), [MCP 레지스트리 게시 절차](https://modelcontextprotocol.io/registry/quickstart)
 
@@ -63,6 +63,6 @@ HTTP 오류 본문은 읽지 않고 버린다. 상태 코드로 401은 `AUTHENTI
 - 언어 서버는 같은 Node 패키지의 `lsp` 명령이며 `vscode-languageserver`를 사용한다. 표준 출력은 LSP 통신에만 쓴다. `configure`는 MCP 연결과 함께 `lsp.intent-trace` 실행 명령과 서버 주소를 저장하고 `unconfigure`는 둘 다 제거한다.
 - 조회 전에 Git으로 HEAD·저장소·상대 경로를 계산한다. 원격 주소 해석은 IntelliJ와 같은 규칙이다. 저장하지 않았거나 커밋되지 않은 파일은 서버를 호출하지 않는다.
 - 서버는 REST 요청마다 GitHub 권한을 확인한다. 그래서 `GET /api/v1/change-records?scope=TEAM&path=…&limit=1`로 파일에 공개 기록이 있는지 먼저 확인해 5분 캐시하고, 있을 때만 `GET /api/v1/change-records/lookup`을 1분 캐시로 호출한다. 403 저장소는 5분간 조용히 건너뛴다. 그 밖의 실패는 30초 또는 `Retry-After` 동안 같은 안내를 재사용한다.
-- 토큰은 `INTENT_TRACE_SESSION_TOKEN`으로만 받는다. redirect를 따르지 않고 응답은 4M 문자까지만 해석한다. 기록 문구는 Markdown 문법으로 해석되지 않게 escape하고 오류 원문은 표시하지 않는다.
+- 토큰은 `INTENT_TRACE_SESSION_TOKEN`으로만 받는다. redirect를 따르지 않는다. 응답 크기는 서버의 줄 조회 상한(20건)을 따르며 hover에는 최근 3건만 요약한다. 기록 문구는 Markdown 문법으로 해석되지 않게 escape하고 오류 원문은 표시하지 않는다.
 - 코드 렌즈는 문서 전체의 렌즈를 한 번에 요청해 줄마다 조회가 필요하므로 보류한다. 웹 화면을 여는 code action은 Zed가 `window/showDocument`의 `external`을 지원하지 않아 보류한다.
 - 새 기록이 hover에 보이기까지 최대 5분이 걸리고, 다른 언어 서버와 hover가 함께 표시되는지는 실제 Zed에서 확인해야 한다.

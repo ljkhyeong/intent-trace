@@ -4,6 +4,7 @@ import io.intenttrace.identity.application.CurrentGitHubUserSession
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.config.GitHubApiException
 import io.intenttrace.config.readJsonWithin
+import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.publication.application.GitHubPullRequestReader
 import io.intenttrace.publication.application.PullRequestSnapshot
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
@@ -20,7 +21,8 @@ class GitHubUserPullRequestClient(
     private val mapper: ObjectMapper,
 ) : GitHubPullRequestReader {
     override fun read(target: GitHubPullRequestTarget): PullRequestSnapshot = try {
-        client.get().uri("/repos/${target.repositoryKey}/pulls/${target.pullNumber}")
+        val repository = GitHubRepository(target.owner, target.repository)
+        client.get().uri("/repos/{owner}/{repository}/pulls/{pullNumber}", repository.canonicalOwner, repository.canonicalName, target.pullNumber)
             .headers { it.setBearerAuth(session.require().accessToken) }
             .exchange { _, response ->
                 if (response.statusCode.value() == 401) throw GitHubUserAuthenticationException()

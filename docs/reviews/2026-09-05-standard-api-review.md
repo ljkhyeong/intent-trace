@@ -46,7 +46,7 @@
 
 | 대상 | 유지할 이유 |
 | --- | --- |
-| REST DTO와 MCP의 입력 검증 | REST의 `@Valid`와 MCP의 명시적 `Validator` 호출은 서로 다른 입력 경로를 검사한다. MCP의 세 호출부에서 반복되는 두 줄은 새 검증 계층을 만들 만큼 크지 않다. |
+| REST DTO와 MCP의 입력 검증 | REST의 `@Valid`와 MCP의 명시적 `Validator` 호출은 서로 다른 입력 경로를 검사한다. MCP의 세 호출부에서 반복되는 두 줄은 새 검증 계층을 만들 만큼 크지 않다. 2026-10-06 번복: MCP도 새 계층 없이 Spring `@Validated` 메서드 검증을 쓰고, 확인·공개는 REST DTO를 만들지 않는다. |
 | 도메인의 줄 범위·해시·시각 검사 | 내부 호출과 DB에서 객체를 만들 때도 필요한 조건이다. DTO 애너테이션만으로 모든 경로를 보호할 수 없다. |
 | 경로 검증과 정규화 | `CodeAnchor` 생성자는 유효성만 검사하고, 서비스는 정규화한 경로를 저장한다. 반복 호출만 보고 서비스를 삭제하면 저장 값이 달라진다. Windows 경로 검사는 서버 운영체제와 관계없이 필요하다. |
 | 서비스의 버전 검사와 SQL 버전 조건 | 전자는 잘못된 수정 요청을 거부하고, 후자는 조회 이후 발생한 동시 수정을 막는다. |
@@ -55,7 +55,7 @@
 | GitHub 응답 크기·조회 시간·호출 수 제한 | 외부 응답과 반복 조회의 자원 사용을 제한한다. 단순 `body()` 호출로 바꾸면서 제거하면 안 된다. |
 | 고정 형식의 내용 해시, OAuth state·세션 갱신 제어 | 저장된 멱등성 해시와 일회성·동시성 계약이 있다. JSON 직렬화나 일반 캐시로 바꾸면 동작이 달라질 수 있다. |
 
-HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HTML 이스케이프는 `HtmlUtils`, 쿠키는 `ResponseCookie`, URI 구성은 `UriComponentsBuilder`를 사용한다. IntelliJ도 SDK `HttpRequests`와 Kotlin Serialization을 사용한다. 이 부분을 다시 감싸는 공통 클래스를 추가할 필요는 없다.
+HTTP는 이미 `RestClient`, 자식 행 저장은 `JdbcTemplate.batchUpdate`, HTML 이스케이프는 Thymeleaf 템플릿의 기본 출력(2026-10-06에 `HtmlUtils` 직접 호출에서 전환), 쿠키는 `ResponseCookie`, URI 구성은 `UriComponentsBuilder`를 사용한다. IntelliJ도 SDK `HttpRequests`와 Kotlin Serialization을 사용한다. 이 부분을 다시 감싸는 공통 클래스를 추가할 필요는 없다.
 
 ## 최초 검토에서 확인한 내용
 

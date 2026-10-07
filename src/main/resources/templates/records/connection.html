@@ -1,0 +1,17 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<header class="page-heading"><h1>연결 진단</h1><p>저장소 권한과 PR·코드 읽기를 확인하세요.</p></header>
+<form action="/records/connection" class="search-form" method="get">
+<label>저장소<input name="repositoryKey" th:value="${page.repository}" placeholder="owner/repository" required></label>
+<label>PR 번호 · 선택<input name="pullNumber" type="number" min="1" th:value="${page.number}"></label>
+<label>커밋 해시(전체 길이) · 선택<input name="revision" th:value="${page.revision}" placeholder="PR을 입력하면 현재 커밋 사용" maxlength="64"></label><button>진단</button></form>
+<p class="empty" th:if="${page.result == null}">저장소를 입력하면 연결 상태를 확인합니다.</p>
+<th:block th:if="${page.result != null}" th:with="result=${page.result}">
+<p><time th:datetime="${result.checkedAt.iso}" th:text="${result.checkedAt.display}"></time></p>
+<ul class="records">
+<li th:each="check : ${result.checks}"><div><span class="status" th:text="${check.status}"></span><h2 th:text="${check.name}"></h2><p th:text="${check.message}"></p></div></li>
+</ul><p class="notice">게시 키·설치·실제 발급 권한은 관리자가 연결된 Agent에서 ‘GitHub 게시 인증 점검’을 요청해 확인할 수 있습니다.</p>
+</th:block>
+</main>
+</html>

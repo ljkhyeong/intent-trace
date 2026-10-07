@@ -1,0 +1,5 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content"><section class="empty"><h1>GitHub 연결 실패</h1><p th:text="${message}"></p>
+<p><a th:href="${retryUrl}">다시 로그인</a></p></section></main>
+</html>

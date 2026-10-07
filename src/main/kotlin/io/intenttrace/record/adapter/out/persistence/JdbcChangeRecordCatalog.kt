@@ -1,6 +1,5 @@
 package io.intenttrace.record.adapter.out.persistence
 
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.application.ChangeRecordCatalog
 import io.intenttrace.record.application.ChangeRecordSummary
 import io.intenttrace.record.application.RecordCatalogQuery
@@ -22,16 +21,12 @@ class JdbcChangeRecordCatalog(private val jdbc: NamedParameterJdbcTemplate) : Ch
             parameters["path"] = it
         }
         query.pullNumber?.let { number ->
+            // 게시 결과는 항상 같은 PR의 게시 시도를 기록한 뒤 저장하므로 시도만 확인한다.
             conditions += """
-                (exists (select 1 from github_publication_attempts a where a.change_record_id = r.id
+                exists (select 1 from github_publication_attempts a where a.change_record_id = r.id
                     and a.repository_key = :repositoryKey and a.pull_number = :pullNumber)
-                 or exists (select 1 from github_publications p where p.change_record_id = r.id
-                    and p.repository_owner = :owner and p.repository_name = :repository and p.pull_number = :pullNumber))
             """.trimIndent()
-            val repository = GitHubRepository.parse(query.repositoryKey)
             parameters["pullNumber"] = number
-            parameters["owner"] = repository.canonicalOwner
-            parameters["repository"] = repository.canonicalName
         }
         query.keyword?.let {
             val pattern = "%${it.replace("!", "!!").replace("%", "!%").replace("_", "!_")}%"

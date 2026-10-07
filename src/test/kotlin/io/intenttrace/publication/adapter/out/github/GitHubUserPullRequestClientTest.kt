@@ -23,9 +23,9 @@ import kotlin.test.*
 class GitHubUserPullRequestClientTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
-    private val client = GitHubUserPullRequestClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties()), object : CurrentGitHubUserSession {
-        override fun require() = GitHubUserSession(ActorIdentity.github(1, "owner"), "ghu_test", java.util.UUID.randomUUID())
-    }, jacksonObjectMapper())
+    private val client = GitHubUserPullRequestClient(GitHubHttpPolicy().githubApiRestClient(builder, GitHubProperties()),
+        CurrentGitHubUserSession { GitHubUserSession(ActorIdentity.github(1, "owner"), "ghu_test", java.util.UUID.randomUUID()) },
+        jacksonObjectMapper())
     private val target = GitHubPullRequestTarget("acme", "repo", 1)
     private val sha = "a".repeat(40)
 

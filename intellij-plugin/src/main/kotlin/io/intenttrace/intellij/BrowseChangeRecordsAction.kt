@@ -2,7 +2,6 @@ package io.intenttrace.intellij
 
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.ui.Messages
 
 class BrowseChangeRecordsAction : IntentTraceAction() {
     override fun update(event: AnActionEvent) {
@@ -12,10 +11,8 @@ class BrowseChangeRecordsAction : IntentTraceAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-        try {
-            IntentTraceRecordBrowser.open(project, CurrentLineContextResolver.history(project, file))
-        } catch (error: IntentTraceUserException) {
-            Messages.showErrorDialog(project, error.message, "IntentTrace")
+        orShowError(project) {
+            IntentTraceRecordBrowser.open(project, CurrentLineContextResolver.history(project, file), IntentTraceServer.current())
         }
     }
 }

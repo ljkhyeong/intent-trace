@@ -1,0 +1,9 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<a class="back-link" th:href="${page.backUrl}">기록으로 돌아가기</a>
+<section class="empty"><h1>코드를 확인하지 못했습니다</h1><p th:text="${page.reason}"></p>
+<p>파일·응답 크기와 Git 객체 형식이 그대로라면 다시 확인해도 같은 오류가 날 수 있습니다.</p>
+<p class="muted">코드 일치 여부는 미확인입니다. 코드 불일치나 테스트 실패를 뜻하지 않습니다.</p></section>
+</main>
+</html>

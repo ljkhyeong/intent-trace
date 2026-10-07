@@ -1,0 +1,8 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content"><section class="welcome"><h1>GitHub 연결 완료</h1>
+<p><strong th:text="|@${issued.actor.login}|"></strong> 계정이 IntentTrace에 연결됐습니다.</p>
+<p>아래 세션 토큰은 이 화면에서만 확인할 수 있습니다. 도구의 세션 입력창에 입력하거나 <code>INTENT_TRACE_SESSION_TOKEN</code> 환경 변수로 전달하세요.</p>
+<pre><code th:text="${issued.sessionToken}"></code></pre>
+<p>IntentTrace 서버를 재시작하면 다시 로그인해야 합니다.</p></section></main>
+</html>

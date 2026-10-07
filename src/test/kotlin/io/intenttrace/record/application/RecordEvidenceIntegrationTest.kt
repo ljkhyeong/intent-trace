@@ -1,6 +1,5 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
 import io.intenttrace.record.domain.CodeAnchor
@@ -29,10 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, DraftManagementIntegrationTest.Configuration::class, RecordEvidenceIntegrationTest.Configuration::class],
-    properties = ["spring.datasource.url=jdbc:h2:mem:record-evidence;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"],
-)
+@SpringBootTest(classes = [DraftManagementIntegrationTest.Configuration::class, RecordEvidenceIntegrationTest.Configuration::class])
 class RecordEvidenceIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val evidence: RecordEvidenceService,
@@ -58,16 +54,14 @@ class RecordEvidenceIntegrationTest(
             listOf(VerificationRun("test", 0, Instant.EPOCH, Instant.EPOCH, snapshot, "d".repeat(64), "로컬 수집", VerificationSource.LOCAL_RUNNER_REPORTED)),
             emptyList(),
         )
-        val draft = records.create(command)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, targetRevision, snapshot))
-        val published = records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, snapshot))
-        assertEquals(CodeSide.BASE, records.get(draft.id).codeAnchors.first().side)
-        assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(draft.id).verifications.first().source)
+        val published = records.createPublished(command, targetRevision)
+        assertEquals(CodeSide.BASE, records.get(published.id).codeAnchors.first().side)
+        assertEquals(VerificationSource.LOCAL_RUNNER_REPORTED, records.get(published.id).verifications.first().source)
         assertEquals(listOf(published.id), records.findIntent(repository.key, baseRevision, "old.txt", 1).items.map { it.id })
         assertFalse(ChangeRecordResponse.from(published, baseRevision).verifications.single().current)
         assertTrue(ChangeRecordResponse.from(published, targetRevision).verifications.single().current)
         assertTrue(records.findIntent(repository.key, targetRevision, "old.txt", 1).items.isEmpty())
-        val checked = evidence.check(draft.id)
+        val checked = evidence.check(published.id)
         assertTrue(checked.codeVerified)
         assertFalse(checked.serverExecutionVerified)
         val related = history.find(repository.key, nextRevision, "new.txt", 1).items
@@ -99,16 +93,10 @@ class RecordEvidenceIntegrationTest(
     fun `후보 실패와 재조회를 구분하고 공유 Git 객체는 한 번 읽되 인증 실패는 중단한다`() {
         val repo = "acme/partial-history"
         val badRevision = "6".repeat(40)
-        fun create(revision: String) = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), repo, null, "a".repeat(64), "과거 기록", "후보를 확인한다.",
-            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
-        )).let { draft ->
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest))
-            records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest))
-        }
-        val good = listOf(create(targetRevision), create(targetRevision))
-        val bad = create(badRevision)
+        fun publish(revision: String) = records.createPublished(
+            createCommand(repo).copy(codeAnchors = listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes)))), revision)
+        val good = listOf(publish(targetRevision), publish(targetRevision))
+        val bad = publish(badRevision)
         gateway.snapshotCalls.clear(); gateway.blobCalls = 0; gateway.ancestryCalls = 0
         gateway.failure = badRevision to EvidenceUnavailableException(EvidenceUnavailableReason.SIZE_LIMIT)
         try {
@@ -140,17 +128,11 @@ class RecordEvidenceIntegrationTest(
     @Test
     fun `조회 중단 후 같은 기록의 미완료 근거부터 재개하고 다음 후보도 빠짐없이 읽는다`() {
         val repo = "acme/resume-history"
-        fun publish(title: String) = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), repo, nextRevision, "a".repeat(64), title, "중단한 근거부터 이어 읽는다.",
-            listOf(Decision("근거 보존", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes), CodeSide.BASE),
-                CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes))), emptyList(), emptyList(),
-        )).let {
-            val confirmed = records.confirm(ConfirmChangeRecordCommand(it.id, it.version, targetRevision, it.snapshotDigest))
-            records.publish(PublishChangeRecordCommand(it.id, confirmed.version, it.snapshotDigest))
-        }
-        val older = publish("다음 페이지의 기록")
-        val newer = publish("중단할 기록")
+        fun publish() = records.createPublished(createCommand(repo).copy(baseRevision = nextRevision, codeAnchors = listOf(
+            CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes), CodeSide.BASE),
+            CodeAnchor("new.txt", null, 1, 2, GitEvidenceDigest.sha256(bytes)))), targetRevision)
+        val older = publish()
+        val newer = publish()
         gateway.failure = targetRevision to EvidenceReadStopped(HistoryStopReason.TIME_LIMIT)
         val service = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 40))
         try {
@@ -187,6 +169,9 @@ class RecordEvidenceIntegrationTest(
 
             for (invalid in listOf(1, 6, 201)) {
                 assertFailsWith<IllegalArgumentException> { HistoryReadPolicy(java.time.Duration.ofSeconds(30), invalid) }
+            }
+            for (invalid in listOf(java.time.Duration.ZERO, java.time.Duration.ofSeconds(41))) {
+                assertFailsWith<IllegalArgumentException> { HistoryReadPolicy(invalid, 40) }
             }
             val minimum = ChangeIntentHistoryService(catalog, facade, access, gateway, HistoryReadPolicy(java.time.Duration.ofSeconds(30), 7))
             val limited = minimum.find(repo, movedRevision, "new.txt", 2, limit = 1)

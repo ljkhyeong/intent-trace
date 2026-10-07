@@ -1,14 +1,9 @@
 package io.intenttrace.identity.adapter.`in`.web
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.config.GitHubRateLimitException
-import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserOAuthGateway
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
-import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -16,6 +11,7 @@ import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
@@ -24,7 +20,6 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.delete
-import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
 import java.net.URI
 import java.security.MessageDigest
@@ -36,22 +31,25 @@ import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.TestGitHubUserAccessGateway
+import io.intenttrace.call
+import io.intenttrace.githubCallback
 import io.intenttrace.htmlLink
+import io.intenttrace.mcpClient
+import io.intenttrace.startGitHubLogin
 
 @SpringBootTest(
-    classes = [IntentTraceApplication::class, GitHubOAuthSessionIntegrationTest.OAuthTestConfiguration::class],
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "spring.datasource.url=jdbc:h2:mem:oauth-session-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
         "intent-trace.github.app.client-id=client-id",
         "intent-trace.github.user-authorization.client-secret=client-secret",
-        "intent-trace.github.user-authorization.callback-url=http://127.0.0.1:8080/auth/github/callback",
     ],
 )
 @AutoConfigureMockMvc
 class GitHubOAuthSessionIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val userAccess: TestGitHubUserAccessGateway,
+    @LocalServerPort private val port: Int,
 ) {
     @Test
     fun `GitHub callback에서 받은 로컬 session으로 MCP 도구를 호출한다`() {
@@ -65,21 +63,18 @@ class GitHubOAuthSessionIntegrationTest(
         val location = start.response.getHeader(HttpHeaders.LOCATION)
         assertNotNull(location)
         val state = UriComponentsBuilder.fromUriString(location).build().queryParams.getFirst("state")
-        assertNotNull(state)
+        assertEquals(stateCookie.value, state)
         assertTrue(stateCookie.isHttpOnly)
         assertFalse(stateCookie.secure)
         assertEquals("/auth/github/callback", stateCookie.path)
         assertEquals("Lax", stateCookie.getAttribute("SameSite"))
         assertEquals(600, stateCookie.maxAge)
 
-        val callback = mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(stateCookie)
-        }.andExpect {
+        val callback = mockMvc.githubCallback(stateCookie).andExpect {
             status { isOk() }
             header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
             header { string("Referrer-Policy", "no-referrer") }
+            header { string("Content-Security-Policy", containsString("style-src 'self'")) }
             content { contentTypeCompatibleWith(MediaType.TEXT_HTML) }
         }.andReturn()
         val expiredState = callback.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
@@ -95,27 +90,11 @@ class GitHubOAuthSessionIntegrationTest(
         assertFalse(body.contains("ghu_access"))
         assertFalse(body.contains("ghr_refresh"))
 
-        val initialized = mockMvc.post("/mcp") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-            contentType = MediaType.APPLICATION_JSON
-            header(HttpHeaders.ACCEPT, "application/json, text/event-stream")
-            content = initializeRequest
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.result.serverInfo.name") { value("intent-trace") }
-        }.andReturn()
-        val mcpSessionId = initialized.response.getHeader("Mcp-Session-Id")
-        assertNotNull(mcpSessionId)
-
-        mockMvc.post("/mcp") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-            header("Mcp-Session-Id", mcpSessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header(HttpHeaders.ACCEPT, "application/json, text/event-stream")
-            content = findRequest
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":false")) }
+        mcpClient(port, sessionToken).use { mcp ->
+            val found = mcp.call("find_change_intent", mapOf(
+                "repositoryKey" to "acme/intent-trace", "revision" to "b".repeat(40), "path" to "src/App.kt", "line" to 1,
+            ))
+            assertEquals(false, found.isError, found.toString())
         }
 
         val listed = mockMvc.get("/api/v1/me/sessions") {
@@ -129,19 +108,7 @@ class GitHubOAuthSessionIntegrationTest(
         mockMvc.delete("/api/v1/me/sessions/current") {
             header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
         }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
-        mockMvc.get("/api/v1/me/sessions") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect { status { isUnauthorized() } }
-    }
-
-    @Test
-    fun `현재 로컬 session을 폐기하면 이후 요청은 인증되지 않고 GitHub 토큰 직접 인증은 받지 않는다`() {
-        val sessionToken = issueSession()
-
-        mockMvc.delete("/api/v1/me/sessions/current") {
-            header(HttpHeaders.AUTHORIZATION, "Bearer $sessionToken")
-        }.andExpect { status { isOk() }; jsonPath("$.revokedCount") { value(1) } }
-
+        // 폐기한 세션과 GitHub 토큰 직접 인증은 모두 거부한다.
         for (token in listOf(sessionToken, "ghu_direct-access")) {
             mockMvc.get("/api/v1/me/sessions") {
                 header(HttpHeaders.AUTHORIZATION, "Bearer $token")
@@ -149,70 +116,22 @@ class GitHubOAuthSessionIntegrationTest(
         }
     }
 
-    private fun issueSession(): String {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!)
-            .build()
-            .queryParams
-            .getFirst("state")!!
-        val callback = mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andReturn()
-        return Regex("its_[A-Za-z0-9_-]{40,}").find(callback.response.contentAsString)!!.value
-    }
-
     @Test
     fun `callback state가 다르거나 재사용되면 session을 발급하지 않는다`() {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val location = start.response.getHeader(HttpHeaders.LOCATION)
-        assertNotNull(location)
-        val state = UriComponentsBuilder.fromUriString(location).build().queryParams.getFirst("state")
-        assertNotNull(state)
-
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", "different-state")
-            cookie(cookie)
-        }.andExpect {
-            status { isBadRequest() }
-        }
-
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andExpect {
-            status { isOk() }
-        }
-        mockMvc.get("/auth/github/callback") {
-            param("code", "authorization-code")
-            param("state", state)
-            cookie(cookie)
-        }.andExpect {
-            status { isBadRequest() }
-        }
+        val cookie = mockMvc.startGitHubLogin()
+        // 형식이 맞는 다른 state로 쿠키 비교 단계까지 확인한다.
+        mockMvc.githubCallback(cookie, state = differentState).andExpect { status { isBadRequest() } }
+        mockMvc.githubCallback(cookie).andExpect { status { isOk() } }
+        mockMvc.githubCallback(cookie).andExpect { status { isBadRequest() } }
     }
 
     @Test
     fun `callback 사용자 조회 장애는 token을 노출하지 않는 보안 오류 화면을 반환한다`() {
-        val start = mockMvc.get("/auth/github/start").andReturn()
-        val cookie = start.response.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        val state = UriComponentsBuilder.fromUriString(start.response.getHeader(HttpHeaders.LOCATION)!!)
-            .build()
-            .queryParams
-            .getFirst("state")!!
+        val cookie = mockMvc.startGitHubLogin()
         userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
 
         try {
-            mockMvc.get("/auth/github/callback") {
-                param("code", "authorization-code")
-                param("state", state)
-                cookie(cookie)
-            }.andExpect {
+            mockMvc.githubCallback(cookie).andExpect {
                 status { isBadGateway() }
                 header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
                 header { string("Referrer-Policy", "no-referrer") }
@@ -229,20 +148,16 @@ class GitHubOAuthSessionIntegrationTest(
     @CsvSource("denied, 401", "code, 400", "identity, 502", "rate, 429")
     fun `브라우저 로그인 실패 후 재시도하면 같은 검색 화면으로 돌아온다`(failure: String, expectedStatus: Int) {
         val returnTo = "/records?repository=acme/demo&q=a%2Bb%26%22%3Ctag%3E&scope=MINE"
-        val start = mockMvc.get("/auth/github/start") { param("returnTo", returnTo) }.andReturn().response
-        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
+        val stateCookie = mockMvc.startGitHubLogin(returnTo)
         userAccess.authenticationFailure = when (failure) {
             "identity" -> GitHubIdentityApiException("테스트 사용자 조회 장애")
             "rate" -> GitHubRateLimitException(120)
             else -> null
         }
         val callback = try {
-            mockMvc.get("/auth/github/callback") {
-                param("state", stateCookie.value)
-                if (failure != "code") param("code", "authorization-code")
+            mockMvc.githubCallback(stateCookie, code = if (failure == "code") null else "authorization-code") {
                 if (failure == "denied") param("error", "access_denied")
                 param("returnTo", "https://untrusted.example/records")
-                cookie(stateCookie)
             }.andExpect {
                 status { isEqualTo(expectedStatus) }
                 header { string(HttpHeaders.CACHE_CONTROL, containsString("no-store")) }
@@ -261,12 +176,8 @@ class GitHubOAuthSessionIntegrationTest(
         val retryUrl = URI(htmlLink(callback.contentAsString, "다시 로그인"))
         val retry = mockMvc.get(retryUrl).andExpect { status { isFound() } }.andReturn().response
         val newState = retry.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        mockMvc.get("/auth/github/callback") {
-            param("state", stateCookie.value); param("code", "authorization-code"); cookie(stateCookie)
-        }.andExpect { status { isBadRequest() } }
-        val completed = mockMvc.get("/auth/github/callback") {
-            param("state", newState.value); param("code", "authorization-code"); cookie(newState)
-        }.andExpect {
+        mockMvc.githubCallback(stateCookie).andExpect { status { isBadRequest() } }
+        val completed = mockMvc.githubCallback(newState).andExpect {
             status { isSeeOther() }
             header { string(HttpHeaders.LOCATION, returnTo) }
         }.andReturn().response
@@ -276,14 +187,8 @@ class GitHubOAuthSessionIntegrationTest(
 
     @Test
     fun `확인되지 않은 state의 복귀 주소는 재로그인 링크에 사용하지 않는다`() {
-        val start = mockMvc.get("/auth/github/start") { param("returnTo", "/records?scope=MINE") }.andReturn().response
-        val stateCookie = start.cookies.single { it.name == GitHubOAuthController.STATE_COOKIE }
-        mockMvc.get("/auth/github/callback") {
-            param("state", "different-state")
-            param("code", "authorization-code")
-            param("returnTo", "https://untrusted.example/records")
-            cookie(stateCookie)
-        }.andExpect {
+        val stateCookie = mockMvc.startGitHubLogin("/records?scope=MINE")
+        mockMvc.githubCallback(stateCookie, state = differentState) { param("returnTo", "https://untrusted.example/records") }.andExpect {
             status { isBadRequest() }
             content { string(containsString("href=\"/auth/github/start\">다시 로그인")) }
         }
@@ -325,51 +230,7 @@ class GitHubOAuthSessionIntegrationTest(
             .let(Base64.getUrlEncoder().withoutPadding()::encodeToString)
     }
 
-    class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
-        var authenticationFailure: RuntimeException? = null
-
-        override fun authenticate(accessToken: String): ActorIdentity {
-            authenticationFailure?.let { throw it }
-            return ActorIdentity.github(42, "lim")
-        }
-
-        override fun repositoryRole(
-            accessToken: String,
-            actor: ActorIdentity,
-            repository: GitHubRepository,
-        ): RepositoryRole = RepositoryRole.MAINTAINER
-    }
-
     companion object {
-        private val initializeRequest =
-            """
-            {
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "initialize",
-              "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "intent-trace-oauth-test", "version": "1.0"}
-              }
-            }
-            """.trimIndent()
-        private val findRequest =
-            """
-            {
-              "jsonrpc": "2.0",
-              "id": 2,
-              "method": "tools/call",
-              "params": {
-                "name": "find_change_intent",
-                "arguments": {
-                  "repositoryKey": "acme/intent-trace",
-                  "revision": "${"b".repeat(40)}",
-                  "path": "src/App.kt",
-                  "line": 1
-                }
-              }
-            }
-            """.trimIndent()
+        private val differentState = "A".repeat(43)
     }
 }

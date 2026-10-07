@@ -68,10 +68,10 @@ class IntentTraceTextRendererTest {
     @Test
     fun `이전 커밋 결과는 일치 방식과 원본 커밋을 보여 주고 과거 검증을 현재 검증으로 표시하지 않는다`() {
         val lookup = LineLookup("team/repository", "a".repeat(40), "src/main/App.kt", 12)
-        val view = LineHistoryView.of(ChangeIntentHistory(listOf(HistoricalIntent(
+        val view = ChangeIntentHistory(listOf(HistoricalIntent(
             ChangeRecordSummary("record-1", "이전 기록", "PUBLISHED", "b".repeat(40), CreatedByResponse("developer"), "2026-10-01T00:00:00Z"),
             "b".repeat(40), CodeSide.BASE, "ANCESTOR_MOVED_LINES", false, "src/Old.kt", 4, 6, 10, 12,
-        )), "h1.next", 3, listOf(HistoryFailure("record-2", "REVISION_NOT_FOUND")), "CALL_LIMIT", false, false))
+        )), "h1.next", 3, listOf(HistoryFailure("record-2", "REVISION_NOT_FOUND")), "CALL_LIMIT", false, false)
 
         val output = IntentTraceTextRenderer.renderLineHistory(lookup, view)
 
@@ -83,13 +83,10 @@ class IntentTraceTextRendererTest {
         assertContains(output, "- record-2: GitHub에서 커밋을 찾을 수 없습니다. 원격 저장소에 푸시했는지 확인하세요.")
     }
 
-    private val record = ChangeIntentRecord(
-        id = "record-1", title = "현재 줄 변경 의도", requestSummary = "팀원이 변경 이유를 확인한다.",
-        status = "PUBLISHED", createdBy = CreatedByResponse("developer"),
+    private val record = testRecord().copy(
         decisions = listOf(ChangeDecision("얇은 IDE client를 둔다.", null, "INFERRED")),
         codeAnchors = listOf(ChangeCodeAnchor("src/main/App.kt", 10, 15)),
         verifications = listOf(ChangeVerification("./gradlew test", 0, "통과", false)),
-        openQuestions = emptyList(), repositoryKey = "team/repository",
-        targetRevision = "a".repeat(40), supersededBy = null,
+        status = "PUBLISHED", targetRevision = "a".repeat(40),
     )
 }

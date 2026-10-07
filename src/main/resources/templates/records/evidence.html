@@ -1,0 +1,11 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<a class="back-link" th:href="${page.backUrl}">기록으로 돌아가기</a><header class="page-heading"><h1>GitHub 코드와 비교</h1></header>
+<aside class="notice"><th:block th:text="${page.notice}"></th:block> 서버는 테스트 실행 여부를 확인하지 않습니다.</aside>
+<dl class="evidence-facts"><dt>기록 버전</dt><dd th:text="${page.version}"></dd><dt>확인 시각</dt><dd><time th:datetime="${page.checkedAt.iso}" th:text="${page.checkedAt.display}"></time></dd><dt>커밋 해시(전체 길이)</dt><dd class="hash" th:text="${page.targetRevision}"></dd><dt>기록의 스냅샷 해시</dt><dd class="hash" th:text="${page.snapshotDigest}"></dd><dt>스냅샷 해시 비교</dt><dd th:text="${page.snapshotMatch}"></dd></dl>
+<ul class="records">
+<li th:each="anchor : ${page.anchors}"><div><span class="status" th:text="${anchor.status}"></span><h2 th:text="${anchor.location}"></h2><p th:text="${anchor.side}"></p><p class="hash" th:text="${anchor.revision}"></p></div></li>
+</ul>
+</main>
+</html>

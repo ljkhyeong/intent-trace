@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -58,22 +59,13 @@ jobs:
       - name: 릴리스 version 확인
         run: python3 scripts/validate-release-version.py
 
-      - name: 릴리스 파일 준비 코드 테스트
-        run: python3 scripts/test_validate_release_version.py
-
-      - name: 테스트 결과 집계 코드 확인
-        run: python3 scripts/test_test_summary.py
-
-      - name: 에이전트 검증 루프 확인
-        run: python3 scripts/test_feedback.py
+      - name: 스크립트 테스트
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: 플러그인 검증
         env:
           CODEX_PLUGIN_VALIDATOR: scripts/validate-plugin-layout.py
         run: scripts/validate-plugin.sh
-
-      - name: 동시 백업 파일 보존 확인
-        run: python3 scripts/test_backup_postgres.py
 
       - name: PostgreSQL 계약 검증
         run: scripts/verify-postgres.sh

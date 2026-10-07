@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cp, mkdtemp, readFile, readdir, realpath, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -29,9 +29,9 @@ test('배포 패키지는 잠금 파일로 의존성을 준비하고 빈 캐시�
     await mkdir(source, { recursive: true });
     await mkdir(join(fixture, 'scripts'));
     await cp(builder, join(fixture, 'scripts/package-zed.mjs'));
-    await cp(join(dirname(builder), 'zed-with-intent-trace.py'), join(fixture, 'scripts/zed-with-intent-trace.py'));
-    for (const name of ['package.json', 'package-lock.json', 'intent-trace.mjs', 'bridge.mjs', 'lsp.mjs', 'errors.mjs', 'settings.mjs', 'README.md']) {
-      await cp(new URL(`../${name}`, import.meta.url), join(source, name));
+    const client = fileURLToPath(new URL('..', import.meta.url));
+    for (const name of (await readdir(client)).filter(name => /\.(mjs|py)$/.test(name) || ['README.md', 'package.json', 'package-lock.json'].includes(name))) {
+      await cp(join(client, name), join(source, name));
     }
     // 다음 배포에서도 CLI·MCP가 소스에 고정한 버전 대신 설치된 패키지 버전을 사용해야 한다.
     for (const name of ['package.json', 'package-lock.json']) {

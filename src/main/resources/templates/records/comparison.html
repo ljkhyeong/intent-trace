@@ -1,0 +1,20 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<header class="page-heading"><h1>원본과 새 기록 비교</h1><p>원본과 새 기록의 변경 내용을 확인하세요.</p></header>
+<aside class="notice" th:if="${page.missingVerifications}">새 기록에 등록된 검증 결과가 없습니다. 원본의 검증 결과는 복사하지 않습니다.</aside>
+<div class="comparison-columns comparison-heading"><p><a th:href="${page.originalUrl}">원본 기록</a> · 버전 <th:block th:text="${page.originalVersion}"></th:block></p><p><a th:href="${page.successorUrl}">새 기록</a> · 버전 <th:block th:text="${page.successorVersion}"></th:block></p></div>
+<nav class="comparison-filter"><a class="button secondary" th:href="${page.filter.href}" th:text="${page.filter.label}"></a><p th:text="${page.filterState}"></p></nav>
+<section class="comparison-section" th:each="section : ${page.sections}"><h2><th:block th:text="${section.label}"></th:block> <span class="status" th:text="${section.state}"></span></h2>
+<div class="comparison-detail" th:each="detail : ${section.details}"><h3 th:text="${detail.heading}"></h3>
+<p th:if="${detail.ambiguous}">중복 항목은 개별 변경을 구분하지 않습니다. 전체 내용을 확인하세요.</p>
+<th:block th:unless="${detail.ambiguous}"><p th:text="${detail.position}"></p><div class="comparison-columns"><div><h4>원본</h4><p class="prose"><th:block th:replace="~{records/comparison :: diff(${detail.original})}"></th:block></p></div><div><h4>새 기록</h4><p class="prose"><th:block th:replace="~{records/comparison :: diff(${detail.successor})}"></th:block></p></div></div></th:block>
+</div>
+<details th:unless="${section.details.isEmpty()}"><summary>원본과 새 기록 전체 보기</summary><div th:replace="~{records/comparison :: full(${section})}"></div></details>
+<th:block th:if="${section.details.isEmpty()}"><div th:replace="~{records/comparison :: full(${section})}"></div></th:block>
+</section>
+</main>
+<!-- 비교 본문은 공백이 그대로 보이므로 조각 사이에 줄바꿈을 넣지 않는다. -->
+<div class="comparison-columns" th:fragment="full(section)"><div class="comparison-value"><h3>원본</h3><p class="prose"><th:block th:replace="~{records/comparison :: diff(${section.original})}"></th:block></p></div><div class="comparison-value"><h3>새 기록</h3><p class="prose"><th:block th:replace="~{records/comparison :: diff(${section.successor})}"></th:block></p></div></div>
+<th:block th:fragment="diff(parts)"><th:block th:each="part : ${parts}"><del th:if="${part.mark == 'del'}" th:text="${part.text}"></del><ins th:if="${part.mark == 'ins'}" th:text="${part.text}"></ins><th:block th:if="${part.mark == null}" th:text="${part.text}"></th:block></th:block></th:block>
+</html>

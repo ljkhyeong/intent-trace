@@ -66,7 +66,7 @@ class IntentTraceSettingsConfigurable : BoundConfigurable("IntentTrace") {
             override fun run(indicator: ProgressIndicator) {
                 val api = IntentTraceApiClient()
                 message = if (withSession) {
-                    val login = api.checkLogin(server, IntentTraceCredentialStore().load(server))
+                    val login = api.checkLogin(server, IntentTraceCredentialStore().require(server))
                     "${server.baseUri} 서버에서 @$login 계정의 로그인 상태를 확인했습니다. 저장소 권한은 기록 조회 시 확인합니다."
                 } else {
                     api.checkConnection(server)

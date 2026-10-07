@@ -47,7 +47,7 @@ JSONC 주석·다른 MCP 서버·화면 설정을 보존하고 `context_servers.
 4. Zed를 완전히 종료하고 다음 실행 도구를 사용한다. Zed CLI가 없으면 Zed 명령 팔레트에서 `cli: install`을 먼저 실행한다.
 
 ```bash
-python3 scripts/zed-with-intent-trace.py .
+node clients/zed/intent-trace.mjs launch .
 ```
 
 로그인 화면의 `its_` 세션 토큰을 입력하면 Zed 실행 환경에 전달한다. 입력한 토큰은 화면에 표시하지 않는다. 토큰을 파일이나 명령 인자에 저장하지 않는다. [Zed 환경 변수 문서](https://zed.dev/docs/environment)는 CLI 실행 환경을 상속하는 동작을 설명한다.
@@ -66,7 +66,7 @@ Zed 확장은 편집기 UI를 직접 추가할 수 없다. 그래서 IntentTrace
 
 1. 위 절차로 `configure --apply`를 실행한다. MCP 연결과 함께 `lsp.intent-trace.binary`에 언어 서버 실행 명령과 서버 주소를 저장한다.
 2. Zed 명령 팔레트에서 `zed: install dev extension`을 실행하고 저장소의 `clients/zed/extension` 폴더를 선택한다. Zed가 확장을 직접 빌드하므로 rustup이 필요하다. Zed 확장 저장소에 등록되기 전까지는 이 방법으로 설치한다.
-3. `intent-trace-zed launch .` 또는 `python3 scripts/zed-with-intent-trace.py .`로 Zed를 실행해 세션을 전달한다.
+3. `intent-trace-zed launch .` 또는 `node clients/zed/intent-trace.mjs launch .`로 Zed를 실행해 세션을 전달한다.
 4. 커밋된 파일의 줄에 hover를 열면 공개·대체 기록을 최근 공개 순 3건까지 보여준다. 기록마다 제목·상태·작성자·첫 구현 결정과 `/records/{UUID}` 링크를 표시한다. 더 있으면 웹 파일·줄 조회 링크를 붙인다.
 
 - 대상 언어는 C, C++, CSS, Go, Java, JavaScript, JSON, Kotlin, Markdown, Python, Rust, Shell Script, TSX, TypeScript, YAML이다. Java·Kotlin은 해당 언어 확장도 설치해야 한다.

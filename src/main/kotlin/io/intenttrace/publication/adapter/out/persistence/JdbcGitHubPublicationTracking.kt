@@ -80,8 +80,7 @@ class JdbcGitHubPublicationTracking(
         limit ?
         """.trimIndent(),
         { row, _ ->
-            val (owner, repository) = row.getString("repository_key").split('/', limit = 2)
-            PublicationTargetAttempt(GitHubPullRequestTarget(owner, repository, row.getInt("pull_number")), mapAttempt(row),
+            PublicationTargetAttempt(row.getString("repository_key"), row.getInt("pull_number"), mapAttempt(row),
                 row.getInt("notice_succeeded") == 1)
         },
         recordId.toString(), limit,

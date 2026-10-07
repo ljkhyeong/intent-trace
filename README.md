@@ -155,7 +155,7 @@ bearer_token_env_var = "INTENT_TRACE_SESSION_TOKEN"
 
 `codex mcp list`로 연결 대상을 확인합니다. 플러그인이 제공한 로컬 `intent-trace` 서버와 팀 서버를 동시에 쓸 필요가 없으면 Codex의 MCP 서버 설정에서 로컬 서버를 비활성화합니다. 자세한 설정 형식은 [Codex MCP 문서](https://learn.chatgpt.com/docs/extend/mcp)를 따릅니다.
 
-IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로세스 메모리에만 보관합니다. 액세스 토큰 만료가 가까우면 새 토큰 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다. 기존 REST 클라이언트는 호환을 위해 `ghu_` 사용자 액세스 토큰을 직접 Bearer로 보낼 수 있지만 Codex 기본 연결에는 `its_` 세션을 사용합니다.
+IntentTrace는 GitHub `ghu_` 액세스 토큰과 `ghr_` 갱신 토큰을 프로세스 메모리에만 보관합니다. 액세스 토큰 만료가 가까우면 새 토큰 쌍으로 한 번 갱신하고 사용자가 같은지 다시 확인합니다. 서버를 재시작하면 로컬 세션이 사라지므로 다시 승인해야 합니다.
 
 토큰 갱신에 실패하면 세션을 폐기하고 `401`로 재로그인을 안내합니다. GitHub 사용자 조회의 일시 장애는 `502`를 반환하며 세션을 유지합니다. 로그인 검증·갱신·대기 요청 제한은 [세션 관리 규칙](docs/ADR-0005-github-web-oauth-memory-session.md)을 참고하세요.
 
@@ -398,7 +398,7 @@ Zed 연결을 제거할 때는 `node clients/zed/intent-trace.mjs unconfigure`�
 npm ci --prefix clients/zed --ignore-scripts
 node clients/zed/intent-trace.mjs configure
 node clients/zed/intent-trace.mjs configure --apply
-python3 scripts/zed-with-intent-trace.py .
+node clients/zed/intent-trace.mjs launch .
 ```
 
 마지막 명령은 Zed CLI 설치 후 사용합니다. 입력한 토큰은 화면에 표시하지 않고 설정 파일·명령 인자에 저장하지 않습니다.
@@ -420,13 +420,10 @@ scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
 ./gradlew bootJar && python3 scripts/validate-release-version.py
-python3 scripts/test_validate_release_version.py
-python3 scripts/test_backup_postgres.py
-python3 scripts/test_test_summary.py
-python3 scripts/test_feedback.py
+python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 PostgreSQL 17에서 Flyway·JDBC와 백업·복구를 확인합니다. 백업 검증은 동시 실행과 중단 시 기존 파일이 보존되는지 확인합니다. Compose 검증은 서비스·네트워크 구성, 외부 포트와 이미지 해시를 확인합니다. GitHub Actions는 PR과 `main` 푸시에서 같은 검증과 Caddy 설정 확인을 실행합니다.
+기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 PostgreSQL 17에서 Flyway·JDBC와 백업·복구를 확인합니다. 백업 검증은 동시 실행과 중단 시 기존 파일이 보존되는지 확인합니다. Compose 검증은 서비스·네트워크 구성, 외부 포트와 이미지 해시를 확인합니다. GitHub Actions는 PR, `main` 푸시와 릴리스 태그 푸시에서 같은 검증과 Caddy 설정 확인을 실행합니다.
 
 ## 현재 제한
 

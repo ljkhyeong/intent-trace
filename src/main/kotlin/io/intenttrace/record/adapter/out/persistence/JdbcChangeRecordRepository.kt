@@ -3,7 +3,6 @@ package io.intenttrace.record.adapter.out.persistence
 import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.ChangeRecordRepository
 import io.intenttrace.record.application.RecordActivity
-import io.intenttrace.record.application.RecordActivityStore
 import io.intenttrace.record.application.RecordOperation
 import io.intenttrace.record.application.ConcurrentChangeRecordUpdateException
 import io.intenttrace.record.domain.ChangeRecord
@@ -28,7 +27,6 @@ import java.util.UUID
 @Repository
 class JdbcChangeRecordRepository(
     private val jdbcTemplate: JdbcTemplate,
-    private val activities: RecordActivityStore,
     private val namedJdbcTemplate: NamedParameterJdbcTemplate,
 ) : ChangeRecordRepository {
     @Transactional(readOnly = true)
@@ -125,7 +123,7 @@ class JdbcChangeRecordRepository(
             record.derivedFromRecordId?.toString(),
         )
         saveChildren(record)
-        activities.append(RecordActivity(record.id, RecordOperation.CREATE, record.createdBy.subject,
+        appendActivity(RecordActivity(record.id, RecordOperation.CREATE, record.createdBy.subject,
             null, record.version, null, record.status, record.createdAt))
         return record
     }
@@ -161,8 +159,17 @@ class JdbcChangeRecordRepository(
             }
             saveChildren(record)
         }
-        activities.append(activity)
+        appendActivity(activity)
         return record
+    }
+
+    // saveNew·update 트랜잭션 안에서만 호출해 기록 저장이 실패하면 이력도 함께 취소한다.
+    private fun appendActivity(activity: RecordActivity) {
+        jdbcTemplate.update("""insert into record_activities
+            (record_id, operation, actor_subject, previous_version, version, previous_status, status, occurred_at)
+            values (?, ?, ?, ?, ?, ?, ?, ?)""",
+            activity.recordId.toString(), activity.operation.name, activity.actorSubject, activity.previousVersion,
+            activity.version, activity.previousStatus?.name, activity.status.name, activity.occurredAt.atOffset(ZoneOffset.UTC))
     }
 
     private fun hydrate(records: List<ChangeRecord>): List<ChangeRecord> {
@@ -249,10 +256,10 @@ class JdbcChangeRecordRepository(
         items: List<T>,
         values: (T) -> Array<out Any?>,
     ) {
-        val placeholders = List(columns.split(",").size + 3) { "?" }.joinToString()
+        val placeholders = List(columns.split(",").size + 2) { "?" }.joinToString()
         jdbcTemplate.batchUpdate(
-            "insert into $table (id, record_id, sequence_number, $columns) values ($placeholders)",
-            items.mapIndexed { index, item -> arrayOf<Any?>(UUID.randomUUID().toString(), record.id.toString(), index, *values(item)) },
+            "insert into $table (record_id, sequence_number, $columns) values ($placeholders)",
+            items.mapIndexed { index, item -> arrayOf<Any?>(record.id.toString(), index, *values(item)) },
         )
     }
 

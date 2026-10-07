@@ -1,0 +1,25 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{records/layout :: page(~{::main})}">
+<main id="content">
+<header class="page-heading"><h1>변경 기록 찾기</h1><p>어떤 요청이었고, 왜 이렇게 바꿨는지 찾아보세요.</p></header>
+<nav class="scope-tabs" aria-label="조회 범위"><a th:each="tab : ${page.tabs}" th:href="${tab.href}" th:aria-current="${tab.current} ? 'page'" th:text="${tab.label}"></a></nav>
+<form action="/records" method="get" class="search-form record-search">
+<label>저장소<input name="repositoryKey" th:value="${page.repository}" placeholder="owner/repository" required maxlength="255" autocapitalize="none" spellcheck="false"></label>
+<label class="keyword">검색어<input name="q" th:value="${page.q}" placeholder="제목, 요청, 구현 결정·이유" maxlength="200"></label>
+<input type="hidden" name="scope" th:value="${page.scope}">
+<label>상태<select name="status"><option value="" th:text="${page.allStatuses}"></option><option th:each="option : ${page.statuses}" th:value="${option.value}" th:selected="${option.selected}" th:text="${option.label}"></option></select></label>
+<label>파일 경로<input name="path" th:value="${page.path}" placeholder="src/App.kt" autocapitalize="none" spellcheck="false"></label>
+<label th:if="${page.team}">작성자 GitHub ID<input name="authorId" type="number" min="1" step="1" th:value="${page.authorId}" placeholder="숫자 ID · 선택"></label>
+<button type="submit">검색</button></form>
+<p th:if="${page.authorFilter != null}"><a class="button secondary" th:href="${page.authorFilter.href}" th:text="${page.authorFilter.label}"></a></p>
+<div class="empty" th:if="${page.result == null}"><h2>저장소를 입력하세요</h2><p>검색어를 비워두면 최근 기록부터 볼 수 있습니다.</p></div>
+<th:block th:if="${page.result != null}" th:with="result=${page.result}">
+<div class="result-heading"><h2 th:text="${result.heading}"></h2><span>이 페이지 <th:block th:text="${result.items.size()}"></th:block>건</span></div>
+<div class="empty" th:if="${result.items.isEmpty()}"><h3>일치하는 기록이 없습니다</h3><p>검색어를 줄이거나 저장소와 조회 범위를 확인해 주세요.</p></div>
+<ul class="records">
+<li th:each="item : ${result.items}"><div class="record-summary"><span class="status" th:text="${item.status}"></span><h3><a th:href="${item.href}" th:text="${item.title}"></a></h3><p th:text="${item.summary}"></p><div class="record-meta"><span th:text="|@${item.author}|"></span><time th:datetime="${item.createdAt.iso}" th:text="${item.createdAt.display}"></time></div></div><span class="open-record" aria-hidden="true">↗</span></li>
+</ul>
+<nav class="pagination" aria-label="결과 페이지" th:if="${result.nextUrl != null}"><a class="button secondary" th:href="${result.nextUrl}">다음 기록</a></nav>
+</th:block>
+</main>
+</html>

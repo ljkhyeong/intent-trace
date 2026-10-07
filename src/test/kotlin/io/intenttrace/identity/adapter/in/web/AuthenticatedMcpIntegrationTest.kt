@@ -1,245 +1,100 @@
 package io.intenttrace.identity.adapter.`in`.web
 
-import io.intenttrace.IntentTraceApplication
-import io.intenttrace.identity.application.GitHubUserAccessGateway
+import io.intenttrace.TestGitHubUserAccessGateway
+import io.intenttrace.call
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
-import io.intenttrace.record.adapter.`in`.mcp.IntentTraceTools
-import io.intenttrace.record.adapter.`in`.web.CodeAnchorRequest
-import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
-import io.intenttrace.record.adapter.`in`.web.DecisionRequest
+import io.intenttrace.issueTestSession
+import io.intenttrace.mcpClient
 import io.intenttrace.record.application.ChangeRecordFacade
-import io.intenttrace.record.application.ConfirmChangeRecordCommand
-import io.intenttrace.record.application.PublishChangeRecordCommand
+import io.intenttrace.record.application.createCommand
+import io.intenttrace.record.application.createPublished
 import io.intenttrace.record.domain.ChangeRecordStatus
-import io.intenttrace.record.domain.PurposeSource
-import jakarta.validation.ConstraintViolationException
-import org.hamcrest.Matchers.containsString
+import io.intenttrace.structured
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult
+import io.modelcontextprotocol.spec.McpSchema.TextContent
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
-import tools.jackson.databind.JsonNode
-import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import io.intenttrace.record.application.confirm
-import io.intenttrace.record.application.publish
-import io.intenttrace.issueTestSession
 
-@SpringBootTest(
-    classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
-    properties = [
-        "spring.datasource.url=jdbc:h2:mem:authenticated-mcp-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
-        "spring.h2.console.enabled=false",
-    ],
-)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 class AuthenticatedMcpIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
-    @Autowired private val tools: IntentTraceTools,
-    @Autowired private val records: io.intenttrace.record.application.ChangeRecordFacade,
-    @Autowired private val objectMapper: ObjectMapper,
     @Autowired private val facade: ChangeRecordFacade,
     @Autowired private val sessions: GitHubUserSessionStore,
+    @LocalServerPort private val port: Int,
 ) {
     // REST·MCP는 its_ 세션만 받는다. 테스트 게이트웨이는 세션에 넣은 GitHub 토큰으로 사용자를 정한다.
     private val userSession by lazy { sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_user-token") }
     private val otherSession by lazy { sessions.issueTestSession(ActorIdentity.github(84, "teammate"), "ghu_other-user-token") }
 
-    private val initialize = """
-        {"jsonrpc":"2.0","id":1,"method":"initialize","params":{
-          "protocolVersion":"2025-06-18","capabilities":{},
-          "clientInfo":{"name":"intent-trace-test","version":"1.0"}
-        }}
-    """.trimIndent()
-
     @Test
     fun `MCP는 인증된 사용자만 초기화하고 목록 기본값과 전체 revision 계약을 적용한다`() {
-        mockMvc.post("/mcp") {
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = initialize
-        }.andExpect {
-            status { isUnauthorized() }
-        }
+        mockMvc.post("/mcp").andExpect { status { isUnauthorized() } }
 
-        val authenticated = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = initialize
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.result.serverInfo.name") { value("intent-trace") }
-        }.andReturn()
+        val record = facade.create(createCommand("acme/intent-trace", "변경 이력 조회"), ActorIdentity.github(42, "lim"))
 
-        val sessionId = authenticated.response.getHeader("Mcp-Session-Id")
-        assertNotNull(sessionId)
+        mcpClient(port, userSession).use { mcp ->
+            assertEquals("intent-trace", mcp.serverInfo.name())
+            val tools = mcp.listTools().tools().map { it.name() }
+            assertTrue(tools.containsAll(listOf(
+                "sync_superseded_record_to_github_pr", "revoke_all_my_sessions", "check_change_record_evidence",
+                "create_successor_draft", "list_pull_request_records", "diagnose_connection", "compare_change_record",
+                "check_publication_credentials", "list_record_activities", "get_change_record_markdown", "list_record_publications",
+            )), tools.toString())
 
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":3,"method":"tools/list"}"""
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("sync_superseded_record_to_github_pr")) }
-            content { string(containsString("revoke_all_my_sessions")) }
-            content { string(containsString("check_change_record_evidence")) }
-            content { string(containsString("create_successor_draft")) }
-            content { string(containsString("list_pull_request_records")) }
-            content { string(containsString("diagnose_connection")) }
-            content { string(containsString("compare_change_record")) }
-            content { string(containsString("check_publication_credentials")) }
-            content { string(containsString("list_record_activities")) }
-            content { string(containsString("get_change_record_markdown")) }
-            content { string(containsString("list_record_publications")) }
-        }
-        val activityRecord = records.create(CreateChangeRecordRequest(
-            requestId = "mcp-activity", repositoryKey = "acme/intent-trace", snapshotDigest = "a".repeat(64),
-            title = "변경 이력 조회", requestSummary = "선택 버전을 생략하고 이력을 조회한다.",
-            decisions = listOf(DecisionRequest("기록과 이력을 함께 저장한다.", null, PurposeSource.STATED_BY_USER)),
-            codeAnchors = listOf(CodeAnchorRequest("src/App.kt", null, 1, 2, "b".repeat(64))),
-        ).toCommand(), ActorIdentity.github(42, "lim"))
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_record_activities","arguments":{"recordId":"${activityRecord.id}"}}}"""
-        }.andExpect {
-            status { isOk() }; content { string(containsString("\"isError\":false")) }
-            content { string(containsString("CREATE")) }; content { string(containsString("AUTHOR")) }
-        }
-        val markdown = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"get_change_record_markdown","arguments":{"recordId":"${activityRecord.id}"}}}"""
-        }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray.toString(Charsets.UTF_8)
-        assertTrue(markdown.contains("\"isError\":false") && markdown.contains("\"status\":\"DRAFT\""), markdown)
-        assertTrue(markdown.contains("# 변경 의도: 변경 이력 조회"), markdown)
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_change_records","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":false")) }
-        }
+            val activities = mcp.call("list_record_activities", mapOf("recordId" to record.id.toString())).succeeded()
+            assertTrue(activities.toString().contains("CREATE") && activities.toString().contains("AUTHOR"), activities.toString())
 
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession"); header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON; header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"find_related_change_intent","arguments":{"repositoryKey":"acme/intent-trace","revision":"${"b".repeat(40)}","path":"src/App.kt","line":1}}}"""
-        }.andExpect {
-            status { isOk() }; content { string(containsString("\"isError\":false")) }
-            content { string(containsString("\"complete\":true")) }; content { string(containsString("\"stopReason\":null")) }
-            content { string(containsString("\"resumeBlocked\":false")) }
-        }
+            val markdown = mcp.call("get_change_record_markdown", mapOf("recordId" to record.id.toString())).succeeded()
+            assertEquals("DRAFT", markdown["status"])
+            assertTrue((markdown["markdown"] as String).contains("# 변경 의도: 변경 이력 조회"), markdown.toString())
 
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"diagnose_connection","arguments":{"repositoryKey":"acme/intent-trace"}}}"""
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":false")) }
-            content { string(containsString("NOT_CONFIGURED")) }
-        }
+            // 초안만 있으므로 기본 TEAM 범위는 비어 있다.
+            val page = mcp.call("list_change_records", mapOf("repositoryKey" to "acme/intent-trace")).succeeded()
+            assertEquals(emptyList<Any>(), page["items"])
+            assertTrue(page.containsKey("nextCursor") && page["nextCursor"] == null, page.toString())
 
-        mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content =
-                """
-                {
-                  "jsonrpc": "2.0",
-                  "id": 2,
-                  "method": "tools/call",
-                  "params": {
-                    "name": "find_change_intent",
-                    "arguments": {
-                      "repositoryKey": "acme/intent-trace",
-                      "revision": "main",
-                      "path": "src/App.kt",
-                      "line": 1
-                    }
-                  }
-                }
-                """.trimIndent()
-        }.andExpect {
-            status { isOk() }
-            content { string(containsString("\"isError\":true")) }
-        }
+            val related = mcp.call("find_related_change_intent", mapOf(
+                "repositoryKey" to "acme/intent-trace", "revision" to "b".repeat(40), "path" to "src/App.kt", "line" to 1,
+            )).succeeded()
+            assertEquals(true, related["complete"])
+            assertTrue(related.containsKey("stopReason") && related["stopReason"] == null, related.toString())
+            assertEquals(false, related["resumeBlocked"])
 
-        val listed = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            header("Mcp-Session-Id", sessionId)
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = """
-                {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
-                  "name":"list_change_records","arguments":{"repositoryKey":"acme/intent-trace"}
-                }}
-            """.trimIndent()
-        }.andExpect {
-            status { isOk() }
-        }.andReturn()
-        val data = listed.response.contentAsString.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
-        val result = objectMapper.readTree(data).get("result")
-        assertEquals(false, result.get("isError").booleanValue())
-        val page = result.get("structuredContent")
-        assertEquals(0, page.get("items").size())
-        assertTrue(page.get("nextCursor").isNull)
+            val diagnosis = mcp.call("diagnose_connection", mapOf("repositoryKey" to "acme/intent-trace")).succeeded()
+            assertTrue(diagnosis.toString().contains("NOT_CONFIGURED"), diagnosis.toString())
+
+            val branch = mcp.call("find_change_intent", mapOf(
+                "repositoryKey" to "acme/intent-trace", "revision" to "main", "path" to "src/App.kt", "line" to 1,
+            ))
+            assertEquals(true, branch.isError, branch.toString())
+        }
     }
 
     @Test
     fun `MCP 기록 ID 오류는 입력값을 응답에 포함하지 않는다`() {
         val sensitiveInput = "ghu_private-marker"
-        val initialized = mockMvc.post("/mcp") {
-            header("Authorization", "Bearer $userSession")
-            contentType = MediaType.APPLICATION_JSON
-            header("Accept", "application/json, text/event-stream")
-            content = initialize
-        }.andExpect { status { isOk() } }.andReturn()
-        val sessionId = initialized.response.getHeader("Mcp-Session-Id")
-        assertNotNull(sessionId)
-
-        for (tool in listOf("get_change_record", "list_record_activities", "compare_change_record", "check_change_record_evidence")) {
-            val response = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer $userSession")
-                header("Mcp-Session-Id", sessionId)
-                contentType = MediaType.APPLICATION_JSON
-                header("Accept", "application/json, text/event-stream")
-                content = """
-                    {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-                      "name":"$tool","arguments":{"recordId":"$sensitiveInput"}
-                    }}
-                """.trimIndent()
-            }.andExpect { status { isOk() } }.andReturn().response.contentAsByteArray
-                .toString(Charsets.UTF_8)
-
-            assertTrue(response.contains("\"isError\":true"))
-            assertTrue(response.contains("변경 의도 기록 ID는 UUID 형식이어야 합니다."))
-            assertFalse(response.contains(sensitiveInput))
+        mcpClient(port, userSession).use { mcp ->
+            for (tool in listOf("get_change_record", "list_record_activities", "compare_change_record", "check_change_record_evidence")) {
+                val result = mcp.call(tool, mapOf("recordId" to sensitiveInput))
+                assertEquals(true, result.isError, result.toString())
+                assertTrue(result.content().any { it is TextContent && it.text().contains("변경 의도 기록 ID는 UUID 형식이어야 합니다.") }, result.toString())
+                // content·structuredContent·_meta를 모두 담는 전체 결과에서 확인한다.
+                assertFalse(result.toString().contains(sensitiveInput), result.toString())
+            }
         }
     }
 
@@ -247,107 +102,62 @@ class AuthenticatedMcpIntegrationTest(
     fun `MCP 대체 도구는 기존 작성자와 버전 검사를 거쳐 공개 기록을 대체한다`() {
         val actor = ActorIdentity.github(42, "lim")
         val repository = "acme/mcp-supersede-${UUID.randomUUID()}"
-        val digest = "a".repeat(64)
-        fun publishedRecord() = facade.create(
-            CreateChangeRecordRequest(
-                requestId = UUID.randomUUID().toString(),
-                repositoryKey = repository,
-                snapshotDigest = digest,
-                title = "MCP 기록 대체",
-                requestSummary = "공개 기록의 본문을 유지하고 후속 기록을 연결한다.",
-                decisions = listOf(DecisionRequest("기존 대체 서비스를 사용한다.", null, PurposeSource.STATED_BY_USER)),
-                codeAnchors = listOf(CodeAnchorRequest("src/App.kt", "App", 1, 1, digest)),
-            ).toCommand(),
-            actor,
-        ).let { draft ->
-            facade.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, "b".repeat(40), digest), actor)
-        }.let { confirmed ->
-            facade.publish(PublishChangeRecordCommand(confirmed.id, confirmed.version, digest), actor)
-        }.let { published ->
-            facade.get(published.id)
-        }
-        val original = publishedRecord()
-        val replacement = publishedRecord()
+        val original = facade.createPublished(createCommand(repository), actor)
+        val replacement = facade.createPublished(createCommand(repository), actor)
 
-        fun callSupersede(accessToken: String): JsonNode {
-            val session = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer $accessToken")
-                contentType = MediaType.APPLICATION_JSON
-                header("Accept", "application/json, text/event-stream")
-                content = initialize
-            }.andExpect { status { isOk() } }.andReturn().response.getHeader("Mcp-Session-Id")
-            assertNotNull(session)
-            val response = mockMvc.post("/mcp") {
-                header("Authorization", "Bearer $accessToken")
-                header("Mcp-Session-Id", session)
-                contentType = MediaType.APPLICATION_JSON
-                header("Accept", "application/json, text/event-stream")
-                content = """
-                    {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
-                      "name":"supersede_change_record","arguments":{
-                        "recordId":"${original.id}","expectedVersion":${original.version},
-                        "replacementRecordId":"${replacement.id}"
-                      }
-                    }}
-                """.trimIndent()
-            }.andExpect { status { isOk() } }.andReturn().response.contentAsString
-            val data = response.lineSequence().first { it.startsWith("data:") }.removePrefix("data:")
-            return objectMapper.readTree(data).get("result")
+        fun supersede(session: String): CallToolResult = mcpClient(port, session).use {
+            it.call("supersede_change_record", mapOf(
+                "recordId" to original.id.toString(), "expectedVersion" to original.version, "replacementRecordId" to replacement.id.toString(),
+            ))
         }
 
-        assertTrue(callSupersede(otherSession).get("isError").booleanValue())
+        assertEquals(true, supersede(otherSession).isError)
         assertEquals(original, facade.get(original.id))
 
-        val result = callSupersede(userSession)
-        assertEquals(false, result.get("isError").booleanValue())
-        val updated = result.get("structuredContent")
-        assertEquals("SUPERSEDED", updated.get("status").stringValue())
-        assertEquals(replacement.id.toString(), updated.get("supersededBy").stringValue())
-        assertEquals(original.version + 1, updated.get("version").longValue())
+        val updated = supersede(userSession).succeeded()
+        assertEquals("SUPERSEDED", updated["status"])
+        assertEquals(replacement.id.toString(), updated["supersededBy"])
+        assertEquals(original.version + 1, (updated["version"] as Number).toLong())
         assertEquals(
             original.copy(status = ChangeRecordStatus.SUPERSEDED, supersededBy = replacement.id, version = original.version + 1),
             facade.get(original.id),
         )
-        assertTrue(callSupersede(userSession).get("isError").booleanValue())
+        assertEquals(true, supersede(userSession).isError)
         assertEquals(replacement, facade.get(replacement.id))
     }
 
     @Test
-    fun `MCP 생성 입력에도 Jakarta 제약을 적용한다`() {
-        val exception = assertFailsWith<ConstraintViolationException> {
-            tools.create(
-                CreateChangeRecordRequest(
-                    requestId = "request-1",
-                    repositoryKey = "acme/intent-trace",
-                    snapshotDigest = "a".repeat(64),
-                    title = "MCP 입력 검증",
-                    requestSummary = "MCP 입력도 REST와 같은 제약을 적용한다.",
-                    decisions = listOf(
-                        DecisionRequest("", null, PurposeSource.STATED_BY_USER),
-                    ),
-                    codeAnchors = listOf(
-                        CodeAnchorRequest("src/App.kt", "App", 1, 1, "b".repeat(64)),
-                    ),
-                ),
-            )
-        }
+    fun `MCP 도구 호출에도 Jakarta 제약을 적용한다`() {
+        // Spring AI가 검증 프록시를 거쳐 도구를 호출하는지 실제 /mcp 요청으로 확인한다.
+        mcpClient(port, userSession).use { mcp ->
+            val created = mcp.call("create_change_record", mapOf("request" to mapOf(
+                "requestId" to "mcp-validation", "repositoryKey" to "acme/intent-trace", "snapshotDigest" to "a".repeat(64),
+                "title" to "MCP 입력 검증", "requestSummary" to "MCP 입력도 REST와 같은 제약을 적용한다.",
+                "decisions" to listOf(mapOf("summary" to "", "source" to "STATED_BY_USER")),
+                "codeAnchors" to listOf(mapOf("relativePath" to "src/App.kt", "startLine" to 1, "endLine" to 1, "contentHash" to "b".repeat(64))),
+            )))
+            assertEquals(true, created.isError, created.toString())
+            assertTrue(created.toString().contains("summary"), created.toString())
 
-        assertTrue(exception.constraintViolations.any { it.propertyPath.toString().endsWith("summary") })
+            val confirmed = mcp.call("confirm_change_record", mapOf(
+                "recordId" to UUID.randomUUID().toString(), "expectedVersion" to 0, "immutableRevision" to "main",
+                "currentSnapshotDigest" to "a".repeat(64),
+            ))
+            assertEquals(true, confirmed.isError, confirmed.toString())
+            assertTrue(confirmed.toString().contains("immutableRevision"), confirmed.toString())
+        }
+    }
+
+    private fun CallToolResult.succeeded(): Map<*, *> {
+        assertEquals(false, isError, toString())
+        return structured
     }
 
     @TestConfiguration
     class AuthenticationTestConfiguration {
         @Bean
         @Primary
-        fun gitHubUserAccessGateway(): GitHubUserAccessGateway = object : GitHubUserAccessGateway {
-            override fun authenticate(accessToken: String): ActorIdentity =
-                if (accessToken == "ghu_other-user-token") ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
-
-            override fun repositoryRole(
-                accessToken: String,
-                actor: ActorIdentity,
-                repository: GitHubRepository,
-            ): RepositoryRole = RepositoryRole.MAINTAINER
-        }
+        fun gitHubUserAccessGateway() =
+            TestGitHubUserAccessGateway(actors = mapOf("ghu_other-user-token" to ActorIdentity.github(84, "teammate")))
     }
 }

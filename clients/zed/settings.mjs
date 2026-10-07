@@ -13,9 +13,9 @@ export function defaultSettingsPath() {
 }
 
 /** configure가 관리하는 Zed 설정 위치다. MCP 연결과 hover 언어 서버의 실행 명령만 바꾼다. */
-export const managedKeys = [['context_servers', 'intent-trace'], ['lsp', 'intent-trace']];
+const managedKeys = [['context_servers', 'intent-trace'], ['lsp', 'intent-trace']];
 
-export function prepareSettings(text, entry, key = managedKeys[0]) {
+export function prepareSettings(text, entry, key) {
   const errors = [];
   const root = parseTree(text, errors, { allowTrailingComma: true, allowEmptyContent: true });
   if (errors.length || (root && root.type !== 'object')) throw new UsageError('Zed 설정: JSONC 문법과 최상위 객체를 확인하세요.');
@@ -51,7 +51,7 @@ export function prepareSettings(text, entry, key = managedKeys[0]) {
 async function readSettings(path) {
   try {
     const stat = await lstat(path);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new UsageError('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
+    if (!stat.isFile()) throw new UsageError('Zed 설정: 일반 설정 파일만 수정할 수 있습니다.');
     return { text: await readFile(path, 'utf8'), mode: stat.mode & 0o777 };
   } catch (error) {
     if (error.code === 'ENOENT') return { text: '', mode: 0o600 };
@@ -59,22 +59,22 @@ async function readSettings(path) {
   }
 }
 
-/** [entries]는 managedKeys 순서의 설정값이다. 모두 undefined이면 제거한다. */
-export async function configure(path, entries, apply) {
+/** settings는 config가 출력하는 설정 객체다. 없으면 managedKeys 항목을 제거한다. */
+export async function configure(path, settings, apply) {
   const target = resolve(path);
   const original = await readSettings(target);
-  const removing = entries.every(entry => entry === undefined);
+  const removing = !settings;
   let text = original.text;
   const operations = new Set();
-  managedKeys.forEach((key, index) => {
-    const prepared = prepareSettings(text, entries[index], key);
+  for (const key of managedKeys) {
+    const prepared = prepareSettings(text, settings?.[key[0]][key[1]], key);
     text = prepared.text;
     if (prepared.operation !== '변경 없음') operations.add(prepared.operation);
-  });
+  }
   // 기존 연결에는 비밀값이 있을 수 있어 새 연결 또는 제거할 키만 표시한다.
   console.log(`Zed 설정: ${[...operations].join('·') || '변경 없음'}${apply ? '' : ' 미리보기'}`);
   if (removing) console.log(`제거 대상: ${managedKeys.map(key => key.join('.')).join(', ')}`);
-  else console.log(JSON.stringify(Object.fromEntries(managedKeys.map(([section, name], index) => [section, { [name]: entries[index] }])), null, 2));
+  else console.log(JSON.stringify(settings, null, 2));
   if (!apply) {
     console.log(`저장하려면 같은 명령에 --apply를 추가하세요. intent-trace 항목만 ${removing ? '제거' : '교체'}하며 다른 서버와 주석은 보존합니다.`);
     return;

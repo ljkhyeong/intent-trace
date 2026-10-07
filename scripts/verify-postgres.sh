@@ -7,24 +7,12 @@ cd "$repository_root"
 
 environment_file=${INTENT_TRACE_ENV_FILE:-.env.team.example}
 smoke_directory=$(mktemp -d "${TMPDIR:-/tmp}/intent-trace-postgres.XXXXXX")
-smoke_database_name=intent_trace
-smoke_database_username=intent_trace
-smoke_database_password=intent-trace-smoke-password
-smoke_project_name="intent-trace-postgres-smoke-$$"
 
 export COMPOSE_FILE="$repository_root/compose.yaml:$repository_root/compose.postgres-smoke.yaml"
-export COMPOSE_PROJECT_NAME=$smoke_project_name
-export INTENT_TRACE_DATABASE_NAME=$smoke_database_name
-export INTENT_TRACE_DATABASE_USERNAME=$smoke_database_username
-export INTENT_TRACE_DATABASE_PASSWORD=$smoke_database_password
-
-smoke_project_suffix=${COMPOSE_PROJECT_NAME#intent-trace-postgres-smoke-}
-case "$smoke_project_suffix" in
-    ''|*[!0-9]*)
-        printf '%s\n' "PostgreSQL smoke 전용 Compose 프로젝트 이름이 아닙니다: $COMPOSE_PROJECT_NAME" >&2
-        exit 1
-        ;;
-esac
+export COMPOSE_PROJECT_NAME="intent-trace-postgres-smoke-$$"
+export INTENT_TRACE_DATABASE_NAME=intent_trace
+export INTENT_TRACE_DATABASE_USERNAME=intent_trace
+export INTENT_TRACE_DATABASE_PASSWORD=intent-trace-smoke-password
 
 cleanup() {
     trap - HUP INT TERM
@@ -36,7 +24,10 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-docker compose --env-file "$environment_file" up -d postgres
+if ! docker compose --env-file "$environment_file" up --wait --wait-timeout 90 postgres; then
+    printf '%s\n' 'PostgreSQL을 시작하지 못했거나 제한 시간 안에 정상 상태가 되지 않았습니다.' >&2
+    exit 1
+fi
 
 smoke_binding=$(docker compose --env-file "$environment_file" port postgres 5432)
 case "$smoke_binding" in
@@ -44,21 +35,8 @@ case "$smoke_binding" in
     *) printf '%s\n' 'PostgreSQL 검증용 로컬 포트를 확인하지 못했습니다.' >&2; exit 1 ;;
 esac
 
-attempt=0
-until docker compose --env-file "$environment_file" exec -T postgres sh -c \
-    'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; do
-    attempt=$((attempt + 1))
-    if [ "$attempt" -ge 30 ]; then
-        printf '%s\n' 'PostgreSQL 상태 확인이 제한 시간 안에 성공하지 않았습니다.' >&2
-        exit 1
-    fi
-    sleep 2
-done
-
 INTENT_TRACE_POSTGRES_SMOKE=true \
-INTENT_TRACE_DATABASE_URL="jdbc:postgresql://127.0.0.1:$smoke_port/$smoke_database_name" \
-INTENT_TRACE_DATABASE_USERNAME="$smoke_database_username" \
-INTENT_TRACE_DATABASE_PASSWORD="$smoke_database_password" \
+INTENT_TRACE_DATABASE_URL="jdbc:postgresql://127.0.0.1:$smoke_port/$INTENT_TRACE_DATABASE_NAME" \
     ./gradlew postgresTest
 
 before_count=$(docker compose --env-file "$environment_file" exec -T postgres sh -c \

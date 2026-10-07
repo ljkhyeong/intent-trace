@@ -1,8 +1,6 @@
 package io.intenttrace.connection
 
-import io.intenttrace.IntentTraceApplication
 import io.intenttrace.identity.adapter.`in`.web.AuthenticatedMcpIntegrationTest
-import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.application.GitHubUserAuthenticationException
 import io.intenttrace.identity.domain.ActorIdentity
@@ -13,13 +11,12 @@ import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.GitEvidenceGateway
 import io.intenttrace.record.application.GitEvidenceSnapshot
 import io.intenttrace.record.application.ChangeRecordFacade
-import io.intenttrace.record.application.CreateChangeRecordCommand
+import io.intenttrace.record.application.createCommand
+import io.intenttrace.record.application.createPublished
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.EvidenceUnavailableException
 import io.intenttrace.record.application.EvidenceUnavailableReason
 import io.intenttrace.record.domain.CodeAnchor
-import io.intenttrace.record.domain.Decision
-import io.intenttrace.record.domain.PurposeSource
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -29,23 +26,18 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.nio.file.Files
 import java.nio.file.Path
-import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import io.intenttrace.record.application.confirm
 import io.intenttrace.issueTestSession
-import io.intenttrace.record.application.PublishChangeRecordCommand
-import io.intenttrace.record.application.publish
+import io.intenttrace.runProcess
 import org.junit.jupiter.api.io.TempDir
 
 @SpringBootTest(
-    classes = [IntentTraceApplication::class, AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
+    classes = [AuthenticatedMcpIntegrationTest.AuthenticationTestConfiguration::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["spring.datasource.url=jdbc:h2:mem:zed-bridge;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "spring.h2.console.enabled=false", "server.shutdown=immediate"],
 )
 class ZedBridgeIntegrationTest(
     @Autowired private val sessions: GitHubUserSessionStore,
@@ -60,7 +52,8 @@ class ZedBridgeIntegrationTest(
 
     @Test
     fun `Zed와 같은 stdio 연결로 실제 서버를 인증하고 도구 목록과 진단을 호출한다`() {
-        val output = check()
+        // 주소를 생략하면 INTENT_TRACE_MCP_URL로 연결하는지는 이 실행만 확인한다. Node 단위 테스트는 기본 주소와 구분하지 못한다.
+        val output = check(explicitAddress = false)
         assertTrue(output.contains("MCP 연결 성공"), output)
         assertTrue(output.contains("repository_read: VERIFIED"), output)
         Mockito.verifyNoInteractions(evidence, pullRequests)
@@ -68,15 +61,14 @@ class ZedBridgeIntegrationTest(
 
     @Test
     fun `연결 점검은 실패 사유와 나머지 진단 안내를 함께 표시한다`() {
-        val repository = GitHubRepository.parse("acme/intent-trace")
+        // 나머지 사유의 문구는 REST·MCP 사유 테스트가 확인한다. CLI 출력 형식은 사유와 무관하다.
+        val reason = EvidenceUnavailableReason.REVISION_NOT_FOUND
         val revision = "d".repeat(40)
-        for (reason in EvidenceUnavailableReason.entries) {
-            Mockito.doThrow(EvidenceUnavailableException(reason)).`when`(evidence).snapshot(repository, revision)
-            val output = check("--revision", revision, expectedExitCode = 1)
-            assertTrue(output.contains("git_tree_read: FAILED — ${reason.message}"), output)
-            assertTrue(output.contains("repository_read: VERIFIED — GitHub 응답으로 확인했습니다."), output)
-            assertTrue(output.contains("publication_credentials: NOT_CONFIGURED — 운영자가 서버 게시용 GitHub App client ID와 private key를 설정해야 합니다."), output)
-        }
+        Mockito.doThrow(EvidenceUnavailableException(reason)).`when`(evidence).snapshot(GitHubRepository.parse("acme/intent-trace"), revision)
+        val output = check("--revision", revision, expectedExitCode = 1)
+        assertTrue(output.contains("git_tree_read: FAILED — ${reason.message}"), output)
+        assertTrue(output.contains("repository_read: VERIFIED — GitHub 응답으로 확인했습니다."), output)
+        assertTrue(output.contains("publication_credentials: NOT_CONFIGURED — 운영자가 서버 게시용 GitHub App client ID와 private key를 설정해야 합니다."), output)
     }
 
     @Test
@@ -123,15 +115,7 @@ class ZedBridgeIntegrationTest(
                 assert.equal(data(await call('revoke_my_session')).revokedCount, 1);
             } finally { await client.close(); }
         """.trimIndent()
-        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = current }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
-        assertTrue(finished, "세션 종료 검증이 30초 안에 끝나야 합니다.")
-        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        runNode("--input-type=module", "-e", script, env = mapOf("INTENT_TRACE_SESSION_TOKEN" to current))
         assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(current) }
         assertFailsWith<GitHubUserAuthenticationException> { sessions.resolve(other) }
     }
@@ -147,18 +131,11 @@ class ZedBridgeIntegrationTest(
         ).mapIndexed { index, (reason, message) ->
             val revision = (index + 1).toString().repeat(40)
             Mockito.`when`(evidence.snapshot(repository, revision)).thenThrow(EvidenceUnavailableException(reason))
-            val draft = records.create(CreateChangeRecordCommand(
-                UUID.randomUUID().toString(), repository.key, null, "a".repeat(64), "코드 확인 불가", "확인 불가 사유를 구분한다.",
-                listOf(Decision("원격 코드 확인", null, PurposeSource.STATED_BY_USER)),
-                listOf(CodeAnchor("sample.kt", null, 1, 1, "b".repeat(64))), emptyList(), emptyList(),
-            ), actor)
+            val draft = records.create(createCommand(repository.key), actor)
             records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, revision, draft.snapshotDigest), actor)
             "['${draft.id}', '$revision', '${reason.name}', '$message']"
         }
-        val now = Instant.now()
-        val session = sessions.issue(actor, GitHubUserOAuthTokens(
-            "ghu_evidence-test", now.plusSeconds(3600), "ghr_evidence-test", now.plusSeconds(7200),
-        ))
+        val session = sessions.issueTestSession(actor, "ghu_evidence-test")
         val script = """
             import assert from 'node:assert/strict';
             import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -199,15 +176,7 @@ class ZedBridgeIntegrationTest(
                 }
             } finally { await client.close(); }
         """.trimIndent()
-        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply { environment()["INTENT_TRACE_SESSION_TOKEN"] = session.sessionToken }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
-        assertTrue(finished, "코드 확인 불가 검증이 30초 안에 끝나야 합니다.")
-        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        runNode("--input-type=module", "-e", script, env = mapOf("INTENT_TRACE_SESSION_TOKEN" to session))
     }
 
     @Test
@@ -224,47 +193,35 @@ class ZedBridgeIntegrationTest(
             listOf("--revision", head) to head,
         )) {
             Mockito.`when`(evidence.snapshot(repository, revision)).thenReturn(GitEvidenceSnapshot(emptyMap()))
-            for (explicitAddress in listOf(true, false)) {
-                Mockito.clearInvocations(evidence, pullRequests)
-                val mismatch = "--pr" in options && revision != head
-                val output = check(*options.toTypedArray(), explicitAddress = explicitAddress, expectedExitCode = if (mismatch) 1 else 0)
-                assertTrue(output.contains("git_tree_read: VERIFIED"), output)
-                if ("--pr" in options && "--revision" in options) {
-                    val expected = if (mismatch) "FAILED — 입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다."
-                        else "VERIFIED — 입력한 커밋이 PR의 현재 커밋과 같습니다."
-                    assertTrue(output.contains("pull_request_revision: $expected"), output)
-                } else assertFalse(output.contains("pull_request_revision:"), output)
-                Mockito.verify(evidence).snapshot(repository, revision)
-                if ("--pr" in options) {
-                    assertTrue(output.contains("pull_request_read: VERIFIED"), output)
-                    Mockito.verify(pullRequests).read(target)
-                } else Mockito.verifyNoInteractions(pullRequests)
-            }
+            Mockito.clearInvocations(evidence, pullRequests)
+            val mismatch = "--pr" in options && revision != head
+            val output = check(*options.toTypedArray(), expectedExitCode = if (mismatch) 1 else 0)
+            assertTrue(output.contains("git_tree_read: VERIFIED"), output)
+            if ("--pr" in options && "--revision" in options) {
+                val expected = if (mismatch) "FAILED — 입력한 커밋이 PR의 현재 커밋과 다릅니다. PR의 최신 커밋으로 확인한 기록만 게시할 수 있습니다."
+                    else "VERIFIED — 입력한 커밋이 PR의 현재 커밋과 같습니다."
+                assertTrue(output.contains("pull_request_revision: $expected"), output)
+            } else assertFalse(output.contains("pull_request_revision:"), output)
+            Mockito.verify(evidence).snapshot(repository, revision)
+            if ("--pr" in options) {
+                assertTrue(output.contains("pull_request_read: VERIFIED"), output)
+                Mockito.verify(pullRequests).read(target)
+            } else Mockito.verifyNoInteractions(pullRequests)
         }
     }
 
     @Test
     fun `Zed hover 언어 서버는 커밋된 줄의 공개 기록을 실제 서버에서 조회한다`(@TempDir directory: Path) {
-        assumeTrue(Files.exists(Path.of("clients/zed/node_modules/vscode-languageserver")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
-        fun git(vararg args: String): String {
-            val process = ProcessBuilder("git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args)
-                .directory(directory.toFile()).redirectErrorStream(true).start()
-            assertTrue(process.waitFor(30, TimeUnit.SECONDS))
-            return process.inputStream.bufferedReader().readText().trim().also { assertEquals(0, process.exitValue(), it) }
-        }
+        fun git(vararg args: String): String =
+            runProcess(listOf("git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args), directory).assertSuccess().output.trim()
         git("init", "-q")
         git("remote", "add", "origin", "https://github.com/acme/intent-trace.git")
         val file = Files.writeString(directory.resolve("Hover.kt"), "fun hover() {}\nval line = 2\n")
         git("add", ".")
         git("commit", "-q", "-m", "hover")
         val actor = ActorIdentity.github(42, "lim")
-        val draft = records.create(CreateChangeRecordCommand(
-            UUID.randomUUID().toString(), "acme/intent-trace", null, "a".repeat(64), "Zed hover 기록", "편집기에서 현재 줄 기록을 본다.",
-            listOf(Decision("언어 서버 hover를 쓴다.", null, PurposeSource.STATED_BY_USER)),
-            listOf(CodeAnchor("Hover.kt", null, 2, 2, "b".repeat(64))), emptyList(), emptyList(),
-        ), actor)
-        val confirmed = records.confirm(ConfirmChangeRecordCommand(draft.id, draft.version, git("rev-parse", "HEAD"), draft.snapshotDigest), actor)
-        records.publish(PublishChangeRecordCommand(draft.id, confirmed.version, draft.snapshotDigest), actor)
+        val record = records.createPublished(createCommand("acme/intent-trace", "Zed hover 기록")
+            .copy(codeAnchors = listOf(CodeAnchor("Hover.kt", null, 2, 2, "b".repeat(64)))), actor, git("rev-parse", "HEAD"))
         val script = """
             import assert from 'node:assert/strict';
             import { spawn } from 'node:child_process';
@@ -281,48 +238,38 @@ class ZedBridgeIntegrationTest(
                 client.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId: 'kotlin', version: 1, text: '' } });
                 const found = await hover(1);
                 assert.match(found.contents.value, /Zed hover 기록/);
-                assert.ok(found.contents.value.includes('http://127.0.0.1:$port/records/${draft.id}'), found.contents.value);
+                assert.ok(found.contents.value.includes('http://127.0.0.1:$port/records/${record.id}'), found.contents.value);
                 assert.equal(await hover(0), null);
                 await client.sendRequest('shutdown');
                 client.sendNotification('exit');
             } finally { client.dispose(); child.kill(); }
         """.trimIndent()
-        val process = ProcessBuilder("node", "--input-type=module", "-e", script).directory(Path.of("clients/zed").toFile())
-            .redirectErrorStream(true).apply {
-                environment()["INTENT_TRACE_SESSION_TOKEN"] = sessions.issueTestSession(actor, "ghu_zed-hover-test")
-                environment()["HOVER_FILE"] = file.toString()
-            }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
-        assertTrue(finished, "hover 검증이 30초 안에 끝나야 합니다.")
-        assertEquals(0, process.exitValue(), process.inputStream.bufferedReader().readText())
+        runNode("--input-type=module", "-e", script, env = mapOf(
+            "INTENT_TRACE_SESSION_TOKEN" to sessions.issueTestSession(actor, "ghu_zed-hover-test"), "HOVER_FILE" to file.toString(),
+        ))
     }
 
+    /** 명시한 주소가 잘못된 INTENT_TRACE_MCP_URL보다 우선한다. [explicitAddress]가 false면 환경 변수 주소로 연결한다. */
     private fun check(vararg options: String, explicitAddress: Boolean = true, expectedExitCode: Int = 0): String {
-        assumeTrue(Files.exists(Path.of("clients/zed/node_modules/@modelcontextprotocol/sdk")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
-        val now = Instant.now()
-        val session = sessions.issue(ActorIdentity.github(42, "lim"), GitHubUserOAuthTokens(
-            "ghu_zed-test", now.plusSeconds(3600), "ghr_zed-test", now.plusSeconds(7200),
-        ))
+        val session = sessions.issueTestSession(ActorIdentity.github(42, "lim"), "ghu_zed-test")
         val address = "http://127.0.0.1:$port/mcp"
-        val command = listOf("node", "clients/zed/intent-trace.mjs", "check") +
-            (if (explicitAddress) listOf(address) else emptyList()) + listOf("acme/intent-trace", *options)
-        val process = ProcessBuilder(command).redirectErrorStream(true).apply {
-            environment()["INTENT_TRACE_SESSION_TOKEN"] = session.sessionToken
-            environment()["INTENT_TRACE_MCP_URL"] = if (explicitAddress) "invalid-address" else address
-        }.start()
-        val finished = process.waitFor(30, TimeUnit.SECONDS)
-        if (!finished) {
-            process.descendants().forEach { it.destroyForcibly() }
-            process.destroyForcibly()
-        }
-        assertTrue(finished, "Zed 연결 점검이 30초 안에 끝나야 합니다.")
-        val output = process.inputStream.bufferedReader().readText()
-        assertFalse(output.contains(session.sessionToken), "세션은 출력하지 않아야 합니다.")
-        assertEquals(expectedExitCode, process.exitValue(), output)
+        val arguments = listOfNotNull("intent-trace.mjs", "check", address.takeIf { explicitAddress }, "acme/intent-trace") + options
+        val output = runNode(*arguments.toTypedArray(), expectedExitCode = expectedExitCode, env = mapOf(
+            "INTENT_TRACE_SESSION_TOKEN" to session, "INTENT_TRACE_MCP_URL" to if (explicitAddress) "invalid-address" else address,
+        ))
+        assertFalse(output.contains(session), "세션은 출력하지 않아야 합니다.")
         return output
+    }
+
+    /** clients/zed에서 Node를 실행하고, 종료 코드를 확인한 출력을 돌려준다. */
+    private fun runNode(vararg arguments: String, env: Map<String, String>, expectedExitCode: Int = 0): String {
+        assumeTrue(Files.exists(zed.resolve("node_modules/@modelcontextprotocol/sdk")), "Zed 검증에는 npm ci --prefix clients/zed --ignore-scripts가 필요합니다.")
+        val result = runProcess(listOf("node", *arguments), zed, env)
+        assertEquals(expectedExitCode, result.exitCode, result.output)
+        return result.output
+    }
+
+    companion object {
+        private val zed = Path.of("clients/zed")
     }
 }

@@ -27,18 +27,16 @@ class JdbcGitHubPublicationRepository(
     @Transactional(readOnly = true)
     override fun findAll(changeRecordIds: Collection<UUID>, target: GitHubPullRequestTarget): Map<UUID, GitHubPublication> {
         if (changeRecordIds.isEmpty()) return emptyMap()
-        val repository = GitHubRepository(target.owner, target.repository)
         return namedJdbc.query(
             """
             select *
             from github_publications
             where change_record_id in (:recordIds)
-              and repository_owner = :owner
-              and repository_name = :repository
+              and repository_key = :repositoryKey
               and pull_number = :pullNumber
             """.trimIndent(),
-            mapOf("recordIds" to changeRecordIds.map(UUID::toString), "owner" to repository.canonicalOwner,
-                "repository" to repository.canonicalName, "pullNumber" to target.pullNumber),
+            mapOf("recordIds" to changeRecordIds.map(UUID::toString), "repositoryKey" to target.repositoryKey,
+                "pullNumber" to target.pullNumber),
             { resultSet, _ -> mapPublication(resultSet) },
         ).associateBy { it.changeRecordId }
     }
@@ -53,16 +51,15 @@ class JdbcGitHubPublicationRepository(
     override fun save(publication: GitHubPublication): GitHubPublication {
         // 같은 PR 게시가 동시에 들어오면 먼저 저장한 행을 갱신한다.
         if (update(publication) != 1) {
-            val repository = GitHubRepository(publication.target.owner, publication.target.repository)
             try {
                 jdbcTemplate.update(
                     """
                     insert into github_publications (
-                        id, change_record_id, repository_owner, repository_name, pull_number,
+                        id, change_record_id, repository_key, pull_number,
                         head_revision, check_run_id, check_run_url, content_digest, published_at
-                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent(),
-                    publication.id.toString(), publication.changeRecordId.toString(), repository.canonicalOwner, repository.canonicalName,
+                    publication.id.toString(), publication.changeRecordId.toString(), publication.target.repositoryKey,
                     publication.target.pullNumber, publication.headRevision, publication.checkRunId, publication.checkRunUrl,
                     publication.contentDigest, publication.publishedAt.atOffset(ZoneOffset.UTC),
                 )
@@ -73,38 +70,30 @@ class JdbcGitHubPublicationRepository(
         return requireNotNull(find(publication.changeRecordId, publication.target))
     }
 
-    private fun update(publication: GitHubPublication): Int {
-        val repository = GitHubRepository(publication.target.owner, publication.target.repository)
-        return jdbcTemplate.update(
-            """
-            update github_publications
-            set head_revision = ?, check_run_id = ?, check_run_url = ?,
-                content_digest = ?, published_at = ?
-            where change_record_id = ?
-              and repository_owner = ?
-              and repository_name = ?
-              and pull_number = ?
-            """.trimIndent(),
-            publication.headRevision,
-            publication.checkRunId,
-            publication.checkRunUrl,
-            publication.contentDigest,
-            publication.publishedAt.atOffset(ZoneOffset.UTC),
-            publication.changeRecordId.toString(),
-            repository.canonicalOwner,
-            repository.canonicalName,
-            publication.target.pullNumber,
-        )
-    }
+    private fun update(publication: GitHubPublication): Int = jdbcTemplate.update(
+        """
+        update github_publications
+        set head_revision = ?, check_run_id = ?, check_run_url = ?,
+            content_digest = ?, published_at = ?
+        where change_record_id = ?
+          and repository_key = ?
+          and pull_number = ?
+        """.trimIndent(),
+        publication.headRevision,
+        publication.checkRunId,
+        publication.checkRunUrl,
+        publication.contentDigest,
+        publication.publishedAt.atOffset(ZoneOffset.UTC),
+        publication.changeRecordId.toString(),
+        publication.target.repositoryKey,
+        publication.target.pullNumber,
+    )
 
     private fun mapPublication(resultSet: ResultSet): GitHubPublication = GitHubPublication(
         id = UUID.fromString(resultSet.getString("id")),
         changeRecordId = UUID.fromString(resultSet.getString("change_record_id")),
-        target = GitHubPullRequestTarget(
-            owner = resultSet.getString("repository_owner"),
-            repository = resultSet.getString("repository_name"),
-            pullNumber = resultSet.getInt("pull_number"),
-        ),
+        target = GitHubRepository.parse(resultSet.getString("repository_key"))
+            .let { GitHubPullRequestTarget(it.owner, it.name, resultSet.getInt("pull_number")) },
         headRevision = resultSet.getString("head_revision"),
         checkRunId = resultSet.getLong("check_run_id"),
         checkRunUrl = resultSet.getString("check_run_url"),

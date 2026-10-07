@@ -1,6 +1,5 @@
 package io.intenttrace.publication.application
 
-import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.publication.domain.GitHubPublication
 import io.intenttrace.publication.domain.GitHubPullRequestTarget
 import io.intenttrace.record.application.ChangeRecordCatalogService
@@ -29,7 +28,6 @@ data class PullRequestOverview(
 
 @Service
 class PullRequestOverviewService(
-    private val access: RepositoryAccessService,
     private val reader: GitHubPullRequestReader,
     private val catalog: ChangeRecordCatalogService,
     private val publications: GitHubPublicationRepository,
@@ -37,10 +35,9 @@ class PullRequestOverviewService(
     private val clock: Clock,
 ) {
     fun overview(target: GitHubPullRequestTarget, cursor: String? = null, limit: Int = 20): PullRequestOverview {
-        require(limit in 1..100) { "PR 기록 목록 크기는 1~100이어야 합니다." }
-        access.requireReader(target.repositoryKey)
-        val pr = reader.read(target)
+        // 목록 크기·커서 형식·저장소 읽기 권한은 catalog.list가 GitHub PR 조회 전에 확인한다.
         val page = catalog.list(target.repositoryKey, cursor = cursor, limit = limit, pullNumber = target.pullNumber)
+        val pr = reader.read(target)
         val recordIds = page.items.map { it.id }
         val published = publications.findAll(recordIds, target)
         val attempts = tracking.latest(recordIds, target)

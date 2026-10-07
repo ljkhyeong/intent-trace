@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import io.intenttrace.config.GitHubProperties
 import io.intenttrace.identity.application.GitHubOAuthApiException
 import io.intenttrace.identity.application.GitHubOAuthConfigurationException
-import io.intenttrace.identity.application.GitHubOAuthRefreshRejectedException
 import io.intenttrace.identity.application.GitHubUserOAuthGateway
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
 import org.springframework.http.HttpHeaders
@@ -34,7 +33,6 @@ class GitHubUserOAuthRestClient(
 
     override fun authorizationUri(state: String, codeChallenge: String): URI {
         requireConfiguration()
-        require(PKCE_CHALLENGE.matches(codeChallenge)) { "PKCE code challenge 형식이 올바르지 않습니다." }
         return UriComponentsBuilder.fromUri(properties.userAuthorization.webBaseUrl)
             .path("/login/oauth/authorize")
             .queryParam("client_id", properties.app.clientId)
@@ -49,20 +47,16 @@ class GitHubUserOAuthRestClient(
             .toUri()
     }
 
-    override fun exchange(code: String, codeVerifier: String): GitHubUserOAuthTokens {
-        require(PKCE_VERIFIER.matches(codeVerifier)) { "PKCE code verifier 형식이 올바르지 않습니다." }
-        return tokenRequest(
-            operation = "사용자 승인 code 교환",
-            form = MultiValueMap.fromSingleValue(mapOf(
-                "client_id" to properties.app.clientId,
-                "client_secret" to properties.userAuthorization.clientSecret,
-                "code" to code,
-                "redirect_uri" to properties.userAuthorization.callbackUrl.toString(),
-                "code_verifier" to codeVerifier,
-            )),
-            refresh = false,
-        )
-    }
+    override fun exchange(code: String, codeVerifier: String): GitHubUserOAuthTokens = tokenRequest(
+        operation = "사용자 승인 code 교환",
+        form = MultiValueMap.fromSingleValue(mapOf(
+            "client_id" to properties.app.clientId,
+            "client_secret" to properties.userAuthorization.clientSecret,
+            "code" to code,
+            "redirect_uri" to properties.userAuthorization.callbackUrl.toString(),
+            "code_verifier" to codeVerifier,
+        )),
+    )
 
     override fun refresh(refreshToken: String): GitHubUserOAuthTokens = tokenRequest(
         operation = "사용자 token 갱신",
@@ -72,14 +66,9 @@ class GitHubUserOAuthRestClient(
             "grant_type" to "refresh_token",
             "refresh_token" to refreshToken,
         )),
-        refresh = true,
     )
 
-    private fun tokenRequest(
-        operation: String,
-        form: MultiValueMap<String, String>,
-        refresh: Boolean,
-    ): GitHubUserOAuthTokens {
+    private fun tokenRequest(operation: String, form: MultiValueMap<String, String>): GitHubUserOAuthTokens {
         requireConfiguration()
         try {
             val response = client.post()
@@ -91,7 +80,6 @@ class GitHubUserOAuthRestClient(
                 ?: throw GitHubOAuthApiException("GitHub $operation 응답이 비어 있습니다.")
             response.error?.let { error ->
                 if (error == "incorrect_client_credentials") throw GitHubOAuthConfigurationException()
-                if (refresh && error == "bad_refresh_token") throw GitHubOAuthRefreshRejectedException()
                 throw GitHubOAuthApiException("GitHub $operation 요청이 거부됐습니다.")
             }
             return response.toTokens()
@@ -129,11 +117,6 @@ class GitHubUserOAuthRestClient(
         if (properties.app.clientId.isBlank() || properties.userAuthorization.clientSecret.isBlank()) {
             throw GitHubOAuthConfigurationException()
         }
-    }
-
-    companion object {
-        private val PKCE_CHALLENGE = Regex("^[A-Za-z0-9_-]{43}$")
-        private val PKCE_VERIFIER = Regex("^[A-Za-z0-9._~-]{43,128}$")
     }
 }
 

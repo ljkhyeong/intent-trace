@@ -43,7 +43,7 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
             val ref = if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision
             val label = "${anchor.relativePath}:${anchor.startLine}-${anchor.endLine}"
             val side = if (anchor.side == CodeSide.BASE) "변경 전" else "변경 후"
-            val path = anchor.relativePath.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8).replace("(", "%28").replace(")", "%29") }
+            val path = UriUtils.encodePath(anchor.relativePath, Charsets.UTF_8).replace("(", "%28").replace(")", "%29")
             val link = ref?.let { "[${inlineCode(label)}](${properties.userAuthorization.webBaseUrl.resolve("/${record.repositoryKey}/blob/$it/$path")}#L${anchor.startLine}-L${anchor.endLine})" } ?: inlineCode(label)
             appendLine("- $side $link$symbol — ${inlineCode(anchor.contentHash)}")
             anchor.relatedPath?.let {
@@ -95,12 +95,7 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
         append("요청·관련 코드·검증 결과는 이 Check Run 상세에서 확인하세요.")
     }
 
-    private fun plainText(value: String): String = buildString(value.length) {
-        normalizedSingleLine(value).forEach { character ->
-            if (character.isAsciiPunctuation()) append('\\')
-            append(character)
-        }
-    }
+    private fun plainText(value: String): String = normalizedSingleLine(value).replace(ASCII_PUNCTUATION) { "\\" + it.value }
 
     private fun inlineCode(value: String): String {
         val normalized = normalizedSingleLine(value)
@@ -117,9 +112,6 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
         .replace(LINE_BREAK, " ")
         .replace('\t', ' ')
 
-    private fun Char.isAsciiPunctuation(): Boolean =
-        code in 33..47 || code in 58..64 || code in 91..96 || code in 123..126
-
     private val PurposeSource.label: String
         get() = when (this) {
             PurposeSource.STATED_BY_USER -> "사용자가 명시함"
@@ -132,6 +124,8 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
     companion object {
         private val LINE_BREAK = Regex("\\R+")
         private val BACKTICK_RUN = Regex("`+")
+        // Java POSIX 클래스는 ASCII 구두점만 맞는다(CommonMark 역슬래시 이스케이프 대상과 같음).
+        private val ASCII_PUNCTUATION = Regex("\\p{Punct}")
         private const val MAX_ANNOTATION_TITLE = 255
     }
 }
