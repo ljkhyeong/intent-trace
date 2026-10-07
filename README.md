@@ -420,10 +420,7 @@ scripts/validate-plugin.sh
 scripts/verify-postgres.sh
 python3 scripts/validate-compose.py .env.team.example
 ./gradlew bootJar && python3 scripts/validate-release-version.py
-python3 scripts/test_validate_release_version.py
-python3 scripts/test_backup_postgres.py
-python3 scripts/test_test_summary.py
-python3 scripts/test_feedback.py
+python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
 기본 테스트는 H2 PostgreSQL 호환 모드에서 실행합니다. `scripts/verify-postgres.sh`는 PostgreSQL 17에서 Flyway·JDBC와 백업·복구를 확인합니다. 백업 검증은 동시 실행과 중단 시 기존 파일이 보존되는지 확인합니다. Compose 검증은 서비스·네트워크 구성, 외부 포트와 이미지 해시를 확인합니다. GitHub Actions는 PR과 `main` 푸시에서 같은 검증과 Caddy 설정 확인을 실행합니다.
