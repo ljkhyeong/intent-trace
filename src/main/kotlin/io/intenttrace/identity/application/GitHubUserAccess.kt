@@ -25,7 +25,7 @@ class GitHubUserSession(
     override fun toString(): String = "GitHubUserSession(actor=$actor, accessToken=[보호됨])"
 }
 
-interface CurrentGitHubUserSession {
+fun interface CurrentGitHubUserSession {
     fun require(): GitHubUserSession
 }
 

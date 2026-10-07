@@ -2,10 +2,8 @@ package io.intenttrace.record.adapter.`in`.web
 
 import io.intenttrace.config.GitHubRateLimitException
 import io.intenttrace.identity.application.GitHubIdentityApiException
-import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.PurposeSource
 import org.hamcrest.Matchers.containsString
@@ -28,6 +26,7 @@ import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertTrue
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.issueTestSession
 
 @SpringBootTest
@@ -214,7 +213,7 @@ class AuthenticatedRestIntegrationTest(
                 jsonPath("$.title") { value("GitHub 사용자 인증 실패") }
             }
 
-        userAccess.failure = GitHubIdentityApiException("테스트 사용자 조회 장애")
+        userAccess.authenticationFailure = GitHubIdentityApiException("테스트 사용자 조회 장애")
         try {
             mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}") {
                 authorized()
@@ -224,13 +223,13 @@ class AuthenticatedRestIntegrationTest(
                 jsonPath("$.title") { value("GitHub 사용자 권한 조회 실패") }
             }
         } finally {
-            userAccess.failure = null
+            userAccess.authenticationFailure = null
         }
     }
 
     @Test
     fun `인증 단계의 호출 제한도 대기 시간과 오류 코드를 반환한다`() {
-        userAccess.failure = GitHubRateLimitException(120)
+        userAccess.authenticationFailure = GitHubRateLimitException(120)
         try {
             mockMvc.get("/api/v1/change-records/${UUID.randomUUID()}") {
                 authorized()
@@ -241,7 +240,7 @@ class AuthenticatedRestIntegrationTest(
                 jsonPath("$.retryAfterSeconds") { value(120) }
             }
         } finally {
-            userAccess.failure = null
+            userAccess.authenticationFailure = null
         }
     }
 
@@ -295,23 +294,7 @@ class AuthenticatedRestIntegrationTest(
     class RestTestConfiguration {
         @Bean
         @Primary
-        fun gitHubUserAccessGateway(): TestGitHubUserAccessGateway = TestGitHubUserAccessGateway()
-    }
-
-    class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
-        var failure: RuntimeException? = null
-        var role: RepositoryRole? = RepositoryRole.MAINTAINER
-
-        override fun authenticate(accessToken: String): ActorIdentity {
-            failure?.let { throw it }
-            return if (accessToken == TEAMMATE_TOKEN) ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
-        }
-
-        override fun repositoryRole(
-            accessToken: String,
-            actor: ActorIdentity,
-            repository: GitHubRepository,
-        ): RepositoryRole? = role
+        fun gitHubUserAccessGateway() = TestGitHubUserAccessGateway(actors = mapOf(TEAMMATE_TOKEN to ActorIdentity.github(84, "teammate")))
     }
 
     companion object {

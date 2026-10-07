@@ -1,13 +1,9 @@
 package io.intenttrace.identity.adapter.`in`.web
 
 import io.intenttrace.config.GitHubRateLimitException
-import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubIdentityApiException
 import io.intenttrace.identity.application.GitHubUserOAuthGateway
 import io.intenttrace.identity.application.GitHubUserOAuthTokens
-import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -31,11 +27,11 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.call
 import io.intenttrace.githubCallback
 import io.intenttrace.htmlLink
@@ -248,23 +244,6 @@ class GitHubOAuthSessionIntegrationTest(
         private fun pkceChallenge(codeVerifier: String): String = MessageDigest.getInstance("SHA-256")
             .digest(codeVerifier.toByteArray(Charsets.US_ASCII))
             .let(Base64.getUrlEncoder().withoutPadding()::encodeToString)
-    }
-
-    class TestGitHubUserAccessGateway : GitHubUserAccessGateway {
-        var authenticationFailure: RuntimeException? = null
-        val authentications = AtomicInteger()
-
-        override fun authenticate(accessToken: String): ActorIdentity {
-            authentications.incrementAndGet()
-            authenticationFailure?.let { throw it }
-            return ActorIdentity.github(42, "lim")
-        }
-
-        override fun repositoryRole(
-            accessToken: String,
-            actor: ActorIdentity,
-            repository: GitHubRepository,
-        ): RepositoryRole = RepositoryRole.MAINTAINER
     }
 
     companion object {

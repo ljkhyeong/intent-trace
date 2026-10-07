@@ -1,10 +1,8 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.identity.application.CurrentGitHubUserSession
-import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserSession
+import io.intenttrace.TestCurrentGitHubUserSession
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.Decision
@@ -26,7 +24,7 @@ import kotlin.test.assertTrue
 class DraftManagementIntegrationTest(
     @Autowired private val records: TeamChangeRecordService,
     @Autowired private val catalog: ChangeRecordCatalogService,
-    @Autowired private val session: TestSession,
+    @Autowired private val session: TestCurrentGitHubUserSession,
     @Autowired private val activities: RecordActivityService,
     @Autowired private val jdbc: org.springframework.jdbc.core.JdbcTemplate,
 ) {
@@ -195,17 +193,10 @@ class DraftManagementIntegrationTest(
         session.actor = owner
     }
 
-    class TestSession(var actor: ActorIdentity = owner) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "test-token", java.util.UUID.randomUUID())
-    }
-
     @TestConfiguration
     class Configuration {
-        @Bean @Primary fun currentSession() = TestSession()
-        @Bean @Primary fun accessGateway() = object : GitHubUserAccessGateway {
-            override fun authenticate(accessToken: String) = owner
-            override fun repositoryRole(accessToken: String, actor: ActorIdentity, repository: GitHubRepository) = RepositoryRole.CONTRIBUTOR
-        }
+        @Bean @Primary fun currentSession() = TestCurrentGitHubUserSession(owner)
+        @Bean @Primary fun accessGateway() = TestGitHubUserAccessGateway(RepositoryRole.CONTRIBUTOR, defaultActor = owner)
     }
 
     companion object {

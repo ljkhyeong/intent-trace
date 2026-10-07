@@ -1,11 +1,9 @@
 package io.intenttrace.identity.adapter.`in`.web
 
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.call
-import io.intenttrace.identity.application.GitHubUserAccessGateway
 import io.intenttrace.identity.application.GitHubUserSessionStore
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
-import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.issueTestSession
 import io.intenttrace.mcpClient
 import io.intenttrace.record.application.ChangeRecordFacade
@@ -159,15 +157,7 @@ class AuthenticatedMcpIntegrationTest(
     class AuthenticationTestConfiguration {
         @Bean
         @Primary
-        fun gitHubUserAccessGateway(): GitHubUserAccessGateway = object : GitHubUserAccessGateway {
-            override fun authenticate(accessToken: String): ActorIdentity =
-                if (accessToken == "ghu_other-user-token") ActorIdentity.github(84, "teammate") else ActorIdentity.github(42, "lim")
-
-            override fun repositoryRole(
-                accessToken: String,
-                actor: ActorIdentity,
-                repository: GitHubRepository,
-            ): RepositoryRole = RepositoryRole.MAINTAINER
-        }
+        fun gitHubUserAccessGateway() =
+            TestGitHubUserAccessGateway(actors = mapOf("ghu_other-user-token" to ActorIdentity.github(84, "teammate")))
     }
 }

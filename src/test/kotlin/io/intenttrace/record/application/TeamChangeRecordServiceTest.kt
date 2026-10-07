@@ -1,12 +1,10 @@
 package io.intenttrace.record.application
 
-import io.intenttrace.identity.application.CurrentGitHubUserSession
-import io.intenttrace.identity.application.GitHubUserAccessGateway
-import io.intenttrace.identity.application.GitHubUserSession
+import io.intenttrace.TestCurrentGitHubUserSession
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.identity.application.RepositoryAccessDeniedException
 import io.intenttrace.identity.application.RepositoryAccessService
 import io.intenttrace.identity.domain.ActorIdentity
-import io.intenttrace.identity.domain.GitHubRepository
 import io.intenttrace.identity.domain.RepositoryRole
 import io.intenttrace.record.domain.ChangeRecord
 import io.intenttrace.record.domain.ChangeRecordStatus
@@ -23,7 +21,7 @@ import io.intenttrace.record.domain.draftRecord
 
 class TeamChangeRecordServiceTest {
     private val repository = InMemoryChangeRecordRepository()
-    private val currentSession = TestCurrentSession(owner)
+    private val currentSession = TestCurrentGitHubUserSession(owner)
     private val gateway = TestGitHubUserAccessGateway(RepositoryRole.CONTRIBUTOR)
     private val service = TeamChangeRecordService(
         facade = ChangeRecordFacade(repository, SensitiveTextRedactor(), fixedClock, SimpleMeterRegistry()),
@@ -101,30 +99,11 @@ class TeamChangeRecordServiceTest {
 
         service.supersede(SupersedeChangeRecordCommand(current.id, current.version, replacement.id))
 
-        assertEquals(1, gateway.repositoryRoleCount)
+        assertEquals(1, gateway.roleChecks.get())
         assertEquals(ChangeRecordStatus.SUPERSEDED, repository.records[current.id]?.status)
     }
 
     private fun draft(actor: ActorIdentity) = draftRecord(actor, repositoryKey)
-
-    private class TestCurrentSession(var actor: ActorIdentity) : CurrentGitHubUserSession {
-        override fun require(): GitHubUserSession = GitHubUserSession(actor, "user-token", java.util.UUID.randomUUID())
-    }
-
-    private class TestGitHubUserAccessGateway(var role: RepositoryRole?) : GitHubUserAccessGateway {
-        var repositoryRoleCount = 0
-
-        override fun authenticate(accessToken: String): ActorIdentity = error("사용하지 않는 테스트 경로")
-
-        override fun repositoryRole(
-            accessToken: String,
-            actor: ActorIdentity,
-            repository: GitHubRepository,
-        ): RepositoryRole? {
-            repositoryRoleCount += 1
-            return role
-        }
-    }
 
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
         var record: ChangeRecord? = null

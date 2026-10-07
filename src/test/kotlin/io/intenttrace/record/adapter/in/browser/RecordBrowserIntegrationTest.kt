@@ -41,6 +41,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import io.intenttrace.TestGitHubUserAccessGateway
 import io.intenttrace.githubCallback
 import io.intenttrace.htmlHref
 import io.intenttrace.htmlLink
@@ -52,7 +53,7 @@ import io.intenttrace.startGitHubLogin
 class RecordBrowserIntegrationTest(@Autowired private val mvc: MockMvc, @Autowired private val records: ChangeRecordFacade,
     @Autowired private val tracking: GitHubPublicationTracking, @Autowired private val sessionStore: GitHubUserSessionStore,
     @Autowired private val sessionManagement: UserSessionManagement,
-    @Autowired private val userAccess: GitHubOAuthSessionIntegrationTest.TestGitHubUserAccessGateway) {
+    @Autowired private val userAccess: TestGitHubUserAccessGateway) {
     @Test
     fun `검증 상세는 현재 기록과 다른 스냅샷의 실행도 각각의 해시로 표시한다`() {
         val current = VerificationRun("./gradlew test", 0, Instant.parse("2026-08-27T13:58:00Z"),
