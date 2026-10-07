@@ -89,11 +89,9 @@ internal object CurrentLineContextResolver {
     }
 
     private fun repositoryKey(repository: GitRepository): String = repository.remotes
-        .sortedBy { if (it.name == "origin") 0 else 1 }
-        .asSequence()
-        .flatMap { (it.urls + it.pushUrls).asSequence() }
-        .mapNotNull(GitHubRemoteParser::repositoryKey)
-        .firstOrNull()
+        .sortedBy { it.name != "origin" }
+        .flatMap { it.urls + it.pushUrls }
+        .firstNotNullOfOrNull(GitHubRemoteParser::repositoryKey)
         ?: throw IntentTraceUsageException("GitHub origin에서 owner/repository를 확인할 수 없습니다.")
 
     private const val STATUS_WAIT_SECONDS = 10

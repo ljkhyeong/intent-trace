@@ -18,11 +18,6 @@ internal object GitHubRemoteParser {
         return normalize(segments[0], segments[1])
     }
 
-    private fun normalize(owner: String, repository: String): String? {
-        val normalizedOwner = owner.lowercase()
-        val normalizedRepository = repository.lowercase().removeSuffix(".git")
-        val validPart = Regex("^[a-z0-9_.-]+$")
-        if (!validPart.matches(normalizedOwner) || !validPart.matches(normalizedRepository)) return null
-        return "$normalizedOwner/$normalizedRepository"
-    }
+    private fun normalize(owner: String, repository: String): String? =
+        "${owner.lowercase()}/${repository.lowercase().removeSuffix(".git")}".takeIf(REPOSITORY_KEY::matches)
 }
