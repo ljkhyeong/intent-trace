@@ -97,7 +97,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
     }
 
     internal fun codeUrl(repository: String, revision: String, path: String, startLine: Int, endLine: Int): String {
-        val encodedPath = path.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8) }
+        val encodedPath = UriUtils.encodePath(path, Charsets.UTF_8)
         return properties.userAuthorization.webBaseUrl.resolve("/$repository/blob/$revision/$encodedPath").toString() + "#L$startLine-L$endLine"
     }
 

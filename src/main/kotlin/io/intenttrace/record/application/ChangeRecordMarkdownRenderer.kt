@@ -43,7 +43,7 @@ class ChangeRecordMarkdownRenderer(private val properties: GitHubProperties) {
             val ref = if (anchor.side == CodeSide.BASE) record.baseRevision else record.targetRevision
             val label = "${anchor.relativePath}:${anchor.startLine}-${anchor.endLine}"
             val side = if (anchor.side == CodeSide.BASE) "변경 전" else "변경 후"
-            val path = anchor.relativePath.split('/').joinToString("/") { UriUtils.encodePathSegment(it, Charsets.UTF_8).replace("(", "%28").replace(")", "%29") }
+            val path = UriUtils.encodePath(anchor.relativePath, Charsets.UTF_8).replace("(", "%28").replace(")", "%29")
             val link = ref?.let { "[${inlineCode(label)}](${properties.userAuthorization.webBaseUrl.resolve("/${record.repositoryKey}/blob/$it/$path")}#L${anchor.startLine}-L${anchor.endLine})" } ?: inlineCode(label)
             appendLine("- $side $link$symbol — ${inlineCode(anchor.contentHash)}")
             anchor.relatedPath?.let {
