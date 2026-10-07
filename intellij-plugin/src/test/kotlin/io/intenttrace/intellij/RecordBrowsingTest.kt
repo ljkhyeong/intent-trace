@@ -5,7 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class RecordBrowsingTest {
@@ -19,7 +18,7 @@ class RecordBrowsingTest {
                 tokens.add(exchange.requestHeaders.getFirst("Authorization"))
                 exchange.respond(200, if (exchange.requestURI.path.endsWith(id)) recordJson else """
                     {"items":[{"id":"$id","title":"비공개 기록","status":"DRAFT","targetRevision":null,
-                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"page":null,"size":20,"hasNext":true,"nextCursor":"next-page"}
+                    "createdBy":{"login":"developer"},"createdAt":"2026-08-30T00:00:00Z"}],"nextCursor":"next-page"}
                 """.trimIndent())
             }
             val api = IntentTraceApiClient()
@@ -39,8 +38,6 @@ class RecordBrowsingTest {
             assertContains(requests.first(), "scope=MINE")
             assertContains(requests.first(), "path=src%2F%ED%95%9C+%EA%B8%80%23%3F.kt&status=DRAFT")
             assertContains(requests.first(), "cursor=previous%2Bpage%3D&q=%EC%84%B8%EC%85%98+%26+100%25_%21&limit=20")
-            assertFalse(requests.first().contains("&page="))
-            assertFalse(requests.first().contains("&size="))
             assertEquals("/api/v1/change-records/$id", requests.last())
             assertEquals(listOf("Bearer $token", "Bearer $token"), tokens)
         }

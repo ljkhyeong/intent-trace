@@ -37,32 +37,32 @@ class TeamChangeRecordServiceTest {
 
     @Test
     fun `읽기 권한 팀원도 다른 작성자의 초안은 볼 수 없다`() {
-        repository.record = draft(owner)
+        val record = repository.saveNew(draft(owner))
         currentSession.actor = teammate
         gateway.role = RepositoryRole.READER
 
         assertFailsWith<ChangeRecordNotFoundException> {
-            service.get(repository.record!!.id)
+            service.get(record.id)
         }
     }
 
     @Test
     fun `저장소 권한이 없으면 ID 조회에서 저장소 이름 대신 기록 없음으로 응답한다`() {
-        repository.record = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        val record = repository.saveNew(published(owner))
         currentSession.actor = teammate
         gateway.role = null
 
-        val failure = assertFailsWith<ChangeRecordNotFoundException> { service.get(repository.record!!.id) }
-        assertFalse(failure.message.orEmpty().contains(repository.record!!.repositoryKey))
+        val failure = assertFailsWith<ChangeRecordNotFoundException> { service.get(record.id) }
+        assertFalse(failure.message.orEmpty().contains(record.repositoryKey))
     }
 
     @Test
     fun `읽기 권한 팀원은 공개된 팀 기록을 볼 수 있다`() {
-        repository.record = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
+        val record = repository.saveNew(published(owner))
         currentSession.actor = teammate
         gateway.role = RepositoryRole.READER
 
-        assertEquals(repository.record, service.get(repository.record!!.id))
+        assertEquals(record, service.get(record.id))
     }
 
     @Test
@@ -76,11 +76,11 @@ class TeamChangeRecordServiceTest {
 
     @Test
     fun `초안 확인은 같은 기록을 한 번만 조회한다`() {
-        repository.record = draft(owner)
+        val record = repository.saveNew(draft(owner))
 
         service.confirm(
             ConfirmChangeRecordCommand(
-                recordId = repository.record!!.id,
+                recordId = record.id,
                 expectedVersion = 0,
                 immutableRevision = "b".repeat(40),
                 currentSnapshotDigest = "a".repeat(64),
@@ -92,10 +92,8 @@ class TeamChangeRecordServiceTest {
 
     @Test
     fun `같은 저장소의 공개 기록 대체는 권한을 한 번만 확인한다`() {
-        val current = draft(owner).copy(status = ChangeRecordStatus.PUBLISHED)
-        val replacement = draft(owner).copy(id = UUID.randomUUID(), status = ChangeRecordStatus.PUBLISHED)
-        repository.records[current.id] = current
-        repository.records[replacement.id] = replacement
+        val current = repository.saveNew(published(owner))
+        val replacement = repository.saveNew(published(owner))
 
         service.supersede(SupersedeChangeRecordCommand(current.id, current.version, replacement.id))
 
@@ -105,17 +103,18 @@ class TeamChangeRecordServiceTest {
 
     private fun draft(actor: ActorIdentity) = draftRecord(actor, repositoryKey)
 
+    private fun published(actor: ActorIdentity) = draft(actor).copy(status = ChangeRecordStatus.PUBLISHED)
+
     private class InMemoryChangeRecordRepository : ChangeRecordRepository {
-        var record: ChangeRecord? = null
         val records = mutableMapOf<UUID, ChangeRecord>()
         var findByIdCount: Int = 0
 
         override fun findById(id: UUID): ChangeRecord? {
             findByIdCount += 1
-            return records[id] ?: record?.takeIf { it.id == id }
+            return records[id]
         }
 
-        override fun findByRequestId(requestId: String): ChangeRecord? = record?.takeIf { it.requestId == requestId }
+        override fun findByRequestId(requestId: String): ChangeRecord? = records.values.firstOrNull { it.requestId == requestId }
 
         override fun findByIdsForUpdate(ids: Set<UUID>): List<ChangeRecord> = ids.mapNotNull(::findById)
 
@@ -125,20 +124,12 @@ class TeamChangeRecordServiceTest {
             relativePath: String,
             line: Int,
             limit: Int,
-        ): List<ChangeRecord> = listOfNotNull(record).filter {
-            it.repositoryKey == repositoryKey &&
-                it.targetRevision == targetRevision &&
-                it.codeAnchors.any { anchor ->
-                    anchor.relativePath == relativePath && line in anchor.startLine..anchor.endLine
-                }
-        }
+        ): List<ChangeRecord> = error("사용하지 않는 테스트 경로")
 
-        override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { this.record = it }
+        override fun saveNew(record: ChangeRecord): ChangeRecord = record.also { records[it.id] = it }
 
-        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord = record.also {
-            this.record = it
-            records[it.id] = it
-        }
+        override fun update(record: ChangeRecord, expectedVersion: Long, activity: RecordActivity): ChangeRecord =
+            record.also { records[it.id] = it }
     }
 
     companion object {

@@ -18,9 +18,10 @@ fun GitHubUserSessionStore.issueTestSession(
     actor: ActorIdentity,
     accessToken: String = "ghu_test-session",
     channel: SessionChannel = SessionChannel.CLIENT,
-    now: Instant = Instant.now(),
-): String = issue(actor, GitHubUserOAuthTokens(accessToken, now.plusSeconds(3600), accessToken.replace("ghu_", "ghr_"), now.plusSeconds(7200)),
-    channel).sessionToken
+): String = Instant.now().let { now ->
+    issue(actor, GitHubUserOAuthTokens(accessToken, now.plusSeconds(3600), accessToken.replace("ghu_", "ghr_"), now.plusSeconds(7200)), channel)
+        .sessionToken
+}
 
 /**
  * GitHub 사용자 조회 대역. [actors]에 없는 토큰은 [defaultActor]로 인증하고 모든 저장소에 [role]을 돌려준다.

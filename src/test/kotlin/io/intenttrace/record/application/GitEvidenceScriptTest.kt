@@ -25,9 +25,7 @@ class GitEvidenceScriptTest {
         Files.writeString(repository.resolve("empty.txt"), "")
         Files.createDirectory(repository.resolve("src"))
         Files.writeString(repository.resolve("src/한글.txt"), "한글 파일명도 같은 해시를 만든다.\n")
-        runGit("add", ".")
-        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "테스트 파일 추가")
-        revision = runGit("rev-parse", "HEAD").output.trim()
+        revision = commitAll("테스트 파일 추가")
     }
 
     @Test
@@ -52,13 +50,10 @@ class GitEvidenceScriptTest {
 
     @Test
     fun `서버 스냅샷과 줄 해시는 Git helper의 경로 인용과 마지막 줄 규칙을 따른다`() {
-        runGit("init")
         Files.writeString(repository.resolve("한글 파일.txt"), "첫 줄\r\n마지막 줄")
         Files.createDirectories(repository.resolve("dir"))
         Files.writeString(repository.resolve("dir/quote\".txt"), "다른 파일\n")
-        runGit("add", ".")
-        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "해시 규칙 확인")
-        val revision = runGit("rev-parse", "HEAD").output.trim()
+        val revision = commitAll("해시 규칙 확인")
         val entries = runGit("ls-tree", "-r", "-z", revision).output.split('\u0000').filter { it.isNotEmpty() }.map {
             val (header, path) = it.split('\t', limit = 2)
             val (mode, type, sha) = header.split(' ')
@@ -74,19 +69,15 @@ class GitEvidenceScriptTest {
 
     @Test
     fun `실행 도구는 실패 종료 코드와 출력 해시를 수집하고 변경된 작업 트리는 거부한다`() {
-        runGit("init")
         Files.writeString(repository.resolve("sample.txt"), "저장하면 안 되는 원문\n")
-        runGit("add", ".")
-        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "실행 검증")
-        val revision = runGit("rev-parse", "HEAD").output.trim()
-        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
-        val captured = runCommand(listOf("python3", script, revision, "--summary", "실패 경로 확인", "--", "python3", "-c",
+        val revision = commitAll("실행 검증")
+        val captured = runCommand(listOf("python3", verificationScript, revision, "--summary", "실패 경로 확인", "--", "python3", "-c",
             "from pathlib import Path; import sys; sys.stdout.write(Path('sample.txt').read_text()); sys.exit(7)"))
         assertEquals(7, captured.exitCode)
         assertTrue(captured.output.contains("\"exitCode\": 7"))
         assertTrue(captured.output.contains(GitEvidenceDigest.sha256(Files.readAllBytes(repository.resolve("sample.txt")))))
         assertFalse(captured.output.contains("저장하면 안 되는 원문"))
-        val changed = runCommand(listOf("python3", script, revision, "--summary", "변경 감지", "--", "python3", "-c",
+        val changed = runCommand(listOf("python3", verificationScript, revision, "--summary", "변경 감지", "--", "python3", "-c",
             "from pathlib import Path; Path('sample.txt').write_text('changed')"))
         assertEquals(2, changed.exitCode)
         assertFalse(changed.output.contains("\"snapshotDigest\""))
@@ -96,23 +87,18 @@ class GitEvidenceScriptTest {
     fun `Git 설정에 숨겨진 서브모듈 변경도 검증 실행 전후에 거부한다`(@TempDir source: Path) {
         runGit("-C", source.toString(), "init")
         Files.writeString(source.resolve("tracked.txt"), "original\n")
-        runGit("-C", source.toString(), "add", ".")
-        runGit("-C", source.toString(), "-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local",
-            "commit", "-m", "서브모듈 파일 추가")
+        commitAll("서브모듈 파일 추가", "-C", source.toString())
         runGit("-c", "protocol.file.allow=always", "submodule", "add", source.toString(), "module")
         runGit("config", "-f", ".gitmodules", "submodule.module.ignore", "all")
-        runGit("add", ".")
-        runGit("-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", "서브모듈 추가")
+        val revision = commitAll("서브모듈 추가")
         runGit("config", "diff.ignoreSubmodules", "all")
-        val revision = runGit("rev-parse", "HEAD").output.trim()
-        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
         val marker = repository.resolve("module/executed")
         for (file in listOf("tracked.txt", "untracked.txt")) {
             val changed = repository.resolve("module/$file")
             for (before in listOf(true, false)) {
                 if (before) Files.writeString(changed, "changed\n")
                 assertTrue(runGit("status", "--porcelain", "--untracked-files=all").output.isEmpty())
-                val result = runCommand(listOf("python3", script, revision, "--summary", "서브모듈 변경 감지", "--",
+                val result = runCommand(listOf("python3", verificationScript, revision, "--summary", "서브모듈 변경 감지", "--",
                     "python3", "-c", "from pathlib import Path; Path('module/executed').touch(); Path('module/$file').write_text('changed\\n')"))
                 assertEquals(2, result.exitCode, result.output)
                 assertTrue(result.output.contains("커밋하지 않은 변경"), result.output)
@@ -126,7 +112,6 @@ class GitEvidenceScriptTest {
 
     @Test
     fun `실행 인자는 유지하고 결과 JSON의 명령과 요약에서 비밀값을 제거한다`() {
-        val script = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
         val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJleGFtcGxlIn0.signatureValue123"
         val secrets = listOf(
             """secret='prefix\'TAIL_ONLY_FOR_TEST'; label=남길값""",
@@ -135,7 +120,7 @@ class GitEvidenceScriptTest {
             "Bearer", "BEARER_VALUE_ONLY_FOR_TEST",
         )
         val summary = """{"password": "prefix\"SUMMARY_ONLY_FOR_TEST", "label": "검증 완료"}"""
-        val result = runCommand(listOf("python3", script, revision, "--summary", summary, "--", "python3", "-c",
+        val result = runCommand(listOf("python3", verificationScript, revision, "--summary", summary, "--", "python3", "-c",
             "import sys; sys.stdout.write('\\n'.join(sys.argv[1:]))") + secrets)
         assertEquals(0, result.exitCode)
         val json = tools.jackson.module.kotlin.jacksonObjectMapper().readTree(result.output)
@@ -200,6 +185,13 @@ class GitEvidenceScriptTest {
     private fun sha256(text: String): String =
         HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
 
+    /** 작업 트리 전체를 커밋하고 커밋 ID를 돌려준다. 다른 저장소는 [prefix]에 `-C 경로`로 지정한다. */
+    private fun commitAll(message: String, vararg prefix: String): String {
+        runGit(*prefix, "add", ".")
+        runGit(*prefix, "-c", "user.name=IntentTrace Test", "-c", "user.email=test@intenttrace.local", "commit", "-m", message)
+        return runGit(*prefix, "rev-parse", "HEAD").output.trim()
+    }
+
     private fun runGit(vararg arguments: String): CommandResult =
         runCommand(listOf("git", *arguments)).also { assertEquals(0, it.exitCode, it.output) }
 
@@ -218,4 +210,8 @@ class GitEvidenceScriptTest {
     }
 
     private data class CommandResult(val exitCode: Int, val output: String)
+
+    companion object {
+        private val verificationScript = Path.of("scripts/run-verification.py").toAbsolutePath().toString()
+    }
 }

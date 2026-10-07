@@ -23,7 +23,6 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.ObjectMapper
-import java.time.Clock
 import java.util.HexFormat
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -39,7 +38,6 @@ class GitHubWebhookIntegrationTest(
     @Autowired private val mvc: MockMvc,
     @Autowired private val sessions: GitHubUserSessionStore,
     @Autowired private val management: UserSessionManagement,
-    @Autowired private val clock: Clock,
     @Autowired private val mapper: ObjectMapper,
 ) {
     @MockitoSpyBean
@@ -134,7 +132,7 @@ class GitHubWebhookIntegrationTest(
     }
 
     private fun issue(id: Long, channel: SessionChannel): String =
-        sessions.issueTestSession(ActorIdentity.github(id, "user$id"), "ghu_webhook-$id", channel, clock.instant())
+        sessions.issueTestSession(ActorIdentity.github(id, "user$id"), "ghu_webhook-$id", channel)
 
     private fun send(body: String, event: String = "github_app_authorization", signature: String? = sign(body)) =
         mvc.post("/webhooks/github") {
