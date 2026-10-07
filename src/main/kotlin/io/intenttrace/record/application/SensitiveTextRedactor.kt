@@ -21,8 +21,8 @@ class SensitiveTextRedactor {
     private val compactJwtPattern = Regex(
         "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])",
     )
-    private val unixHomePathPattern = Regex("(?i)/(?:Users|home)/[^\\s\"'`,;)\\]}]+")
-    private val windowsHomePathPattern = Regex("(?i)[A-Z]:\\\\Users\\\\[^\\s\"'`,;)\\]}]+")
+    private val unixHomePathPattern = Regex("(?i)/(?:Users|home)\\\\*/[^\\s\"'`,;)\\]}]+")
+    private val windowsHomePathPattern = Regex("(?i)[A-Z]:\\\\+Users\\\\+[^\\s\"'`,;)\\]}]+")
 
     fun redact(value: String): String = value
         .replace(privateKeyPattern, "[REDACTED]")

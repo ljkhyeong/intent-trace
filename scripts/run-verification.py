@@ -36,7 +36,7 @@ def redact(text: str) -> str:
     text = re.sub(r"(?i)\bBearer\s+[\"']?[A-Za-z0-9._~+/=-]+[\"']?", "Bearer [REDACTED]", text)
     text = re.sub(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", "[REDACTED]", text)
     text = re.sub(r"(?i)\b(?:ghs_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}|(?:ghp|gho|ghu|ghs|ghr|github_pat|its|itb)_[A-Za-z0-9_=-]+)", "[REDACTED]", text)
-    text = re.sub(r"(?i)/(?:Users|home)/[^\s\"'`,;)\]}]+|[A-Z]:\\Users\\[^\s\"'`,;)\]}]+", "[REDACTED]", text)
+    text = re.sub(r"(?i)/(?:Users|home)\\*/[^\s\"'`,;)\]}]+|[A-Z]:\\+Users\\+[^\s\"'`,;)\]}]+", "[REDACTED]", text)
     return text
 
 

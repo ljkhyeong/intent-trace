@@ -15,11 +15,12 @@ class SensitiveTextRedactorTest {
             session=its_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
             browser=itb_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
             /Users/lim/devProject/intent-trace C:\Users\lim\intent-trace
+            {"cwd":"C:\\Users\\lim\\x","home":"\/Users\/lim\/y"}
         """.trimIndent()
 
         val redacted = redactBoth(source)
 
-        assertEquals(6, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
+        assertEquals(8, Regex(Regex.escape("[REDACTED]")).findAll(redacted).count())
         assertFalse(redacted.contains("ghu_userToken123"))
         assertFalse(redacted.contains("itb_" + "B".repeat(43)))
         assertFalse(redacted.contains("lim"))
