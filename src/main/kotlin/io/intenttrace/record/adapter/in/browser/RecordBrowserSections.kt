@@ -2,7 +2,6 @@ package io.intenttrace.record.adapter.`in`.browser
 
 import io.intenttrace.connection.application.ConnectionDiagnosis
 import io.intenttrace.connection.application.DiagnosticStatus
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.publication.application.PublicationAttempt
 import io.intenttrace.publication.application.PublicationAttemptStatus
 import io.intenttrace.publication.application.PublicationOperation
@@ -31,8 +30,8 @@ internal fun publicationFacts(result: RecordPublications) = PublicationsView(res
         publicationLabel(item.latestAttempt, item.publication != null), item.publication?.checkRunUrl, item.supersessionNoticeNeeded)
 }, result.truncated, result.items.any { it.supersessionNoticeNeeded })
 
-internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: String?, number: Int?, result: PullRequestOverview?,
-    searchUrl: String): ModelAndView = view("pull-requests", "PR 변경 기록", actor, PullRequestsView(repository.orEmpty(),
+internal fun RecordBrowserPage.pullRequests(repository: String?, number: Int?, result: PullRequestOverview?,
+    searchUrl: String): ModelAndView = view("pull-requests", "PR 변경 기록", PullRequestsView(repository.orEmpty(),
     number?.toString().orEmpty(), result?.let {
         PullRequestResultView(it.pullNumber, time(it.checkedAt), it.headRevision,
             url("/records/github", "repositoryKey" to it.repositoryKey, "number" to it.pullNumber.toString()),
@@ -45,8 +44,8 @@ internal fun RecordBrowserPage.pullRequests(actor: ActorIdentity, repository: St
             it.nextCursor?.let { cursor -> url("/records/pull-requests", "repositoryKey" to repository, "pullNumber" to number.toString(), "cursor" to cursor) })
     }))
 
-internal fun RecordBrowserPage.connection(actor: ActorIdentity, repository: String?, revision: String?, number: Int?, result: ConnectionDiagnosis?): ModelAndView =
-    view("connection", "연결 진단", actor, ConnectionView(repository.orEmpty(), number?.toString().orEmpty(), revision.orEmpty(),
+internal fun RecordBrowserPage.connection(repository: String?, revision: String?, number: Int?, result: ConnectionDiagnosis?): ModelAndView =
+    view("connection", "연결 진단", ConnectionView(repository.orEmpty(), number?.toString().orEmpty(), revision.orEmpty(),
         result?.let {
             ConnectionResultView(time(it.checkedAt), it.checks.map { check ->
                 ConnectionCheckView(check.status.label, checkNames[check.name] ?: check.name, check.message)
@@ -62,7 +61,7 @@ private val DiagnosticStatus.label: String get() = when (this) {
     DiagnosticStatus.CONFIGURED_UNVERIFIED -> "설정됨 · 유효성 미확인"; DiagnosticStatus.NOT_CONFIGURED -> "설정 필요"; DiagnosticStatus.NOT_CHECKED -> "확인하지 않음"
 }
 
-internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRecordComparison, changesOnly: Boolean, searchUrl: String?): ModelAndView {
+internal fun RecordBrowserPage.comparison(result: ChangeRecordComparison, changesOnly: Boolean, searchUrl: String?): ModelAndView {
     val sections = ComparisonField.entries.filter { !changesOnly || it in result.changedFields }.map { field ->
         val changed = field in result.changedFields
         val details = result.details.filter { it.field == field }
@@ -82,7 +81,7 @@ internal fun RecordBrowserPage.comparison(actor: ActorIdentity, result: ChangeRe
         }, if (highlighted) highlight(originalText, successorText, "del") else listOf(DiffPart(originalText, null)),
             if (highlighted) highlight(successorText, originalText, "ins") else listOf(DiffPart(successorText, null)))
     }
-    return view("comparison", "원본과 새 기록 비교", actor, ComparisonView(result.successor.content.verifications.isEmpty(),
+    return view("comparison", "원본과 새 기록 비교", ComparisonView(result.successor.content.verifications.isEmpty(),
         recordUrl(result.original.id, searchUrl), result.original.version, recordUrl(result.successor.id, searchUrl),
         result.successor.version, Link(recordUrl(result.successor.id, searchUrl, "comparison", "changesOnly" to !changesOnly),
             if (changesOnly) "같은 항목도 함께 보기" else "변경된 항목만 보기"),

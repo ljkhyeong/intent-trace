@@ -41,7 +41,7 @@ class RecordBrowserNavigationTest {
         )
         for ((matched, queryPath) in cases) {
             val result = ChangeIntentHistory(queryRevision, queryPath, listOf(matched), null, 1)
-            val view = pages.history(actor, summary.repositoryKey, queryRevision, queryPath, matched.currentStartLine, result, null)
+            val view = pages.history(summary.repositoryKey, queryRevision, queryPath, matched.currentStartLine, result, null)
                 .page<HistoryView>().result!!.items.single()
             val source = URI(view.sourceCodeUrl)
             val current = URI(view.currentCodeUrl!!)
@@ -61,7 +61,7 @@ class RecordBrowserNavigationTest {
     fun `현재 코드 위치가 미확인이면 당시 코드 링크만 제공한다`() {
         val unverified = item.copy(match = IntentMatch.RELATED_UNVERIFIED, currentStartLine = null, currentEndLine = null)
         val result = ChangeIntentHistory(queryRevision, sourcePath, listOf(unverified), null, 1)
-        val view = pages.history(actor, summary.repositoryKey, queryRevision, sourcePath, 1, result, null)
+        val view = pages.history(summary.repositoryKey, queryRevision, sourcePath, 1, result, null)
             .page<HistoryView>().result!!.items.single()
         assertEquals("/acme/project/blob/$sourceRevision/$sourcePath", URI(view.sourceCodeUrl).path)
         assertNull(view.currentCodeUrl)
@@ -71,7 +71,7 @@ class RecordBrowserNavigationTest {
     @Test
     fun `CI 실행이 없는 페이지에서도 이전 결과로 돌아가거나 새로고침할 수 있다`() {
         val result = GitHubActionsResults(summary.repositoryKey, queryRevision, emptyList(), null, false, Instant.EPOCH)
-        val actions = pages.github(actor, summary.repositoryKey, null, result, actionsPage = 2).page<GitHubView>().actions!!
+        val actions = pages.github(summary.repositoryKey, null, result, actionsPage = 2).page<GitHubView>().actions!!
         val base = "/records/github?repositoryKey=acme%2Fproject&revision=$queryRevision"
         assertEquals(2, actions.page)
         assertEquals("이 페이지에 CI 실행이 없습니다. 이전 페이지에서 확인하세요.", actions.emptyMessage)
@@ -90,7 +90,7 @@ class RecordBrowserNavigationTest {
             url("/records/pull-requests", "repositoryKey" to summary.repositoryKey, "pullNumber" to "27", "cursor" to "pr-cursor") to "&from=pull-requests",
         )
         for ((source, marker) in sources) {
-            val view = pages.activities(actor, result, source).page<ActivitiesView>()
+            val view = pages.activities(result, source).page<ActivitiesView>()
             val previous = URI(view.previousUrl!!)
             val back = URI(view.backUrl)
             assertEquals("/records/${summary.id}/activities", previous.path)

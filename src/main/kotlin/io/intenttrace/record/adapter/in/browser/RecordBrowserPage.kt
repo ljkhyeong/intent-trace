@@ -27,10 +27,10 @@ import java.util.UUID
 @Component
 class RecordBrowserPage(private val properties: GitHubProperties) {
     fun login(returnTo: String, expired: Boolean): ModelAndView =
-        view("login", "기록 열람", null, LoginView(url("/auth/github/start", "returnTo" to returnTo), expired))
+        view("login", "기록 열람", LoginView(url("/auth/github/start", "returnTo" to returnTo), expired))
 
     fun error(status: HttpStatus, message: String, retryUrl: String? = null): ModelAndView =
-        view("error", "기록을 열 수 없습니다", null, ErrorView(message, retryUrl), status)
+        view("error", "기록을 열 수 없습니다", ErrorView(message, retryUrl), status)
 
     fun search(actor: ActorIdentity, repository: String?, q: String?, scope: RecordScope, page: ChangeRecordPage?,
         status: ChangeRecordStatus?, path: String?, authorId: Long?, searchUrl: String): ModelAndView {
@@ -55,12 +55,12 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
                     "path" to path, "authorId" to authorId?.toString(), "cursor" to cursor)
             })
         }
-        return view("search", "기록 찾기", actor, SearchView(tabs, repository.orEmpty(), q.orEmpty(), scope.name,
+        return view("search", "기록 찾기", SearchView(tabs, repository.orEmpty(), q.orEmpty(), scope.name,
             if (mine) "초안·작성자 확인" else "공개·대체 전체", statuses, path.orEmpty(), !mine, authorId?.toString().orEmpty(),
             authorFilter, result))
     }
 
-    fun record(actor: ActorIdentity, publications: RecordPublications, searchUrl: String?): ModelAndView {
+    fun record(publications: RecordPublications, searchUrl: String?): ModelAndView {
         val record = publications.record
         val backUrl = searchUrl ?: url("/records", "repositoryKey" to record.repositoryKey,
             "scope" to if (record.status in TEAM_VISIBLE_STATUSES) "TEAM" else "MINE",
@@ -83,7 +83,7 @@ class RecordBrowserPage(private val properties: GitHubProperties) {
             VerificationView(result, it.command, it.summary, "$source · 종료 코드 ${it.exitCode}", time(it.startedAt),
                 time(it.finishedAt), it.snapshotDigest, it.outputDigest)
         }
-        return view("record", record.title, actor, RecordView(Link(backUrl, backLabel), record.status.label, record.title,
+        return view("record", record.title, RecordView(Link(backUrl, backLabel), record.status.label, record.title,
             record.derivedFromRecordId?.let { recordUrl(it, searchUrl) },
             record.derivedFromRecordId?.let { recordUrl(record.id, searchUrl, "comparison") },
             record.supersededBy?.let { recordUrl(it, searchUrl) }, record.requestSummary,
@@ -140,9 +140,9 @@ data class AnchorView(val side: String, val label: String, val codeUrl: String?,
 data class VerificationView(val result: String, val command: String, val summary: String, val origin: String,
     val startedAt: TimeView, val finishedAt: TimeView, val snapshotDigest: String, val outputDigest: String)
 
-/** 화면 모델에는 표시 값과 로그인 이름만 넣는다. 세션과 토큰은 넣지 않는다. */
-internal fun view(template: String, title: String, actor: ActorIdentity?, page: Any, status: HttpStatus = HttpStatus.OK) =
-    ModelAndView("records/$template", mapOf("title" to title, "login" to actor?.login, "page" to page), status)
+/** 화면 모델에는 표시 값만 넣는다. 머리글의 로그인 이름은 [RecordBrowserController]의 공통 모델이 더한다. */
+internal fun view(template: String, title: String, page: Any, status: HttpStatus = HttpStatus.OK) =
+    ModelAndView("records/$template", mapOf("title" to title, "page" to page), status)
 
 internal fun url(path: String, vararg values: Pair<String, String?>): String = UriComponentsBuilder.fromPath(path).apply {
     values.filter { !it.second.isNullOrEmpty() }.forEach { (key, value) -> queryParam(key, "{$key}") }

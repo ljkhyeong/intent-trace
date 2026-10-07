@@ -1,6 +1,5 @@
 package io.intenttrace.record.adapter.`in`.browser
 
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.AnchorCheckStatus
 import io.intenttrace.record.application.ChangeIntentHistory
 import io.intenttrace.record.application.EvidenceUnavailableReason
@@ -11,11 +10,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.servlet.ModelAndView
 import java.util.UUID
 
-internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?, revision: String?, path: String?, line: Int?,
+internal fun RecordBrowserPage.history(repository: String?, revision: String?, path: String?, line: Int?,
     result: ChangeIntentHistory?, searchUrl: String?): ModelAndView {
     fun query(extra: String, value: String) = url("/records/history", "repositoryKey" to repository,
         "revision" to revision, "path" to path, "line" to line.toString(), extra to value)
-    return view("history", "파일·줄로 기록 찾기", actor, HistoryView(repository.orEmpty(), revision.orEmpty(), path.orEmpty(),
+    return view("history", "파일·줄로 기록 찾기", HistoryView(repository.orEmpty(), revision.orEmpty(), path.orEmpty(),
         line?.toString().orEmpty(), result?.let {
             val stopped = it.stopReason?.let { reason ->
                 val guidance = if (it.resumeBlocked) {
@@ -45,17 +44,16 @@ internal fun RecordBrowserPage.history(actor: ActorIdentity, repository: String?
         }))
 }
 
-internal fun RecordBrowserPage.evidence(actor: ActorIdentity, result: RecordEvidenceCheck, searchUrl: String?): ModelAndView =
-    view("evidence", "GitHub 코드와 비교", actor, EvidenceView(recordUrl(result.recordId, searchUrl),
+internal fun RecordBrowserPage.evidence(result: RecordEvidenceCheck, searchUrl: String?): ModelAndView =
+    view("evidence", "GitHub 코드와 비교", EvidenceView(recordUrl(result.recordId, searchUrl),
         if (result.codeVerified) "스냅샷 해시와 모든 관련 코드가 일치합니다." else "스냅샷 해시 또는 관련 코드가 일치하지 않습니다.",
         result.recordVersion, time(result.checkedAt), result.targetRevision, result.snapshotDigest,
         if (result.snapshotMatches) "일치" else "불일치", result.anchors.map {
             EvidenceAnchorView(it.status.label, "${it.path}:${it.startLine}–${it.endLine}", it.side.label, it.revision)
         }))
 
-internal fun RecordBrowserPage.evidenceUnavailable(actor: ActorIdentity, recordId: UUID, reason: EvidenceUnavailableReason,
-    searchUrl: String?): ModelAndView = view("evidence-unavailable", "코드 확인 불가", actor,
-    EvidenceUnavailableView(recordUrl(recordId, searchUrl), reason.message), HttpStatus.UNPROCESSABLE_CONTENT)
+internal fun RecordBrowserPage.evidenceUnavailable(recordId: UUID, reason: EvidenceUnavailableReason, searchUrl: String?): ModelAndView =
+    view("evidence-unavailable", "코드 확인 불가", EvidenceUnavailableView(recordUrl(recordId, searchUrl), reason.message), HttpStatus.UNPROCESSABLE_CONTENT)
 
 private val HistoryStopReason.message: String get() = when (this) {
     HistoryStopReason.TIME_LIMIT -> "조회 제한 시간에 도달해 중단했습니다."

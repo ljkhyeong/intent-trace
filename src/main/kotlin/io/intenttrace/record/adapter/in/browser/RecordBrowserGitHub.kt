@@ -1,14 +1,13 @@
 package io.intenttrace.record.adapter.`in`.browser
 
-import io.intenttrace.identity.domain.ActorIdentity
 import io.intenttrace.record.application.GitHubActionsResults
 import io.intenttrace.record.application.GitHubActionsRun
 import io.intenttrace.record.application.GitHubRequestContext
 import io.intenttrace.record.application.GitHubRequestKind
 import org.springframework.web.servlet.ModelAndView
 
-internal fun RecordBrowserPage.github(actor: ActorIdentity, repository: String?, request: GitHubRequestContext?,
-    actions: GitHubActionsResults?, actionsPage: Int): ModelAndView = view("github", "이슈·PR·CI", actor, GitHubView(
+internal fun RecordBrowserPage.github(repository: String?, request: GitHubRequestContext?, actions: GitHubActionsResults?,
+    actionsPage: Int): ModelAndView = view("github", "이슈·PR·CI", GitHubView(
     repository.orEmpty(), request?.number?.toString().orEmpty(), actions?.revision.orEmpty(),
     request?.let {
         GitHubRequestView(it.title, "${if (it.kind == GitHubRequestKind.ISSUE) "이슈" else "PR"} #${it.number}", it.sourceUrl,

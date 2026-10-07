@@ -44,6 +44,7 @@ import org.springframework.web.bind.WebDataBinder
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.InitBinder
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestAttribute
@@ -80,6 +81,10 @@ class RecordBrowserController(
     @InitBinder
     fun trimParameters(binder: WebDataBinder) = binder.registerCustomEditor(String::class.java, StringTrimmerEditor(true))
 
+    // 레이아웃 머리글에 쓸 로그인 이름만 모델에 넣는다. 세션과 토큰은 넣지 않는다. 로그아웃 POST에는 세션이 없다.
+    @ModelAttribute("login")
+    fun loginName(@RequestAttribute(SESSION_ATTRIBUTE, required = false) session: GitHubUserSession?): String? = session?.actor?.login
+
     @GetMapping
     fun search(
         request: HttpServletRequest,
@@ -97,8 +102,7 @@ class RecordBrowserController(
 
     // 게시 목록 조회가 같은 권한 검사로 기록을 함께 읽는다.
     @GetMapping("/{id}")
-    fun record(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @PathVariable id: UUID): ModelAndView = pages.record(session.actor, publisher.targets(id), searchUrl(request))
+    fun record(request: HttpServletRequest, @PathVariable id: UUID): ModelAndView = pages.record(publisher.targets(id), searchUrl(request))
 
     @GetMapping("/{id}/markdown")
     fun markdown(@PathVariable id: UUID): ResponseEntity<String> {
@@ -109,38 +113,33 @@ class RecordBrowserController(
     }
 
     @GetMapping("/{id}/comparison")
-    fun compare(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @PathVariable id: UUID, @RequestParam(defaultValue = "false") changesOnly: Boolean): ModelAndView =
-        pages.comparison(session.actor, comparison.compare(id), changesOnly, searchUrl(request))
+    fun compare(request: HttpServletRequest, @PathVariable id: UUID, @RequestParam(defaultValue = "false") changesOnly: Boolean): ModelAndView =
+        pages.comparison(comparison.compare(id), changesOnly, searchUrl(request))
 
     @GetMapping("/history")
-    fun history(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @RequestParam repositoryKey: String?, @RequestParam revision: String?, @RequestParam path: String?,
-        @RequestParam line: Int?, @RequestParam cursor: String?, @RequestParam retryRecordId: UUID?): ModelAndView {
+    fun history(request: HttpServletRequest, @RequestParam repositoryKey: String?, @RequestParam revision: String?,
+        @RequestParam path: String?, @RequestParam line: Int?, @RequestParam cursor: String?, @RequestParam retryRecordId: UUID?): ModelAndView {
         val supplied = listOf(repositoryKey, revision, path, line)
         require(supplied.all { it == null } || supplied.all { it != null }) { "저장소·커밋·파일·줄을 함께 입력해 주세요." }
         require(repositoryKey != null || (cursor == null && retryRecordId == null)) { "먼저 조회 조건을 입력해 주세요." }
-        return pages.history(session.actor, repositoryKey, revision, path, line, repositoryKey?.let {
+        return pages.history(repositoryKey, revision, path, line, repositoryKey?.let {
             history.find(it, requireNotNull(revision), requireNotNull(path), requireNotNull(line), cursor, retryRecordId = retryRecordId)
         }, returnTo(request))
     }
 
     @GetMapping("/{id}/evidence")
-    fun evidence(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @PathVariable id: UUID): ModelAndView = try {
-        pages.evidence(session.actor, evidence.check(id), searchUrl(request))
+    fun evidence(request: HttpServletRequest, @PathVariable id: UUID): ModelAndView = try {
+        pages.evidence(evidence.check(id), searchUrl(request))
     } catch (failure: EvidenceUnavailableException) {
-        pages.evidenceUnavailable(session.actor, id, failure.reason, searchUrl(request))
+        pages.evidenceUnavailable(id, failure.reason, searchUrl(request))
     }
 
     @GetMapping("/{id}/activities")
-    fun activities(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @PathVariable id: UUID, @RequestParam beforeVersion: Long?): ModelAndView =
-        pages.activities(session.actor, activities.list(id, beforeVersion), searchUrl(request))
+    fun activities(request: HttpServletRequest, @PathVariable id: UUID, @RequestParam beforeVersion: Long?): ModelAndView =
+        pages.activities(activities.list(id, beforeVersion), searchUrl(request))
 
     @GetMapping("/sessions")
-    fun sessions(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession): ModelAndView =
-        pages.sessions(session.actor, mySessions.list())
+    fun sessions(): ModelAndView = pages.sessions(mySessions.list())
 
     @PostMapping("/sessions/{id}/revoke")
     fun revokeSession(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @PathVariable id: UUID): ResponseEntity<Void> {
@@ -161,29 +160,27 @@ class RecordBrowserController(
             .build()
 
     @GetMapping("/pull-requests")
-    fun pullRequests(request: HttpServletRequest, @RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession,
-        @RequestParam repositoryKey: String?, @RequestParam pullNumber: Int?, @RequestParam cursor: String?): ModelAndView {
+    fun pullRequests(request: HttpServletRequest, @RequestParam repositoryKey: String?, @RequestParam pullNumber: Int?,
+        @RequestParam cursor: String?): ModelAndView {
         val repository = repositoryKey?.let(GitHubRepository::parse)
         require((repository == null) == (pullNumber == null)) { "저장소와 PR 번호를 함께 입력해 주세요." }
-        return pages.pullRequests(session.actor, repository?.key, pullNumber, repository?.let {
+        return pages.pullRequests(repository?.key, pullNumber, repository?.let {
             overview.overview(GitHubPullRequestTarget(it.canonicalOwner, it.canonicalName, requireNotNull(pullNumber)), cursor)
         }, returnTo(request))
     }
 
     @GetMapping("/github")
-    fun github(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @RequestParam repositoryKey: String?,
-        @RequestParam number: Int?, @RequestParam revision: String?, @RequestParam(defaultValue = "1") page: Int): ModelAndView {
+    fun github(@RequestParam repositoryKey: String?, @RequestParam number: Int?, @RequestParam revision: String?,
+        @RequestParam(defaultValue = "1") page: Int): ModelAndView {
         require(repositoryKey != null || (number == null && revision == null)) { "저장소를 함께 입력해 주세요." }
-        return pages.github(session.actor, repositoryKey,
+        return pages.github(repositoryKey,
             number?.let { githubContext.request(requireNotNull(repositoryKey), it) },
             revision?.let { githubContext.actions(requireNotNull(repositoryKey), it, page) }, page)
     }
 
     @GetMapping("/connection")
-    fun connection(@RequestAttribute(SESSION_ATTRIBUTE) session: GitHubUserSession, @RequestParam repositoryKey: String?,
-        @RequestParam revision: String?, @RequestParam pullNumber: Int?): ModelAndView =
-        pages.connection(session.actor, repositoryKey, revision, pullNumber,
-            repositoryKey?.let { diagnostics.diagnose(it, revision, pullNumber) })
+    fun connection(@RequestParam repositoryKey: String?, @RequestParam revision: String?, @RequestParam pullNumber: Int?): ModelAndView =
+        pages.connection(repositoryKey, revision, pullNumber, repositoryKey?.let { diagnostics.diagnose(it, revision, pullNumber) })
 
     @PostMapping("/logout")
     fun logout(request: HttpServletRequest): ResponseEntity<Void> {
