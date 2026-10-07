@@ -2,7 +2,6 @@ package io.intenttrace.record.adapter.`in`.mcp
 
 import io.intenttrace.record.adapter.`in`.web.ChangeIntentLookup
 import io.intenttrace.record.adapter.`in`.web.ChangeRecordResponse
-import io.intenttrace.record.adapter.`in`.web.SupersedeChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.CreateChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.ReviseChangeRecordRequest
 import io.intenttrace.record.adapter.`in`.web.SuccessorDraftRequest
@@ -12,6 +11,7 @@ import io.intenttrace.record.application.ChangeRecordPage
 import io.intenttrace.record.application.ConfirmChangeRecordCommand
 import io.intenttrace.record.application.PublishChangeRecordCommand
 import io.intenttrace.record.application.RecordScope
+import io.intenttrace.record.application.SupersedeChangeRecordCommand
 import io.intenttrace.record.domain.ChangeRecordStatus
 import io.intenttrace.record.domain.FULL_GIT_REVISION_PATTERN
 import io.intenttrace.record.domain.SHA_256_PATTERN
@@ -107,7 +107,7 @@ class IntentTraceTools(
                   @McpToolParam(description = "기존 기록을 조회해 확인한 현재 버전") expectedVersion: Long,
                   @McpToolParam(description = "먼저 공개한 새 기록 UUID") replacementRecordId: String): ChangeRecordResponse =
         ChangeRecordResponse.from(records.supersede(
-            SupersedeChangeRecordRequest(expectedVersion, parseChangeRecordId(replacementRecordId)).toCommand(parseChangeRecordId(recordId))))
+            SupersedeChangeRecordCommand(parseChangeRecordId(recordId), expectedVersion, parseChangeRecordId(replacementRecordId))))
 
     @McpTool(name = "find_change_intent", description = "지정한 저장소·커밋·파일·줄에 연결된 공개 기록을 최근 공개 순으로 최대 20건 찾습니다. 더 있으면 truncated가 true입니다.", generateOutputSchema = true,
         annotations = McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true, openWorldHint = false))
